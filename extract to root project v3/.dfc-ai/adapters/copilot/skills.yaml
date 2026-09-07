@@ -1,0 +1,42 @@
+defaults:
+  output_dir: ".github/skills"
+  file_name: "SKILL.md"
+  directory_prefix: "dfc-"
+  subdirectory: true
+  template: |
+    ---
+    name: "{{name}}"
+    description: "{{description}}"
+    ---
+
+overrides:
+  discovery:
+    template: |
+      ---
+      name: "dfc-discovery"
+      description: "Systematische Analyse aller Quellen vor Refinement/Implementierung"
+      ---
+  refinement:
+    template: |
+      ---
+      name: "dfc-refinement"
+      description: "Klaerung offener Punkte und Widersprueche vor Implementierung"
+      ---
+  quality-gate:
+    template: |
+      ---
+      name: "dfc-quality-gate"
+      description: "Mehrstufige Validierung nach Implementierung"
+      ---
+  gate-to-refinement:
+    template: |
+      ---
+      name: "dfc-gate-to-refinement"
+      description: "Gate-Pruefung: Discovery vollstaendig?"
+      ---
+  gate-to-ready:
+    template: |
+      ---
+      name: "dfc-gate-to-ready"
+      description: "Gate-Pruefung: Refinement vollstaendig, bereit fuer Implementierung?"
+      ---

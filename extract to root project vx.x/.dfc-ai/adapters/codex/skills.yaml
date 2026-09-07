@@ -1,0 +1,8 @@
+defaults:
+  output_dir: ".agents/skills/dfc"
+  file_name: "{{name}}.md"
+  subdirectory: false
+  template: |
+    # {{name}}
+
+overrides: {}

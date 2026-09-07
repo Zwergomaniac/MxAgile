@@ -1,0 +1,20 @@
+# Local credentials and generated planning context
+/.env.mendix
+/.mcp.json
+/.codex/
+/.grok/
+/.mxcli/catalog.db
+/sprints/generated/
+/planning/generated/
+
+# Common Mendix local state
+/.mendix-cache/
+/deployment/
+/packages/
+/project-settings.user.json
+*.mpr.lock
+*.mpr.bak/.env.mendix
+/.mxcli/catalog.db
+/sprints/generated/
+/planning/generated/
+/.env.mendix

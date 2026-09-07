@@ -1,0 +1,8 @@
+defaults:
+  output_dir: ".hermes/skills/dfc"
+  file_name: "{{name}}.md"
+  subdirectory: false
+  template: |
+    # {{name}}
+
+overrides: {}

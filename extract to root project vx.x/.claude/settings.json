@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mxcli:*)",
+      "Bash(mxcli *)"
+    ]
+  },
+  "env": {
+    "MXCLI_QUIET": "1"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "command": "bash .claude/hooks/check-setup.sh"
+      }
+    ]
+  }
+}

@@ -1,0 +1,281 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mx-project/planning/story-spec.schema.json",
+  "title": "Mendix Project Story Specification",
+  "description": "Schema for story specs under planning/stories/. Also used as output schema for mockup-to-spec extraction agents.",
+  "type": "object",
+  "required": ["module", "title", "domain", "sprint_target", "priority", "status", "overview", "user_stories"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "module": {
+      "type": "string",
+      "description": "Domain prefix + number, e.g. C4, D7, INFRA-auth",
+      "pattern": "^([A-Z]\\d+|INFRA-[a-z-]+)$"
+    },
+
+    "title": {
+      "type": "string",
+      "description": "Human-readable spec title"
+    },
+
+    "domain": {
+      "type": "string",
+      "description": "e.g. C — Anwesenheit & Tagesbetrieb"
+    },
+
+    "sprint_target": {
+      "type": "string",
+      "description": "e.g. Sprint 2 (Tagesbetrieb)"
+    },
+
+    "priority": {
+      "type": "string",
+      "enum": ["Must", "Should", "Could"]
+    },
+
+    "subscription_tier": {
+      "type": "string",
+      "description": "Feature-Gating tier (optional, project-specific)"
+    },
+
+    "decisions": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^D\\d+$" },
+      "description": "Referenced architecture decisions, e.g. [D7, D30]"
+    },
+
+    "status": {
+      "type": "string",
+      "enum": ["Draft", "Review required", "Current", "Blocked", "Superseded"]
+    },
+
+    "board_story": {
+      "type": "string",
+      "description": "Backlog board story ID, e.g. CAP-123 (optional if not yet synced)"
+    },
+
+    "source_fingerprint": {
+      "type": "string",
+      "description": "Hash from board snapshot for reconciliation"
+    },
+
+    "overview": {
+      "type": "string",
+      "description": "Short prose: business context, feature-gating, cross-cutting notes"
+    },
+
+    "user_stories": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/UserStory" }
+    },
+
+    "cross_cutting": {
+      "$ref": "#/definitions/CrossCutting"
+    },
+
+    "dependencies": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Dependency" }
+    },
+
+    "mockup_relevance": {
+      "type": "object",
+      "properties": {
+        "present": { "type": "boolean" },
+        "flows_to_verify": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Flows/interactions to verify in the mockup before implementation"
+        },
+        "screens": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Mockup screen IDs, e.g. F05, E03"
+        }
+      }
+    }
+  },
+
+  "definitions": {
+
+    "UserStory": {
+      "type": "object",
+      "required": ["id", "role", "priority", "complexity", "description", "acceptance_criteria"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "e.g. US-C4-001",
+          "pattern": "^US-[A-Z0-9]+-\\d{3}$"
+        },
+        "role": {
+          "type": "string",
+          "description": "Primary Mendix user role"
+        },
+        "secondary_roles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["Must", "Should", "Could"]
+        },
+        "complexity": {
+          "type": "string",
+          "enum": ["Low", "Medium", "High"]
+        },
+        "description": {
+          "type": "string",
+          "description": "As [role] I want [action] so that [outcome]"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "entities": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Entity" }
+        },
+        "associations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Association" }
+        },
+        "enumerations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Enumeration" }
+        },
+        "pages": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Page" }
+        },
+        "microflows": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Microflow" }
+        },
+        "business_rules": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "ux_hints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "open_questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "question"],
+            "properties": {
+              "type": { "type": "string", "enum": ["DECISION REQUIRED", "ASSUMPTION"] },
+              "question": { "type": "string" },
+              "recommendation": { "type": "string" },
+              "blocks_implementation": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "Entity": {
+      "type": "object",
+      "required": ["name", "persistence", "attributes"],
+      "properties": {
+        "name": { "type": "string", "description": "PascalCase, e.g. OrderItem" },
+        "persistence": { "type": "string", "enum": ["Persistent", "NonPersistent"] },
+        "extends": { "type": "string", "description": "Generalization, e.g. System.Image" },
+        "documentation": { "type": "string" },
+        "attributes": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Attribute" }
+        }
+      }
+    },
+
+    "Attribute": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["String", "Integer", "Long", "Decimal", "Boolean", "DateTime", "Date", "AutoNumber", "Enum", "Binary", "LongString"]
+        },
+        "length": { "type": "integer", "description": "For String types" },
+        "enum_ref": { "type": "string", "description": "Enum name if type is Enum" },
+        "required": { "type": "boolean" },
+        "unique": { "type": "boolean" },
+        "default": {},
+        "documentation": { "type": "string" }
+      }
+    },
+
+    "Association": {
+      "type": "object",
+      "required": ["name", "from", "to", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "type": { "type": "string", "enum": ["OneToMany", "ManyToMany", "OneToOne"] },
+        "owner": { "type": "string", "enum": ["from", "to", "both"] }
+      }
+    },
+
+    "Enumeration": {
+      "type": "object",
+      "required": ["name", "values"],
+      "properties": {
+        "name": { "type": "string", "description": "e.g. ENUM_OrderStatus" },
+        "values": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "Page": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "description": "e.g. Order_Overview" },
+        "description": { "type": "string" },
+        "roles": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "Microflow": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "description": "e.g. ACT_Order_Create" },
+        "description": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["ACT", "SUB", "VAL", "DS", "SE", "NAV"],
+          "description": "ACT=action, SUB=sub, VAL=validation, DS=datasource, SE=scheduled, NAV=navigation"
+        }
+      }
+    },
+
+    "CrossCutting": {
+      "type": "object",
+      "properties": {
+        "tenant_isolation": { "type": "string", "description": "XPath constraint pattern" },
+        "audit": { "type": "string" },
+        "privacy": { "type": "string" },
+        "security": { "type": "string" }
+      }
+    },
+
+    "Dependency": {
+      "type": "object",
+      "required": ["entity_or_module", "module", "description"],
+      "properties": {
+        "entity_or_module": { "type": "string" },
+        "module": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

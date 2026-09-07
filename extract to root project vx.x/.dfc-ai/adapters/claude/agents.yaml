@@ -1,0 +1,75 @@
+defaults:
+  output_dir: ".claude/agents"
+  file_prefix: "dfc-"
+  template: |
+    ---
+    model: sonnet
+    tools:
+      - Read
+      - Grep
+      - Glob
+      - Bash
+    ---
+
+overrides:
+  discovery-agent:
+    template: |
+      ---
+      model: sonnet
+      tools:
+        - Read
+        - Grep
+        - Glob
+        - Bash
+      description: "Read-only Discovery-Agent: analysiert Quellen, erstellt Story-Spezifikationen"
+      ---
+  refinement-agent:
+    template: |
+      ---
+      model: sonnet
+      tools:
+        - Read
+        - Grep
+        - Glob
+        - Bash
+        - Edit
+        - Write
+      description: "Refinement-Agent: klaert offene Punkte, aktualisiert Planungsartefakte"
+      ---
+  ui-agent:
+    template: |
+      ---
+      model: sonnet
+      tools:
+        - Read
+        - Grep
+        - Glob
+        - Bash
+        - Write
+      description: "UI-Agent: Mockup-Analyse (Discovery) und Soll-Ist-Vergleich (Verifying) per Playwright"
+      ---
+  implementation-agent:
+    template: |
+      ---
+      model: sonnet
+      tools:
+        - Read
+        - Grep
+        - Glob
+        - Bash
+        - Edit
+        - Write
+      description: "Implementation-Agent: arbeitet implementation-checklist.yaml ab, fuehrt MDL aus"
+      ---
+  acceptance-agent:
+    template: |
+      ---
+      model: sonnet
+      tools:
+        - Read
+        - Grep
+        - Glob
+        - Bash
+        - Write
+      description: "Acceptance-Agent: Modell-Inspektion + Playwright User Journeys fuer fachliche Pruefung"
+      ---
