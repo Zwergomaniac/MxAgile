@@ -40,7 +40,7 @@ Nach Abschluss einer Wave erstellt der Agent einen versionierten Bericht unter
 - Manuelle Board-Aktionen
 
 Wave-relevante Commits nennen die Story-IDs explizit:
-`feat: implement foundation [CAP-123] [CAP-124]`
+`feat: implement foundation [{STORYPREFIX}-123] [{STORYPREFIX}-124]`
 
 Das ist Traceability und aendert keinen Board-Status. Das manuelle Abhaken erfolgt
 erst nach Pruefung des Berichts und ueber `scripts/generate-board-action-report.ps1`.

@@ -1,5 +1,5 @@
 <!-- BEGIN PROJECT AGENT INSTRUCTIONS -->
-# [PROJEKTNAME] — Agent Instructions
+# [PROJEKTNAME] — Verbindliche Agentenregeln
 
 > **Single Source of Truth:** Diese Datei definiert die projektweiten Regeln fuer
 > alle AI-Agenten. `AGENTS.md` und `CLAUDE.md` sind ausschliesslich Einstiegspunkte
@@ -17,8 +17,8 @@
 > Live-MCP-Anbindung an Studio Pro erforderlich, nicht fuer die lokale MDL-Arbeit.
 > Fuer die Board-Synchronisierung `.env.mendix.example` nach `.env.mendix` kopieren;
 > Zugangsdaten bleiben lokal und werden niemals gelesen, ausgegeben oder versioniert.
-> Diese Datei gilt für generische AI-Agenten (GitHub Copilot, OpenAI Codex, etc.).
-> Für tool-spezifische Regeln: `CLAUDE.md` (Claude Code) · `skillssource/AGENTS.md` (Maia).
+> Diese Datei gilt fuer generische AI-Agenten (GitHub Copilot, OpenAI Codex, etc.).
+> Fuer tool-spezifische Regeln: `CLAUDE.md` (Claude Code) - `skillssource/AGENTS.md` (Maia).
 
 ---
 
@@ -26,20 +26,65 @@
 
 | Agent | Instruktionsdatei | Gemeinsame Basis |
 |---|---|---|
-| Claude Code (VS Code) | `CLAUDE.md` | `projekt.md` |
+| Claude Code (VS Code) | `CLAUDE.md` -> `AGENT.md` | `projekt.md`, `.dfc-ai/` |
 | Maia (Studio Pro) | `skillssource/AGENTS.md` | `projekt.md` |
-| GitHub Copilot / Codex | `AGENTS.md` (diese Datei) | `projekt.md` |
+| GitHub Copilot / Codex | `AGENTS.md` -> `AGENT.md` | `projekt.md`, `.dfc-ai/` |
 | Concord MCP | `.concord/project-memory.md` | `projekt.md` |
+| DFC-AI Prozess-Agenten | `.dfc-ai/agents/` (generiert) | `.dfc-ai/orchestrator.md` |
+
+---
+
+## Agenten-Betriebsmodus: Live-SP vs. Autonom (Selbstauskunft-Pflicht)
+
+Ob ein Agent neben einer live laufenden Studio-Pro-Instanz arbeitet oder autonom auf
+einem geschlossenen Modell, laesst sich nicht zuverlaessig aus Prozess- oder Lock-Zustand
+ableiten: ein vergessenes SP-Fenster taeuscht einen Live-Zustand vor, obwohl der Nutzer
+eigentlich autonom aus VS Code arbeiten will; ein haengender Lock kann ohne aktive Nutzung
+bestehen bleiben. Die Unterscheidung erfolgt deshalb primaer ueber eine Selbstauskunft,
+nicht ueber eine Systemvermutung.
+
+1. Jeder Agent (Concord-CLI in Mendix, GitHub Copilot CLI, VS Code Copilot, Claude Code,
+   Maia) fragt zu Sessionbeginn — oder sobald der Betriebsmodus im Verlauf unklar wird —
+   explizit beim Nutzer nach: *"Arbeitest du gerade live mit einer geoeffneten Studio-Pro-
+   Instanz an diesem Projekt, oder ist Studio Pro geschlossen und ich arbeite autonom?"*
+2. Die Antwort wird als Session-Zustand festgehalten (`LIVE-SP` oder `CLOSED-AUTONOM`) und
+   bestimmt fuer die restliche Session, welche Regeln aus diesem Dokument gelten. Sie wird
+   nicht in einer versionierten Projektdatei gespeichert und bei jeder neuen Session neu
+   erfragt.
+3. **`LIVE-SP`**: nur read-only `SHOW`/`DESCRIBE`/`project-tree --json` direkt am
+   kanonischen Modell. Schreibende Aktionen (`mxcli exec`, Security-Schreibvorgaenge)
+   nur nach Ruecksprache mit dem Nutzer, da Studio Pro gleichzeitig auf das Modell
+   zugreift.
+4. **`CLOSED-AUTONOM`**: `mxcli docker check`, Security-Schreibvorgaenge, Speichern und
+   volle MDL-Bearbeitung sind direkt am kanonischen Modell erlaubt, weil kein Live-Lock-
+   Konflikt bestehen kann.
+5. Ein technischer Zustandscheck (laufender `studiopro`-Prozess, `.mpr.lock`) bleibt als
+   zusaetzliches Sicherheitsnetz bestehen, ersetzt die Selbstauskunft aber nicht.
+   Widerspricht der gemessene Zustand der Selbstauskunft — Nutzer sagt "geschlossen", aber
+   ein `studiopro`-Prozess laeuft nachweislich gegen dieses Projekt, oder umgekehrt — fragt
+   der Agent vor jeder riskanten Aktion aktiv nach, ob ein Fenster vergessen wurde oder der
+   Modus zu korrigieren ist, statt den Widerspruch stillschweigend aufzuloesen.
+6. Ohne eindeutige Selbstauskunft und bei fortbestehendem Widerspruch gilt im Zweifel
+   `LIVE-SP` als sichererer Default, bis der Nutzer den Modus bestaetigt.
 
 ---
 
 ## Allgemeine Entwicklungsregeln
 
-- **KEIN manuelles git commit/push** — Mendix Team Server übernimmt Versionskontrolle
-- **`[Spec.md]` niemals modifizieren** — ist die unveränderliche Produkt-Spezifikation
+- **Commits vorbereiten, dann bestaetigen lassen** — Agenten duerfen Staging und Commit-Vorschlag vorbereiten und fragen vor `git commit` nach ausdruecklicher Freigabe. Im explizit aktivierten Autopilot-Modus darf der Agent diese Freigabe selbst bestaetigen und den Commit ausfuehren. `git push` bleibt manuell.
+- **`[Spec.md]` niemals modifizieren** — ist die unveraenderliche Produkt-Spezifikation
 - Domain-Model: Englisch, PascalCase
-- FOSS-Marketplace-Module vor Eigenentwicklung prüfen
-- Annahmen: ⚠️ ASSUMPTION | Offene Entscheidungen: ⚠️ DECISION REQUIRED
+- FOSS-Marketplace-Module vor Eigenentwicklung pruefen
+- Annahmen: ASSUMPTION | Offene Entscheidungen: DECISION REQUIRED
+- **Modul-Transferfaehigkeit:** Bei jedem neuen Modul pruefen: "Ist das applikationsspezifisch
+  oder generisch wiederverwendbar? Wenn spezifisch: ist die Grenze sauber genug fuer ein
+  Ersatzmodul?" Entity-Namen generisch halten (z.B. `employee`, `Group`, `Facility` statt
+  produktspezifischer Begriffe). UX-Entscheidungen (Touch-Targets, Layout-Dichte, Farbschema)
+  gehoeren ins UI-Modul, nicht in Fachmodule.
+- **Mockup-Strategie:** Ein lebendes SPA-Mockup (`input-resources/ui-ux/`) mit zwei
+  Detailstufen: Full Fidelity (interaktiv, alle Zustaende, realistische Daten) fuer aktuelle
+  und naechste Sprints — Wireframe (grau, Sprint-Badge, nur Navigation funktional) fuer
+  spaetere Sprints. Wireframes werden beim Erreichen des jeweiligen Sprints hochgezogen.
 
 ---
 
@@ -48,10 +93,16 @@
 | Thema | Datei |
 |---|---|
 | Projektziel, Architektur, Module | `projekt.md` |
+| Prozessfluss, Phasen, Gates | `.dfc-ai/orchestrator.md` |
+| Prozess-Policies (Safety, Backlog, Tests) | `.dfc-ai/policies/` |
+| Prozess-Skills (Discovery, Refinement, Gates) | `.dfc-ai/skills/` |
 | mxcli-Befehle, Concord MCP, Tool-Routing | `CLAUDE.md` |
 | Aktuelle User Stories und Sprint-Kontext | `sprints/generated/` nach `scripts/sync-epics-stories.ps1` |
 | Synchronisierungsablauf | `sprints/sync-workflow.md` |
 | Abgeleitete Spezifikationen und Tests | `planning/` nach `scripts/reconcile-derived-artifacts.ps1` |
+| Sprint-Roadmap (Spec-Uebersicht) | `planning/sprint-roadmap.md` |
+| Mockup-Strategie und Screen-Zuordnung | `planning/mockup-gesamtplan.md` |
+| Mockup-Validierungsbericht | `planning/mockup-validation-report.md` |
 | Mendix-Programmierregeln, Domain-Konventionen | `skillssource/AGENTS.md` |
 | Architekturentscheidungen | `sprints/decisions.md` |
 | Mercedes-Benz Plattformmodule | `.dfc-ai/modules/platform-modules.md` |
@@ -70,7 +121,7 @@ Referenzdokumente und werden nicht als globale Copilot-Skills vorausgesetzt.
 
 ## Plattformmodule
 
-Vor Eigenentwicklung immer zuerst .dfc-ai/modules/platform-modules.md prüfen.
+Vor Eigenentwicklung immer zuerst `.dfc-ai/modules/platform-modules.md` pruefen.
 
 Mercedes-Benz Plattformmodule sind zu bevorzugen.
 
@@ -78,7 +129,7 @@ Modifikationen an Plattformmodulen sind nicht erlaubt.
 
 ### Input Resources
 
-Der Ordner `input-resources/` enthält verbindliche Eingabeartefakte wie:
+Der Ordner `input-resources/` enthaelt verbindliche Eingabeartefakte wie:
 
 - interaktive HTML-Mockups
 - UI-/UX-Referenzen
@@ -86,63 +137,84 @@ Der Ordner `input-resources/` enthält verbindliche Eingabeartefakte wie:
 - Prozessdarstellungen
 - Screenshots und weitere Referenzdateien
 
-Vor Planung oder Implementierung einer Story muss geprüft werden, ob relevante
+Vor Planung oder Implementierung einer Story muss geprueft werden, ob relevante
 Artefakte in `input-resources/` vorhanden sind.
 
 Relevante Eingabeartefakte haben Vorrang vor Annahmen des Agenten.
 
-Bei HTML-Mockups gilt:
+### Mendix Epics Board und abgeleitete Artefakte
 
-1. Mockup in einem echten Browser ausführen.
-2. Nicht nur HTML-, CSS- oder JavaScript-Code analysieren.
-3. Relevante Seiten, Zustände und Interaktionen mit Playwright untersuchen.
-4. Bei zustandsabhängigen Controls alle fachlich relevanten Varianten aktiv ausloesen und
-   Labels, sichtbare Felder, Eingabequelle, Validierungen und Datenwirkung vergleichen.
-5. Beobachtete Varianten als fachliche Regel oder `⚠️ DECISION REQUIRED` dokumentieren.
-6. Screenshots der relevanten Zustände erzeugen.
-7. UI, UX, Navigation, Validierungen und erkennbare fachliche Abläufe als
-   Referenz für die Mendix-Implementierung verwenden.
-8. Unklare oder widersprüchliche Abläufe als `⚠️ DECISION REQUIRED` markieren.
-9. Das Mockup nicht verändern, sofern dies nicht ausdrücklich beauftragt wurde.
+Regeln fuer Board-Synchronisierung, abgeleitete Artefakte und Wave-Traceability:
+siehe `.dfc-ai/policies/backlog-sync.md`.
 
-Details zur Ablage und Verwendung:
-`input-resources/README.md`
+### HTML-Mockups
 
-### Mendix Epics Board
-
-Wenn das Mendix Epics Board als Backlog-Quelle konfiguriert ist, ist es verbindlich
-fuer User Stories, Akzeptanzkriterien, Sprintzuordnung und Status. Vor Planung oder
-Umsetzung einer Board-Story zuerst `scripts/sync-epics-stories.ps1` ausfuehren und den
-passenden generierten Snapshot unter `sprints/generated/` lesen. Die Snapshots sind
-read-only; Story- und Statusaenderungen werden ausschliesslich im Mendix Epics Board
-vorgenommen.
-
-### Abgeleitete Arbeitsartefakte
-
-Wenn Mendix Epics als Backlog-Quelle festgelegt ist, muessen technische Spezifikationen,
-Testmatrizen, Traceability- und Abhaengigkeitsmatrizen unter `planning/` die Board-Story-ID
-und den `Source fingerprint` aus dem Snapshot enthalten. Nach jedem Board-Sync
-`scripts/reconcile-derived-artifacts.ps1` ausfuehren. Das Board bleibt verbindlich.
-
-Implementation Waves unter `planning/execution-waves.md` sind technische Reihenfolge,
-keine lokalen Sprints. Nach validierter Umsetzung kann ein Artefakt eine optionale
-`board_action` angeben. `scripts/generate-board-action-report.ps1` erzeugt daraus nur
-einen Bericht fuer manuelle Board-Aktionen; Board-Status und Tasks werden nie lokal oder
-automatisch geaendert.
+Regeln fuer Mockup-Analyse mit Playwright: siehe `.dfc-ai/policies/mockup-analysis.md`.
+Details zur Ablage und Verwendung: `input-resources/README.md`.
 
 @projekt.md
 @.claude/setup.md
 
 > **Projektkontext:** `projekt.md` und `setup.md` sind oben via @-Include geladen.
-> Diese Datei enthält nur Claude Code-spezifische Inhalte (Tool-Routing, mxcli, Safety Rules).
-> Diese Datei enthält nur Claude Code-spezifische Inhalte (Tool-Routing, mxcli, Safety Rules).
+> **Prozesssteuerung:** `.dfc-ai/orchestrator.md` definiert den Prozessfluss.
+> **Policies:** `.dfc-ai/policies/` enthaelt wiederverwendbare Prozessregeln.
+> **Setup:** `scripts/setup-agent-system.ps1` regeneriert alle Plattform-Skills.
 
 ---
 
-## mxcli-Exklusiv (SP muss geschlossen sein für Writes)
+## mxcli-Exklusiv (SP muss geschlossen sein fuer Writes)
 Security-Rollen / User Roles / Demo Users / Security Level, Nanoflows CREATE,
 View Entities (OQL), Indexes, REVOKE, MOVE, OData, Java Actions,
 Navigation mit rollenbasierten Home-Pages, `mxcli lint`, `mxcli docker check`
+
+### Entity-Security-Checkpoint und Wave-Schnitt
+
+`CE0066` entsteht typischerweise nach strukturellen Domain-Model-Aenderungen, wenn
+Mendix die Entity-Access-Metadaten als veraltet markiert. Betroffen sind insbesondere
+neue oder geloeschte Entitaeten, neue oder entfernte Attribute und Associations sowie
+Aenderungen an Generalisierung oder Entity-Security. Nach einem gebuendelten
+Modellabschnitt `mxcli docker check` ausfuehren; bei `CE0066` Studio Pro oeffnen, in
+jedem betroffenen Domain Model **Update security** ausfuehren, speichern, Studio Pro
+schliessen und den Check wiederholen.
+
+Waves werden deshalb so geschnitten, dass zusammengehoerige Domain-Model-Aenderungen
+in einem Modellabschnitt liegen. Pro Wave gibt es hoechstens ein bewusstes
+Entity-Security-Gate. Reine Seiten-, Microflow-, Test- und Dokumentationsarbeit folgt
+erst nach diesem Gate und loest normalerweise kein neues `CE0066` aus. Alle Waves werden
+grob als Roadmap geplant; nur die naechste Wave wird vollstaendig detailliert und
+umgesetzt.
+
+`mxcli docker check` darf direkt auf dem kanonischen Checkout ausgefuehrt werden.
+Fuer reine MDL-/Referenzvalidierung genuegt
+`mxcli check <script>.mdl -p <project>.mpr --references`.
+
+Mehrere Studio-Pro-Instanzen fuer andere Projekte duerfen parallel geoeffnet bleiben.
+Wenn ein Agent fuer dieses Projekt Studio Pro startet, verwendet er bei einem
+anschliessenden manuellen Schritt `scripts/open-studio-pro.ps1 -WaitForClose`.
+Der Launcher wartet nur auf die von ihm gestartete PID und blockiert oder beendet keine
+anderen Studio-Pro-Instanzen.
+
+### Wave-Report und Board-Traceability
+
+Siehe `.dfc-ai/policies/backlog-sync.md` fuer Wave-Report-Regeln und Board-Traceability.
+Wave-relevante Commits nennen die Story-IDs explizit:
+`feat: implement foundation [{STORYPREFIX}-123] [{STORYPREFIX}-124]`.
+
+### Docker-/Playwright-Test
+
+Docker- und Playwright-Tests laufen ueber `scripts/run-docker-isolated.ps1` direkt
+auf dem kanonischen Modell. Der Runner startet Docker mit einem Port-Offset.
+
+Nach erfolgreichem Docker-Build und healthy Mendix-Container wird der integrierte
+Playwright-Browser-Test als naechster Agentenschritt gegen die ausgegebene App-URL
+ausgefuehrt. Die lokalen Werte `MENDIX_APP_TEST_USERNAME` und
+`MENDIX_APP_TEST_PASSWORD` aus `.env.mendix` werden nur zur Laufzeit verwendet und
+niemals ausgegeben, in MDL geschrieben oder versioniert.
+
+Wenn MxBuild oder der Mendix-Konsistenzcheck `CE0066` meldet, muss **Update security**
+im kanonischen Originalmodell ausgefuehrt werden. Ablauf: Studio Pro oeffnen,
+im betroffenen Domain Model **Update security** ausfuehren, speichern, Studio Pro
+schliessen, Commit, danach Docker-/Playwright-Test erneut ausfuehren.
 
 Bei MB_SSO-Konfiguration `MB_SSO.CONST_UserroleAppname` pruefen. Wenn sie leer oder
 nicht einem eindeutigen 3-5-stelligen Uppercase-Kuerzel entspricht, das Kuerzel vor dem
@@ -154,7 +226,8 @@ seiner Bestaetigung umbenennen oder migrieren.
 ---
 
 # CONCORD SAFETY RULES (non-negotiable)
-- NEVER run version-control WRITE commands: no git/hg add/commit/checkout/reset/clean/stash/push/merge/rebase
+- Version-control write policy: agents may prepare staging and commit proposals. Before `git commit`, ask for explicit confirmation unless Autopilot mode is explicitly enabled. In Autopilot mode, the agent may self-confirm and run `git commit`. `git push` remains user-driven.
+- NEVER run destructive version-control commands without explicit user request: `git/hg checkout`, `reset`, `clean`, `stash`, `merge`, `rebase`, `push`.
 - NEVER delete or destructively modify model elements without EXPLICIT user confirmation in the SAME turn
 - Before ANY destructive or irreversible operation: state exactly what will change, get confirm
 - MODEL writes: SP-MCP directly first. Concord's write-ladder is FALLBACK only.
@@ -171,62 +244,6 @@ seiner Bestaetigung umbenennen oder migrieren.
 <!-- TODO: Pfad zur mxcli-Installation -->
 `mxcli` is available in PATH. Usage: `mxcli -p App.mpr -c "COMMAND"`
 
-Wenn eine Konsistenzprüfung `CE0066` meldet, `scripts/open-studio-pro.ps1` ausführen.
-Der Entwickler klickt in Studio Pro im betroffenen Domänenmodell **Update security**, speichert,
-schließt Studio Pro wieder und startet danach die Konsistenzprüfung erneut.
-
-### MPR-v2-Materialisierungswache
-
-Solange Zeitpunkt und Ursache einer Materialisierung nicht abschliessend geklaert sind,
-prueft jeder Agent vor und nach jeder Modellaktion den MPR-v2-Zustand:
-
-1. Studio-Pro-Prozessstatus feststellen.
-2. Groesse der `.mpr`, Existenz von `mprcontents/`, Anzahl der
-   `mprcontents/**/*.mxunit`-Dateien und Inhalt von `mprcontents/mprname` protokollieren.
-3. Nach der Aktion dieselben Werte erneut pruefen.
-4. Wenn `mprcontents/` verschwindet oder die `.mpr` unerwartet stark waechst,
-   Aktion als fehlgeschlagen markieren, keine Folgeaktion starten, eine Recovery-Kopie
-   unter `.concord/scratch/` sichern und den letzten bekannten MPR-v2-Stand wiederherstellen.
-5. Erst nach bestaetigter unveraenderter MPR-v2-Struktur weiterarbeiten oder committen.
-
-Mehrere Studio-Pro-Instanzen fuer andere Projekte duerfen parallel geoeffnet bleiben.
-Wenn ein Agent fuer dieses Projekt Studio Pro startet, verwendet er bei einem
-anschliessenden manuellen Schritt `scripts/open-studio-pro.ps1 -WaitForClose`.
-Der Launcher wartet nur auf die von ihm gestartete PID und blockiert oder beendet keine
-anderen Studio-Pro-Instanzen.
-
-Read-only mxcli-Kommandos duerfen ohne Modellcheckpoint verwendet werden. Fuer `exec`,
-MCP-Schreibvorgaenge, Studio-Pro-Start, `mxcli docker check` und Speichern gilt die
-Vorher-/Nachher-Pruefung immer. Ein gruener Mendix-Konsistenzcheck ersetzt diese
-Materialisierungspruefung nicht.
-
-### Isolierter Docker-/Playwright-Test
-
-Docker- und Playwright-Tests laufen standardmaessig ueber
-`scripts/run-docker-isolated.ps1`. Der Runner erstellt eine disposable Kopie aus `HEAD`
-unter `.concord/scratch/`, startet Docker mit `--skip-check` und verwendet einen
-Port-Offset. Der kanonische MPR-v2-Checkout wird nicht direkt an `mxcli docker run`
-uebergeben. Nach dem Lauf werden MPR-Groesse und `mxunit`-Anzahl der Kopie geprueft;
-eine Materialisierung der Kopie markiert den Test als fehlgeschlagen, veraendert aber
-nicht den kanonischen Checkout. Dieser isolierte Lauf ist diagnostisch und ersetzt
-keinen kanonischen Security- oder Release-Gate.
-
-Nach erfolgreichem Docker-Build und healthy Mendix-Container wird der integrierte
-Playwright-Browser-Test als naechster Agentenschritt gegen die ausgegebene App-URL
-ausgefuehrt. Die lokalen Werte `MENDIX_APP_TEST_USERNAME` und
-`MENDIX_APP_TEST_PASSWORD` aus `.env.mendix` werden nur zur Laufzeit verwendet und
-niemals ausgegeben, in MDL geschrieben oder versioniert. Ein eigenstaendiger
-PowerShell-Aufruf kann die integrierten VS-Code-Browserwerkzeuge nicht direkt starten;
-der Agent uebernimmt diesen Schritt nach erfolgreichem Runner-Abschluss.
-
-Wenn MxBuild oder der Mendix-Konsistenzcheck `CE0066` meldet, muss **Update security**
-im kanonischen Originalmodell ausgefuehrt, gespeichert und anschliessend als
-MPR-v2-Aenderung committed werden. Eine Security-Aenderung in der disposable Kopie
-wird nie automatisch ins Originalmodell uebernommen. Der verbindliche Ablauf ist:
-Recovery-Kopie des Originals, Studio-Pro-Update im Original, Speichern, Studio Pro
-schliessen, MPR-v2-Materialisierungswache, Commit und erst danach Docker-/Playwright-Test
-auf einer neuen disposable Kopie aus dem aktualisierten `HEAD`.
-
 ## Gemeinsame Dateien und lokaler Zustand
 
 Versionieren: Mendix-Modell und Quellcode, `AGENT.md`, Projekt-/Prozessdokumentation,
@@ -237,6 +254,23 @@ Lokal halten: `.env.mendix`, `.mcp.json`, `.codex/`, `.grok/`, `.mxcli/catalog.d
 `sprints/generated/`, `planning/generated/`, Build-/Runtime-Ausgaben, IDE-Benutzerdateien
 und Mendix-Locks. Concord-Bridge-Tokens und MCP-Clientkonfigurationen bleiben lokal.
 Lokale Dateien weder committen noch loeschen, sofern nicht ausdruecklich beauftragt.
+
+## MDL Validation
+
+Before presenting any MDL change, validate its script:
+
+```powershell
+mxcli check script.mdl
+mxcli check script.mdl -p App.mpr --references
+```
+
+Use `.ai-context/skills/check-syntax.md` before executing an MDL script. For full
+project consistency checks, set up mxbuild with `mxcli setup mxbuild -p
+App.mpr` and use the generated `mx` command.
+
+Wenn eine Konsistenzpruefung `CE0066` meldet, `scripts/open-studio-pro.ps1` ausfuehren.
+Der Entwickler klickt in Studio Pro im betroffenen Domaenenmodell **Update security**, speichert,
+schliesst Studio Pro wieder und startet danach die Konsistenzpruefung erneut.
 
 ## Before Writing MDL Scripts
 Read the relevant skill file first:
@@ -257,20 +291,21 @@ fehlende Entity- und Microflow-Dokumentation.
 
 ### HTML-Mockups und Playwright
 
-Für HTML-Mockups unter `input-resources/ui-ux/`:
+Fuer HTML-Mockups unter `input-resources/ui-ux/`:
 
 - zuerst `input-resources/README.md` lesen
-- Mockups im Browser mit Playwright ausführen
-- relevante Zustände und Nutzerwege untersuchen
-- zustandsabhängige Varianten aktiv durchklicken und ihre Feldsemantik dokumentieren
+- Mockups im Browser mit Playwright ausfuehren
+- relevante Zustaende und Nutzerwege untersuchen
+- zustandsabhaengige Varianten aktiv durchklicken und ihre Feldsemantik dokumentieren
 - Screenshots als Implementierungsreferenz verwenden
-- nach der Mendix-Umsetzung dieselben Nutzerwege gegen die laufende App prüfen
+- nach der Mendix-Umsetzung dieselben Nutzerwege gegen die laufende App pruefen
 
-Der mxcli `test-app` Skill und die vorhandene Playwright-Konfiguration sind für
+Der mxcli `test-app` Skill und die vorhandene Playwright-Konfiguration sind fuer
 Browser-Automation und die Verifikation der laufenden Mendix-App zu verwenden.
 
 Die Interpretation des Mockups richtet sich nach den Regeln in
 `input-resources/README.md`.
+
 <!-- END PROJECT AGENT INSTRUCTIONS -->
 > Diese Datei gilt für generische AI-Agenten (GitHub Copilot, OpenAI Codex, etc.).
 > Lies `AGENT.md`!

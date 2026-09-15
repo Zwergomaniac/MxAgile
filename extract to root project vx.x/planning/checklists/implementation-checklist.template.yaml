@@ -1,0 +1,113 @@
+# Vorlage fuer planning/checklists/W<wave>-implementation-checklist.yaml
+#
+# Erzeugt vom Gate dfc-gate-to-ready aus UI-Inventar und Story-Spezifikationen.
+# Eine Datei deckt eine ganze Wave ab; die Zuordnung zu Requirements erfolgt je Item
+# ueber das Feld "req". Alle mit PFLICHT markierten Bloecke muessen vorhanden sein.
+
+wave: W0                                    # PFLICHT
+title: Kurztitel der Wave                   # PFLICHT
+scope: {STORYPREFIX}-000, {STORYPREFIX}-001 # PFLICHT, Requirements dieser Wave
+created: 2026-01-01                         # PFLICHT
+state: planned                              # planned | in_progress | completed | completed_with_deferred_items | verification_failed
+depends_on_wave: []                         # vorausgehende Waves
+
+source_documents:                           # PFLICHT, woraus die Checkliste entstand
+  - planning/stories/{STORYPREFIX}-000.md
+  - planning/ui-inventory/PageName.yaml
+
+platform_constraints:                       # Plattformmodule, die nicht veraendert werden
+  - Liste hier die im Projekt gesetzten Plattform-/Basismodule ein.
+
+# --- Gate-Nachweise -----------------------------------------------------------
+# PFLICHT. Ohne Eintrag gilt ein Gate als nicht durchlaufen, nicht als bestanden.
+gates:
+  gate_to_refinement:
+    status: not_recorded                    # passed | failed | not_recorded
+    date:
+    note:
+  gate_to_ready:
+    status: not_recorded
+    date:
+    note:
+  quality_gate:
+    status: not_recorded
+    date:
+    checks:                                 # die 6 Pruefungen aus dfc-quality-gate
+      mdl_check:
+      mdl_references:
+      lint:
+      docker_check:
+      docker_build_and_start:
+      security_level:
+
+# --- Items --------------------------------------------------------------------
+items:
+  - id: W0-01                               # PFLICHT, eindeutig innerhalb der Wave
+    type: entity                            # module | entity | entity_attribute | association |
+                                            # enumeration | microflow | nanoflow | page | widget |
+                                            # navigation | entity_access | security | bootstrap
+    req: [{STORYPREFIX}-000]                 # PFLICHT, Traceability zur Anforderung
+    action: Kurzbeschreibung der Aufgabe     # PFLICHT
+    detail: >-
+      Fachliche Praezisierung. Was gebaut wird und warum.
+    attributes: []                           # optional, bei type entity
+    suggested_mendix_type:                   # optional, aus dem UI-Inventar uebernommen
+    standard_widget:                         # optional, aus dem UI-Inventar uebernommen
+    depends_on: []                           # Items, die vorher fertig sein muessen
+    status: pending                          # pending | done | failed | blocked | deferred
+    note:                                    # Abweichung zwischen Plan und Umsetzung
+
+    # PFLICHT fuer jedes testbare Item. Der Acceptance-Agent fuehrt genau diese Schritte
+    # per Playwright gegen die laufende App aus und traegt test_result ein.
+    test:
+      role: {STORYPREFIX}_AppAdmin           # Rolle, unter der geprueft wird
+      steps:
+        - open: Entity_NewEdit
+        - fill: { Name: "" }
+        - click: Speichern
+      expected: "Validierung: 'Name ist ein Pflichtfeld'"
+      test_result: not_run                   # not_run | pass | fail
+      evidence:                              # Screenshot, OQL-Ergebnis oder Beobachtung
+
+    # Optional. Pflicht bei komplexen Workflows, empfohlen bei Berechnungen und
+    # Bedingungen (D51). Der Acceptance-Agent prueft die Modellstruktur statt der UI.
+    inspect:
+      microflow: Module.SUB_Entity_Create
+      expect: "CREATE Entity, CHANGE IsActive = true, COMMIT"
+      inspect_result: not_run                # not_run | pass | fail
+
+# --- Ausfuehrung --------------------------------------------------------------
+delivery_workflow:
+  order: Erst nach Entwicklerfreigabe. Pro Arbeitspaket, nicht als ein grosses Skript.
+  steps:
+    - Betriebsmodus klaeren: Studio Pro offen (LIVE-SP) oder geschlossen (CLOSED-AUTONOM).
+    - MDL-Datei unter mdlsource/ schreiben.
+    - Validieren mit "mxcli check <datei>.mdl -p <projekt>.mpr --references".
+    - Erst bei fehlerfreier Pruefung ausfuehren mit "mxcli exec <datei>.mdl -p <projekt>.mpr".
+    - Verifizieren mit DESCRIBE ENTITY und SHOW STRUCTURE.
+    - Checklisteneintrag auf done, failed, blocked oder deferred setzen.
+  planned_mdl_files: []
+
+wave_result:
+  executed_packages: []                      # PFLICHT nach Abschluss, vollstaendig
+  created: {}
+  lint:
+  docker_check:
+
+final_check:                                 # PFLICHT nach Abschluss
+  lint:
+  docker_check:
+
+# --- Bewertung ----------------------------------------------------------------
+# Selbsteinschaetzung des ausfuehrenden Agents. Ersetzt keine Abnahme.
+# Ergebnisse aus planning/wave-reports/ muessen hierher zurueckgeschrieben werden (D50).
+soll_ist:
+  - req: {STORYPREFIX}-000
+    status: offen                            # erfuellt | teilweise | offen
+    detail:
+    verified_by:                             # Quelle der Aussage, z.B. Wave-Report
+
+blockers: []                                 # BLK-W<n>-<nn>: issue, cause, action, owner, status
+findings: []                                 # FND-W<n>-<nn>: severity, issue, action, status
+open_points: []
+decisions: []

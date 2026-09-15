@@ -197,7 +197,7 @@ anderen Studio-Pro-Instanzen.
 
 Siehe `.dfc-ai/policies/backlog-sync.md` fuer Wave-Report-Regeln und Board-Traceability.
 Wave-relevante Commits nennen die Story-IDs explizit:
-`feat: implement foundation [CAP-123] [CAP-124]`.
+`feat: implement foundation [{STORYPREFIX}-123] [{STORYPREFIX}-124]`.
 
 ### Docker-/Playwright-Test
 

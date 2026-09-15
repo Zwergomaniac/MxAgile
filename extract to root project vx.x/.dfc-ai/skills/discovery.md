@@ -24,8 +24,8 @@ neuen Arbeitspaket.
    durchsehen.
 7. **Luecken markieren** — Fehlende Informationen als `DECISION REQUIRED` oder
    `ASSUMPTION` markieren.
-8. **Story-Spezifikation erstellen** — Unter `planning/stories/CAP-*.md` mit
-   Board-Story-ID und Source-Fingerprint.
+8. **Story-Spezifikation erstellen** — Unter `planning/stories/{STORYPREFIX}-*.md` mit
+   Requirement-ID, Wave-Zuordnung, Quellenangabe und — sofern gemappt — Board-Story-ID.
 
 ## Output
 

@@ -19,21 +19,26 @@ bevor die Implementierung freigegeben wird.
 Dieses Gate erzeugt die konsolidierte Checkliste aus zwei Quellen:
 
 1. **UI-Inventar** (`planning/ui-inventory/*.yaml`) — Felder, Buttons, Navigation, Widgets
-2. **Story-Spezifikation** (`planning/stories/CAP-*.md`) — Geschaeftsregeln, Microflows, Validierungen
+2. **Story-Spezifikation** (`planning/stories/{STORYPREFIX}-*.md`) — Geschaeftsregeln, Microflows, Validierungen
+
+Die Checkliste ist **wave-bezogen**, nicht story-bezogen: eine Datei deckt alle Requirements
+einer Wave ab, jedes Item nennt die betroffenen Requirements im Feld `req`.
 
 ### Checklisten-Format
 
 ```yaml
-story: CAP-123
+wave: W1
+scope: {STORYPREFIX}-001, {STORYPREFIX}-002
 generated_by: gate-to-ready
 sources:
   ui_inventory: planning/ui-inventory/
-  story_spec: planning/stories/CAP-123.md
+  story_specs: [planning/stories/{STORYPREFIX}-001.md, planning/stories/{STORYPREFIX}-002.md]
   requirements: input-resources/requirements/...
 
 items:
   - id: Customer.Name
     type: entity_attribute
+    req: [{STORYPREFIX}-001]
     source: ui-inventory + story-spec
     spec: "String(200), NOT NULL, Pflichtfeld"
     suggested_mendix_type: "String(200) NOT NULL"
@@ -48,6 +53,7 @@ items:
 
   - id: ACT_CalculateTotal
     type: microflow
+    req: [{STORYPREFIX}-002]
     source: story-spec
     spec: "Berechnet Gesamtbetrag"
     status: pending
@@ -65,6 +71,7 @@ items:
 ### Regeln fuer die Checkliste
 
 - Jedes fachliche Artefakt wird ein Item (Entity, Attribut, Association, Microflow, Page, Widget, Security-Rule)
+- `req:` nennt die Requirements, die das Item abdeckt — Grundlage der Traceability
 - `test:` Block ist Pflicht fuer jedes Item das testbar ist
 - `inspect:` Block ist optional — fuer Berechnungen/Bedingungen empfohlen, fuer komplexe Workflows Pflicht (D51)
 - Items aus dem UI-Inventar bekommen `suggested_mendix_type` und `standard_widget` uebernommen
@@ -77,6 +84,6 @@ Fuer jede Vorbedingung: existiert das Artefakt und enthaelt es die geforderten I
 
 ## Ergebnis
 
-- **Bestanden:** `implementation-checklist.yaml` unter `planning/stories/CAP-*/` abgelegt.
+- **Bestanden:** Checkliste unter `planning/checklists/W*-implementation-checklist.yaml` abgelegt.
   Phase wechselt zu Ready; Entwickler wird um Implementierungsfreigabe gebeten.
 - **Nicht bestanden:** Offene Punkte auflisten, in Refinement-Phase bleiben.

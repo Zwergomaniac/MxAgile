@@ -66,7 +66,7 @@ $skillDescriptions = @{
 
 # --- Agent descriptions ---
 $agentDescriptions = @{
-    'discovery-agent'      = 'Read-only Discovery-Agent: analysiert Quellen, erstellt Story-Spezifikationen'
+    'discovery-agent'      = 'Discovery-Agent: analysiert Quellen, erstellt Story-Spezifikationen (read-only am Mendix-Modell)'
     'refinement-agent'     = 'Refinement-Agent: klaert offene Punkte, aktualisiert Planungsartefakte'
     'ui-agent'             = 'UI-Agent: Mockup-Analyse (Discovery) und Soll-Ist-Vergleich (Verifying) per Playwright'
     'implementation-agent' = 'Implementation-Agent: arbeitet implementation-checklist.yaml ab, fuehrt MDL aus'
@@ -74,7 +74,7 @@ $agentDescriptions = @{
 }
 
 $agentTools = @{
-    'discovery-agent'      = @('Read', 'Grep', 'Glob', 'Bash')
+    'discovery-agent'      = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
     'refinement-agent'     = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
     'ui-agent'             = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
     'implementation-agent' = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
@@ -92,10 +92,10 @@ function Generate-ClaudeSkills {
         $body = Get-Content $f.FullName -Raw -Encoding UTF8
         $desc = if ($skillDescriptions.ContainsKey($name)) { $skillDescriptions[$name] } else { Get-FirstContentLine $body }
 
-        $frontmatter = "---`ndescription: `"$desc`"`n---"
-        $outDir = Join-Path $ProjectRoot ".claude/skills/dfc/$name"
+        $frontmatter = "---`nname: `"dfc-$name`"`ndescription: `"$desc`"`n---"
+        $outDir = Join-Path $ProjectRoot ".claude/skills/dfc-$name"
         $outPath = Join-Path $outDir "SKILL.md"
-        Write-Generated -OutputPath $outPath -Content "$generatedHeader`n$frontmatter`n`n$body"
+        Write-Generated -OutputPath $outPath -Content "$frontmatter`n`n$generatedHeader`n`n$body"
     }
 }
 
@@ -111,7 +111,7 @@ function Generate-ClaudeAgents {
 
         $frontmatter = "---`nmodel: sonnet`ndescription: `"$desc`"`ntools:`n$toolsYaml`n---"
         $outPath = Join-Path $ProjectRoot ".claude/agents/dfc-$name.md"
-        Write-Generated -OutputPath $outPath -Content "$generatedHeader`n$frontmatter`n`n$body"
+        Write-Generated -OutputPath $outPath -Content "$frontmatter`n`n$generatedHeader`n`n$body"
     }
 }
 
@@ -125,7 +125,7 @@ function Generate-CopilotSkills {
         $frontmatter = "---`nname: `"dfc-$name`"`ndescription: `"$desc`"`n---"
         $outDir = Join-Path $ProjectRoot ".github/skills/dfc-$name"
         $outPath = Join-Path $outDir "SKILL.md"
-        Write-Generated -OutputPath $outPath -Content "$generatedHeader`n$frontmatter`n`n$body"
+        Write-Generated -OutputPath $outPath -Content "$frontmatter`n`n$generatedHeader`n`n$body"
     }
 }
 

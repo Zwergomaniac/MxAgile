@@ -1,0 +1,22 @@
+# Echte Credential-Dateien in allen Payload-Versionsordnern - nur die .example-Dateien sind Vorlagen
+extract to root project */.env.mendix
+extract to root project */.mcp.json
+
+# Build-/Runtime-Ausgaben aus Payload-Testlaeufen
+extract to root project */deployment/
+extract to root project */.mxcli/
+extract to root project */docker-check-result.txt
+extract to root project */*.log
+
+# IDE-Benutzerdateien
+.vs/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Editor-/Tool-Backups
+*.bak
+*.tmp

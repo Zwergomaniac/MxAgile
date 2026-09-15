@@ -53,7 +53,7 @@
 
     "board_story": {
       "type": "string",
-      "description": "Backlog board story ID, e.g. CAP-123 (optional if not yet synced)"
+      "description": "Backlog board story ID, e.g. {STORYPREFIX}-123 (optional if not yet synced)"
     },
 
     "source_fingerprint": {

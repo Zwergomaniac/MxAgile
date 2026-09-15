@@ -12,11 +12,14 @@ Mendix die Entity-Access-Metadaten als veraltet markiert. Betroffen sind insbeso
 ## Ablauf bei CE0066
 
 1. `mxcli docker check` ausfuehren
-2. Bei `CE0066`: Studio Pro oeffnen
-3. In jedem betroffenen Domain Model **Update security** ausfuehren
-4. Speichern
-5. Studio Pro schliessen
-6. Check wiederholen
+2. Bei `CE0066`: Agent prueft selbststaendig mit `scripts/check-studio-pro-status.ps1`,
+   ob dieses Projekt bereits in Studio Pro offen ist — keine Rueckfrage beim
+   Entwickler. Ist es nicht offen, oeffnet der Agent es selbst mit
+   `scripts/open-studio-pro.ps1`.
+3. In jedem betroffenen Domain Model **Update security** ausfuehren (Entwickler)
+4. Speichern (Entwickler)
+5. Studio Pro schliessen (Entwickler)
+6. Check wiederholen (Agent)
 
 ## Wave-Integration
 

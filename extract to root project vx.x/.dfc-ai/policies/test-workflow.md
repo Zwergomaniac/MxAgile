@@ -23,9 +23,11 @@ in MDL geschrieben oder versioniert.
 
 Wenn MxBuild oder der Konsistenzcheck `CE0066` meldet:
 
-1. Studio Pro oeffnen
-2. Im betroffenen Domain Model **Update security** ausfuehren
-3. Speichern
-4. Studio Pro schliessen
+1. Agent prueft mit `scripts/check-studio-pro-status.ps1`, ob dieses Projekt bereits
+   offen ist — keine Rueckfrage beim Entwickler. Falls nicht, oeffnet der Agent es
+   selbst mit `scripts/open-studio-pro.ps1`.
+2. Im betroffenen Domain Model **Update security** ausfuehren (Entwickler)
+3. Speichern (Entwickler)
+4. Studio Pro schliessen (Entwickler)
 5. Commit
 6. Docker-/Playwright-Test erneut ausfuehren

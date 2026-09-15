@@ -49,7 +49,7 @@ Standardseite fuer Nutzer ohne fachliche Rolle. Nicht modifizieren.
 
 ### 1. Vorbereitung
 
-1. `planning/stories/CAP-*/implementation-checklist.yaml` laden
+1. `planning/checklists/W*-implementation-checklist.yaml` der laufenden Wave laden
 2. Nur Items mit `status: pending` oder `status: failed` bearbeiten
 3. Mockup-Screenshots aus `.concord/screenshots/mockup/` laden fuer Layout-Referenz
 4. UI-Inventar aus `planning/ui-inventory/` laden fuer Feld-Details

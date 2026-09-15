@@ -4,7 +4,7 @@ Prueft ob die Discovery-Phase vollstaendig abgeschlossen ist bevor Refinement be
 
 ## Vorbedingungen
 
-- [ ] Story-Spezifikation existiert unter `planning/stories/CAP-*.md`
+- [ ] Story-Spezifikation existiert unter `planning/stories/{STORYPREFIX}-*.md`
 - [ ] Story-Spezifikation enthaelt Source-Fingerprint und Quellen-Referenzen
 - [ ] Relevante Input-Resources identifiziert und referenziert
 - [ ] **Fachliche Grundlage vorhanden:** Mindestens eine dieser Quellen muss existieren:

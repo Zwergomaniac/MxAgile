@@ -22,8 +22,9 @@ $runId = (Get-Date).ToString('yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToStri
 $runRoot = Join-Path $scratchRoot "docker-mpr-v2-run-$runId"
 $seedPath = Join-Path $runRoot 'mdlsource\docker-test-bootstrap-user.mdl'
 $credentialPath = Join-Path $scratchRoot 'docker-test-credentials.json'
-$mxcli = if (Test-Path 'D:\Mendix\MxTools\Mx-CLI\mxcli.exe') {
-    'D:\Mendix\MxTools\Mx-CLI\mxcli.exe'
+# MXCLI_PATH erlaubt eine Installation ausserhalb des PATH; sonst gilt der PATH-Eintrag.
+$mxcli = if ($env:MXCLI_PATH -and (Test-Path $env:MXCLI_PATH)) {
+    $env:MXCLI_PATH
 } else {
     (Get-Command mxcli -ErrorAction Stop).Source
 }

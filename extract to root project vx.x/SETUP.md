@@ -11,6 +11,7 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 | `{App}` | `Cap` | MB-Governance-Onboarding | Wert von `MB_SSO.CONST_UserroleAppname` — bestimmt das Rollen-Praefix |
 | `{APP}_` | `CAP_` | MB-Governance-Onboarding | Rollen-Praefix (`{App}` in Grossbuchstaben + Unterstrich) |
 | `{Projektbeschreibung}` | _optional_ | Projektanlage | Kurzbeschreibung fuer `projekt.md`, falls verwendet |
+| `{STORYPREFIX}` | `CAP` | Projektanlage | Praefix fuer Requirement-IDs und Story-Spec-Dateinamen unter `planning/stories/` |
 
 ## Betroffene Dateien
 
@@ -34,10 +35,11 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 1. **Template kopieren** — Gesamten Ordnerinhalt in den Mendix-Projektstamm kopieren
 2. **`projekt.md` befuellen** — Projektziel, Module, Stack, Sprint-Struktur eintragen
 3. **`{Projektname}` ersetzen** — Suche-und-Ersetze ueber die betroffene Datei
-4. **`mxcli init` ausfuehren** — Legt `.ai-context/skills/` und `AGENTS.md` an
-5. **CLAUDE.md reparieren** — siehe Abschnitt "Nach mxcli init" unten
-6. **Nach Governance-Onboarding:** `{App}` und `{APP}_` in den 4 betroffenen Dateien ersetzen
-7. **Diese Datei loeschen** — `SETUP.md` wird im Projekt nicht mehr gebraucht
+4. **`{STORYPREFIX}` ersetzen** — Suche-und-Ersetze im gesamten `.dfc-ai/` Ordner sowie `planning/`
+5. **`mxcli init` ausfuehren** — Legt `.ai-context/skills/` und `AGENTS.md` an
+6. **CLAUDE.md reparieren** — siehe Abschnitt "Nach mxcli init" unten
+7. **Nach Governance-Onboarding:** `{App}` und `{APP}_` in den 4 betroffenen Dateien ersetzen
+8. **Diese Datei loeschen** — `SETUP.md` wird im Projekt nicht mehr gebraucht
 
 ## Nach `mxcli init` — CLAUDE.md und settings.json
 

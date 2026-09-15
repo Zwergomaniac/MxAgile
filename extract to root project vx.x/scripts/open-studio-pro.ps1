@@ -5,6 +5,10 @@ Opens the current Mendix project in Studio Pro for required manual model actions
 .DESCRIPTION
 Use after a validation result that requires a Studio Pro action, such as CE0066
 (Update security). This script only opens the project; it does not modify the model.
+
+Run `scripts/check-studio-pro-status.ps1` first (an agent does this automatically,
+without asking the developer) to find out whether the project is already open —
+this script refuses to start a second instance for the same project.
 #>
 
 [CmdletBinding()]
@@ -34,7 +38,7 @@ $existingProjectProcess = Get-CimInstance Win32_Process -Filter "Name='studiopro
     Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($projectArgument) } |
     Select-Object -First 1
 if ($existingProjectProcess) {
-    throw "Studio Pro already has this project open (PID $($existingProjectProcess.ProcessId)): '$ProjectPath'."
+    throw "Studio Pro already has this project open (PID $($existingProjectProcess.ProcessId)): '$ProjectPath'. Run scripts/check-studio-pro-status.ps1 first to detect this without starting a second instance."
 }
 
 if ([string]::IsNullOrWhiteSpace($StudioProPath)) {

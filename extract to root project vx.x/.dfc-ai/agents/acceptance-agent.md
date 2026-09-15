@@ -20,7 +20,7 @@ Laeuft in Verifying parallel zum UI-Agent, nachdem Quality-Gate bestanden hat.
 
 ### 1. Checkliste laden
 
-`planning/stories/CAP-*/implementation-checklist.yaml` oeffnen.
+`planning/checklists/W*-implementation-checklist.yaml` der laufenden Wave oeffnen.
 Nur Items mit `test:` und/oder `inspect:` Bloecken bearbeiten.
 
 ### 2. Modell-Inspektion (fuer Items mit `inspect:`)

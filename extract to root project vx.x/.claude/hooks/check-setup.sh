@@ -16,7 +16,7 @@ fi
 # Check 2: projekt.md vorhanden und ausgefüllt
 if [ ! -f "projekt.md" ]; then
   ERRORS+=("❌ projekt.md fehlt — Projektkontext nicht angelegt.")
-  ERRORS+=("   → Template kopieren: cp .claude/templates/mx-project/projekt.md .")
+  ERRORS+=("   → mxcli init . ausfuehren oder projekt.md aus dem Template-Payload kopieren.")
 elif grep -q "TODO" "projekt.md" 2>/dev/null; then
   WARNINGS+=("⚠️  projekt.md hat noch TODO-Platzhalter — Projektkontext unvollständig.")
   WARNINGS+=("   → projekt.md öffnen und alle <!-- TODO: --> Abschnitte ausfüllen.")
@@ -31,13 +31,13 @@ fi
 # Check 4: mxcli im PATH
 if ! command -v mxcli &>/dev/null; then
   WARNINGS+=("⚠️  mxcli nicht im PATH gefunden.")
-  WARNINGS+=("   → PATH prüfen oder mxcli installieren (siehe .claude/templates/mx-project/README.md)")
+  WARNINGS+=("   → PATH pruefen oder mxcli installieren (siehe README.md im Projektroot).")
 fi
 
 # Check 5: AGENTS.md nicht leer
 if [ ! -s "AGENTS.md" ]; then
   WARNINGS+=("⚠️  AGENTS.md ist leer — generische Agent-Instruktionen fehlen.")
-  WARNINGS+=("   → Template kopieren: cp .claude/templates/mx-project/AGENTS.md .")
+  WARNINGS+=("   → scripts/apply-project-agent-instructions.ps1 ausfuehren.")
 fi
 
 # Check 6: .dfc-ai/ vorhanden
@@ -48,10 +48,25 @@ elif [ ! -f ".dfc-ai/orchestrator.md" ]; then
   WARNINGS+=("⚠️  .dfc-ai/orchestrator.md fehlt — Prozessfluss nicht definiert.")
 fi
 
-# Check 7: Generierte DFC-Skills vorhanden
-if [ -d ".dfc-ai/skills" ] && [ ! -d ".claude/skills/dfc" ]; then
-  WARNINGS+=("⚠️  .dfc-ai/skills/ existiert, aber .claude/skills/dfc/ fehlt.")
-  WARNINGS+=("   → scripts/generate-dfc-platform-skills.ps1 ausfuehren.")
+# Check 7: Generierte DFC-Skills vorhanden und Frontmatter-Contract eingehalten
+# Claude-Skills liegen unter .claude/skills/dfc-<name>/SKILL.md, nicht mehr
+# unter .claude/skills/dfc/<name>/. YAML-Frontmatter MUSS in Zeile 1 stehen,
+# sonst wird der Skill von keiner Plattform erkannt (siehe .dfc-ai/adapters/).
+if [ -d ".dfc-ai/skills" ]; then
+  dfc_skill_dirs=(.claude/skills/dfc-*/)
+  if [ ! -e "${dfc_skill_dirs[0]}" ]; then
+    WARNINGS+=("⚠️  .dfc-ai/skills/ existiert, aber keine .claude/skills/dfc-*/ generiert.")
+    WARNINGS+=("   → scripts/generate-dfc-platform-skills.ps1 ausfuehren.")
+  else
+    for skill_file in .claude/skills/dfc-*/SKILL.md; do
+      [ -f "$skill_file" ] || continue
+      first_line="$(head -n 1 "$skill_file")"
+      if [ "$first_line" != "---" ]; then
+        ERRORS+=("❌ $skill_file: Zeile 1 ist nicht '---' — YAML-Frontmatter-Contract verletzt.")
+        ERRORS+=("   → Skill wird von keiner Plattform erkannt. scripts/generate-dfc-platform-skills.ps1 neu ausfuehren.")
+      fi
+    done
+  fi
 fi
 
 # Ausgabe nur wenn Probleme gefunden
@@ -79,7 +94,7 @@ if [ $TOTAL -gt 0 ]; then
     echo ""
   fi
 
-  echo "Vollständige Anleitung: .claude/templates/mx-project/README.md"
+  echo "Vollständige Anleitung: README.md (Projektroot)"
   echo "Setup-Validator:        /validate-agent-setup"
   echo ""
 fi

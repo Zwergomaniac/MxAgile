@@ -15,10 +15,11 @@ mxcli ist das CLI-Tool für AI-gestützte Mendix-Entwicklung (MDL-Sprache, Lint,
 
 **PATH einrichten (einmalig, PowerShell als Admin):**
 ```powershell
-# Dauerhaft in User-PATH eintragen (Terminal-Neustart nötig)
+# {MXCLI_VERZEICHNIS} durch den Ablageort von mxcli.exe ersetzen.
+# Dauerhaft in User-PATH eintragen (Terminal-Neustart noetig)
 [Environment]::SetEnvironmentVariable(
   "PATH",
-  [Environment]::GetEnvironmentVariable("PATH","User") + ";D:\Mendix\MxTools\Mx-CLI",
+  [Environment]::GetEnvironmentVariable("PATH","User") + ";{MXCLI_VERZEICHNIS}",
   "User"
 )
 ```

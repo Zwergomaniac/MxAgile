@@ -44,7 +44,7 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 - **Exit Gate:** dfc-gate-to-refinement
 - **Pflichtartefakte:**
   - Relevante Input-Resources identifiziert (`input-resources/`)
-  - Story-Spezifikation erstellt (`planning/stories/CAP-*.md`)
+  - Story-Spezifikation erstellt (`planning/stories/{STORYPREFIX}-*.md`, eine Datei je Requirement)
   - UI-Inventar erstellt (`planning/ui-inventory/`) — vom UI-Agent, wenn Mockups vorhanden
   - Mockup-Screenshots unter `.concord/screenshots/mockup/` — vom UI-Agent
   - Offene Entscheidungen als `DECISION REQUIRED` markiert
@@ -91,12 +91,13 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 - **Exit Gate:** Entwicklerfreigabe zur Implementierung
 - **Pflichtartefakte:**
   - Story-Spezifikation vollstaendig und widerspruchsfrei
-  - `implementation-checklist.yaml` erzeugt vom Gate (D37)
+  - `planning/checklists/W*-implementation-checklist.yaml` erzeugt vom Gate (D37)
   - Wave-Planung in `planning/execution-waves.md` aktualisiert
   - Alle Blocker aufgeloest
 - **Beschreibung:**
   Zwischenzustand: alle Vorbedingungen fuer die Implementierung sind erfuellt.
-  Das Gate hat die `implementation-checklist.yaml` aus UI-Inventar + Story-Spec erzeugt (D36).
+  Das Gate hat die Checkliste aus UI-Inventar + Story-Specs erzeugt (D36). Eine Checkliste
+  deckt eine ganze Wave ab und referenziert die enthaltenen Requirements je Item.
   Der Entwickler gibt die Implementierung explizit frei.
 
 ---

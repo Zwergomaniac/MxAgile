@@ -40,14 +40,23 @@ function Add-GitIgnoreEntry {
         ''
     }
 
-    if ($content -notmatch "(?m)^$([regex]::Escape($Entry))$") {
-        [System.IO.File]::AppendAllText($gitIgnorePath, "$Entry`n", [System.Text.UTF8Encoding]::new($false))
+    # Split instead of a regex anchor: "$" does not match before CRLF, so an anchored
+    # test re-appends an already present entry on every run.
+    $existing = $content -split "`r?`n" | ForEach-Object { $_.Trim() }
+    if ($existing -notcontains $Entry) {
+        $prefix = if ($content -and -not $content.EndsWith("`n")) { "`n" } else { '' }
+        [System.IO.File]::AppendAllText($gitIgnorePath, "$prefix$Entry`n", [System.Text.UTF8Encoding]::new($false))
     }
 }
 
 $projectInstructions = Get-Content -Path $sourcePath -Raw
 $agentsReference = Remove-ManagedBlock (Get-Content -Path $agentsPath -Raw)
 $claudeReference = Remove-ManagedBlock (Get-Content -Path $claudePath -Raw)
+$copilotReference = if (Test-Path -Path $copilotPath -PathType Leaf) {
+    Remove-ManagedBlock (Get-Content -Path $copilotPath -Raw)
+} else {
+    ''
+}
 
 $agentsBlock = @"
 $startMarker
@@ -66,7 +75,8 @@ $endMarker
 $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
 [System.IO.File]::WriteAllText($agentsPath, ($agentsBlock + $agentsReference), $utf8WithoutBom)
 [System.IO.File]::WriteAllText($claudePath, ($claudeBlock + $claudeReference), $utf8WithoutBom)
-Copy-Item -Path $sourcePath -Destination $copilotPath -Force
+# Copilot resolves no @-includes, so AGENT.md is inlined here as well.
+[System.IO.File]::WriteAllText($copilotPath, ($agentsBlock + $copilotReference), $utf8WithoutBom)
 Add-GitIgnoreEntry -Entry '/.env.mendix'
 Add-GitIgnoreEntry -Entry '/.mxcli/catalog.db'
 Add-GitIgnoreEntry -Entry '/sprints/generated/'

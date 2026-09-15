@@ -8,21 +8,23 @@ zweites Backlog und kein zweiter Sprintplan.
 
 ```text
 planning/
-	stories/       Storybezogene technische Spezifikationen und Testmatrizen
+	stories/       Eine Spezifikation je Requirement (siehe stories/README.md)
+	checklists/    Eine Implementierungscheckliste je Wave (siehe checklists/README.md)
+	ui-inventory/  YAML-Feldinventar je Mockup-Screen (siehe ui-inventory/README.md)
 	generated/     Lokale Reconciliation- und Board-Aktionsberichte
 	*.md           Portfolio-Dokumente fuer das gesamte Backlog
 ```
 
 ## Spec-Namenskonvention (`stories/`)
 
+Eine Story-Spezifikation je Requirement, benannt nach der Requirement-ID.
+
 | Muster | Beispiel | Verwendung |
 |---|---|---|
-| `{Domaene}{Nr}-{slug}.md` | `C4-medikamentenplan.md` | Einzelne Domain-Story |
-| `{D1}{Nr}-{D2}{Nr}-{slug}.md` | `C2-C3-notfallpraesenz.md` | Kombinierte Domain-Stories |
+| `{STORYPREFIX}-{Nr}.md` | `{STORYPREFIX}-001.md` | Einzelne Requirement-Spec |
 | `INFRA-{slug}.md` | `INFRA-appui.md` | Infrastruktur-/Querschnitts-Spec |
 
-Domaenen-Praefix nach Domaenen-Tabelle in `projekt.md`. Nummer fortlaufend innerhalb
-der Domaene. Slug in Kebab-Case, projektsprachig.
+`{STORYPREFIX}` ist beim Projekt-Setup festzulegen (siehe `SETUP.md`). Nummer fortlaufend.
 
 ## Standard-Planungsdokumente
 
@@ -41,7 +43,7 @@ der Domaene. Slug in Kebab-Case, projektsprachig.
 
 ```markdown
 ---
-board_story: CAP-123
+board_story: {STORYPREFIX}-123
 source_fingerprint: <Wert aus epics-snapshot.json>
 last_reconciled: 2026-08-20
 state: Current
@@ -84,7 +86,7 @@ Jede abgeschlossene Wave erhaelt einen versionierten Bericht unter
 Testnachweise, offene Gates und die manuell auszufuehrenden Board-Aktionen.
 
 Wave-relevante Commits nennen die betroffenen Board-Story-IDs explizit, zum Beispiel:
-`feat: implement foundation [CAP-123] [CAP-124]`. Die IDs sind technische Traceability
+`feat: implement foundation [{STORYPREFIX}-123] [{STORYPREFIX}-124]`. Die IDs sind technische Traceability
 und haken keine Board-Story automatisch ab. Das manuelle Abhaken erfolgt erst nach
 Pruefung des Wave-Berichts und ueber `scripts/generate-board-action-report.ps1`.
 
