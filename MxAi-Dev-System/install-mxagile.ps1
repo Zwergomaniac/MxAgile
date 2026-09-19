@@ -35,15 +35,28 @@ if (-not $gitExists) {
     return
 }
 
-# --- 2. Clone Template Repository ---
-Write-Host "- Cloning template from $RepositoryUrl..."
-try {
-    git clone --depth 1 $RepositoryUrl $TempDir
-} catch {
-    Write-Error "Error: Failed to clone repository. Please check the URL and your connection."
-    # Clean up on failure
-    if (Test-Path $TempDir) { Remove-Item -Recurse -Force -Path $TempDir }
-    return
+# --- 2. Get Template Files ---
+if (Test-Path -Path $RepositoryUrl -PathType Container) {
+    # Handle as a local directory path
+    Write-Host "- Copying template from local path $RepositoryUrl..."
+    try {
+        New-Item -ItemType Directory -Path $TempDir | Out-Null
+        Copy-Item -Path "$RepositoryUrl\*" -Destination $TempDir -Recurse -Force
+    } catch {
+        Write-Error "Error: Failed to copy from local path. Please check the path and permissions."
+        if (Test-Path $TempDir) { Remove-Item -Recurse -Force -Path $TempDir }
+        return
+    }
+} else {
+    # Handle as a Git repository URL
+    Write-Host "- Cloning template from Git repository $RepositoryUrl..."
+    try {
+        git clone --depth 1 $RepositoryUrl $TempDir
+    } catch {
+        Write-Error "Error: Failed to clone repository. Please check the URL and your connection."
+        if (Test-Path $TempDir) { Remove-Item -Recurse -Force -Path $TempDir }
+        return
+    }
 }
 
 # --- 3. Copy Framework Files ---
