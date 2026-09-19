@@ -664,19 +664,34 @@ For detailed MDL syntax, see the skill files in `.ai-context/skills/<name>/SKILL
 
 ---
 
+---
+
 ## Kontext: Projekt vs. Company Layer
 
-Ein Projekt kann einen oder mehrere "Company Layer" enthalten, die unter `.mxagile/layers/` abgelegt sind. Diese Layer stellen firmenweite Standards, wiederverwendbare Komponenten und Definitionen bereit. Der Agent muss bei seinen Aufgaben sowohl den Projekt-Kontext als auch den Layer-Kontext berücksichtigen.
+Ein Projekt kann einen oder mehrere "Company Layer" enthalten, die als Unterverzeichnisse in `.mxagile/layers/` abgelegt sind. Diese Layer stellen firmenweite Standards, wiederverwendbare Komponenten und Definitionen bereit. Der Agent muss bei seinen Aufgaben sowohl den Projekt-Kontext als auch den Inhalt der Layer berücksichtigen.
 
-Dabei gilt die folgende **Override-Logik**: **Projekt-spezifische Artefakte haben immer Vorrang vor Layer-Artefakten.**
+Dabei gelten die folgenden, dateispezifischen Logiken:
 
-**Anwendungsbeispiel: Glossar**
-- Wenn der Agent eine Definition für einen Begriff sucht, prüft er **zuerst**, ob eine `glossary.md` im Projekt-Root existiert und der Begriff dort definiert ist.
-- Nur wenn er dort nichts findet, sucht er in der `glossary.md` des aktiven Company Layers (z.B. `.mxagile/layers/mercedes-benz/glossary.md`).
-- Die Definitionen werden nicht physisch zusammengeführt; der Agent führt diesen Fallback-Mechanismus zur Laufzeit aus.
+### Standardverhalten: Override (z.B. `glossary.md`)
 
-**Anwendungsbeispiel: Plattform-Module**
-- Bei Fragen zur Architektur oder bei der Erstellung neuer Module prüft der Agent **zuerst** projektspezifische Modul-Definitionen.
-- **Zusätzlich** konsultiert er die `platform-modules.md` aus dem Company Layer, um sicherzustellen, dass Firmenstandards eingehalten werden.
+Für die meisten Dateien gilt eine strikte **Override-Hierarchie**. Wenn du eine Datei liest (z.B. um eine Definition im `glossary.md` zu finden), wird die folgende Reihenfolge eingehalten und die **erste gefundene Datei** wird verwendet:
 
-Diese Logik stellt sicher, dass Projekte Firmenstandards nutzen können, aber bei Bedarf gezielt davon abweichen oder sie erweitern können.
+1.  **Projekt-Ebene:** `/<dateiname>` (z.B. `glossary.md`)
+2.  **Company-Layer (alphabetisch):** `.mxagile/layers/<layer_a>/<dateiname>`
+3.  **Company-Layer (alphabetisch):** `.mxagile/layers/<layer_b>/<dateiname>`
+4.  ... und so weiter für alle weiteren Layer.
+
+**Beispiel:** Wenn sowohl `glossary.md` im Projekt als auch in `layers/mercedes-benz/glossary.md` existiert, wird **nur die Projekt-Datei** gelesen. Die Layer-Datei wird ignoriert.
+
+### Sonderfall: Merge (z.B. `platform-modules.md`)
+
+Für bestimmte, als "zusammenführbar" definierte Dateien wie `platform-modules.md` gilt eine **Merge-Logik**. Der Inhalt wird aus allen Ebenen gelesen und kombiniert, um ein vollständiges Bild zu erhalten.
+
+Die Reihenfolge für das Zusammenfügen ist:
+
+1.  **Company-Layer (alphabetisch):** Die Inhalte aller `platform-modules.md` aus den Layern werden zuerst gesammelt.
+2.  **Projekt-Ebene:** Der Inhalt der `platform-modules.md` aus dem Projekt wird **am Ende angefügt**.
+
+**Beispiel:** Bei Fragen zur Architektur liest du die Modul-Definitionen aus **allen** Layern und ergänzt diese mit den projekt-spezifischen Definitionen. So wird sichergestellt, dass sowohl Firmenstandards als auch projektspezifische Erweiterungen berücksichtigt werden.
+
+Diese zweistufige Logik (Override als Standard, Merge als Ausnahme) stellt sicher, dass Projekte Firmenstandards nutzen, aber bei Bedarf gezielt davon abweichen oder sie auf eine klar definierte Weise erweitern können.

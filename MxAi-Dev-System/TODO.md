@@ -2,10 +2,11 @@
 
 ## Epic: Core Workflow Testing
 
-- [ ] **Test Company Layer Workflow (`mxagile-add-layer.ps1`):**
-  - [ ] Create a separate Git repository for a test layer.
-  - [ ] Use `mxagile-add-layer.ps1` to clone it into the test project.
-  - [ ] Verify the agent correctly reads and prioritizes files from the layer.
+- [x] **Test Company Layer Workflow (`mxagile-add-layer.ps1`):**
+  - [x] Create a separate Git repository for a test layer.
+  - [x] Use `mxagile-add-layer.ps1` to clone it into the test project.
+  - [x] Verify agent's OVERRIDE logic (Project > Layer).
+  - [ ] Verify agent's MERGE logic and MULTI-LAYER precedence (e.g., for `platform-modules.md`).
 - [ ] **Test Wave Planning (`mxagile-plan-wave.ps1`):**
   - [ ] Create a `.wave` file with multiple specs.
   - [ ] Run `mxagile-plan-wave.ps1`.
