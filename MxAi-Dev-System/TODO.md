@@ -17,7 +17,7 @@
 - [x] **Implement Brownfield Adoption (`mxagile-adopt.ps1`)**
 - [x] **Implement Analysis & Verification Scripts**
   - [x] `mxagile-analyze.ps1`: Implement orphan/unused check in Python.
-  - [ ] `mxagile-converge.ps1` (New Script): Implement the check that all requirements have validation evidence.
+  - [x] `mxagile-converge.ps1` (New Script): Implement the check that all requirements have validation evidence.
 - [x] **Implement Traceability Query (`mxagile-trace.ps1`)**
   - [x] Create Python script and wrapper to trace parent/child relationships.
 
