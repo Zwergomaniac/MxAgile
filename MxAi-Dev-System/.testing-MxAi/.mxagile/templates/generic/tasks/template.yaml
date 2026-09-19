@@ -1,0 +1,22 @@
+task_id: TASK-000
+spec_id: SPEC-000
+req: [REQ-000]
+type: entity # module | entity | microflow | page | etc.
+action: "[Short description of the task]"
+detail: >-
+  [Detailed description of what needs to be built and why.]
+depends_on: [] # List of other task_ids
+status: pending # pending | in_progress | done | failed | blocked | deferred
+
+# Acceptance criteria for this specific task
+test:
+  role: AppAdmin
+  steps:
+    - open: Page_Name
+    - click: Button_Name
+  expected: "[Expected outcome]"
+
+# Optional model inspection criteria
+inspect:
+  microflow: Module.SUB_FlowName
+  expect: "[Expected model structure or logic]"
