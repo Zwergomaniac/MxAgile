@@ -8,10 +8,10 @@
   - [x] Verify agent's OVERRIDE logic (Project > Layer).
   - [x] Verify agent's MERGE logic and MULTI-LAYER precedence (e.g., for `platform-modules.md`).
 - [x] **Test Layer Manifest Generation**
-- [ ] **Test Wave Planning (`mxagile-plan-wave.ps1`):**
-  - [ ] Create a `.wave` file with multiple specs.
-  - [ ] Run `mxagile-plan-wave.ps1`.
-  - [ ] Verify the output is a single, valid MDL file containing all entities/associations.
+- [ ] **Implement Agentic Wave Planner (`mxagile-plan-wave.ps1`):**
+  - [ ] The script should not parse MDL itself.
+  - [ ] It should find all specs in a wave and read their content.
+  - [ ] It must output a single, clear prompt for an AI agent, containing all spec contents and the instruction to merge them into a valid MDL script, resolving conflicts.
 - [ ] **Test Greenfield Initialization (`mxagile-init.ps1`):**
   - [ ] Run the script in a clean directory.
   - [ ] Verify the directory structure is created correctly.

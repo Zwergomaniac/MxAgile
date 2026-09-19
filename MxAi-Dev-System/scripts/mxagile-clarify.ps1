@@ -1,55 +1,72 @@
 # scripts/mxagile-clarify.ps1
 
 param (
-    [string]$ProjectRoot = (Get-Location).Path
+    [Parameter(Mandatory=$true)]
+    [string]$SpecId
 )
 
-Write-Host "Starting MxAgile clarification scan..."
+$ProjectRoot = (Get-Location).Path
+Write-Host "🚀 Generating clarification file for Spec ID: $SpecId..."
 
-$scanPaths = @(
-    (Join-Path $ProjectRoot "requirements"),
-    (Join-Path $ProjectRoot "specs")
-)
+# --- 1. Load Trace Index ---
+$traceIndexFile = Join-Path $ProjectRoot ".mxagile/state/trace-index.json"
+if (-not (Test-Path $traceIndexFile)) {
+    Write-Error "Traceability index not found. Please run mxagile-build-trace-index.ps1 first."
+    return
+}
+$traceIndex = Get-Content -Path $traceIndexFile | ConvertFrom-Json
 
-$keywords = @(
-    "DECISION REQUIRED",
-    "ASSUMPTION",
-    "TODO",
-    "TBD"
-)
-
-$foundIssues = @()
-
-foreach ($path in $scanPaths) {
-    if (Test-Path $path) {
-        $files = Get-ChildItem -Path $path -Filter *.md -Recurse
-        foreach ($file in $files) {
-            $lines = Get-Content -Path $file.FullName
-            for ($i = 0; $i -lt $lines.Length; $i++) {
-                foreach ($keyword in $keywords) {
-                    if ($lines[$i] -match $keyword) {
-                        $foundIssues += [pscustomobject]@{
-                            File = $file.FullName
-                            Line = $i + 1
-                            Text = $lines[$i].Trim()
-                            Keyword = $keyword
-                        }
-                    }
-                }
-            }
-        }
-    }
+# --- 2. Find the Spec ---
+$specInfo = $traceIndex.specs.$SpecId
+if (-not $specInfo) {
+    Write-Error "Spec ID '$SpecId' not found in trace index."
+    return
 }
 
-if ($foundIssues.Count -gt 0) {
-    Write-Host "Found $($foundIssues.Count) potential ambiguities or open points:`n"
-    $foundIssues | Format-Table
-
-    Write-Host "`nNext Steps:"
-    Write-Host " - Manually review the files listed above."
-    Write-Host " - Future versions of this script will provide an interactive Q&A session to resolve these points."
-    # TODO: Implement interactive clarification using Read-Host.
-    # TODO: Implement logic to update the source files with the provided answers.
-} else {
-    Write-Host "Scan complete. No open points with keywords found."
+# --- 3. Prepare File Path and Directory ---
+$clarificationsDir = Join-Path $ProjectRoot "planning/clarifications"
+if (-not (Test-Path $clarificationsDir)) {
+    New-Item -ItemType Directory -Path $clarificationsDir | Out-Null
 }
+$outputFile = Join-Path $clarificationsDir "$($SpecId).clarification.md"
+
+if (Test-Path $outputFile) {
+    Write-Warning "Clarification file for '$SpecId' already exists at: $outputFile"
+    return
+}
+
+# --- 4. Generate File Content ---
+$specFileContent = Get-Content -Path (Join-Path $ProjectRoot $specInfo.path) -Raw
+
+$clarificationContent = @"
+# Clarification for Spec: $SpecId
+
+This document is used to ask and answer questions regarding the specification to resolve ambiguities before implementation.
+
+## Original Specification
+
+**Description:** $($specInfo.Description)
+
+```
+$specFileContent
+```
+
+---
+
+## Questions
+
+*Question 1:* [Enter your question here]
+
+*Stakeholder:* @[Name/Role of person to answer]
+
+## Answers
+
+*Answer 1:* [To be filled in by stakeholder]
+
+"@
+
+# --- 5. Write File and Confirm ---
+$clarificationContent | Set-Content -Path $outputFile
+
+Write-Host "✅ Clarification file generated successfully!"
+Write-Host "Please edit the new file to add your questions: $outputFile"

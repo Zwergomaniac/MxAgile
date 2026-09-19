@@ -1,5 +1,8 @@
 # scripts/reset-testing-instance.ps1
 # This script automates the creation of a clean testing environment.
+param (
+    [string]$MxcliPath = "../../mxcli.exe" # Default path, can be overridden
+)
 
 Write-Host "🚀 Resetting testing instance..."
 
@@ -41,3 +44,25 @@ foreach ($dir in $frameworkDirs) {
 
 Write-Host "✅ Testing instance reset successfully."
 Write-Host "Navigate to '$TestingDir' to work within the simulated project."
+
+# --- Initialize MxCLI for Agent Skills ---
+Write-Host "
+🚀 Initializing MxCLI to provide agent skills..."
+
+# The mxcli executable is in the root of the parent project structure
+
+if (Test-Path $MxcliPath) {
+    # We need to execute from within the testing directory
+    Push-Location $TestingDir
+    
+    try {
+        & $MxcliPath init --non-interactive --no-banner
+        Write-Host "✅ MxCLI initialized successfully."
+    } catch {
+        Write-Warning "MxCLI init failed. Agent skills will not be available in this test instance."
+    }
+    
+    Pop-Location
+} else {
+    Write-Warning "Could not find mxcli.exe at '$MxcliPath'. Skipping initialization."
+}
