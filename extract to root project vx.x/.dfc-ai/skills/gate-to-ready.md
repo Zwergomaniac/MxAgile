@@ -84,6 +84,13 @@ Fuer jede Vorbedingung: existiert das Artefakt und enthaelt es die geforderten I
 
 ## Ergebnis
 
-- **Bestanden:** Checkliste unter `planning/checklists/W*-implementation-checklist.yaml` abgelegt.
-  Phase wechselt zu Ready; Entwickler wird um Implementierungsfreigabe gebeten.
-- **Nicht bestanden:** Offene Punkte auflisten, in Refinement-Phase bleiben.
+Dieser Gate hat **keinen eigenen Agenten** (siehe Orchestrator-Phasentabelle). Wer die
+Refinement-Arbeit fuer eine Wave abschliesst, fuehrt diese Pruefung selbst aus und
+schreibt das Ergebnis **im selben Arbeitsschritt** unter `waves.<Wave>.gates.gate_to_ready`
+in `.concord/scratch/process-state.yaml` — `not_recorded` darf danach nicht stehen bleiben.
+
+- **Bestanden:** `gate_to_ready: passed` eintragen, Checkliste unter
+  `planning/checklists/W*-implementation-checklist.yaml` abgelegt. Phase wechselt zu
+  Ready; Entwickler wird um Implementierungsfreigabe gebeten.
+- **Nicht bestanden:** `gate_to_ready: failed` eintragen mit kurzer Begruendung,
+  offene Punkte auflisten, in Refinement-Phase bleiben.

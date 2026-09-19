@@ -31,5 +31,11 @@ vom Entwickler bestaetigte Anforderungen duerfen in die Story-Spec uebernommen w
 
 ## Ergebnis
 
-- **Bestanden:** Phasenwechsel zu Refinement, Zustandsdatei aktualisieren
-- **Nicht bestanden:** Fehlende Artefakte auflisten, in Discovery-Phase bleiben
+Dieser Gate hat **keinen eigenen Agenten** (siehe Orchestrator-Phasentabelle). Wer die
+Discovery-Arbeit fuer eine Wave abschliesst, fuehrt diese Pruefung selbst aus und
+schreibt das Ergebnis **im selben Arbeitsschritt** unter `waves.<Wave>.gates.gate_to_refinement`
+in `.concord/scratch/process-state.yaml` — `not_recorded` darf danach nicht stehen bleiben.
+
+- **Bestanden:** `gate_to_refinement: passed` eintragen, Phasenwechsel zu Refinement
+- **Nicht bestanden:** `gate_to_refinement: failed` eintragen mit kurzer Begruendung,
+  fehlende Artefakte dem Entwickler auflisten, in Discovery-Phase bleiben

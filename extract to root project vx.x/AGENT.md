@@ -33,6 +33,44 @@
 
 ---
 
+## Verbindlicher DFC-AI-Workflow — keine eigenmächtige Abkürzung
+
+**Hintergrund:** In einem Referenzprojekt wurden mehrere Waves direkt implementiert,
+ohne Discovery (`dfc-discovery-agent`/`dfc-ui-agent`, UI-Inventar) oder Verifying
+(`dfc-ui-agent`/`dfc-acceptance-agent`, Wave-Report) zu durchlaufen. Ergebnis:
+kein Mockup-Abgleich, unentdeckte UI-Abweichungen, Statusdrift in
+`.concord/scratch/process-state.yaml`. Diese Regeln verhindern die Wiederholung:
+
+1. **Phasenfolge ist bindend, kein Direktsprung.** Jede Story/Wave durchlaeuft
+   Discovery → Refinement → Ready → Implementing → Verifying gemaess
+   `.dfc-ai/orchestrator.md`. Ein Agent implementiert niemals direkt aus einer
+   Anforderung heraus, ohne vorher zu pruefen, in welcher Phase sich die
+   betroffene Wave laut `.concord/scratch/process-state.yaml` befindet.
+2. **Vor der Implementierung:** Wenn Discovery (inkl. UI-Inventar unter
+   `planning/ui-inventory/`) fuer die Wave nicht abgeschlossen ist, implementiert
+   der Agent NICHT einfach weiter. Er sagt dem Entwickler explizit und konkret,
+   was fehlt und was das bedeutet (z. B. "kein Mockup-Abgleich, Risiko: die Seiten
+   entsprechen ggf. nicht dem Kunden-Mockup und muessen spaeter nachgearbeitet
+   werden") und holt eine ausdrueckliche Ausnahme-Freigabe **im selben Turn** ein,
+   bevor er weitermacht. Schweigen oder implizite Fortsetzung gilt nicht als
+   Freigabe.
+3. **Nach der Implementierung:** Eine Wave gilt erst als abgeschlossen, wenn
+   Verifying durchlaufen wurde (Quality-Gate + UI-Agent + Acceptance-Agent,
+   `planning/wave-reports/`). "Baut fehlerfrei" / "mxcli docker check ohne
+   Fehler" ist ausdruecklich KEIN Ersatz fuer den UI-/Akzeptanz-Abgleich und darf
+   dem Entwickler nicht als vollstaendige Bestaetigung dargestellt werden.
+4. **Ausnahmen sind die Ausnahme.** Ein Phasen-Ueberspringen ist ausschliesslich
+   als "begruendete Ausnahme mit ausdruecklicher Entwicklerfreigabe" zulaessig
+   (siehe Orchestrator, Abschnitt "Uebergaenge und Ausnahmen"). Diese Freigabe
+   wird eingeholt, bevor implementiert wird — nicht im Nachhinein rationalisiert,
+   nachdem der Entwickler nachfragt.
+5. **Zustand ehrlich fuehren.** Nach jeder Phase aktualisiert der Agent
+   `.concord/scratch/process-state.yaml` mit dem tatsaechlichen Stand. Eine
+   Abweichung zwischen dieser Datei und der Realitaet ist selbst ein Fehlerfall
+   und wird dem Entwickler aktiv gemeldet, nicht stillschweigend uebergangen.
+
+---
+
 ## Agenten-Betriebsmodus: Live-SP vs. Autonom (Selbstauskunft-Pflicht)
 
 Ob ein Agent neben einer live laufenden Studio-Pro-Instanz arbeitet oder autonom auf

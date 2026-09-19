@@ -178,8 +178,31 @@ Bei Abweichungen:
 
 - Ein Uebergang von Discovery oder Refinement direkt zu Implementing darf nur bei
   begruendeter Ausnahme mit ausdruecklicher Entwicklerfreigabe erfolgen.
+- **Selbstpruefpflicht vor jedem Implementing-Einstieg:** Bevor ein Agent MDL schreibt
+  oder ausfuehrt, prueft er `.concord/scratch/process-state.yaml` fuer die betroffene
+  Wave. Fehlt Discovery (insbesondere `planning/ui-inventory/` vom UI-Agent) oder ist
+  der Phasenstatus nicht `Ready`, implementiert er NICHT kommentarlos weiter. Er benennt
+  dem Entwickler explizit, welches Artefakt fehlt und welche Konsequenz das hat (z. B.
+  kein Mockup-Abgleich, Risiko unentdeckter UI-Abweichungen), und holt die Ausnahme-
+  Freigabe **im selben Turn** ein. Eine spaeter nachgereichte Begruendung nach einer
+  Rueckfrage des Entwicklers zaehlt nicht als Freigabe.
+- **Verifying ist nicht optional und nicht ersetzbar.** Eine Wave gilt erst als
+  abgeschlossen, wenn Quality-Gate UND UI-Agent UND Acceptance-Agent gelaufen sind
+  (`planning/wave-reports/`). Ein Agent darf technische Gruenlaufergebnisse
+  (`mxcli check`, `docker check`, Docker-Start) dem Entwickler nicht als vollstaendige
+  Verifikation praesentieren, solange Schritt 2 (UI-/Acceptance-Agent) nicht gelaufen ist.
 - Gate-Skills sind das primaere Qualitaetssicherungsinstrument. Die Zustandsdatei
-  ist diagnostisches Tracking — nicht blockierend, aber verbindlich gefuehrt.
+  ist diagnostisches Tracking — nicht blockierend, aber verbindlich gefuehrt. Ein
+  Agent, der eine Wave implementiert oder verifiziert, aktualisiert `process-state.yaml`
+  im selben Arbeitsschritt; Drift zwischen Datei und Realitaet meldet er aktiv.
+- **`gate_to_refinement` und `gate_to_ready` haben keinen eigenen Agenten** (siehe
+  Phasentabellen oben) und werden deshalb nur ausgefuehrt, wenn der gerade aktive
+  Agent sie selbst aufruft. Wer Discovery oder Refinement als inhaltlich abgeschlossen
+  betrachtet, ruft im selben Arbeitsschritt den zugehoerigen Gate-Skill auf und traegt
+  das Ergebnis (`passed`/`failed`, nicht `not_recorded`) unter `waves.<Wave>.gates` in
+  `process-state.yaml` ein. `not_recorded` ist nur der Zustand vor dem ersten Durchlauf
+  einer Wave zulaessig — nicht das Dauerergebnis fuer eine Wave, die faktisch bereits
+  implementiert oder verifiziert wird.
 - Wenn ein Gate-Skill fehlende Artefakte meldet, dokumentiert er was fehlt und
   blockiert den Phasenwechsel bis die Luecken geschlossen sind.
 - Der Ruecklauf Verifying→Implementing ist Checklisten-basiert: nur `failed`-Items

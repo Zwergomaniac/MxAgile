@@ -34,6 +34,44 @@
 
 ---
 
+## Verbindlicher DFC-AI-Workflow — keine eigenmächtige Abkürzung
+
+**Hintergrund:** In einem Referenzprojekt wurden mehrere Waves direkt implementiert,
+ohne Discovery (`dfc-discovery-agent`/`dfc-ui-agent`, UI-Inventar) oder Verifying
+(`dfc-ui-agent`/`dfc-acceptance-agent`, Wave-Report) zu durchlaufen. Ergebnis:
+kein Mockup-Abgleich, unentdeckte UI-Abweichungen, Statusdrift in
+`.concord/scratch/process-state.yaml`. Diese Regeln verhindern die Wiederholung:
+
+1. **Phasenfolge ist bindend, kein Direktsprung.** Jede Story/Wave durchlaeuft
+   Discovery → Refinement → Ready → Implementing → Verifying gemaess
+   `.dfc-ai/orchestrator.md`. Ein Agent implementiert niemals direkt aus einer
+   Anforderung heraus, ohne vorher zu pruefen, in welcher Phase sich die
+   betroffene Wave laut `.concord/scratch/process-state.yaml` befindet.
+2. **Vor der Implementierung:** Wenn Discovery (inkl. UI-Inventar unter
+   `planning/ui-inventory/`) fuer die Wave nicht abgeschlossen ist, implementiert
+   der Agent NICHT einfach weiter. Er sagt dem Entwickler explizit und konkret,
+   was fehlt und was das bedeutet (z. B. "kein Mockup-Abgleich, Risiko: die Seiten
+   entsprechen ggf. nicht dem Kunden-Mockup und muessen spaeter nachgearbeitet
+   werden") und holt eine ausdrueckliche Ausnahme-Freigabe **im selben Turn** ein,
+   bevor er weitermacht. Schweigen oder implizite Fortsetzung gilt nicht als
+   Freigabe.
+3. **Nach der Implementierung:** Eine Wave gilt erst als abgeschlossen, wenn
+   Verifying durchlaufen wurde (Quality-Gate + UI-Agent + Acceptance-Agent,
+   `planning/wave-reports/`). "Baut fehlerfrei" / "mxcli docker check ohne
+   Fehler" ist ausdruecklich KEIN Ersatz fuer den UI-/Akzeptanz-Abgleich und darf
+   dem Entwickler nicht als vollstaendige Bestaetigung dargestellt werden.
+4. **Ausnahmen sind die Ausnahme.** Ein Phasen-Ueberspringen ist ausschliesslich
+   als "begruendete Ausnahme mit ausdruecklicher Entwicklerfreigabe" zulaessig
+   (siehe Orchestrator, Abschnitt "Uebergaenge und Ausnahmen"). Diese Freigabe
+   wird eingeholt, bevor implementiert wird — nicht im Nachhinein rationalisiert,
+   nachdem der Entwickler nachfragt.
+5. **Zustand ehrlich fuehren.** Nach jeder Phase aktualisiert der Agent
+   `.concord/scratch/process-state.yaml` mit dem tatsaechlichen Stand. Eine
+   Abweichung zwischen dieser Datei und der Realitaet ist selbst ein Fehlerfall
+   und wird dem Entwickler aktiv gemeldet, nicht stillschweigend uebergangen.
+
+---
+
 ## Agenten-Betriebsmodus: Live-SP vs. Autonom (Selbstauskunft-Pflicht)
 
 Ob ein Agent neben einer live laufenden Studio-Pro-Instanz arbeitet oder autonom auf
@@ -173,9 +211,12 @@ Navigation mit rollenbasierten Home-Pages, `mxcli lint`, `mxcli docker check`
 Mendix die Entity-Access-Metadaten als veraltet markiert. Betroffen sind insbesondere
 neue oder geloeschte Entitaeten, neue oder entfernte Attribute und Associations sowie
 Aenderungen an Generalisierung oder Entity-Security. Nach einem gebuendelten
-Modellabschnitt `mxcli docker check` ausfuehren; bei `CE0066` Studio Pro oeffnen, in
-jedem betroffenen Domain Model **Update security** ausfuehren, speichern, Studio Pro
-schliessen und den Check wiederholen.
+Modellabschnitt `mxcli docker check` ausfuehren; bei `CE0066` **fragt der Agent den
+Entwickler nicht, ob Studio Pro geoeffnet werden soll** — er prueft den Zustand selbst
+mit `scripts/check-studio-pro-status.ps1` und oeffnet bei Bedarf selbst mit
+`scripts/open-studio-pro.ps1` (siehe Ablauf unten). Fuer den Entwickler bleibt nur:
+in jedem betroffenen Domain Model **Update security** klicken, speichern, Studio Pro
+schliessen. Danach wiederholt der Agent den Check.
 
 Waves werden deshalb so geschnitten, dass zusammengehoerige Domain-Model-Aenderungen
 in einem Modellabschnitt liegen. Pro Wave gibt es hoechstens ein bewusstes
@@ -189,10 +230,14 @@ Fuer reine MDL-/Referenzvalidierung genuegt
 `mxcli check <script>.mdl -p <project>.mpr --references`.
 
 Mehrere Studio-Pro-Instanzen fuer andere Projekte duerfen parallel geoeffnet bleiben.
-Wenn ein Agent fuer dieses Projekt Studio Pro startet, verwendet er bei einem
-anschliessenden manuellen Schritt `scripts/open-studio-pro.ps1 -WaitForClose`.
-Der Launcher wartet nur auf die von ihm gestartete PID und blockiert oder beendet keine
-anderen Studio-Pro-Instanzen.
+Vor jedem Start prueft der Agent selbststaendig mit
+`scripts/check-studio-pro-status.ps1`, ob dieses Projekt bereits offen ist (Exit-Code
+0 = offen, 1 = geschlossen, 2 = Fehler) — er fragt dafuer nicht beim Entwickler nach.
+Ist es bereits offen, startet er nichts neu und geht direkt zum Update-security-Schritt
+ueber. Andernfalls oeffnet er es selbst mit `scripts/open-studio-pro.ps1 -WaitForClose`;
+fuer den Entwickler bleibt dann ausschliesslich der Klick auf **Update security**,
+Speichern und Schliessen. Der Launcher wartet nur auf die von ihm gestartete PID und
+blockiert oder beendet keine anderen Studio-Pro-Instanzen.
 
 ### Wave-Report und Board-Traceability
 
@@ -212,9 +257,12 @@ ausgefuehrt. Die lokalen Werte `MENDIX_APP_TEST_USERNAME` und
 niemals ausgegeben, in MDL geschrieben oder versioniert.
 
 Wenn MxBuild oder der Mendix-Konsistenzcheck `CE0066` meldet, muss **Update security**
-im kanonischen Originalmodell ausgefuehrt werden. Ablauf: Studio Pro oeffnen,
-im betroffenen Domain Model **Update security** ausfuehren, speichern, Studio Pro
-schliessen, Commit, danach Docker-/Playwright-Test erneut ausfuehren.
+im kanonischen Originalmodell ausgefuehrt werden. Ablauf: Der Agent prueft mit
+`scripts/check-studio-pro-status.ps1`, ob das Projekt bereits offen ist, und oeffnet es
+bei Bedarf selbst mit `scripts/open-studio-pro.ps1` — ohne Rueckfrage beim Entwickler.
+Fuer den Entwickler bleibt nur: im betroffenen Domain Model **Update security**
+ausfuehren, speichern, Studio Pro schliessen. Danach Commit, danach
+Docker-/Playwright-Test erneut ausfuehren.
 
 Bei MB_SSO-Konfiguration `MB_SSO.CONST_UserroleAppname` pruefen. Wenn sie leer oder
 nicht einem eindeutigen 3-5-stelligen Uppercase-Kuerzel entspricht, das Kuerzel vor dem
@@ -268,9 +316,11 @@ Use `.ai-context/skills/check-syntax.md` before executing an MDL script. For ful
 project consistency checks, set up mxbuild with `mxcli setup mxbuild -p
 App.mpr` and use the generated `mx` command.
 
-Wenn eine Konsistenzpruefung `CE0066` meldet, `scripts/open-studio-pro.ps1` ausfuehren.
-Der Entwickler klickt in Studio Pro im betroffenen Domaenenmodell **Update security**, speichert,
-schliesst Studio Pro wieder und startet danach die Konsistenzpruefung erneut.
+Wenn eine Konsistenzpruefung `CE0066` meldet: zuerst `scripts/check-studio-pro-status.ps1`
+ausfuehren (kein Nachfragen beim Entwickler, ob Studio Pro offen ist), dann bei Bedarf
+`scripts/open-studio-pro.ps1`. Der Entwickler klickt in Studio Pro im betroffenen
+Domaenenmodell **Update security**, speichert, schliesst Studio Pro wieder und der Agent
+startet danach die Konsistenzpruefung erneut.
 
 ## Before Writing MDL Scripts
 Read the relevant skill file first:
