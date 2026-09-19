@@ -23,8 +23,8 @@
 
 ## Epic: Quality Gates
 
-- [ ] **Implement Specification Quality Gate**
-  - [ ] Create a script or agent skill to check a `.spec` file against a quality checklist.
+- [x] **Implement Specification Quality Gate**
+  - [x] Create a script or agent skill to check a `.spec` file against a quality checklist.
 
 ## Epic: Unify Artifacts with YAML
 

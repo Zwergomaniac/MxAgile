@@ -2,18 +2,6 @@ import json
 import os
 import argparse
 
-def find_checklist_path(start_path):
-    """Searches upward from start_path for quality-checklist.json."""
-    path = os.path.abspath(start_path)
-    while True:
-        checklist_path = os.path.join(path, 'quality-checklist.json')
-        if os.path.exists(checklist_path):
-            return checklist_path
-        parent_path = os.path.dirname(path)
-        if parent_path == path:  # Reached the root of the filesystem
-            return None
-        path = parent_path
-
 def parse_artifact(file_path):
     """Parses a simple key: value artifact file."""
     data = {}
@@ -26,7 +14,7 @@ def parse_artifact(file_path):
 
 def check_quality(file_path, project_root):
     """Checks a single artifact file against the quality checklist."""
-    checklist_path = find_checklist_path(project_root)
+    checklist_path = os.path.join(project_root, 'quality-checklist.json')
     violations = []
 
     if not os.path.exists(checklist_path):

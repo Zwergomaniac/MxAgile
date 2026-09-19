@@ -54,6 +54,12 @@ foreach ($dir in $frameworkDirs) {
     }
 }
 
+$qualityChecklistFile = Join-Path $ProjectRoot "quality-checklist.json"
+if (Test-Path $qualityChecklistFile) {
+    Copy-Item -Path $qualityChecklistFile -Destination $TestingDir -Force
+    Write-Host "  - Copied quality-checklist.json"
+}
+
 Write-Host "✅ Testing instance reset successfully."
 Write-Host "Navigate to '$TestingDir' to work within the simulated project."
 
