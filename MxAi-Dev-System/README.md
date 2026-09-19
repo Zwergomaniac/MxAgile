@@ -190,3 +190,11 @@ projekt.md            ← Alle Agenten (Ziel, Kontext, Module, Stack)
 ```
 
 Jede Agent-Datei enthält nur ihre eigene Domäne + einen Verweis auf `projekt.md`.
+
+## Getting Started
+
+For instructions on how to install and use the MxAgile framework in your own Mendix project, please see the [Installation Guide](./docs/installation.md).
+
+To learn how to group features together for planning, see the [Waves Guide](./docs/waves.md).
+
+To learn how to create and use company-specific layers for standards and reusable components, see the [Company Layers Guide](./docs/company-layers.md).

@@ -1,55 +1,74 @@
 # scripts/mxagile-build-trace-index.ps1
+# Builds a traceability index from project artifacts without external dependencies.
 
 param (
     [string]$ProjectRoot = (Get-Location).Path
 )
+$ProjectRoot = (Resolve-Path -Path $ProjectRoot).Path
 
-#Requires -Modules powershell-yaml
+# Helper function to parse simple Key: Value pairs from a file.
+function Parse-ArtifactFile($filePath) {
+    $data = @{}
+    $content = Get-Content -Path $filePath -Raw
 
-Write-Host "Building MxAgile traceability index..."
+    # Regex to find lines starting with Key: Value
+    $regex = '(?m)^([a-zA-Z_\-]+):\s*(.*)$'
+    $matches = $content | Select-String -Pattern $regex -AllMatches
+
+    foreach ($match in $matches.Matches) {
+        $key = $match.Groups[1].Value.Trim()
+        $value = $match.Groups[2].Value.Trim()
+        
+        # Simple handling for list-like values (e.g., requirements, specs)
+        if ($data.ContainsKey($key)) {
+            if ($data[$key] -is [array]) {
+                $data[$key] += $value
+            } else {
+                $data[$key] = @($data[$key], $value)
+            }
+        } else {
+            $data[$key] = $value
+        }
+    }
+    return $data
+}
+
+Write-Host "Building MxAgile traceability index (dependency-free)..."
 
 $index = @{
     requirements = @{}
     specs = @{}
+    waves = @{}
     tasks = @{}
 }
 
-# --- Parse Requirements ---
-$reqFiles = Get-ChildItem -Path (Join-Path $ProjectRoot "requirements") -Filter *.md -Recurse
-foreach ($file in $reqFiles) {
-    $content = Get-Content -Path $file.FullName -Raw
-    $yamlPart = ($content -split '---')[1]
-    $data = ConvertFrom-Yaml -Yaml $yamlPart
-    if ($data.req_id) {
-        $index.requirements[$data.req_id] = @{ 
-            path = $file.FullName 
-        }
-    }
-}
+# Define artifact locations
+$artifactLocations = @(
+    @{ Name = "requirements"; Path = "requirements"; Filter = "*.req" },
+    @{ Name = "specs"; Path = "specs"; Filter = "*.spec" },
+    @{ Name = "waves"; Path = "waves"; Filter = "*.wave" }
+    # tasks can be added here if they adopt the same format
+)
 
-# --- Parse Specs ---
-$specFiles = Get-ChildItem -Path (Join-Path $ProjectRoot "specs") -Filter *.md -Recurse
-foreach ($file in $specFiles) {
-    $content = Get-Content -Path $file.FullName -Raw
-    $yamlPart = ($content -split '---')[1]
-    $data = ConvertFrom-Yaml -Yaml $yamlPart
-    if ($data.spec_id) {
-        $index.specs[$data.spec_id] = @{ 
-            path = $file.FullName
-            requirements = $data.requirements
-        }
-    }
-}
+# --- Parse all artifacts ---
+foreach ($location in $artifactLocations) {
+    $artifactPath = Join-Path $ProjectRoot $location.Path
+    if (-not (Test-Path $artifactPath)) { continue }
 
-# --- Parse Tasks ---
-$taskFiles = Get-ChildItem -Path (Join-Path $ProjectRoot "planning/tasks") -Filter *.yaml -Recurse
-foreach ($file in $taskFiles) {
-    $data = ConvertFrom-Yaml -Input (Get-Content -Path $file.FullName -Raw)
-    if ($data.task_id) {
-        $index.tasks[$data.task_id] = @{ 
-            path = $file.FullName
-            spec_id = $data.spec_id
-            requirements = $data.req
+    $files = Get-ChildItem -Path $artifactPath -Filter $location.Filter -Recurse
+    foreach ($file in $files) {
+        $data = Parse-ArtifactFile -filePath $file.FullName
+        $id = $data.ID # Standardized on 'ID' as the key
+
+        if ($id) {
+            $entry = @{ 
+                path = $file.FullName.Replace($ProjectRoot + "\", "") # Store relative path
+            }
+            # Add all other parsed data to the entry
+            $data.GetEnumerator() | Where-Object { $_.Name -ne 'ID' } | ForEach-Object {
+                $entry[$_.Name] = $_.Value
+            }
+            $index.($location.Name)[$id] = $entry
         }
     }
 }
@@ -63,4 +82,4 @@ $outputFile = Join-Path $stateDir "trace-index.json"
 
 $index | ConvertTo-Json -Depth 5 | Set-Content -Path $outputFile
 
-Write-Host "Traceability index created at: $outputFile"
+Write-Host "Traceability index created successfully at: $outputFile"

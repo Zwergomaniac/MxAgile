@@ -27,3 +27,9 @@
 
 # Temporary testing instance directory
 .testing-MxAi/
+ 
+# Mendix project template directory (not part of the framework) 
+project-template/
+
+# Company-specific layers (prototypes)
+company-layers/

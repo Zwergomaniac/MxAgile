@@ -661,3 +661,22 @@ END;
 ## MDL Reference
 
 For detailed MDL syntax, see the skill files in `.ai-context/skills/<name>/SKILL.md`.
+
+---
+
+## Kontext: Projekt vs. Company Layer
+
+Ein Projekt kann einen oder mehrere "Company Layer" enthalten, die unter `.mxagile/layers/` abgelegt sind. Diese Layer stellen firmenweite Standards, wiederverwendbare Komponenten und Definitionen bereit. Der Agent muss bei seinen Aufgaben sowohl den Projekt-Kontext als auch den Layer-Kontext berücksichtigen.
+
+Dabei gilt die folgende **Override-Logik**: **Projekt-spezifische Artefakte haben immer Vorrang vor Layer-Artefakten.**
+
+**Anwendungsbeispiel: Glossar**
+- Wenn der Agent eine Definition für einen Begriff sucht, prüft er **zuerst**, ob eine `glossary.md` im Projekt-Root existiert und der Begriff dort definiert ist.
+- Nur wenn er dort nichts findet, sucht er in der `glossary.md` des aktiven Company Layers (z.B. `.mxagile/layers/mercedes-benz/glossary.md`).
+- Die Definitionen werden nicht physisch zusammengeführt; der Agent führt diesen Fallback-Mechanismus zur Laufzeit aus.
+
+**Anwendungsbeispiel: Plattform-Module**
+- Bei Fragen zur Architektur oder bei der Erstellung neuer Module prüft der Agent **zuerst** projektspezifische Modul-Definitionen.
+- **Zusätzlich** konsultiert er die `platform-modules.md` aus dem Company Layer, um sicherzustellen, dass Firmenstandards eingehalten werden.
+
+Diese Logik stellt sicher, dass Projekte Firmenstandards nutzen können, aber bei Bedarf gezielt davon abweichen oder sie erweitern können.
