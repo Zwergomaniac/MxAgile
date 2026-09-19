@@ -18,19 +18,34 @@ def compare_html_files(old_html, new_html):
     """
     Performs a semantic diff on two HTML files.
     """
+    diffs = []
     old_soup = BeautifulSoup(old_html, 'html.parser')
     new_soup = BeautifulSoup(new_html, 'html.parser')
 
+    # 1. Style changes
     old_style = old_soup.find('style')
     new_style = new_soup.find('style')
-
     old_style_content = old_style.string if old_style else ""
     new_style_content = new_style.string if new_style else ""
 
     if old_style_content != new_style_content:
-        return [{'type': 'VISUAL', 'detail': 'Changes detected in <style> block.'}]
+        diffs.append({'type': 'VISUAL', 'detail': 'Changes detected in <style> block.'})
 
-    return []
+    # 2. Data input changes
+    input_tags = ['input', 'select', 'textarea']
+    old_inputs = {tag.get('id') for tag in old_soup.find_all(input_tags) if tag.get('id')}
+    new_inputs = {tag.get('id') for tag in new_soup.find_all(input_tags) if tag.get('id')}
+
+    added_inputs = new_inputs - old_inputs
+    removed_inputs = old_inputs - new_inputs
+
+    for input_id in added_inputs:
+        diffs.append({'type': 'DATA', 'detail': f'New input field added: #{input_id}'})
+    
+    for input_id in removed_inputs:
+        diffs.append({'type': 'DATA', 'detail': f'Input field removed: #{input_id}'})
+
+    return diffs
 
 def main():
     """Main function for the mockup analysis engine."""
@@ -87,7 +102,8 @@ def main():
             
             try:
                 # Get old version from git
-                old_content = subprocess.check_output(['git', 'show', f'HEAD:{file_path_str}'], cwd=project_root).decode('utf-8')
+                git_path = file_path_str.replace('\\', '/')
+                old_content = subprocess.check_output(['git', 'show', f'HEAD:./{git_path}'], cwd=project_root).decode('utf-8')
                 
                 # Get new version from filesystem
                 with open(filepath, 'r', encoding='utf-8') as f:

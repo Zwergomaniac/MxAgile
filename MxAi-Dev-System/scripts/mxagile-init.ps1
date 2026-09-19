@@ -4,6 +4,27 @@ param (
     [string]$ProjectRoot = (Get-Location).Path
 )
 
+# --- Dependency Check ---
+Write-Host "Checking for Python and pip..."
+$pythonPath = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonPath) {
+    Write-Error "Python is not installed or not in PATH. Please install Python and try again."
+    exit 1
+}
+
+$pipPath = Get-Command pip -ErrorAction SilentlyContinue
+if (-not $pipPath) {
+    Write-Warning "pip is not installed or not in PATH. Cannot install dependencies."
+} else {
+    $requirementsFile = Join-Path $ProjectRoot "requirements.txt"
+    if (Test-Path $requirementsFile) {
+        Write-Host "Found requirements.txt. Installing dependencies..."
+        pip install -r $requirementsFile
+    } else {
+        Write-Host "No requirements.txt found, skipping dependency installation."
+    }
+}
+
 Write-Host "Starting MxAgile initialization in: $ProjectRoot"
 
 # --- Core Directories ---
