@@ -15,4 +15,4 @@ This report summarizes changes in the `input-resources\ui-ux` directory.
 
 ### File: `input-resources\ui-ux\mockup-v1.html`
 - **VISUAL**: Changes detected in <style> block.
-- **DATA**: New input field added: #email
+- **INTERACTION**: New button or link added: #forgot-password-link

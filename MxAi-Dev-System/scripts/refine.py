@@ -45,6 +45,20 @@ def compare_html_files(old_html, new_html):
     for input_id in removed_inputs:
         diffs.append({'type': 'DATA', 'detail': f'Input field removed: #{input_id}'})
 
+    # 3. Interaction changes (buttons and links)
+    interaction_tags = ['button', 'a']
+    old_interactions = {tag.get('id') for tag in old_soup.find_all(interaction_tags) if tag.get('id')}
+    new_interactions = {tag.get('id') for tag in new_soup.find_all(interaction_tags) if tag.get('id')}
+
+    added_interactions = new_interactions - old_interactions
+    removed_interactions = old_interactions - new_interactions
+
+    for interaction_id in added_interactions:
+        diffs.append({'type': 'INTERACTION', 'detail': f'New button or link added: #{interaction_id}'})
+
+    for interaction_id in removed_interactions:
+        diffs.append({'type': 'INTERACTION', 'detail': f'Button or link removed: #{interaction_id}'})
+
     return diffs
 
 def main():
