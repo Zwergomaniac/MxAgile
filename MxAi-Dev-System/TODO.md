@@ -37,3 +37,13 @@
 
 - [ ] **Implement Specification Quality Gate**
   - [ ] Create a script or agent skill to check a `.spec` file against a quality checklist.
+
+## Epic: Unify Artifacts with YAML
+
+- [ ] **Convert All Artifacts to YAML:**
+  - [ ] Convert `.spec`, `.req`, `.wave` to `.yml` format.
+  - [ ] Convert `glossary.md` and `platform-modules.md` to `.yml`.
+- [ ] **Rewrite Indexer in Python:**
+  - [ ] Replace `mxagile-build-trace-index.ps1` with a Python script that reads all `.yml` artifacts.
+- [ ] **Update All Scripts and Skills:**
+  - [ ] Update all scripts and agent skills that create or read artifacts to use the new `.yml` format.
