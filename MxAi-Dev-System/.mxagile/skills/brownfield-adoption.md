@@ -2,7 +2,7 @@
 
 ## Goal
 
-To analyze an existing Mendix project (an .mpr file) and reverse-engineer its domain model into a set of MxAgile `.spec` files, making the project compatible with the MxAgile workflow.
+To analyze an existing Mendix project and any related documentation to reverse-engineer its domain model into a set of well-described MxAgile `.spec` files.
 
 ## Trigger
 
@@ -10,10 +10,11 @@ This skill should be invoked when the user asks to adopt an existing project, im
 
 ## Step-by-Step Process
 
-### 1. Get Project Path
+### 1. Gather Context
 
-- Ask the user for the full path to the Mendix project file (`.mpr`).
-- Ask for the path to the `mxcli` executable.
+- **Ask for Project Path:** Get the full path to the Mendix project file (`.mpr`) and the `mxcli` executable from the user.
+- **Ask for Existing Artifacts:** Ask the user if they have any existing documentation that describes the project (e.g., Markdown files, HTML mockups, sprint plans, user stories). 
+- **Read Artifacts:** If they provide file paths, read the content of these files. This content will serve as crucial context for writing meaningful descriptions in the generated `.spec` files.
 
 ### 2. Analyze the .mpr File
 
@@ -36,15 +37,10 @@ $stream.Close()
 $zip.Dispose()
 
 $modules = @{}
-# Select all AppStoreModules and ProjectModules
 $xml.Project.AppStoreModules.AppStoreModule | ForEach-Object { $modules[$_.Name] = "Marketplace" }
 $xml.Project.ProjectModules.ProjectModule | ForEach-Object { $modules[$_.Name] = "Custom" }
 
 # You can add logic here to identify Platform modules by name prefix if needed
-# For example:
-# foreach ($name in $modules.Keys) {
-#   if ($name.StartsWith("MB_")) { $modules[$name] = "Platform" }
-# }
 
 return $modules | ConvertTo-Json
 ```
@@ -53,46 +49,24 @@ return $modules | ConvertTo-Json
 
 ### 3. Export Domain Model using mxcli
 
-- For each module identified in the previous step (excluding `System` and `Administration`):
+- For each module identified (excluding `System` and `Administration`):
     - **Get Entities:** Run `mxcli -p <MprPath> -c "SHOW ENTITIES IN <ModuleName>"`.
     - **Get Associations:** Run `mxcli -p <MprPath> -c "SHOW ASSOCIATIONS IN <ModuleName>"`.
 
 ### 4. Generate .spec Files
 
-- Create a temporary directory to store the full MDL descriptions.
-- Loop through every entity and every association from the previous step.
-- For each one, run the appropriate `DESCRIBE` command and save the output to a file:
-    - `mxcli -p <MprPath> -c "DESCRIBE ENTITY <Module.EntityName>" > temp/Module_Entity.mdl`
-    - `mxcli -p <MprPath> -c "DESCRIBE ASSOCIATION <Module.AssocName>" > temp/Module_Assoc.mdl`
-
-- Now, loop through the generated `.mdl` files in your temporary directory.
+- Create a temporary directory to store the full MDL descriptions for each element.
+- Loop through every entity and association and use the appropriate `DESCRIBE` command, saving the output to a file in the temp directory.
+- Now, loop through the generated `.mdl` files in the temporary directory.
 - For each file:
-    - **Parse the content:** Extract the name, attributes, etc.
-    - **Determine Module Type:** Look up the module's type from the JSON map you created in Step 2.
-    - **Generate a Spec ID:** Create a new, unique ID (e.g., `SP-001`, `SP-002`).
-    - **Construct the `.spec` file content** with the appropriate flags:
-
-        **For a Custom Module Entity:**
-        ```
-        ID: SP-XXX
-        Type: CustomModule
-        Mutable: true
-        Description: Defines the ... entity.
-        ENTITY: ...
-        ```
-
-        **For a Marketplace/Platform Module Entity:**
-        ```
-        ID: SP-YYY
-        Type: MarketplaceModule
-        Mutable: false
-        Description: Defines the ... entity from the read-only ... module.
-        ENTITY: ...
-        ```
-
+    - **Parse the content** to extract its structure (name, attributes, etc.).
+    - **Determine Module Type** from the map created in Step 2.
+    - **Generate a Spec ID** (e.g., `SP-001`).
+    - **Write a meaningful description:** Instead of a generic message, use the context from the artifacts gathered in Step 1 to write a relevant description for the `Description:` field.
+    - **Construct the `.spec` file content** with the appropriate flags (`Type:`, `Mutable:`).
     - **Save the file:** Write the content to `specs/<ModuleName>_<ElementName>.spec`.
 
 ### 5. Final Cleanup
 
-- Delete the temporary directory containing the intermediate MDL files.
+- Delete the temporary directory.
 - Inform the user that the adoption is complete and that they should review the generated `.spec` files.
