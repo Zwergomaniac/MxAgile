@@ -3,5 +3,11 @@
   "specs": {},
   "waves": {},
   "tasks": {},
-  "refinements": {}
+  "refinements": {},
+  "mockups": {
+    "mockup-v1": {
+      "path": "input-resources/ui-ux/mockup-v1.html",
+      "hash": "2f6b208006fa37302a9b4a95759fad58e7d04a962de133c012a06a28a72c314c"
+    }
+  }
 }

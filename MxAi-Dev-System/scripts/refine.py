@@ -3,8 +3,8 @@ import json
 import os
 import hashlib
 import subprocess
-import yaml
 from pathlib import Path
+from bs4 import BeautifulSoup
 
 def calculate_sha256(filepath):
     """Calculates the SHA256 hash of a file."""
@@ -14,32 +14,32 @@ def calculate_sha256(filepath):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
-def compare_yaml_files(old_data, new_data, path=''):
-    """Recursively compares two yaml data structures and returns a human-readable diff."""
-    diff = []
-    all_keys = set(old_data.keys()) | set(new_data.keys())
+def compare_html_files(old_html, new_html):
+    """
+    Performs a semantic diff on two HTML files.
+    """
+    old_soup = BeautifulSoup(old_html, 'html.parser')
+    new_soup = BeautifulSoup(new_html, 'html.parser')
 
-    for key in sorted(list(all_keys)):
-        new_path = f"{path}.{key}" if path else key
-        if key not in old_data:
-            diff.append(f"- Added: `{new_path}`")
-        elif key not in new_data:
-            diff.append(f"- Removed: `{new_path}`")
-        elif isinstance(old_data[key], dict) and isinstance(new_data[key], dict):
-            diff.extend(compare_yaml_files(old_data[key], new_data[key], path=new_path))
-        elif old_data[key] != new_data[key]:
-            diff.append(f"- Changed: `{new_path}` from `{old_data[key]}` to `{new_data[key]}`")
-    return diff
+    old_style = old_soup.find('style')
+    new_style = new_soup.find('style')
+
+    old_style_content = old_style.string if old_style else ""
+    new_style_content = new_style.string if new_style else ""
+
+    if old_style_content != new_style_content:
+        return [{'type': 'VISUAL', 'detail': 'Changes detected in <style> block.'}]
+
+    return []
 
 def main():
-    """Main function for the refinement engine."""
+    """Main function for the mockup analysis engine."""
     project_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('.').resolve()
     index_path = project_root / ".mxagile" / "state" / "trace-index.json"
-    refinements_dir = project_root / "refinements"
-    report_path = project_root / "refinement-report.md"
-    impact_analysis = {}
+    mockups_dir = project_root / "input-resources" / "ui-ux"
+    report_path = project_root / "mockup-report.md"
 
-    print("🚀 Running Python-based Refinement Engine...")
+    print("Running Python-based Mockup Analysis Engine...")
 
     # 1. Load the trace index
     if not index_path.exists():
@@ -47,16 +47,17 @@ def main():
         return
     with open(index_path, 'r') as f:
         index = json.load(f)
-        baseline_index = index.get('refinements', {})
+        baseline_index = index.get('mockups', {})
 
-    # 2. Scan the current refinements directory
+    # 2. Scan the current mockups directory
     current_files = {}
-    if refinements_dir.exists():
-        for filepath in refinements_dir.glob("*.yml"):
+    if mockups_dir.exists():
+        for filepath in mockups_dir.glob("*.html"):
             file_id = filepath.stem
+            file_hash = calculate_sha256(filepath)
             current_files[file_id] = {
                 'path': str(filepath.relative_to(project_root)),
-                'hash': calculate_sha256(filepath)
+                'hash': file_hash
             }
     
     # 3. Compare baseline with current state
@@ -74,63 +75,44 @@ def main():
             unchanged_files.append(file_id)
 
     # 4. Generate the report
-    report_content = ["# MxAgile Refinement Report", "", "This report summarizes changes in the 'refinements' directory.", "", "## Summary", "", "| Status    | Count |", "| --------- | ----- |", f"| New       | {len(new_files)}     |", f"| Changed   | {len(changed_files)}   |", f"| Unchanged | {len(unchanged_files)} |", f"| Deleted   | {len(deleted_files)}   |", ""]
+    report_content = ["# MxAgile Mockup Report", "", f"This report summarizes changes in the `{mockups_dir.relative_to(project_root)}` directory.", "", "## Summary", "", "| Status    | Count |", "| --------- | ----- |", f"| New       | {len(new_files)}     |", f"| Changed   | {len(changed_files)}   |", f"| Unchanged | {len(unchanged_files)} |", f"| Deleted   | {len(deleted_files)}   |", ""]
 
-    # 5. Add details for changed files (semantic diff)
+    # 5. Add details for changed files
     if changed_files:
-        report_content.append("## Semantic Diffs for Changed Files")
+        report_content.append("## Details for Changed Files")
         for file_id in changed_files:
-            filepath = project_root / current_files[file_id]['path']
-            report_content.append(f"\n### File: `{current_files[file_id]['path']}`")
-
-            # --- Semantic Diff ---
-            try:
-                # Get old file content from git HEAD
-                git_path = current_files[file_id]['path'].replace('\\', '/') # Use forward slashes for git
-                old_content_raw = subprocess.check_output(["git", "show", f"HEAD:{git_path}"], cwd=project_root, text=True)
-                old_data = yaml.safe_load(old_content_raw)
-
-                # Get new file content
-                with open(filepath, 'r') as f:
-                    new_data = yaml.safe_load(f)
-
-                # Compare the two
-                diffs = compare_yaml_files(old_data, new_data)
-                if diffs:
-                    report_content.extend(diffs)
-                else:
-                    report_content.append("- No semantic changes detected despite different file hash (e.g., whitespace or comments).")
-            except Exception as e:
-                report_content.append(f"- Could not generate semantic diff: {e}")
-
-            # --- Impact Analysis ---
-            impacted_items = {'specs': [], 'tasks': []}
-            # If the changed file is a requirement, find specs that relate to it
-            if file_id.startswith('REQ'):
-                for spec_id, spec_data in index.get('specs', {}).items():
-                    if spec_data.get('Relates') == file_id:
-                        impacted_items['specs'].append(spec_id)
+            file_path_str = current_files[file_id]['path']
+            filepath = project_root / file_path_str
+            report_content.append(f'\n### File: `{file_path_str}`')
             
-            # You can add more complex traversal here (e.g., find tasks related to affected specs)
-            if impacted_items['specs'] or impacted_items['tasks']:
-                impact_analysis[file_id] = impacted_items
+            try:
+                # Get old version from git
+                old_content = subprocess.check_output(['git', 'show', f'HEAD:{file_path_str}'], cwd=project_root).decode('utf-8')
+                
+                # Get new version from filesystem
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    new_content = f.read()
+                
+                # Compare the two versions
+                diffs = compare_html_files(old_content, new_content)
+                
+                if diffs:
+                    for diff in diffs:
+                        report_content.append(f"- **{diff['type']}**: {diff['detail']}")
+                else:
+                    report_content.append("- No semantic changes detected.")
+
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                report_content.append(f"- Could not retrieve previous version of file. Error: {e}")
+            except Exception as e:
+                report_content.append(f"- An error occurred during analysis: {e}")
+
 
     # 6. Write the report
-    if impact_analysis:
-        report_content.append("\n## Impact Analysis")
-        report_content.append("The following artifacts may be affected by the changes:")
-        for changed_id, impacts in impact_analysis.items():
-            report_content.append(f"\n### Change to `{changed_id}` may impact:")
-            if impacts['specs']:
-                report_content.append("- **Specs:** " + ", ".join([f"`{s}`" for s in impacts['specs']]))
-            if impacts['tasks']:
-                report_content.append("- **Tasks:** " + ", ".join([f"`{t}`" for t in impacts['tasks']]))
-
     with open(report_path, 'w') as f:
-        f.write("
-".join(report_content))
+        f.write("\n".join(report_content))
 
-    print(f"✅ Report generated at: {report_path}")
+    print(f"Report generated at: {report_path}")
 
 if __name__ == "__main__":
     main()
