@@ -59,6 +59,24 @@ def compare_html_files(old_html, new_html):
     for interaction_id in removed_interactions:
         diffs.append({'type': 'INTERACTION', 'detail': f'Button or link removed: #{interaction_id}'})
 
+    # 4. CONTENT changes
+    # H2 tag changes
+    old_h2 = old_soup.find('h2')
+    new_h2 = new_soup.find('h2')
+    old_h2_text = old_h2.text.strip() if old_h2 else ""
+    new_h2_text = new_h2.text.strip() if new_h2 else ""
+    if old_h2 and new_h2 and old_h2_text != new_h2_text:
+        diffs.append({'type': 'CONTENT', 'detail': 'H2 tag content changed.'})
+
+    # Placeholder attribute changes
+    old_placeholders = {tag.get('id'): tag.get('placeholder', '') for tag in old_soup.find_all('input') if tag.get('id')}
+    new_placeholders = {tag.get('id'): tag.get('placeholder', '') for tag in new_soup.find_all('input') if tag.get('id')}
+    
+    common_ids = set(old_placeholders.keys()) & set(new_placeholders.keys())
+    for input_id in common_ids:
+        if old_placeholders[input_id] != new_placeholders[input_id]:
+            diffs.append({'type': 'CONTENT', 'detail': f'Placeholder for #{input_id} changed.'})
+
     return diffs
 
 def main():

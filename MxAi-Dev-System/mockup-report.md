@@ -14,5 +14,4 @@ This report summarizes changes in the `input-resources\ui-ux` directory.
 ## Details for Changed Files
 
 ### File: `input-resources\ui-ux\mockup-v1.html`
-- **VISUAL**: Changes detected in <style> block.
-- **INTERACTION**: New button or link added: #forgot-password-link
+- **CONTENT**: H2 tag content changed.
