@@ -37,6 +37,7 @@ def main():
     index_path = project_root / ".mxagile" / "state" / "trace-index.json"
     refinements_dir = project_root / "refinements"
     report_path = project_root / "refinement-report.md"
+    impact_analysis = {}
 
     print("🚀 Running Python-based Refinement Engine...")
 
@@ -45,7 +46,8 @@ def main():
         print(f"Error: Trace index not found at {index_path}")
         return
     with open(index_path, 'r') as f:
-        baseline_index = json.load(f).get('refinements', {})
+        index = json.load(f)
+        baseline_index = index.get('refinements', {})
 
     # 2. Scan the current refinements directory
     current_files = {}
@@ -80,6 +82,8 @@ def main():
         for file_id in changed_files:
             filepath = project_root / current_files[file_id]['path']
             report_content.append(f"\n### File: `{current_files[file_id]['path']}`")
+
+            # --- Semantic Diff ---
             try:
                 # Get old file content from git HEAD
                 git_path = current_files[file_id]['path'].replace('\\', '/') # Use forward slashes for git
@@ -96,11 +100,32 @@ def main():
                     report_content.extend(diffs)
                 else:
                     report_content.append("- No semantic changes detected despite different file hash (e.g., whitespace or comments).")
-
             except Exception as e:
                 report_content.append(f"- Could not generate semantic diff: {e}")
 
+            # --- Impact Analysis ---
+            impacted_items = {'specs': [], 'tasks': []}
+            # If the changed file is a requirement, find specs that relate to it
+            if file_id.startswith('REQ'):
+                for spec_id, spec_data in index.get('specs', {}).items():
+                    if spec_data.get('Relates') == file_id:
+                        impacted_items['specs'].append(spec_id)
+            
+            # You can add more complex traversal here (e.g., find tasks related to affected specs)
+            if impacted_items['specs'] or impacted_items['tasks']:
+                impact_analysis[file_id] = impacted_items
+
     # 6. Write the report
+    if impact_analysis:
+        report_content.append("\n## Impact Analysis")
+        report_content.append("The following artifacts may be affected by the changes:")
+        for changed_id, impacts in impact_analysis.items():
+            report_content.append(f"\n### Change to `{changed_id}` may impact:")
+            if impacts['specs']:
+                report_content.append("- **Specs:** " + ", ".join([f"`{s}`" for s in impacts['specs']]))
+            if impacts['tasks']:
+                report_content.append("- **Tasks:** " + ", ".join([f"`{t}`" for t in impacts['tasks']]))
+
     with open(report_path, 'w') as f:
         f.write("
 ".join(report_content))

@@ -12,7 +12,7 @@
 - [x] **Implement Refinement Engine (`mxagile-refine.ps1`)**
   - [x] Implement hash-based change detection.
   - [x] Implement Python-based semantic diffing (initial version).
-  - [ ] Implement impact analysis and report generation.
+  - [x] Implement impact analysis and report generation.
 - [x] **Implement Living Spec Scripts**
 - [x] **Implement Brownfield Adoption (`mxagile-adopt.ps1`)**
 - [x] **Implement Analysis & Verification Scripts**
