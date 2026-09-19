@@ -8,66 +8,36 @@ param (
 $ProjectRoot = (Get-Location).Path
 Write-Host "Starting MxAgile planning for spec: $SpecId"
 
-# --- 1. Find Spec File ---
-$specFilePath = ""
-$specFileGuess = Join-Path $ProjectRoot "specs/$($SpecId)_*.spec"
-$specFile = Get-Item -Path $specFileGuess -ErrorAction SilentlyContinue
-if ($specFile) {
-    $specFilePath = $specFile.FullName
-} else {
-    Write-Error "Spec file for ID '$SpecId' not found."
+# --- 1. Load Trace Index ---
+$traceIndexPath = Join-Path $ProjectRoot "trace-index.json"
+if (-not (Test-Path -LiteralPath $traceIndexPath)) {
+    Write-Error "trace-index.json not found at '$traceIndexPath'."
     return
 }
+
+$traceIndex = Get-Content -Path $traceIndexPath | ConvertFrom-Json
+Write-Host "Loaded trace index."
+
+# --- 2. Find Spec in Index ---
+# Note: Accessing nested properties on a PSCustomObject requires parentheses
+$specInfo = ($traceIndex.specs).$SpecId
+if (-not $specInfo) {
+    Write-Error "Spec with ID '$SpecId' not found in trace-index.json."
+    return
+}
+
+$specFilePath = Join-Path $ProjectRoot $specInfo.path
+if (-not (Test-Path -LiteralPath $specFilePath)) {
+    Write-Error "Spec file not found at path specified in trace-index: '$specFilePath'."
+    return
+}
+
 Write-Host "Found Spec: $specFilePath"
 
-# --- 2. Generate Domain Model MDL (Simplified) ---
-Write-Host "Generating Domain Model MDL from spec..."
-
+# --- 3. Read and Print Spec Content ---
+Write-Host "Reading spec content..."
 $specContent = Get-Content -Path $specFilePath -Raw
 
-# Example parsing logic (highly simplified):
-$entityLine = $specContent | Select-String -Pattern "^ENTITY: (.*)" | ForEach-Object { $_.Matches[0].Groups[1].Value }
-
-Write-Host "DEBUG: Raw entityLine is: [$entityLine]"
-
-if ($entityLine) {
-    $entityParts = $entityLine -split '[\(\)]'
-    Write-Host "DEBUG: entityParts count is $($entityParts.Count)"
-    for ($i = 0; $i -lt $entityParts.Length; $i++) {
-        Write-Host "DEBUG: entityParts[$i] = '" + $entityParts[$i] + "'"
-    }
-
-    $entityName = $entityParts[0].Trim()
-    $attributeString = $entityParts[1]
-    
-    Write-Host "DEBUG: entityName is: [$entityName]"
-    Write-Host "DEBUG: attributeString is: [$attributeString]"
-
-    $mdlContent = "CREATE PERSISTENT ENTITY MyModule.\"$entityName\" (\n"
-
-    $attributes = $attributeString -split ','
-    foreach ($attribute in $attributes) {
-        Write-Host "DEBUG: Parsing attribute: [$attribute]"
-        $attrParts = $attribute.Trim() -split ':'
-        $attrName = $attrParts[0].Trim()
-        $attrType = $attrParts[1].Trim()
-        Write-Host "DEBUG:   -> Name: [$attrName], Type: [$attrType]"
-        $mdlContent += "    \"$attrName\": $attrType,\n"
-    }
-
-    $mdlContent = $mdlContent.TrimEnd(',\n') + "\n);"
-
-    # --- 3. Save MDL File ---
-    $plansDir = Join-Path $ProjectRoot "planning/plans"
-    if (-not (Test-Path $plansDir)) {
-        New-Item -ItemType Directory -Path $plansDir | Out-Null
-    }
-
-    $mdlFile = Join-Path $plansDir "$($SpecId)-domain-model.mdl"
-    $mdlContent | Set-Content -Path $mdlFile
-
-    Write-Host "Domain Model MDL generated at: $mdlFile"
-
-} else {
-    Write-Warning "No 'ENTITY:' line found in spec file. Skipping domain model generation."
-}
+Write-Host "--- Spec Content ---"
+Write-Host $specContent
+Write-Host "--- End Spec Content ---"

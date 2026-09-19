@@ -1,0 +1,34 @@
+platform-modules-information:
+  introduction: |
+    Mercedes-Benz Plattformmodule gelten als vorhandene Plattformfähigkeiten und sollen standardmäßig genutzt werden.
+    Eigene Entwicklung nur bei fachlich begründeter Abweichung.
+    Vor Eigenentwicklung prüfen:
+    1. Mercedes-Benz Plattformmodule
+    2. Mendix Marketplace (FOSS/Open Source)
+    3. Erst danach Eigenentwicklung
+  change-rule: |
+    Mercedes-Benz Plattformmodule dürfen nicht modifiziert werden.
+    Sie werden zentral gepflegt und erhalten Updates.
+    Erweiterungen erfolgen über:
+    - Konfiguration
+    - Rollenmapping
+    - Extension Points
+    - Projektspezifische Module
+    Nicht über Änderungen am Modul selbst.
+  modules:
+    - name: MB_SSO
+      description: Authentifizierung und Mitarbeiterinformationen via Claims.
+    - name: MB OIDC
+      description: Federation, OIDC, Rollen- und Claim-Mapping.
+    - name: MB No Access
+      description: Standardverhalten für Nutzer ohne fachliche Rolle.
+    - name: MB UI
+      description: Designsystem, CSS, Layouts und Standardkomponenten.
+    - name: MB Databricks
+      description: Zugriff auf Datenprodukte. SQL-Know-how erforderlich.
+    - name: MB SimplifAI
+      description: AI- und LLM-Funktionen.
+    - name: MB Governance Client
+      description: Pflichtmodul für Lizenzierung.
+    - name: MB Feedback
+      description: Standard für Nutzerfeedback.

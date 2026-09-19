@@ -8,12 +8,26 @@ param (
 $ProjectRoot = (Get-Location).Path
 Write-Host "🚀 Preparing agent prompt for reconciling Spec ID: $SpecId..."
 
-# --- 1. Find Spec and Clarification Files ---
-$specFile = Get-ChildItem -Path (Join-Path $ProjectRoot "specs") -Filter "$($SpecId).spec" -Recurse
+# --- 1. Load Trace Index and Find File Paths ---
+$traceIndexPath = Join-Path $ProjectRoot ".mxagile/trace-index.json"
+if (-not (Test-Path $traceIndexPath)) {
+    Write-Error "Trace index not found at '$traceIndexPath'. Run the planner first."
+    return
+}
+$traceIndex = Get-Content -Path $traceIndexPath | ConvertFrom-Json
+
+$specEntry = $traceIndex.specs | Where-Object { $_.id -eq $SpecId }
+
+if (-not $specEntry) {
+    Write-Error "Spec with ID '$SpecId' not found in trace-index.json."
+    return
+}
+
+$specFilePath = Join-Path $ProjectRoot $specEntry.source
 $clarificationFile = Get-ChildItem -Path (Join-Path $ProjectRoot "planning/clarifications") -Filter "$($SpecId).clarification.md" -Recurse
 
-if (-not $specFile) {
-    Write-Error "Original spec file for '$SpecId' not found."
+if (-not (Test-Path $specFilePath)) {
+    Write-Error "Original spec file '$($specEntry.source)' not found."
     return
 }
 if (-not $clarificationFile) {
@@ -22,7 +36,7 @@ if (-not $clarificationFile) {
 }
 
 # --- 2. Read File Contents ---
-$specContent = Get-Content -Path $specFile.FullName -Raw
+$specContent = Get-Content -Path $specFilePath -Raw
 $clarificationContent = Get-Content -Path $clarificationFile.FullName -Raw
 
 
@@ -30,30 +44,30 @@ $clarificationContent = Get-Content -Path $clarificationFile.FullName -Raw
 $finalPrompt = @"
 # AI AGENT TASK: Reconcile Mendix Specification
 
-You are an expert Mendix developer. Your task is to update an original Mendix specification (`.spec`) file based on the questions and answers provided in a clarification document.
+You are an expert Mendix developer. Your task is to update an original Mendix specification (`.yml`) file based on the questions and answers provided in a clarification document.
 
 ## Instructions:
 
-1.  **Read Carefully:** Read the original spec and the entire Q&A in the clarification file.
+1.  **Read Carefully:** Read the original specification and the entire Q&A in the clarification file.
 2.  **Incorporate Answers:** Modify the original spec content to incorporate the decisions and information from the 'Answers' section.
 3.  **Clean Up:** Remove any ambiguity that has now been resolved (e.g., replace `???` with the correct type).
-4.  **Output Only Spec Content:** Your final output should be only the complete, updated content for the `.spec` file. Do not include `ID:` or other metadata if it's already defined. Output only the parts that would be in the file.
+4.  **Output Only Spec Content:** Your final output should be only the complete, updated content for the `.yml` file. Do not include `id:` or other metadata that is already defined. Output only the YAML content of the file.
 
-## Original .spec File Content:
+## Original Specification File Content (`$($specEntry.source)`):
 
-```
+```yaml
 $specContent
 ```
 
 ## Clarification File Content:
 
-```
+```markdown
 $clarificationContent
 ```
 
 ## YOUR TASK STARTS NOW ##
 
-(Output only the final, updated content for the .spec file below this line)
+(Output only the final, updated YAML content for the specification file below this line)
 "@
 
 # --- 4. Output Prompt to Console ---

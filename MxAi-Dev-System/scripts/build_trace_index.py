@@ -30,9 +30,9 @@ def main():
     }
 
     artifact_locations = [
-        {"name": "requirements", "path": "requirements", "filter": "*.req"},
-        {"name": "specs", "path": "specs", "filter": "*.spec"},
-        {"name": "waves", "path": "waves", "filter": "*.wave"},
+        {"name": "requirements", "path": "requirements", "filter": "*.yml"},
+        {"name": "specs", "path": "specs", "filter": "*.yml"},
+        {"name": "waves", "path": "waves", "filter": "*.yml"},
         {"name": "refinements", "path": "refinements", "filter": "*.yml"}
     ]
 
@@ -48,23 +48,17 @@ def main():
 
         for filepath in files_found:
             print(f"[DEBUG] Processing file: {filepath}")
-            entry = {}
             file_id_from_name = filepath.stem
 
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
-                    # Simple Key: Value parsing
-                    for line in f:
-                        if ":" in line:
-                            key, value = line.split(':', 1)
-                            key = key.strip()
-                            value = value.strip()
-                            if key == 'SPECS':
-                                value = [v.strip() for v in value.split(',')]
-                            entry[key] = value
-
+                    entry = yaml.safe_load(f) or {}
+            except yaml.YAMLError as e:
+                print(f"[DEBUG] Could not parse YAML for {filepath}: {e}")
+                entry = {}
             except Exception as e:
-                print(f"[DEBUG] Could not parse text for {filepath}: {e}")
+                print(f"[DEBUG] Could not read file {filepath}: {e}")
+                entry = {}
 
             file_hash = calculate_sha256(filepath)
             if file_hash:

@@ -85,11 +85,11 @@ $manifestContent += ""
 $manifestContent += "This manifest summarizes the contents of the newly added company layer."
 $manifestContent += ""
 
-if (Test-Path (Join-Path $DestinationDir "glossary.md")) {
-    $manifestContent += "- **Glossary:** A `glossary.md` is provided."
+if (Test-Path (Join-Path $DestinationDir "glossary.yml")) {
+    $manifestContent += "- **Glossary:** A \`glossary.yml\` is provided."
 }
-if (Test-Path (Join-Path $DestinationDir "platform-modules.md")) {
-    $manifestContent += "- **Platform Modules:** `platform-modules.md` defines standard modules."
+if (Test-Path (Join-Path $DestinationDir "platform-modules.yml")) {
+    $manifestContent += "- **Platform Modules:** \`platform-modules.yml\` defines standard modules."
 }
 
 # Check for skills
