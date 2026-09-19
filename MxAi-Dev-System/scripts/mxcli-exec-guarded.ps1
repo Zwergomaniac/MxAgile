@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Guarded wrapper around 'mxcli exec' that checks DFC-AI gate status before running.
+Guarded wrapper around 'mxcli exec' that checks MxAgile gate status before running.
 
 .DESCRIPTION
 Kein Commit-Hook, keine persistente Override-Flag. Diese Datei liest den Gate-Status
@@ -165,3 +165,4 @@ if (Test-Path -Path $localWrapper -PathType Leaf) {
     & mxcli @wrapperArgs
 }
 exit $LASTEXITCODE
+

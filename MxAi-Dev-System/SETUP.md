@@ -19,23 +19,23 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 
 | Datei | Stelle |
 |---|---|
-| `.dfc-ai/modules/MB_UI.md` | `MB_UI.AppName` Default-Wert |
+| `.MxAgile/modules/MB_UI.md` | `MB_UI.AppName` Default-Wert |
 
 ### Nach Governance-Onboarding (`{App}`, `{APP}_`)
 
 | Datei | Stelle |
 |---|---|
-| `.dfc-ai/modules/MB_SSO.md` | `CONST_UserroleAppname`, Rollen-Schema, Agent-Regeln |
-| `.dfc-ai/modules/MB_NoAccess.md` | Rollen-Referenzen (3 Stellen) |
-| `.dfc-ai/modules/MB_Feedback.md` | Role-Mapping-Anweisung |
-| `.dfc-ai/agents/discovery-agent.md` | Rollen-Abgleich-Schritt |
+| `.MxAgile/modules/MB_SSO.md` | `CONST_UserroleAppname`, Rollen-Schema, Agent-Regeln |
+| `.MxAgile/modules/MB_NoAccess.md` | Rollen-Referenzen (3 Stellen) |
+| `.MxAgile/modules/MB_Feedback.md` | Role-Mapping-Anweisung |
+| `.MxAgile/agents/discovery-agent.md` | Rollen-Abgleich-Schritt |
 
 ## Vorgehen
 
 1. **Template kopieren** — Gesamten Ordnerinhalt in den Mendix-Projektstamm kopieren
 2. **`projekt.md` befuellen** — Projektziel, Module, Stack, Sprint-Struktur eintragen
 3. **`{Projektname}` ersetzen** — Suche-und-Ersetze ueber die betroffene Datei
-4. **`{STORYPREFIX}` ersetzen** — Suche-und-Ersetze im gesamten `.dfc-ai/` Ordner sowie `planning/`
+4. **`{STORYPREFIX}` ersetzen** — Suche-und-Ersetze im gesamten `.MxAgile/` Ordner sowie `planning/`
 5. **`mxcli init` ausfuehren** — Legt `.ai-context/skills/` und `AGENTS.md` an
 6. **CLAUDE.md reparieren** — siehe Abschnitt "Nach mxcli init" unten
 7. **Nach Governance-Onboarding:** `{App}` und `{APP}_` in den 4 betroffenen Dateien ersetzen
@@ -45,7 +45,7 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 
 `mxcli init` ueberschreibt `CLAUDE.md` und `.claude/settings.json` mit eigenen Versionen.
 Das ist ein bekanntes Verhalten. Die mxcli-Versionen enthalten MDL-Syntax, Skills und
-mxcli-Befehle — aber NICHT die DFC-AI-Sektionen aus dem Template.
+mxcli-Befehle — aber NICHT die MxAgile-Sektionen aus dem Template.
 
 ### Was verloren geht
 
@@ -53,7 +53,7 @@ mxcli-Befehle — aber NICHT die DFC-AI-Sektionen aus dem Template.
 |---|---|---|
 | `CONCORD SAFETY RULES` | Version-Control-Verbot, Destructive-Ops-Schutz | Agent koennte versehentlich git commit/push ausfuehren |
 | Tool-Routing-Order | SP-MCP → Concord → Maia → mx → manual | Agent nutzt suboptimale Wege zum Modell |
-| `.dfc-ai/` Referenzen | Orchestrator, Policies, Module | Agent kennt den DFC-AI-Prozess nicht |
+| `.MxAgile/` Referenzen | Orchestrator, Policies, Module | Agent kennt den MxAgile-Prozess nicht |
 | IDE-Control via Concord | run, build-errors, save-all, sync-files | Agent behauptet Studio-Pro-Steuerung sei unmoeglich |
 
 ### Reparaturschritte
@@ -64,7 +64,7 @@ mxcli-Befehle — aber NICHT die DFC-AI-Sektionen aus dem Template.
    ueberschriebenen Version herausnehmen und UNTEN an die Template-Version anhaengen
 3. MPR-Name und mxcli-Pfad im oberen Teil anpassen
 
-**Option B — DFC-AI-Block in die mxcli-Version einfuegen:**
+**Option B — MxAgile-Block in die mxcli-Version einfuegen:**
 1. Aus der Template-`CLAUDE.md` den Block von Zeilenanfang bis einschliesslich
    `== CONCORD SAFETY RULES ==` kopieren
 2. Diesen Block OBEN in die mxcli-generierte `CLAUDE.md` einfuegen
@@ -80,10 +80,11 @@ Vor `mxcli init` eine Sicherungskopie anlegen:
 ```
 cp CLAUDE.md CLAUDE.md.template-backup
 ```
-Nach `mxcli init` den DFC-AI-Block aus dem Backup zurueckkopieren.
+Nach `mxcli init` den MxAgile-Block aus dem Backup zurueckkopieren.
 
 ## Tipp
 
-Suche-und-Ersetze im gesamten `.dfc-ai/` Ordner reicht — die Platzhalter kommen nur dort vor.
+Suche-und-Ersetze im gesamten `.MxAgile/` Ordner reicht — die Platzhalter kommen nur dort vor.
 Fuer `{APP}_` auf Gross-/Kleinschreibung achten: `{APP}_` (gross) ist das Rollen-Praefix,
 `{App}` (mixed) ist der `CONST_UserroleAppname`-Wert.
+

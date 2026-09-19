@@ -20,3 +20,6 @@ desktop.ini
 # Editor-/Tool-Backups
 *.bak
 *.tmp
+
+# Testing
+MxAi-Dev-System/.testing-MxAi/

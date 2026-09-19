@@ -15,3 +15,15 @@
 *.mpr.lock
 *.mpr.bak
 
+
+# mxcli working directory: machine-local constant values (may contain
+# secrets), the run/test handshake, and runtime logs. Never commit these.
+.mxcli/
+
+# Temporary testing directory
+
+# Temporary testing instance directory
+.testing-MxAi/
+
+# Temporary testing instance directory
+.testing-MxAi/

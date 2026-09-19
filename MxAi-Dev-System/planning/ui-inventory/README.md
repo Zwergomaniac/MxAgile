@@ -3,7 +3,7 @@
 Ein YAML-Feldinventar je Mockup-Screen, benannt nach der Seite oder dem Screen,
 zum Beispiel `Customer_Overview.yaml`.
 
-Erzeugt vom UI-Agent im Analyze-Modus (`.dfc-ai/orchestrator.md`, Phase Discovery),
+Erzeugt vom UI-Agent im Analyze-Modus (`.MxAgile/orchestrator.md`, Phase Discovery),
 sobald unter `input-resources/ui-ux/` ein Mockup vorliegt. Der Agent analysiert das
 Mockup per Playwright und listet Felder, Buttons, Navigation und Widgets auf.
 
@@ -19,3 +19,4 @@ Mockup per Playwright und listet Felder, Buttons, Navigation und Widgets auf.
 Pflichtvorbedingung fuer `dfc-gate-to-refinement` (Gate 1), wenn Mockups
 vorhanden sind. Fliesst zusammen mit den Story-Spezifikationen in die
 wave-bezogene Implementierungscheckliste unter `planning/checklists/` ein.
+

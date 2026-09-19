@@ -1,0 +1,68 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MxAgile Page YAML",
+    "description": "A structured, semantic representation of a UI mockup page.",
+    "type": "object",
+    "properties": {
+        "page_id": {
+            "type": "string",
+            "pattern": "^PAGE-[A-Z0-9_-]+$"
+        },
+        "source_mockup": {
+            "type": "string"
+        },
+        "purpose": {
+            "type": "string"
+        },
+        "roles": {
+            "type": "array",
+            "items": { "type": "string" }
+        },
+        "sections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "title": { "type": "string" },
+                    "components": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string" },
+                                "type": { "type": "string", "description": "e.g., form, table, listview" },
+                                "fields": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": { "type": "string", "pattern": "^FIELD-[A-Z0-9_-]+$" },
+                                            "label": { "type": "string" },
+                                            "type": { "type": "string", "description": "e.g., text, number, date" },
+                                            "suggested_mendix_type": { "type": "string" }
+                                        },
+                                        "required": ["id", "label"]
+                                    }
+                                },
+                                "actions": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": { "type": "string", "pattern": "^ACT-[A-Z0-9_-]+$" },
+                                            "label": { "type": "string" },
+                                            "triggers": { "type": "string", "description": "e.g., opens a page, calls a microflow" }
+                                        },
+                                        "required": ["id", "label"]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "required": ["page_id", "source_mockup"]
+}

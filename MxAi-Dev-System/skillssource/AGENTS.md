@@ -89,8 +89,8 @@ No entity without access rules at Production security level.
 
 ## Module-Specific Rules
 
-See `.dfc-ai/modules/` for Mercedes-Benz platform module documentation and conventions.
+See `.MxAgile/modules/` for Mercedes-Benz platform module documentation and conventions.
 
 ## Agent Test Workflow
 
-See `.dfc-ai/policies/test-workflow.md` for Docker and Playwright test rules.
+See `.MxAgile/policies/test-workflow.md` for Docker and Playwright test rules.

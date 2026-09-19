@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-    Generates platform-specific skills and agents from .dfc-ai/ neutral sources.
+    Generates platform-specific skills and agents from .MxAgile/ neutral sources.
 
 .DESCRIPTION
-    Reads neutral skill/agent bodies from .dfc-ai/skills/ and .dfc-ai/agents/,
+    Reads neutral skill/agent bodies from .MxAgile/skills/ and .MxAgile/agents/,
     prepends platform-specific frontmatter, and writes the result into platform
     directories (.claude/, .github/, .agents/, .grok/).
 
     All generated files carry a "# GENERATED" header and the dfc- prefix.
-    Adapter YAML files under .dfc-ai/adapters/ document the frontmatter per
+    Adapter YAML files under .MxAgile/adapters/ document the frontmatter per
     platform but are not parsed at runtime — the configuration is inline below.
 
 .PARAMETER ProjectRoot
@@ -24,11 +24,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$dfcRoot = Join-Path $ProjectRoot '.dfc-ai'
-$generatedHeader = "# GENERATED - DO NOT EDIT - Source: .dfc-ai/"
+$dfcRoot = Join-Path $ProjectRoot '.MxAgile'
+$generatedHeader = "# GENERATED - DO NOT EDIT - Source: .MxAgile/"
 
 if (-not (Test-Path $dfcRoot)) {
-    Write-Error ".dfc-ai/ directory not found at $dfcRoot"
+    Write-Error ".MxAgile/ directory not found at $dfcRoot"
     exit 1
 }
 
@@ -174,7 +174,7 @@ function Generate-HermesSkills {
 }
 
 # --- Main ---
-Write-Host "DFC-AI Platform Skill Generator"
+Write-Host "MxAgile Platform Skill Generator"
 Write-Host "================================"
 Write-Host "Source: $dfcRoot"
 Write-Host ""
@@ -199,3 +199,4 @@ Write-Host "`n--- Hermes ---"
 Generate-HermesSkills
 
 Write-Host "`nDone."
+

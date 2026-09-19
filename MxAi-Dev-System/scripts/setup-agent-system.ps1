@@ -5,7 +5,7 @@
 .DESCRIPTION
     Runs both agent setup scripts in the correct order:
     1. apply-project-agent-instructions.ps1 — distributes AGENT.md to platform entry points
-    2. generate-dfc-platform-skills.ps1 — generates platform skills/agents from .dfc-ai/
+    2. generate-dfc-platform-skills.ps1 — generates platform skills/agents from .MxAgile/
 
     Each script can also be run independently.
 
@@ -51,3 +51,4 @@ if (Test-Path $generateScript) {
 }
 
 Write-Host "=== Setup complete ==="
+

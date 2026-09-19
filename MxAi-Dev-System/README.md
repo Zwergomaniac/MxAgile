@@ -116,7 +116,7 @@ Pflichtabschnitte (alle mit `TODO` markiert):
 ```bash
 mxcli init /pfad/zum/projekt --tool claude
 ```
-Legt an: `.ai-context/skills/`, `AGENTS.md`. Plattformmodul-Doku liegt in `.dfc-ai/modules/`.
+Legt an: `.ai-context/skills/`, `AGENTS.md`. Plattformmodul-Doku liegt in `.MxAgile/modules/`.
 
 > **Achtung:** Falls bereits eine `CLAUDE.md` existiert, sichert mxcli sie als `.bak`.
 > Die Template-`CLAUDE.md` danach wiederherstellen und zusammenführen.
@@ -160,8 +160,8 @@ Erspart Genehmigungsabfragen für Standard-mxcli-Befehle.
 ```
 Prüft ob alle 7 Pflichtpunkte der Multi-Agent-Architektur erfüllt sind.
 
-### Schritt 8 — `.dfc-ai/modules/` prüfen
-Plattformmodul-Dokumentation liegt in `.dfc-ai/modules/` (z.B. `MB_SSO.md`, `MB_UI.md`).
+### Schritt 8 — `.MxAgile/modules/` prüfen
+Plattformmodul-Dokumentation liegt in `.MxAgile/modules/` (z.B. `MB_SSO.md`, `MB_UI.md`).
 Für eigene Module bei Bedarf modul-spezifische Konventionsdateien dort ergänzen.
 
 ---
@@ -174,7 +174,7 @@ Für eigene Module bei Bedarf modul-spezifische Konventionsdateien dort ergänze
 | `CLAUDE.md` | Claude Code | mxcli-Pfad in `## mxcli Location` anpassen |
 | `AGENTS.md` | GitHub Copilot / Codex | Fertig — Projektname ersetzen |
 | `skillssource/AGENTS.md` | Maia (Studio Pro) | Mendix-Rollen und Konventionen anpassen |
-| `.dfc-ai/modules/` | Alle Agenten | Plattformmodul-Doku (MB_SSO, MB_UI, etc.) |
+| `.MxAgile/modules/` | Alle Agenten | Plattformmodul-Doku (MB_SSO, MB_UI, etc.) |
 
 ---
 
