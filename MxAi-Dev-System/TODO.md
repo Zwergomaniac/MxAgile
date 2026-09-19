@@ -6,7 +6,8 @@
   - [x] Create a separate Git repository for a test layer.
   - [x] Use `mxagile-add-layer.ps1` to clone it into the test project.
   - [x] Verify agent's OVERRIDE logic (Project > Layer).
-  - [ ] Verify agent's MERGE logic and MULTI-LAYER precedence (e.g., for `platform-modules.md`).
+  - [x] Verify agent's MERGE logic and MULTI-LAYER precedence (e.g., for `platform-modules.md`).
+- [ ] **Test Layer Manifest Generation (`mxagile-add-layer.ps1`)**
 - [ ] **Test Wave Planning (`mxagile-plan-wave.ps1`):**
   - [ ] Create a `.wave` file with multiple specs.
   - [ ] Run `mxagile-plan-wave.ps1`.

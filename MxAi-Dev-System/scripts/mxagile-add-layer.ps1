@@ -3,8 +3,8 @@
     Adds a company-specific layer to the MxAgile project.
 
 .DESCRIPTION
-    This script downloads a company layer from a Git repository and integrates it
-    into the current project's .mxagile/layers directory.
+    This script downloads a company layer from a Git repository, integrates it
+    into the project, and creates a manifest file for agent awareness.
 
 .PARAMETER RepositoryUrl
     The Git URL of the company layer repository.
@@ -50,6 +50,7 @@ if (-not (Test-Path $layerManifestPath)) {
 
 $layerManifest = Get-Content -Path $layerManifestPath | ConvertFrom-Json
 $layerId = $layerManifest.id
+$layerName = $layerManifest.name
 
 if (-not $layerId) {
     Write-Error "Error: layer.json is missing the 'id' field."
@@ -57,25 +58,61 @@ if (-not $layerId) {
     return
 }
 
-Write-Host "- Installing layer '$($layerManifest.name)' (id: $layerId)"
+Write-Host "- Installing layer '$layerName' (id: $layerId)"
 
 $LayersDir = Join-Path $ProjectRoot ".mxagile/layers"
 $DestinationDir = Join-Path $LayersDir $layerId
 
 if (Test-Path $DestinationDir) {
     Write-Warning "- Layer '$layerId' already exists. Overwriting..."
+    Remove-Item -Recurse -Force -Path $DestinationDir
 }
 
+New-Item -ItemType Directory -Path $DestinationDir -Force
 Copy-Item -Path (Join-Path $TempDir "*") -Destination $DestinationDir -Recurse -Force
 
-# --- 4. Integration Logic (Future Enhancement) ---
-Write-Host "- Integrating layer content..."
-# TODO: Implement logic to merge glossaries.
-# TODO: Implement logic to import Mendix modules from the layer's 'modules' directory via mxcli.
-# For now, the files are just copied.
+# --- 4. Generate Agent-Readable Manifest ---
+Write-Host "- Generating layer manifest for agent awareness..."
+$StateDir = Join-Path $ProjectRoot ".mxagile/state"
+if (-not (Test-Path $StateDir)) {
+    New-Item -ItemType Directory -Path $StateDir -Force
+}
+$ManifestFilePath = Join-Path $StateDir "manifest.$layerId.md"
+
+$manifestContent = @()
+$manifestContent += "# Layer Manifest: $layerName (`$layerId`)"
+$manifestContent += ""
+$manifestContent += "This manifest summarizes the contents of the newly added company layer."
+$manifestContent += ""
+
+if (Test-Path (Join-Path $DestinationDir "glossary.md")) {
+    $manifestContent += "- **Glossary:** A `glossary.md` is provided."
+}
+if (Test-Path (Join-Path $DestinationDir "platform-modules.md")) {
+    $manifestContent += "- **Platform Modules:** `platform-modules.md` defines standard modules."
+}
+
+# Check for skills
+$SkillsDir = Join-Path $DestinationDir "skills"
+if (Test-Path $SkillsDir) {
+    $skills = Get-ChildItem -Path $SkillsDir -Directory
+    if ($skills) {
+        $manifestContent += "- **Agent Skills:** The following skills are available:"
+        foreach ($skill in $skills) {
+            $manifestContent += "  - $($skill.Name)"
+        }
+    }
+}
+
+$manifestContent | Out-File -FilePath $ManifestFilePath -Encoding utf8
 
 # --- 5. Clean up ---
 Write-Host "- Cleaning up temporary files..."
 Remove-Item -Recurse -Force -Path $TempDir
 
-Write-Host "✅ Company Layer '$layerId' added successfully!"
+# --- 6. Final Output ---
+Write-Host "✅ Company Layer '$layerName' added successfully!"
+Write-Host ""
+Write-Host "ACTION REQUIRED FOR AGENT:"
+Write-Host "To update your context, please read the generated manifest file:"
+Write-Host (Resolve-Path -Path $ManifestFilePath -Relative)
