@@ -31,10 +31,10 @@
   - [ ] `mxagile-clarify.ps1`: Implement the structured Q&A workflow.
   - [ ] `mxagile-tasks.ps1`: Implement the decomposition of a plan into tasks.
   - [ ] `mxagile-reconcile.ps1` (New Script): Implement the process of updating a stale spec.
-- [ ] **Implement Brownfield Adoption (`mxagile-adopt.ps1`):**
-  - [ ] Add logic to inventory a Mendix model via `mxcli`.
-  - [ ] Implement the generation of baseline `spec` and `req` files from the model.
-  - [ ] Add the `INFERRED_FROM_EXISTING_MODEL` status flag.
+- [x] **Epic: Implement Brownfield Adoption (`mxagile-adopt.ps1`)**
+  - [x] Add logic to inventory a Mendix model via `mxcli`.
+  - [x] Implement the generation of baseline `spec` and `req` files from the model.
+  - [x] Add the `INFERRED_FROM_EXISTING_MODEL` status flag.
 - [ ] **Implement Analysis & Verification Scripts:**
   - [ ] `mxagile-analyze.ps1`: Implement checks for broken traceability links, orphan artifacts, etc.
   - [ ] `mxagile-converge.ps1` (New Script): Implement the check that all requirements have validation evidence.
