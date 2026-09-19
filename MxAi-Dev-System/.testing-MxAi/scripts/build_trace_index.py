@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import hashlib
@@ -14,7 +15,7 @@ def calculate_sha256(filepath):
 
 def main():
     """Main function for the trace indexer."""
-    project_root = Path(__file__).parent.parent
+    project_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('.').resolve()
     print(f"Building MxAgile traceability index in: {project_root}")
 
     index = {

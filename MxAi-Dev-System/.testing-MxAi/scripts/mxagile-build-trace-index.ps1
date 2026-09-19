@@ -9,7 +9,7 @@ $PSScriptRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 $PythonScriptPath = Join-Path $PSScriptRoot "build_trace_index.py"
 
 # Execute the python script
-python $PythonScriptPath
+python $PythonScriptPath .
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Python script execution failed."

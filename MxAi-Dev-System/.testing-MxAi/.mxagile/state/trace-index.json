@@ -1,0 +1,14 @@
+{
+  "requirements": {},
+  "specs": {},
+  "waves": {},
+  "tasks": {},
+  "refinements": {
+    "PAGE-001": {
+      "page": "Customer_Edit",
+      "title": "Edit Customer",
+      "path": "refinements\\PAGE-001.yml",
+      "hash": "7f10b29dd114fc9d50c78ab2f7aeea106e472bbd9d26b98c1ef1a05b22153659"
+    }
+  }
+}
