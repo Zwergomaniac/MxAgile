@@ -44,13 +44,15 @@ $index = @{
     specs = @{}
     waves = @{}
     tasks = @{}
+    refinements = @{}
 }
 
 # Define artifact locations
 $artifactLocations = @(
     @{ Name = "requirements"; Path = "requirements"; Filter = "*.req" },
     @{ Name = "specs"; Path = "specs"; Filter = "*.spec" },
-    @{ Name = "waves"; Path = "waves"; Filter = "*.wave" }
+    @{ Name = "waves"; Path = "waves"; Filter = "*.wave" },
+    @{ Name = "refinements"; Path = "refinements"; Filter = "*.yml" }
     # tasks can be added here if they adopt the same format
 )
 
@@ -68,6 +70,8 @@ foreach ($location in $artifactLocations) {
             $entry = @{ 
                 path = $file.FullName.Replace($ProjectRoot + "\", "") # Store relative path
             }
+            $fileHash = Get-FileHash -Algorithm SHA256 -Path $file.FullName | Select-Object -ExpandProperty Hash
+            $entry["FileHash"] = $fileHash
             # Add all other parsed data to the entry
             $data.GetEnumerator() | Where-Object { $_.Name -ne 'ID' } | ForEach-Object {
                 $entry[$_.Name] = $_.Value

@@ -1,88 +1,111 @@
 # scripts/mxagile-refine.ps1
 
-param (
-    [Parameter(Mandatory=$true)]
-    [string]$ChangedFile
-)
-
 $ProjectRoot = (Get-Location).Path
-Write-Host "Starting MxAgile refinement for changed file: $ChangedFile"
+Write-Host "🚀 Starting MxAgile refinement analysis..."
 
-# --- 1. Find Baseline ---
-# For now, we'll assume the baseline is the version from the last git commit.
-# In the future, this will use the state management file in .mxagile/state/.
-Write-Host "Finding baseline for comparison..."
-# TODO: Implement logic to get the previous version of $ChangedFile.
-$baselineFile = "(Placeholder for baseline content of $ChangedFile)"
-
-
-# --- 2. Perform Semantic Diff ---
-Write-Host "Performing semantic diff..."
-# TODO: Implement a semantic diff engine. For HTML, this could use an XML parser.
-# For other artifacts, it would parse the specific structure.
-# The output should be a structured object of changes, not just a text diff.
-$changes = @(
-    @{ type = "VISUAL"; element = "div.header"; change = "css class added" },
-    @{ type = "DATA"; element = "input#user-email"; change = "field added" },
-    @{ type = "BEHAVIOR"; element = "button#submit"; change = "action target changed" }
-) # Placeholder change object
-
-
-# --- 3. Analyze Impact ---
-Write-Host "Analyzing impact of changes..."
-# Load the traceability index.
+# --- 1. Load Baseline State from Trace Index ---
 $traceIndexFile = Join-Path $ProjectRoot ".mxagile/state/trace-index.json"
 if (-not (Test-Path $traceIndexFile)) {
     Write-Error "Traceability index not found. Please run mxagile-build-trace-index.ps1 first."
     return
 }
 $traceIndex = Get-Content -Path $traceIndexFile | ConvertFrom-Json
+$baselineRefinements = $traceIndex.refinements
 
-# TODO: Implement logic to traverse the index and find artifacts downstream
-# from the Page YAML or Requirement linked to the changed mockup.
-$impactedArtifacts = @{
-    requirements = @("REQ-042");
-    specs = @("SPEC-USER-LOGIN");
-    tasks = @("TASK-123", "TASK-124")
-} # Placeholder impact object
+# --- 2. Scan Current State of Refinements Directory ---
+$refinementsDir = Join-Path $ProjectRoot "refinements"
+if (-not (Test-Path $refinementsDir)) {
+    Write-Warning "No 'refinements' directory found. Nothing to analyze."
+    return
+}
+$currentFiles = Get-ChildItem -Path $refinementsDir -Filter "*.yml" -Recurse
 
+# --- 3. Compare Current State vs. Baseline ---
+$report = @{
+    New = [System.Collections.ArrayList]@()
+    Changed = [System.Collections.ArrayList]@()
+    Unchanged = [System.Collections.ArrayList]@()
+    Deleted = [System.Collections.ArrayList]@()
+}
 
-# --- 4. Generate Impact Report ---
-Write-Host "Generating impact report..."
-$reportPath = Join-Path $ProjectRoot "impact-report.md"
+$indexedFiles = @{ }
+$baselineRefinements.psobject.properties | ForEach-Object {
+    $indexedFiles[$_.Name] = $_.Value
+}
+
+foreach ($file in $currentFiles) {
+    # Helper function to parse ID from YAML file
+    $id = Get-Content -Path $file.FullName | Select-String -Pattern "^ID: (.*)" | ForEach-Object { $_.Matches[0].Groups[1].Value.Trim() }
+    if (-not $id) { 
+        Write-Warning "File $($file.Name) is missing an ID and will be skipped."
+        continue
+    }
+
+    $currentHash = Get-FileHash -Algorithm SHA256 -Path $file.FullName | Select-Object -ExpandProperty Hash
+
+    if ($indexedFiles.ContainsKey($id)) {
+        $baselineHash = $indexedFiles[$id].FileHash
+        if ($currentHash -eq $baselineHash) {
+            [void]$report.Unchanged.Add($file.Name)
+        } else {
+            [void]$report.Changed.Add($file.Name)
+        }
+        # Remove from the list of indexed files to track what's left (for deletions)
+        $indexedFiles.Remove($id)
+    } else {
+        [void]$report.New.Add($file.Name)
+    }
+}
+
+# Any files remaining in indexedFiles have been deleted
+$indexedFiles.Keys | ForEach-Object { [void]$report.Deleted.Add($_) }
+
+# --- 4. Generate Report ---
+Write-Host "Refinement analysis complete. Generating report..."
+$reportPath = Join-Path $ProjectRoot "refinement-report.md"
 
 $reportContent = @"
-# MxAgile Impact Report
+# MxAgile Refinement Report
 
-**Source Change:** `$ChangedFile`
+This report summarizes the changes detected in the 'refinements' directory since the last baseline.
 
-## Semantic Changes Detected
+## Summary
 
-| Type     | Element              | Change                        |
-|----------|----------------------|-------------------------------|
-| VISUAL   | div.header           | css class added               |
-| DATA     | input#user-email     | field added                   |
-| BEHAVIOR | button#submit        | action target changed         |
+| Status      | Count |
+|-------------|-------|
+| New         | $($report.New.Count) |
+| Changed     | $($report.Changed.Count) |
+| Unchanged   | $($report.Unchanged.Count) |
+| Deleted     | $($report.Deleted.Count) |
 
+## Details
 
-## Potentially Impacted Artifacts
+### New Files
+$($report.New -join "
+- ")
 
-### Requirements
-- REQ-042
+### Changed Files
+$($report.Changed -join "
+- ")
 
-### Feature Specs
-- SPEC-USER-LOGIN
+### Deleted Files
+$($report.Deleted -join "
+- ")
 
-### Tasks
-- TASK-123
-- TASK-124
-
-
-## Next Steps
-
-Review the changes and run `mxagile reconcile` to approve and propagate them.
 "@
+
+# Add a leading ' - ' if the lists are not empty
+if ($report.New.Count -gt 0) { $reportContent = $reportContent.Replace("New Files
+", "New Files
+- ") }
+if ($report.Changed.Count -gt 0) { $reportContent = $reportContent.Replace("Changed Files
+", "Changed Files
+- ") }
+if ($report.Deleted.Count -gt 0) { $reportContent = $reportContent.Replace("Deleted Files
+", "Deleted Files
+- ") }
 
 $reportContent | Set-Content -Path $reportPath
 
-Write-Host "Refinement analysis complete. Impact report generated at: $reportPath"
+Write-Host "✅ Report generated successfully at: $reportPath"
+"@
