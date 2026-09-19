@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import hashlib
@@ -32,7 +33,7 @@ def compare_yaml_files(old_data, new_data, path=''):
 
 def main():
     """Main function for the refinement engine."""
-    project_root = Path(__file__).parent.parent
+    project_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('.').resolve()
     index_path = project_root / ".mxagile" / "state" / "trace-index.json"
     refinements_dir = project_root / "refinements"
     report_path = project_root / "refinement-report.md"

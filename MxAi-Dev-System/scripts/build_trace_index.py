@@ -2,20 +2,24 @@ import json
 import os
 import hashlib
 import yaml
+import sys
 from pathlib import Path
 
 def calculate_sha256(filepath):
-    """Calculates the SHA256 hash of a file."""
     sha256_hash = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        for byte_block in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest()
+    try:
+        with open(filepath, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except IOError as e:
+        print(f"[DEBUG] Error reading file for hash: {filepath} - {e}")
+        return None
 
 def main():
-    """Main function for the trace indexer."""
-    project_root = Path(__file__).parent.parent
-    print(f"Building MxAgile traceability index in: {project_root}")
+    project_root_path = sys.argv[1] if len(sys.argv) > 1 else '.'
+    project_root = Path(project_root_path).resolve()
+    print(f"[DEBUG] Starting index build in root: {project_root}")
 
     index = {
         "requirements": {},
@@ -25,35 +29,50 @@ def main():
         "refinements": {}
     }
 
-    # For now, we only focus on the refinements part for the test
     artifact_locations = [
+        {"name": "requirements", "path": "requirements", "filter": "*.req"},
+        {"name": "specs", "path": "specs", "filter": "*.spec"},
+        {"name": "waves", "path": "waves", "filter": "*.wave"},
         {"name": "refinements", "path": "refinements", "filter": "*.yml"}
-        # In the full YAML conversion, we'll add the other types here
     ]
 
     for loc in artifact_locations:
         dir_path = project_root / loc['path']
+        print(f"[DEBUG] Scanning directory: {dir_path}")
         if not dir_path.exists():
+            print(f"[DEBUG] Directory does not exist. Skipping.")
             continue
 
-        for filepath in dir_path.glob(loc['filter']):
-            file_id = filepath.stem
-            
+        files_found = list(dir_path.glob(loc['filter']))
+        print(f"[DEBUG] Found {len(files_found)} files matching '{loc['filter']}'.")
+
+        for filepath in files_found:
+            print(f"[DEBUG] Processing file: {filepath}")
             entry = {}
+            file_id_from_name = filepath.stem
+
             try:
-                with open(filepath, 'r') as f:
-                    data = yaml.safe_load(f)
-                    if data:
-                        entry.update(data)
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    # Simple Key: Value parsing
+                    for line in f:
+                        if ":" in line:
+                            key, value = line.split(':', 1)
+                            key = key.strip()
+                            value = value.strip()
+                            if key == 'SPECS':
+                                value = [v.strip() for v in value.split(',')]
+                            entry[key] = value
+
             except Exception as e:
-                print(f"Warning: Could not parse YAML for {filepath}: {e}")
+                print(f"[DEBUG] Could not parse text for {filepath}: {e}")
 
-            entry['path'] = str(filepath.relative_to(project_root))
-            entry['hash'] = calculate_sha256(filepath)
+            file_hash = calculate_sha256(filepath)
+            if file_hash:
+                entry['hash'] = file_hash
             
-            # Use file stem as ID if not present in content
-            final_id = entry.get('ID', file_id)
-
+            entry['path'] = str(filepath.relative_to(project_root))
+            final_id = entry.get('ID', file_id_from_name)
+            print(f"[DEBUG]   -> Parsed ID: {final_id}")
             index[loc['name']][final_id] = entry
 
     # Save the index
@@ -61,10 +80,13 @@ def main():
     state_dir.mkdir(exist_ok=True)
     output_file = state_dir / "trace-index.json"
 
-    with open(output_file, 'w') as f:
-        json.dump(index, f, indent=2)
-
-    print(f"Traceability index created successfully at: {output_file}")
+    print(f"[DEBUG] Writing index with {len(index['requirements'])} reqs, {len(index['specs'])} specs, {len(index['waves'])} waves...")
+    try:
+        with open(output_file, 'w') as f:
+            json.dump(index, f, indent=2)
+        print(f"Traceability index created successfully at: {output_file}")
+    except Exception as e:
+        print(f"[DEBUG] Error writing JSON file: {e}")
 
 if __name__ == "__main__":
     main()

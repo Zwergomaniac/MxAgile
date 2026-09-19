@@ -18,6 +18,17 @@ if (Test-Path $TestingDir) {
     Remove-Item -Recurse -Force -Path $TestingDir
 }
 New-Item -ItemType Directory -Path $TestingDir | Out-Null
+
+# --- 2.5. Initialize Git in Testing Directory ---
+Push-Location $TestingDir
+try {
+    git init
+    git config user.name "Test Bot"
+    git config user.email "test@bot.com"
+} finally {
+    Pop-Location
+}
+
 Write-Host "- Created clean testing directory: $TestingDir"
 
 # --- 3. Copy Mendix Project Template ---
