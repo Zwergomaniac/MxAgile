@@ -7,7 +7,7 @@
   - [x] Use `mxagile-add-layer.ps1` to clone it into the test project.
   - [x] Verify agent's OVERRIDE logic (Project > Layer).
   - [x] Verify agent's MERGE logic and MULTI-LAYER precedence (e.g., for `platform-modules.md`).
-- [ ] **Test Layer Manifest Generation (`mxagile-add-layer.ps1`)**
+- [x] **Test Layer Manifest Generation**
 - [ ] **Test Wave Planning (`mxagile-plan-wave.ps1`):**
   - [ ] Create a `.wave` file with multiple specs.
   - [ ] Run `mxagile-plan-wave.ps1`.

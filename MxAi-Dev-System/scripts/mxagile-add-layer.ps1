@@ -80,7 +80,7 @@ if (-not (Test-Path $StateDir)) {
 $ManifestFilePath = Join-Path $StateDir "manifest.$layerId.md"
 
 $manifestContent = @()
-$manifestContent += "# Layer Manifest: $layerName (`$layerId`)"
+$manifestContent += "# Layer Manifest: $layerName ($layerId)"
 $manifestContent += ""
 $manifestContent += "This manifest summarizes the contents of the newly added company layer."
 $manifestContent += ""
