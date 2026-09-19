@@ -1,7 +1,8 @@
 # scripts/reset-testing-instance.ps1
 # This script automates the creation of a clean testing environment.
 param (
-    [string]$MxcliPath = "../../mxcli.exe" # Default path, can be overridden
+    [string]$MxcliPath = "../../mxcli.exe", # Default path, can be overridden
+    [string]$TemplateName = "greenfield"
 )
 
 Write-Host "🚀 Resetting testing instance..."
@@ -9,7 +10,7 @@ Write-Host "🚀 Resetting testing instance..."
 # --- 1. Define Paths ---
 $ProjectRoot = (Get-Item -Path ".").FullName
 $TestingDir = Join-Path $ProjectRoot ".testing-MxAi"
-$TemplateDir = Join-Path $ProjectRoot "project-template"
+$TemplateDir = Join-Path $ProjectRoot "project-templates\$TemplateName"
 
 # --- 2. Clean and Recreate Testing Directory ---
 Write-Host "- Removing old testing directory..."
@@ -23,7 +24,7 @@ Write-Host "- Created clean testing directory: $TestingDir"
 Write-Host "- Copying Mendix project template..."
 # We will check for content inside the template dir
 if (-not (Get-ChildItem -Path $TemplateDir)) {
-    Write-Warning "Warning: The 'project-template' directory is empty. Continuing without a Mendix project base."
+    Write-Warning "Warning: The template directory '$TemplateDir' is empty. Continuing without a Mendix project base."
 } else {
     Copy-Item -Path (Join-Path $TemplateDir "*") -Destination $TestingDir -Recurse -Force
 }

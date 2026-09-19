@@ -20,16 +20,13 @@
 # secrets), the run/test handshake, and runtime logs. Never commit these.
 .mxcli/
 
-# Temporary testing directory
-
 # Temporary testing instance directory
 .testing-MxAi/
-
-# Temporary testing instance directory
-.testing-MxAi/
+.testing-MxAi*/
  
 # Mendix project template directory (not part of the framework) 
-project-template/
+project-templates/
+!project-templates/greenfield
 
 # Company-specific layers (prototypes)
 # company-layers/
