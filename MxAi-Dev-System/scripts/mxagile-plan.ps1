@@ -9,9 +9,9 @@ $ProjectRoot = (Get-Location).Path
 Write-Host "Starting MxAgile planning for spec: $SpecId"
 
 # --- 1. Load Trace Index ---
-$traceIndexPath = Join-Path $ProjectRoot "trace-index.json"
+$traceIndexPath = Join-Path $ProjectRoot ".mxagile/state/artifact-trace-index.json"
 if (-not (Test-Path -LiteralPath $traceIndexPath)) {
-    Write-Error "trace-index.json not found at '$traceIndexPath'."
+    Write-Error "Artifact trace index not found at '$traceIndexPath'."
     return
 }
 
@@ -22,13 +22,13 @@ Write-Host "Loaded trace index."
 # Note: Accessing nested properties on a PSCustomObject requires parentheses
 $specInfo = ($traceIndex.specs).$SpecId
 if (-not $specInfo) {
-    Write-Error "Spec with ID '$SpecId' not found in trace-index.json."
+    Write-Error "Spec with ID '$SpecId' not found in artifact trace index."
     return
 }
 
 $specFilePath = Join-Path $ProjectRoot $specInfo.path
 if (-not (Test-Path -LiteralPath $specFilePath)) {
-    Write-Error "Spec file not found at path specified in trace-index: '$specFilePath'."
+    Write-Error "Spec file not found at path specified in artifact trace index: '$specFilePath'."
     return
 }
 

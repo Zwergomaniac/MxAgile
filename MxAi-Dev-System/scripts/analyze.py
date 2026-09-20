@@ -4,7 +4,7 @@ import argparse
 
 def analyze_orphans(project_root):
     """Analyzes the trace index to find orphan specs and unused requirements."""
-    index_path = os.path.join(project_root, '.mxagile', 'state', 'trace-index.json')
+    index_path = os.path.join(project_root, '.mxagile', 'state', 'artifact-trace-index.json')
     report_path = os.path.join(project_root, 'analysis-report.md')
 
     if not os.path.exists(index_path):
@@ -12,19 +12,31 @@ def analyze_orphans(project_root):
         return
 
     with open(index_path, 'r') as f:
-        index = json.load(f)
+        trace_data = json.load(f)
 
-    specs = index.get('specs', {})
-    reqs = index.get('requirements', {})
+    nodes = trace_data.get('nodes', [])
+    edges = trace_data.get('edges', [])
 
-    orphan_specs = []
-    for spec_id, spec_data in specs.items():
-        relates_id = spec_data.get('Relates')
-        if not relates_id or relates_id not in reqs:
-            orphan_specs.append(spec_id)
+    specs = {node['id']: node for node in nodes if node.get('type') == 'Spec'}
+    reqs = {node['id']: node for node in nodes if node.get('type') == 'Requirement'}
 
-    referenced_reqs = {spec_data.get('Relates') for spec_data in specs.values() if spec_data.get('Relates')}
-    unused_reqs = [req_id for req_id in reqs if req_id not in referenced_reqs]
+    spec_ids = set(specs.keys())
+    req_ids = set(reqs.keys())
+
+    # Find which requirements are referenced by specs
+    referenced_reqs = set()
+    for edge in edges:
+        if edge['from'] in spec_ids and edge['to'] in req_ids:
+            referenced_reqs.add(edge['to'])
+
+    # Find which specs reference requirements
+    specs_with_refs = set()
+    for edge in edges:
+        if edge['from'] in spec_ids and edge['to'] in req_ids:
+            specs_with_refs.add(edge['from'])
+            
+    orphan_specs = list(spec_ids - specs_with_refs)
+    unused_reqs = list(req_ids - referenced_reqs)
 
     # Generate Report
     with open(report_path, 'w') as f:

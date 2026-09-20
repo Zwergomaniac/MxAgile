@@ -9,9 +9,9 @@ $ProjectRoot = (Get-Location).Path
 Write-Host "🚀 Preparing agent prompt for Wave ID: $WaveId..."
 
 # --- 1. Load Trace Index ---
-$traceIndexFile = Join-Path $ProjectRoot ".mxagile/state/trace-index.json"
+$traceIndexFile = Join-Path $ProjectRoot ".mxagile/state/artifact-trace-index.json"
 if (-not (Test-Path $traceIndexFile)) {
-    Write-Error "Traceability index not found. Please run mxagile-build-trace-index.ps1 first."
+    Write-Error "Artifact traceability index not found. Please run mxagile-build-trace-index.ps1 first."
     return
 }
 $traceIndex = Get-Content -Path $traceIndexFile | ConvertFrom-Json
@@ -19,7 +19,7 @@ $traceIndex = Get-Content -Path $traceIndexFile | ConvertFrom-Json
 # --- 2. Find Wave and its Specs ---
 $waveInfo = $traceIndex.waves.$WaveId
 if (-not $waveInfo) {
-    Write-Error "Wave ID '$WaveId' not found in trace index."
+    Write-Error "Wave ID '$WaveId' not found in artifact trace index."
     return
 }
 

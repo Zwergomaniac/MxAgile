@@ -88,6 +88,10 @@ def main():
 
     print("Running Python-based Mockup Analysis Engine...")
 
+    new_index_path = project_root / ".mxagile" / "state" / "artifact-trace-index.json"
+    if new_index_path.exists():
+        print("Warning: This script is using a deprecated trace index. Please update to use artifact-trace-index.json")
+
     # 1. Load the trace index
     if not index_path.exists():
         print(f"Error: Trace index not found at {index_path}")

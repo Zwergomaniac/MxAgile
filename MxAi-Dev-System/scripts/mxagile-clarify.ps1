@@ -9,9 +9,9 @@ $ProjectRoot = (Get-Location).Path
 Write-Host "🚀 Generating clarification file for Spec ID: $SpecId..."
 
 # --- 1. Load Trace Index ---
-$traceIndexFile = Join-Path $ProjectRoot ".mxagile/state/trace-index.json"
+$traceIndexFile = Join-Path $ProjectRoot ".mxagile/state/artifact-trace-index.json"
 if (-not (Test-Path $traceIndexFile)) {
-    Write-Error "Traceability index not found. Please run mxagile-build-trace-index.ps1 first."
+    Write-Error "Artifact traceability index not found. Please run mxagile-build-trace-index.ps1 first."
     return
 }
 $traceIndex = Get-Content -Path $traceIndexFile | ConvertFrom-Json
@@ -19,7 +19,7 @@ $traceIndex = Get-Content -Path $traceIndexFile | ConvertFrom-Json
 # --- 2. Find the Spec ---
 $specInfo = $traceIndex.specs.$SpecId
 if (-not $specInfo) {
-    Write-Error "Spec ID '$SpecId' not found in trace index."
+    Write-Error "Spec ID '$SpecId' not found in artifact trace index."
     return
 }
 

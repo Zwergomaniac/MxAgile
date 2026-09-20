@@ -4,51 +4,45 @@ import argparse
 
 def check_convergence(project_root):
     """Checks if all requirements have corresponding validation evidence and links to Mendix artifacts."""
-    index_path = os.path.join(project_root, '.mxagile', 'state', 'trace-index.json')
-    graph_path = os.path.join(project_root, '.mxagile', 'state', 'artifact-graph.json')
+    index_path = os.path.join(project_root, '.mxagile', 'state', 'artifact-trace-index.json')
     report_path = os.path.join(project_root, 'convergence-report.md')
     validation_dir = os.path.join(project_root, 'validation')
 
     # Load Trace Index
     all_reqs = {}
+    stale_nodes = []
+    req_implementation = {}
+
     if os.path.exists(index_path):
         with open(index_path, 'r') as f:
-            index = json.load(f)
-            all_reqs = index.get('requirements', {})
+            trace_data = json.load(f)
+            nodes = trace_data.get('nodes', [])
+            edges = trace_data.get('edges', [])
 
+            all_reqs = {node['id']: node for node in nodes if node.get('type') == 'Requirement'}
+            
+            # Identify stale nodes
+            stale_nodes = [node['id'] for node in nodes if node.get('status') == 'Stale']
+
+            # Track implementation status for each requirement
+            for req_id in all_reqs.keys():
+                req_implementation[req_id] = []
+                # Find edges from this requirement to other artifacts
+                for edge in edges:
+                    if edge['from'] == req_id:
+                        target_id = edge['to']
+                        # Add the target artifact to the implementation list
+                        if target_id not in all_reqs:  # Assuming target is an artifact if not a requirement
+                            req_implementation[req_id].append(target_id)
+    
     missing_validation = []
     for req_id in all_reqs.keys():
         evidence_file = f"TC-{req_id}.md"
         if not os.path.exists(os.path.join(validation_dir, evidence_file)):
             missing_validation.append(req_id)
 
-    # Load Artifact Graph
-    stale_nodes = []
-    req_implementation = {}
-    if os.path.exists(graph_path):
-        with open(graph_path, 'r') as f:
-            graph = json.load(f)
-            nodes = graph.get('nodes', [])
-            edges = graph.get('edges', [])
-
-            # Identify stale nodes
-            stale_nodes = [node['id'] for node in nodes if node.get('status') == 'Stale']
-
-            # Track implementation status
-            req_nodes = {node['id']: node for node in nodes if node.get('type') == 'Requirement'}
-            
-            for req_id in req_nodes.keys():
-                req_implementation[req_id] = []
-                # Find edges from this requirement to other artifacts
-                for edge in edges:
-                    if edge['from'] == req_id:
-                        target = edge['to']
-                        # Assuming target is an artifact if it's not a requirement
-                        if target not in req_nodes:
-                            req_implementation[req_id].append(target)
-
     # --- Generate Report ---
-    with open(report_path, 'w') as f:
+    with open(report_path, 'w', encoding='utf-8') as f:
         f.write("# MxAgile Convergence Report\n\n")
 
         # 1. Validation Evidence

@@ -9,21 +9,21 @@ $ProjectRoot = (Get-Location).Path
 Write-Host "🚀 Preparing agent prompt for reconciling Spec ID: $SpecId..."
 
 # --- 1. Load Trace Index and Find File Paths ---
-$traceIndexPath = Join-Path $ProjectRoot ".mxagile/trace-index.json"
+$traceIndexPath = Join-Path $ProjectRoot ".mxagile/state/artifact-trace-index.json"
 if (-not (Test-Path $traceIndexPath)) {
-    Write-Error "Trace index not found at '$traceIndexPath'. Run the planner first."
+    Write-Error "Artifact trace index not found at '$traceIndexPath'. Run the planner first."
     return
 }
 $traceIndex = Get-Content -Path $traceIndexPath | ConvertFrom-Json
 
-$specEntry = $traceIndex.specs | Where-Object { $_.id -eq $SpecId }
+$specEntry = $traceIndex.specs.$SpecId
 
 if (-not $specEntry) {
-    Write-Error "Spec with ID '$SpecId' not found in trace-index.json."
+    Write-Error "Spec with ID '$SpecId' not found in artifact trace index."
     return
 }
 
-$specFilePath = Join-Path $ProjectRoot $specEntry.source
+$specFilePath = Join-Path $ProjectRoot $specEntry.path
 $clarificationDir = Join-Path $ProjectRoot "planning/clarifications"
 if (Test-Path $clarificationDir) {
     $clarificationFile = Get-ChildItem -Path $clarificationDir -Filter "$($SpecId).clarification.md" -Recurse
@@ -33,7 +33,7 @@ if (Test-Path $clarificationDir) {
 }
 
 if (-not (Test-Path $specFilePath)) {
-    Write-Error "Original spec file '$($specEntry.source)' not found."
+    Write-Error "Original spec file '$($specEntry.path)' not found."
     return
 }
 if (-not $clarificationFile) {
@@ -59,7 +59,7 @@ You are an expert Mendix developer. Your task is to update an original Mendix sp
 3.  **Clean Up:** Remove any ambiguity that has now been resolved (e.g., replace `???` with the correct type).
 4.  **Output Only Spec Content:** Your final output should be only the complete, updated content for the `.yml` file. Do not include `id:` or other metadata that is already defined. Output only the YAML content of the file.
 
-## Original Specification File Content (`$($specEntry.source)`):
+## Original Specification File Content (`$($specEntry.path)`):
 
 ```yaml
 $specContent

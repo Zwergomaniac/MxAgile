@@ -22,7 +22,7 @@
 
 # Temporary testing instance directory
 .testing-MxAi/
-.testing-MxAi*/
+.testing*/
  
 # Mendix project template directory (not part of the framework) 
 project-templates/

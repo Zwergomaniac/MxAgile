@@ -17,7 +17,13 @@ def calculate_sha256(filepath):
         return None
 
 def main():
-    project_root_path = sys.argv[1] if len(sys.argv) > 1 else '.'
+    # Correctly handle the --path argument from the test script
+    if len(sys.argv) > 2 and sys.argv[1] == '--path':
+        project_root_path = sys.argv[2]
+    else:
+        # Fallback for direct execution or different argument structure
+        project_root_path = sys.argv[1] if len(sys.argv) > 1 else '.'
+    
     project_root = Path(project_root_path).resolve()
     print(f"[DEBUG] Starting index build in root: {project_root}")
 
@@ -71,7 +77,7 @@ def main():
 
     # Save the index
     state_dir = project_root / ".mxagile" / "state"
-    state_dir.mkdir(exist_ok=True)
+    state_dir.mkdir(parents=True, exist_ok=True)
     output_file = state_dir / "trace-index.json"
 
     print(f"[DEBUG] Writing index with {len(index['requirements'])} reqs, {len(index['specs'])} specs, {len(index['waves'])} waves...")

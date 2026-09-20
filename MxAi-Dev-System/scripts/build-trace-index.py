@@ -1,6 +1,7 @@
 import json
 import os
 import hashlib
+import argparse
 
 def calculate_file_hash(filepath):
     hasher = hashlib.sha256()
@@ -9,7 +10,7 @@ def calculate_file_hash(filepath):
             hasher.update(chunk)
     return hasher.hexdigest()
 
-def build_artifact_graph():
+def build_artifact_graph(project_root):
     graph = {
         "nodes": [],
         "edges": []
@@ -26,7 +27,7 @@ def build_artifact_graph():
     
     # 1. Scan and populate nodes
     for config in scan_configs:
-        dir_path = config["path"]
+        dir_path = os.path.join(project_root, config["path"])
         artifact_type = config["type"]
         
         if not os.path.exists(dir_path):
@@ -35,7 +36,7 @@ def build_artifact_graph():
         for root, _, files in os.walk(dir_path):
             for file in files:
                 filepath = os.path.join(root, file)
-                rel_path = os.path.relpath(filepath, ".")
+                rel_path = os.path.relpath(filepath, project_root)
                 
                 node = {
                     "id": rel_path,
@@ -69,7 +70,7 @@ def build_artifact_graph():
                 })
                 
     # 3. Save the graph
-    output_dir = os.path.join(".mxagile", "state")
+    output_dir = os.path.join(project_root, ".mxagile", "state")
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, "artifact-graph.json")
     
@@ -79,4 +80,7 @@ def build_artifact_graph():
     print(f"Artifact graph saved to {output_file}")
 
 if __name__ == "__main__":
-    build_artifact_graph()
+    parser = argparse.ArgumentParser(description="Build artifact graph.")
+    parser.add_argument("--project-root", default=".", help="Project root directory (default: .)")
+    args = parser.parse_args()
+    build_artifact_graph(args.project_root)
