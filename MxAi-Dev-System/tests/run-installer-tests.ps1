@@ -56,7 +56,7 @@ if ($Test.Count -eq 1 -and $Test[0].Contains(',')) {
     $Test = $Test[0].Split(',') | ForEach-Object { $_.Trim() }
 }
 
-$allowedCategories = @('All', 'Parser', 'MprSafety', 'LocalLayerDependency', 'GreenfieldGeneric', 'GreenfieldMercedes', 'MercedesRemoteFailure', 'BrownfieldGeneric', 'BrownfieldMercedes')
+$allowedCategories = @('All', 'Parser', 'MprSafety', 'LocalLayerDependency', 'GreenfieldGeneric', 'GreenfieldMercedes', 'MercedesRemoteFailure', 'BrownfieldGeneric', 'BrownfieldMercedes', 'GenericBootstrapE2E', 'MercedesBootstrapE2E')
 foreach ($t in $Test) {
     if ($allowedCategories -notcontains $t) {
         Write-Error "Invalid test category: '$t'. Allowed values are: $($allowedCategories -join ', ')"
@@ -380,7 +380,7 @@ function Test-MercedesInstallation {
     }
     catch {
         $message = $_.Exception.Message
-        $environmentPattern = '(?i)(authentication|credential|could not resolve host|network|unable to access|repository not found|ssl|tls|proxy)'
+        $environmentPattern = '(?i)(authentication|credential|could not resolve host|network|unable to access|repository not found|ssl|tls|proxy|git clone failed)'
         if ($message -match $environmentPattern) {
             Add-TestResult -Name "$Label Mercedes" -Status SKIPPED_ENVIRONMENT -Reason $message -Workspace $workspace
         }
@@ -436,6 +436,101 @@ function Test-NoRuntimeLocalLayerDependency {
     }
     catch {
         Add-TestResult -Name $name -Status FAIL -Reason $_.Exception.Message
+    }
+}
+
+function Test-GenericBootstrapE2E {
+    $name = 'E2E: Generic Public Bootstrap'
+    $workspace = $null
+    try {
+        $workspace = New-Workcopy -TemplateName $GreenfieldTemplate -TestDirName 'bootstrap-generic'
+
+        # --- First Run --- #
+        Write-Host "PROGRESS: E2E Generic: Running first bootstrap install..."
+        $firstRun = Invoke-PwshFile -FilePath $GenericInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
+        if ($firstRun.ExitCode -ne 0) { throw "First bootstrap run failed with exit code $($firstRun.ExitCode).`nSTDOUT:`n$($firstRun.StdOut)`nSTDERR:`n$($firstRun.StdErr)" }
+
+        # --- Assertions --- #
+        Write-Host "PROGRESS: E2E Generic: Verifying first run artifacts..."
+        Assert-Path -Path (Join-Path $workspace '.mxagile') -Description 'Generic install .mxagile directory'
+        Assert-Path -Path (Join-Path $workspace 'mxcli.exe') -Description 'Generic install mxcli.exe'
+        $updater = Join-Path $workspace 'update-mxcli.ps1'
+        Assert-Path -Path $updater -Description 'Generic install update-mxcli.ps1'
+
+        $canonicalUpdater = Join-Path $RepoRoot 'scripts/install-mxcli.ps1'
+        if ((Get-FileHash $updater).Hash -ne (Get-FileHash $canonicalUpdater).Hash) {
+            throw "Hash of distributed update-mxcli.ps1 does not match canonical source."
+        }
+
+        if (Test-Path -LiteralPath (Join-Path $workspace '.mxagile/layers')) {
+            if (@(Get-ChildItem -Path (Join-Path $workspace '.mxagile/layers')).Count -gt 0) {
+                 throw 'Generic bootstrap unexpectedly installed a Company Layer.'
+            }
+        }
+
+        # --- Idempotency & Preservation --- #
+        $userContentPath = Join-Path $workspace 'user-content.txt'
+        Set-Content -Path $userContentPath -Value "This is user content."
+        $beforeHash = (Get-FileHash $userContentPath).Hash
+
+        Write-Host "PROGRESS: E2E Generic: Running second bootstrap install (idempotency check)..."
+        $secondRun = Invoke-PwshFile -FilePath $GenericInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
+        if ($secondRun.ExitCode -ne 0) { throw "Second bootstrap run failed with exit code $($secondRun.ExitCode).`nSTDOUT:`n$($secondRun.StdOut)`nSTDERR:`n$($secondRun.StdErr)" }
+
+        $afterHash = (Get-FileHash $userContentPath).Hash
+        if ($beforeHash -ne $afterHash) { throw "User-managed content file was modified during second installer run." }
+
+        Add-TestResult -Name $name -Status PASS -Reason 'Bootstrap E2E, idempotency, and preservation checks passed.' -Workspace $workspace
+        Remove-SuccessWorkspace -Path $workspace
+    }
+    catch {
+        Add-TestResult -Name $name -Status FAIL -Reason $_.Exception.Message -Workspace $workspace
+    }
+}
+
+function Test-MercedesBootstrapE2E {
+    $name = 'E2E: Mercedes Public Bootstrap'
+    $workspace = $null
+    try {
+        $workspace = New-Workcopy -TemplateName $GreenfieldTemplate -TestDirName 'bootstrap-mercedes'
+        $userContentPath = Join-Path $workspace 'user-content.txt'
+        Set-Content -Path $userContentPath -Value "This is user content."
+        $beforeHash = (Get-FileHash $userContentPath).Hash
+
+        # --- First Run --- #
+        Write-Host "PROGRESS: E2E Mercedes: Running first bootstrap install..."
+        $firstRun = Invoke-PwshFile -FilePath $MercedesInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
+        if ($firstRun.ExitCode -ne 0) { throw "First bootstrap run failed with exit code $($firstRun.ExitCode).`nSTDOUT:`n$($firstRun.StdOut)`nSTDERR:`n$($firstRun.StdErr)" }
+
+        # --- Assertions --- #
+        Write-Host "PROGRESS: E2E Mercedes: Verifying first run artifacts..."
+        $layerPath = Join-Path $workspace '.mxagile/layers/mercedes-benz'
+        Assert-Path -Path $layerPath -Description 'Mercedes layer'
+        $provenancePath = Join-Path $layerPath 'provenance.json'
+        Assert-Path -Path $provenancePath -Description 'Mercedes layer provenance'
+        if ((Get-Content -Raw -LiteralPath $provenancePath) -notmatch 'mercedes-benz.ghe.com') { throw "Provenance does not identify Mercedes source." }
+        if (Test-Path (Join-Path $layerPath '.git')) { throw "Installed layer contains nested .git metadata." }
+
+        # --- Idempotency & Preservation --- #
+        Write-Host "PROGRESS: E2E Mercedes: Running second bootstrap install (idempotency check)..."
+        $secondRun = Invoke-PwshFile -FilePath $MercedesInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
+        if ($secondRun.ExitCode -ne 0) { throw "Second bootstrap run failed with exit code $($secondRun.ExitCode).`nSTDOUT:`n$($secondRun.StdOut)`nSTDERR:`n$($secondRun.StdErr)" }
+        $afterHash = (Get-FileHash $userContentPath).Hash
+        if ($beforeHash -ne $afterHash) { throw "User-managed content file was modified during second installer run." }
+
+        Add-TestResult -Name $name -Status PASS -Reason 'Bootstrap E2E, idempotency, and preservation checks passed.' -Workspace $workspace
+        Remove-SuccessWorkspace -Path $workspace
+    }
+    catch {
+        $message = $_.Exception.Message
+        $environmentPattern = '(?i)(authentication|credential|could not resolve host|network|unable to access|repository not found|ssl|tls|proxy|git clone failed)'
+        if ($message -match $environmentPattern) {
+            $command = "pwsh -NoProfile -File .\tests\run-installer-tests.ps1 -Test MercedesBootstrapE2E"
+            Add-TestResult -Name $name -Status SKIPPED_ENVIRONMENT -Reason "Execution requires network/auth access. Run locally: $command" -Workspace $workspace
+        }
+        else {
+            Add-TestResult -Name $name -Status FAIL -Reason $message -Workspace $workspace
+        }
     }
 }
 
@@ -504,6 +599,15 @@ if (-not ($Results | Where-Object { $_.Status -eq 'FAIL' })) {
                 Test-MercedesInstallation -TemplateName $templateName -TestDirName "$templateName-mercedes" -Label $label
             }
         }
+    }
+
+    if (Should-Run-Test -Category 'GenericBootstrapE2E') {
+        Write-Host "`n---> Starting Test: GenericBootstrapE2E" -ForegroundColor Cyan
+        Test-GenericBootstrapE2E
+    }
+    if (Should-Run-Test -Category 'MercedesBootstrapE2E') {
+        Write-Host "`n---> Starting Test: MercedesBootstrapE2E" -ForegroundColor Cyan
+        Test-MercedesBootstrapE2E
     }
 }
 

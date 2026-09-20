@@ -24,8 +24,8 @@
 .testing*/
  
 # Mendix project template directory (not part of the framework) 
-project-templates/
-!project-templates/greenfield
+# project-templates/
+# !project-templates/greenfield
 
 # Company-specific layers (prototypes)
 # company-layers/

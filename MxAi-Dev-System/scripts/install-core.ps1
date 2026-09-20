@@ -49,11 +49,9 @@ try {
 
     # Distribute update-mxcli.ps1
     $sourceMxCliScript = Join-Path $PSScriptRoot "install-mxcli.ps1"
-    $destMxCliScriptDir = Join-Path $ProjectRoot "scripts"
-    $destMxCliScript = Join-Path $destMxCliScriptDir "update-mxcli.ps1"
+    $destMxCliScript = Join-Path $ProjectRoot "update-mxcli.ps1"
 
     if (Test-Path -LiteralPath $sourceMxCliScript) {
-        New-Item -Path $destMxCliScriptDir -ItemType Directory -Force | Out-Null
         Copy-Item -LiteralPath $sourceMxCliScript -Destination $destMxCliScript -Force
         Write-Host "✔️ Distributed update-mxcli.ps1 to project."
     } else {
