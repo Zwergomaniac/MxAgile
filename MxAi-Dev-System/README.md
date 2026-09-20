@@ -1,200 +1,78 @@
-# Mx Project Template — Setup-Anleitung
+# MxAgile Framework
 
-Dieses Template enthält die Multi-Agent-Wissensarchitektur für neue Mendix-Projekte.
+Welcome to MxAgile, a framework for specification-driven, Mendix-native application development powered by AI agents.
 
----
+## Core Concepts
 
-## Voraussetzungen (einmalig pro Entwicklermaschine)
+MxAgile is built on a few key principles to ensure a traceable, verifiable, and maintainable development lifecycle:
 
-Folgende Tools müssen installiert sein bevor du mit einem neuen Projekt startest:
+*   **Mockup-Driven:** Development starts with simple HTML mockups that define the UI and user interaction.
+*   **Living Specifications:** Requirements are captured in "living" specification documents that evolve with the project but serve as a stable contract for implementation.
+*   **Refinement Engine:** Changes to mockups or requirements trigger a refinement process that analyzes the impact of the change, preventing uncontrolled, breaking changes downstream.
+*   **Script-Driven Orchestration:** The workflow is orchestrated by a series of PowerShell scripts (`mxagile-*.ps1`) that prepare and manage tasks for AI agents.
+*   **Mendix-Native:** The framework is built for Mendix and uses `mxcli` and MDL as its core engineering layer.
 
-### 1. mxcli installieren
-mxcli ist das CLI-Tool für AI-gestützte Mendix-Entwicklung (MDL-Sprache, Lint, Check).
-
-**Download:** [github.com/mxcli/releases](https://github.com/mxcli/releases) → `mxcli-windows-amd64.exe`
-
-**PATH einrichten (einmalig, PowerShell als Admin):**
-```powershell
-# {MXCLI_VERZEICHNIS} durch den Ablageort von mxcli.exe ersetzen.
-# Dauerhaft in User-PATH eintragen (Terminal-Neustart noetig)
-[Environment]::SetEnvironmentVariable(
-  "PATH",
-  [Environment]::GetEnvironmentVariable("PATH","User") + ";{MXCLI_VERZEICHNIS}",
-  "User"
-)
-```
-
-**Für Git Bash** — in `~/.bashrc` ergänzen:
-```bash
-export PATH="$PATH:/c/Users/<USERNAME>/AppData/Roaming/npm"
-# oder den Ordner wo mxcli liegt, z.B.:
-export PATH="$PATH:/d/Mendix/MxTools/Mx-CLI"
-```
-
-**Testen:**
-```bash
-mxcli --version
-```
-
----
-
-### 2. Concord installieren (Mendix Marketplace)
-
-Concord ist das MCP-Bridge-Tool zwischen Claude Code und Studio Pro. Es stellt:
-- Mendix-Wissensfragen via `mx.ask` (grounded, versionskorrekt)
-- IDE-Steuerung (App starten, Logs lesen, Editor-Tabs schließen)
-- Lerngedächtnis für projektspezifische Best Practices
-
-**Installation:**
-1. Mendix Marketplace öffnen: `https://marketplace.mendix.com/` → suche **"Concord"**
-2. Modul in Studio Pro importieren (wie jedes Marketplace-Modul)
-3. Studio Pro einmal neu starten
-
-**Was Concord nach der Installation tut:**
-Concord schreibt automatisch eine `.mcp.json` im Projektstamm mit den projektspezifischen
-Verbindungsparametern (Runtime-Fingerprint, Bridge-Token, SP-Version). Diese Datei
-**nicht manuell bearbeiten** — Concord aktualisiert sie selbst.
-
-Beispiel wie `.mcp.json` aussieht (wird von Concord generiert):
-```json
-{
-  "mcpServers": {
-    "concord-v2-mcp": {
-      "command": "C:\\Users\\<USER>\\AppData\\Local\\Concord\\mcp-runtime\\<FINGERPRINT>\\win-x64\\Concord.Mcp.exe",
-      "args": ["--stdio", "--runtime-fingerprint", "<FINGERPRINT>"],
-      "env": {
-        "CONCORD_SP_VERSION": "11.12.1",
-        "CONCORD_PROJECT_ROOT": "<PROJEKTPFAD>",
-        "CONCORD_BRIDGE_TOKEN": "<TOKEN>",
-        "CONCORD_MCP_RUNTIME_FINGERPRINT": "<FINGERPRINT>"
-      }
-    }
-  }
-}
-```
-
----
-
-### 3. Studio Pro MCP (built-in, kein Install nötig)
-
-Ab Studio Pro 11.11 ist ein MCP-Server eingebaut, der auf `localhost:7782` lauscht.
-Er ermöglicht Live-Schreiboperationen ins geöffnete Projekt.
-
-**Zugang von Claude Code:** Nicht direkt möglich (Streamable HTTP, kein `.mcp.json`-Support).
-**Zugang über mxcli:**
-```bash
-mxcli --mcp http://localhost/mcp --mcp-dial localhost:7782 -p App.mpr -c "MDL-Befehl"
-```
-→ Vollständige Anleitung: `.ai-context/skills/live-edit-with-studio-pro.md`
-
----
-
-### 4. Claude Code (VS Code Extension)
-
-Download über VS Code Marketplace: **"Claude Code"** von Anthropic.
-
-Nach Installation: VS Code neu starten. Claude Code lädt automatisch `.mcp.json` aus dem Projektordner.
-
----
-
-## Setup-Reihenfolge für ein neues Projekt
-
-### Schritt 1 — Template kopieren
-```bash
-cp -r .claude/templates/mx-project/. /pfad/zum/neuen/projekt/
-```
-
-### Schritt 2 — `projekt.md` ausfüllen
-Pflichtabschnitte (alle mit `TODO` markiert):
-- `## Projektziel` — Was soll das System leisten? Für wen?
-- `## Tech Stack` — Mendix-Version, Deployment, Integrationen
-- `## Module` — Alle Module mit Einzeiler-Beschreibung
-- `## Sprint-Struktur` — Phasen und MVP-Definition
-- `## Schlüsseldateien` — Wo liegt die Spezifikation?
-
-### Schritt 3 — mxcli init ausführen (mit Projekt geöffnet in Studio Pro)
-```bash
-mxcli init /pfad/zum/projekt --tool claude
-```
-Legt an: `.ai-context/skills/`, `AGENTS.md`. Plattformmodul-Doku liegt in `.MxAgile/modules/`.
-
-> **Achtung:** Falls bereits eine `CLAUDE.md` existiert, sichert mxcli sie als `.bak`.
-> Die Template-`CLAUDE.md` danach wiederherstellen und zusammenführen.
-
-### Schritt 4 — Concord in Studio Pro installieren
-1. Marketplace-Modul "Concord" importieren (falls noch nicht geschehen)
-2. Studio Pro neu starten → Concord schreibt `.mcp.json`
-3. Claude Code (VS Code) neu starten → MCP-Server `concord-v2-mcp` erscheint in der Liste
-
-**Test in Claude Code:**
-```
-/mcp   ← sollte concord-v2-mcp als "connected" zeigen
-```
-
-### Schritt 5 — Maia-Skills synchronisieren
-In Claude Code (VS Code Terminal oder Chat):
-```
-concord_discover → maia.sync-skills → concord_invoke
-```
-Schreibt Concord-Projektwissen nach `skillssource/` damit Maia das Projekt kennt.
-
-### Schritt 6 — .claude/settings.json anlegen (optional aber empfohlen)
-```json
-{
-  "permissions": {
-    "allow": [
-      "Bash(mxcli:*)",
-      "Bash(mxcli *)"
-    ]
-  },
-  "env": {
-    "MXCLI_QUIET": "1"
-  }
-}
-```
-Erspart Genehmigungsabfragen für Standard-mxcli-Befehle.
-
-### Schritt 7 — Validator ausführen
-```
-/validate-agent-setup
-```
-Prüft ob alle 7 Pflichtpunkte der Multi-Agent-Architektur erfüllt sind.
-
-### Schritt 8 — `.MxAgile/modules/` prüfen
-Plattformmodul-Dokumentation liegt in `.MxAgile/modules/` (z.B. `MB_SSO.md`, `MB_UI.md`).
-Für eigene Module bei Bedarf modul-spezifische Konventionsdateien dort ergänzen.
-
----
-
-## Dateien in diesem Template
-
-| Datei | Empfänger | Nach Setup: Aktion |
-|---|---|---|
-| `projekt.md` | Alle Agenten | **Pflicht:** Mit Projektdaten befüllen |
-| `CLAUDE.md` | Claude Code | mxcli-Pfad in `## mxcli Location` anpassen |
-| `AGENTS.md` | GitHub Copilot / Codex | Fertig — Projektname ersetzen |
-| `skillssource/AGENTS.md` | Maia (Studio Pro) | Mendix-Rollen und Konventionen anpassen |
-| `.MxAgile/modules/` | Alle Agenten | Plattformmodul-Doku (MB_SSO, MB_UI, etc.) |
-
----
-
-## Architektur-Prinzip
-
-```
-projekt.md            ← Alle Agenten (Ziel, Kontext, Module, Stack)
-├── CLAUDE.md         ← Claude Code (mxcli, Concord, Tool-Routing, Safety Rules)
-├── AGENTS.md         ← Generische Agenten (GitHub Copilot, Codex)
-└── skillssource/
-    ├── AGENTS.md     ← Maia (Mendix-Programmierregeln, Domain-Konventionen)
-    └── _modules/     ← Modul-spezifische Konventionen
-```
-
-Jede Agent-Datei enthält nur ihre eigene Domäne + einen Verweis auf `projekt.md`.
+For a deep dive into the architecture, see the [MxAgile Major Evolution document](./majorchange.md).
 
 ## Getting Started
 
-For instructions on how to install and use the MxAgile framework in your own Mendix project, please see the [Installation Guide](./docs/installation.md).
+Setting up a project with MxAgile is designed to be simple.
 
-To learn how to group features together for planning, see the [Waves Guide](./docs/waves.md).
+### Prerequisites
 
-To learn how to create and use company-specific layers for standards and reusable components, see the [Company Layers Guide](./docs/company-layers.md).
+*   Python 3.8+ (with Pip)
+*   Git
+
+### Installation
+
+1.  Clone this repository to your local machine.
+2.  Open a PowerShell terminal in the project root directory.
+3.  Run the initialization script:
+
+    ```powershell
+    .\scripts\mxagile-init.ps1
+    ```
+
+This script will perform the following actions:
+
+*   Check if Python and Pip are available.
+*   Install all required Python packages from `requirements.txt`.
+*   Create the necessary directory structure for the framework (e.g., `.mxagile`, `specs`, `requirements`).
+*   (Optional) Prompt you to install a company-specific layer for standards and reusable components.
+
+## Basic Workflow
+
+The high-level workflow in MxAgile follows these steps:
+
+1.  **`init`**: Initialize the project structure.
+2.  **Create Mockups**: Add HTML mockups to `input-resources/ui-ux/`.
+3.  **`refine`**: Run the refinement engine to analyze mockup changes and their impact.
+4.  **Create Specs**: Group requirements into feature specifications in the `specs/` directory.
+5.  **`plan` & `tasks`**: Use the planning scripts to generate an implementation plan and decompose it into actionable tasks for an AI agent.
+6.  **Implement**: Use an AI agent, guided by the prepared tasks, to write Mendix MDL scripts.
+7.  **Validate & Converge**: Use the framework's validation and convergence scripts to ensure the implementation meets the specification.
+
+## Key Scripts
+
+The core workflow is driven by PowerShell scripts located in the `/scripts` directory. The most important ones are:
+
+*   `mxagile-init.ps1`: Sets up a new project.
+*   `mxagile-refine.ps1`: Analyzes changes in mockups.
+*   `mxagile-check-quality.ps1`: Runs quality checks against a specification file.
+*   `mxagile-plan.ps1`: Generates an implementation plan for a spec.
+*   `mxagile-trace.ps1`: Traces the relationships between different artifacts (e.g., requirements, specs, tasks).
+
+## Directory Structure
+
+*   `.mxagile/`: Contains the core framework configuration, state, and company layers.
+*   `input-resources/`: Your source materials, including HTML mockups in `ui-ux/`.
+*   `requirements/`: Contains atomic, testable requirement files.
+*   `specs/`: Contains "living specification" files that group requirements into features.
+*   `planning/`: Contains generated plans and tasks.
+*   `scripts/`: Contains all the PowerShell and Python scripts that drive the framework.
+
+## Further Reading
+
+*   **Installation Guide:** [./docs/installation.md](./docs/installation.md)
+*   **Company Layers Guide:** [./docs/company-layers.md](./docs/company-layers.md)
+*   **Planning with Waves:** [./docs/waves.md](./docs/waves.md)

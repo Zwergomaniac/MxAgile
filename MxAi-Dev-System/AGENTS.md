@@ -1,4 +1,4 @@
-# Mendix Project: MxAi-Dev-System
+# Mendix Project: MxAi-Dev-System (using the MxAgile Framework)
 
 This is a Mendix project configured for AI-assisted development using mxcli and MDL (Mendix Definition Language).
 
@@ -77,6 +77,17 @@ Use the `-c` flag to run a single MDL command:
 ./mxcli
 # Then: CONNECT LOCAL 'project.mpr';
 ```
+
+## MxAgile Framework Workflow
+
+This project uses the MxAgile framework, which orchestrates development through a series of high-level scripts. These scripts often prepare context and generate prompts for specialized AI agents. The main workflow scripts are located in the `/scripts` directory:
+
+*   `mxagile-init.ps1`: Sets up a new project and installs dependencies from `requirements.txt`.
+*   `mxagile-refine.ps1`: Analyzes changes in HTML mockups and generates an impact report.
+*   `mxagile-plan.ps1`: Generates an implementation plan from a specification.
+*   `mxagile-trace.ps1`: Traces relationships between project artifacts.
+
+Always prefer using these scripts over raw `mxcli` commands for lifecycle tasks.
 
 ## IMPORTANT: Before Writing MDL Scripts or Working with Data
 
@@ -672,25 +683,25 @@ Ein Projekt kann einen oder mehrere "Company Layer" enthalten, die als Unterverz
 
 Dabei gelten die folgenden, dateispezifischen Logiken:
 
-### Standardverhalten: Override (z.B. `glossary.md`)
+### Standardverhalten: Override (z.B. `glossary.yml`)
 
-Für die meisten Dateien gilt eine strikte **Override-Hierarchie**. Wenn du eine Datei liest (z.B. um eine Definition im `glossary.md` zu finden), wird die folgende Reihenfolge eingehalten und die **erste gefundene Datei** wird verwendet:
+Für die meisten Dateien gilt eine strikte **Override-Hierarchie**. Wenn du eine Datei liest (z.B. um eine Definition im `glossary.yml` zu finden), wird die folgende Reihenfolge eingehalten und die **erste gefundene Datei** wird verwendet:
 
-1.  **Projekt-Ebene:** `/<dateiname>` (z.B. `glossary.md`)
+1.  **Projekt-Ebene:** `/<dateiname>` (z.B. `glossary.yml`)
 2.  **Company-Layer (alphabetisch):** `.mxagile/layers/<layer_a>/<dateiname>`
 3.  **Company-Layer (alphabetisch):** `.mxagile/layers/<layer_b>/<dateiname>`
 4.  ... und so weiter für alle weiteren Layer.
 
-**Beispiel:** Wenn sowohl `glossary.md` im Projekt als auch in `layers/mercedes-benz/glossary.md` existiert, wird **nur die Projekt-Datei** gelesen. Die Layer-Datei wird ignoriert.
+**Beispiel:** Wenn sowohl `glossary.yml` im Projekt als auch in `layers/mercedes-benz/glossary.yml` existiert, wird **nur die Projekt-Datei** gelesen. Die Layer-Datei wird ignoriert.
 
-### Sonderfall: Merge (z.B. `platform-modules.md`)
+### Sonderfall: Merge (z.B. `platform-modules.yml`)
 
-Für bestimmte, als "zusammenführbar" definierte Dateien wie `platform-modules.md` gilt eine **Merge-Logik**. Der Inhalt wird aus allen Ebenen gelesen und kombiniert, um ein vollständiges Bild zu erhalten.
+Für bestimmte, als "zusammenführbar" definierte Dateien wie `platform-modules.yml` gilt eine **Merge-Logik**. Der Inhalt wird aus allen Ebenen gelesen und kombiniert, um ein vollständiges Bild zu erhalten.
 
 Die Reihenfolge für das Zusammenfügen ist:
 
-1.  **Company-Layer (alphabetisch):** Die Inhalte aller `platform-modules.md` aus den Layern werden zuerst gesammelt.
-2.  **Projekt-Ebene:** Der Inhalt der `platform-modules.md` aus dem Projekt wird **am Ende angefügt**.
+1.  **Company-Layer (alphabetisch):** Die Inhalte aller `platform-modules.yml` aus den Layern werden zuerst gesammelt.
+2.  **Projekt-Ebene:** Der Inhalt der `platform-modules.yml` aus dem Projekt wird **am Ende angefügt**.
 
 **Beispiel:** Bei Fragen zur Architektur liest du die Modul-Definitionen aus **allen** Layern und ergänzt diese mit den projekt-spezifischen Definitionen. So wird sichergestellt, dass sowohl Firmenstandards als auch projektspezifische Erweiterungen berücksichtigt werden.
 

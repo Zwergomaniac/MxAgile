@@ -1,42 +1,61 @@
-# MxAgile Installation
+# Project Setup and Installation
 
-The `MxAgile` framework is designed to be integrated into an existing Mendix project.
+This guide explains how to set up a new Mendix project using the MxAgile template.
 
-## Automated Installation (Recommended)
+## Prerequisites
 
-The easiest way to install MxAgile is by using the provided installer script. This script will fetch the latest version of the framework and copy the necessary files into your project.
+Before you begin, please ensure you have the following tools installed on your system:
 
-1.  **Download the Installer**
-    Download the `install-mxagile.ps1` script from the root of the template repository.
+*   **Python:** Version 3.8 or higher.
+*   **Pip:** The Python package installer (usually included with Python).
+*   **Git:** For version control.
 
-2.  **Run in your Project Root**
-    Place the script in the root directory of your Mendix project and run it from a PowerShell terminal:
+## Setup Process
 
-    ```powershell
-    ./install-mxagile.ps1 -RepositoryUrl "https://github.com/your-org/mxagile-template.git"
-    ```
+Setting up a new MxAgile project involves two main steps.
 
-    Replace the `-RepositoryUrl` with the actual URL of the MxAgile template repository.
+### Step 1: Get the Project Files
 
-3.  **What it Does**
-    The script will automatically:
-    - Clone the template repository into a temporary folder.
-    - Copy the `.mxagile` and `scripts` directories into your project.
-    - Clean up the temporary folder.
+Clone this template repository to your local machine to serve as the foundation for your new Mendix project.
 
-## Manual Installation
+```bash
+git clone <URL_of_this_repository> "MyNewMendixProject"
+cd MyNewMendixProject
+```
 
-If you prefer, you can install the framework manually:
+### Step 2: Run the Initialization Script
 
-1.  Clone or download this template repository.
-2.  Copy the following directories into the root of your Mendix project:
-    - `.mxagile`
-    - `scripts`
-3.  (Optional) Copy the artifact directories (`requirements`, `specs`, `planning`, `waves`) to use as a starting point.
+The `mxagile-init.ps1` script is the single entry point for setting up the project environment and framework structure. Open a PowerShell terminal in the project root and run the following command:
+
+```powershell
+.\scripts\mxagile-init.ps1
+```
+
+This interactive script will:
+
+1.  **Check for Dependencies:** It verifies that Python and Pip are available in your system's PATH.
+2.  **Install Python Packages:** It automatically installs all required Python libraries by running `pip install -r requirements.txt`.
+3.  **Create Directories:** It creates the standard MxAgile folder structure (`.mxagile`, `specs`, `requirements`, etc.) if they don't already exist.
+4.  **Prompt for Company Layer:** It will detect available "Company Layers" (like `mercedes-benz`) in the `.mxagile/layers` directory and ask if you want to apply one for company-specific standards.
+
+### Step 3: Initial Git Commit (Recommended)
+
+After the initialization is complete, it is highly recommended to initialize your own Git history:
+
+```bash
+# Remove the template's git history
+rmdir .git /s /q
+
+# Initialize your own repository
+git init
+git add .
+git commit -m "Initial commit: Set up MxAgile project structure"
+```
 
 ## Next Steps
 
-Once installed, you can begin the MxAgile workflow:
-- Create artifacts (e.g., in `requirements/` and `specs/`).
-- Run `scripts/mxagile-build-trace-index.ps1` to update the project index.
-- Run `scripts/mxagile-plan.ps1` or `scripts/mxagile-plan-wave.ps1` to generate Mendix MDL scripts.
+Your project is now fully set up and ready to use the MxAgile workflow. You can start by:
+
+*   Adding HTML mockups to the `input-resources/ui-ux/` directory and running `scripts/mxagile-refine.ps1`.
+*   Defining your features by creating requirement and specification files in the `requirements/` and `specs/` directories.
+
