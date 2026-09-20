@@ -1,11 +1,10 @@
-# Local credentials and generated planning context
-/.env.mendix
-/.mcp.json
-/.codex/
-/.grok/
-/.mxcli/catalog.db
-/sprints/generated/
-/planning/generated/
+# Generated platform projections
+.agents/skills/
+.claude/skills/
+.github/skills/
+.grok/skills/
+.hermes/skills/
+.opencode/skills/
 
 # Common Mendix local state
 /.mendix-cache/

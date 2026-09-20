@@ -5,7 +5,7 @@
 Mercedes-Benz Plattformmodul
 
 Siehe auch:
-- .MxAgile/modules/platform-modules.md
+- .mxagile/modules/platform-modules.md
 
 ## Zweck
 
@@ -103,3 +103,4 @@ Ausnahme: `NewSSOUser` bleibt als SSO-Onboarding-/No-Access-Rolle bestehen.
 2. Projektrollen dem Schema `{APP}_<RoleName>` folgen
 3. Bei neuen Rollen: MB_SSO Module Roles im Rollenmapping beruecksichtigen
 4. MBUser-Attribute nicht duplizieren — ueber Association lesen
+

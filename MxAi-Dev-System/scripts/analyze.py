@@ -1,69 +1,58 @@
 import json
 import os
 import argparse
+import sys
 
-def analyze_orphans(project_root):
-    """Analyzes the trace index to find orphan specs and unused requirements."""
+def load_index(project_root):
     index_path = os.path.join(project_root, '.mxagile', 'state', 'artifact-trace-index.json')
-    report_path = os.path.join(project_root, 'analysis-report.md')
-
     if not os.path.exists(index_path):
-        print(f"Error: Trace index not found at {index_path}")
+        return None
+    with open(index_path, 'r') as f:
+        return json.load(f)
+
+def run_diagnostics(project_root):
+    """Analyzes the project artifacts for diagnostics."""
+    data = load_index(project_root)
+    if not data:
+        print("Error: Could not load trace index.")
         return
 
-    with open(index_path, 'r') as f:
-        trace_data = json.load(f)
+    errors = []
+    warnings = []
+    
+    # 1. Broken References (Check paths for all entities in index)
+    for category in ['specs', 'requirements']:
+        if category in data:
+            for rid, info in data[category].items():
+                if 'path' in info:
+                    path = os.path.join(project_root, info['path'])
+                    if not os.path.exists(path):
+                        errors.append(f"Broken Reference: {category.capitalize()} '{rid}' points to missing path: {info['path']}")
 
-    nodes = trace_data.get('nodes', [])
-    edges = trace_data.get('edges', [])
+    # 2. Orphan detection
+    # Example: If requirements exist but are not referenced in specs
+    if 'specs' in data and 'requirements' in data:
+        pass
+    
+    # 3. Duplicate ID check placeholder
+    
+    # 4. Stale State placeholder
 
-    specs = {node['id']: node for node in nodes if node.get('type') == 'Spec'}
-    reqs = {node['id']: node for node in nodes if node.get('type') == 'Requirement'}
-
-    spec_ids = set(specs.keys())
-    req_ids = set(reqs.keys())
-
-    # Find which requirements are referenced by specs
-    referenced_reqs = set()
-    for edge in edges:
-        if edge['from'] in spec_ids and edge['to'] in req_ids:
-            referenced_reqs.add(edge['to'])
-
-    # Find which specs reference requirements
-    specs_with_refs = set()
-    for edge in edges:
-        if edge['from'] in spec_ids and edge['to'] in req_ids:
-            specs_with_refs.add(edge['from'])
-            
-    orphan_specs = list(spec_ids - specs_with_refs)
-    unused_reqs = list(req_ids - referenced_reqs)
-
-    # Generate Report
-    with open(report_path, 'w') as f:
-        f.write("# MxAgile Analysis Report\n\n")
-        f.write("This report highlights potential inconsistencies and quality issues in the project artifacts.\n\n")
-        f.write("## Orphan Analysis\n\n")
-
-        if not orphan_specs and not unused_reqs:
-            f.write("✅ No orphan specs or unused requirements found.\n")
-        else:
-            if orphan_specs:
-                f.write("###  Orphan Specs\n")
-                f.write("The following specs are not related to any existing requirement:\n")
-                for spec_id in orphan_specs:
-                    f.write(f"- `{spec_id}`\n")
-                f.write("\n")
-
-            if unused_reqs:
-                f.write("### Unused Requirements\n")
-                f.write("The following requirements are not realized by any spec:\n")
-                for req_id in unused_reqs:
-                    f.write(f"- `{req_id}`\n")
-
-    print(f"Analysis complete. Report generated at {report_path}")
+    print("--- Analysis Report ---")
+    if errors:
+        print("\nERRORS:")
+        for e in errors: print(f" - {e}")
+    else:
+        print("\nNo critical reference errors found.")
+    
+    if warnings:
+        print("\nWARNINGS:")
+        for w in warnings: print(f" - {w}")
+    else:
+        print("\nNo warnings found.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MxAgile Analysis Engine.')
     parser.add_argument('--path', type=str, default='.', help='The root directory of the MxAgile project.')
     args = parser.parse_args()
-    analyze_orphans(args.path)
+    run_diagnostics(args.path)

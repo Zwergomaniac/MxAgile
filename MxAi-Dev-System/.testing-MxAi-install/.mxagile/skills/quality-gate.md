@@ -15,7 +15,7 @@ Quality-Gate MUSS bestehen bevor die anderen Agents laufen koennen (Docker muss 
 2. **Referenzen** — `mxcli check <script>.mdl -p <project>.mpr --references`
 3. **Lint** — `mxcli lint -p <project>.mpr` — keine kritischen Findings
 4. **Konsistenz** — `mxcli docker check -p <project>.mpr` — keine CE-Fehler
-   (bei CE0066 → Update security, siehe `.MxAgile/policies/consistency-check.md`)
+   (bei CE0066 → Update security, siehe `.mxagile/policies/consistency-check.md`)
 5. **Runtime** — Docker-Build und Container-Start erfolgreich
 6. **Security** — Security Level mindestens Prototype wenn Security-Pass ausgefuehrt (D48)
 
@@ -24,4 +24,5 @@ Quality-Gate MUSS bestehen bevor die anderen Agents laufen koennen (Docker muss 
 - Technischer Validierungsbericht
 - Bei Erfolg: Docker-App laeuft → UI-Agent und Acceptance-Agent koennen parallel starten
 - Bei Fehlern: zurueck in die Implementing-Phase mit konkretem Fehlerbericht
+
 

@@ -4,25 +4,27 @@
 Stabilization, Integration, and Pilot Validation
 
 ## Current Work Package
-WP-6: Trace Node and Edge Semantics
+WP-20: Finalize Stabilization and Documentation
 
 ---
 
 ## In Progress
-- [x] **WP-6**: Review and document the canonical schema for core artifact types.
-- [ ] **WP-6**: Enhance `build_artifact_index.py` to extract more relationship types from other artifact fields (e.g., `dependencies`, Mendix artifact references).
-- [ ] **WP-2**: Investigate and fix spurious test warnings/failures.
+- [ ] **WP-14**: Brownfield adoption validation via reference-lifecycle.
+- [ ] **WP-20**: Audit and finalize operational plan.
 
 ## Next
 - [ ] **WP-15**: Implement initial version of the Global `Analyze` script.
-  - [ ] Detect duplicate IDs.
-  - [ ] Detect broken references (edges pointing to non-existent nodes).
+- [ ] **WP-6**: Final check on trace node semantics.
 
 ## Recently Completed
+- [x] **WP-14**: Integrated brownfield validation scripts.
+- [x] **WP-20**: Added generation warnings to platform directories.
+- [x] **WP-20**: Added generator hooks to documentation.
 - [x] **WP-6**: Defined and validated schemas for Page, Requirement, Spec, and Task.
 - [x] **WP-2**: Established a single, reliable test entry point (`run-all-tests.ps1`).
 - [x] **WP-5**: Artifact Trace Index Consolidation.
 - [x] **WP-0**: Workspace Reconciliation and Planning.
+
 
 ## Blocked / Decisions Required
 - None

@@ -5,10 +5,10 @@ Liest die aktuelle Phase aus `.concord/scratch/process-state.yaml` und waehlt de
 
 ## Policies
 
-- `.MxAgile/policies/source-priority.md` — Quellen-Vorrang
-- `.MxAgile/policies/mockup-analysis.md` — Mockup-Analyse-Regeln
-- `.MxAgile/policies/safety-rules.md` — Universelle Safety Rules
-- `.MxAgile/modules/MB_UI.md` — MB_UI Komponenten-Referenz fuer Layout-Mapping
+- `.mxagile/policies/source-priority.md` — Quellen-Vorrang
+- `.mxagile/policies/mockup-analysis.md` — Mockup-Analyse-Regeln
+- `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/modules/MB_UI.md` — MB_UI Komponenten-Referenz fuer Layout-Mapping
 
 ## Modi-Uebersicht
 
@@ -192,4 +192,5 @@ comparison:
 - Kein Zugriff auf mxcli (kein Modell-Lesen/Schreiben)
 - Kein Zugriff auf Mendix-Modell — nur Browser-Sicht
 - Keine Geschaeftslogik-Pruefung — das macht der Acceptance-Agent
+
 

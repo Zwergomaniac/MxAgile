@@ -100,3 +100,4 @@ $outputMdlFile = Join-Path $plansDir "$($WaveId).mdl"
 $combinedMdlContent | Set-Content -Path $outputMdlFile
 
 Write-Host "✅ Combined wave plan generated successfully at: $outputMdlFile"
+

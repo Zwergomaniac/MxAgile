@@ -41,3 +41,4 @@ foreach ($dir in $frameworkDirs) {
 
 Write-Host "✅ Testing instance reset successfully."
 Write-Host "Navigate to '$TestingDir' to work within the simulated project."
+

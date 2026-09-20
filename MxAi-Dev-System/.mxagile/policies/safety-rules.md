@@ -31,11 +31,12 @@ Projektspezifische Ergaenzungen gehoeren in `AGENT.md`, nicht hierher.
 
 - Mercedes-Benz Plattformmodule (MB_SSO, MB_UI, MB OIDC, etc.) duerfen nicht
   modifiziert werden.
-- Vor Eigenentwicklung immer `.MxAgile/modules/platform-modules.md` pruefen.
+- Vor Eigenentwicklung immer `.mxagile/modules/platform-modules.md` pruefen.
 
 ## Input-Resources
 
 - Mockups und Eingabeartefakte unter `input-resources/` nicht veraendern, sofern
   nicht ausdruecklich beauftragt.
 - Relevante Eingabeartefakte haben Vorrang vor Annahmen des Agenten.
+
 

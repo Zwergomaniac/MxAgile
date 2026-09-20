@@ -86,3 +86,4 @@ Review the changes and run `mxagile reconcile` to approve and propagate them.
 $reportContent | Set-Content -Path $reportPath
 
 Write-Host "Refinement analysis complete. Impact report generated at: $reportPath"
+

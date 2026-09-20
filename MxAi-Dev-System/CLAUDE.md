@@ -1,3 +1,6 @@
+<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->
+@AGENT.md
+<!-- END PROJECT AGENT INSTRUCTIONS -->
 # Mendix Project: MxAi-Dev-System
 
 This is a Mendix project configured for AI-assisted development using mxcli and MDL (Mendix Definition Language).

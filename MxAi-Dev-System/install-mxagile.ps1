@@ -83,3 +83,4 @@ Remove-Item -Recurse -Force -Path $TempDir
 
 Write-Host "✅ MxAgile framework installed successfully!"
 Write-Host "You can now start by creating artifacts in the 'requirements' and 'specs' directories."
+

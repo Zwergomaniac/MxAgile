@@ -25,11 +25,11 @@
 
 | Agent | Instruktionsdatei | Gemeinsame Basis |
 |---|---|---|
-| Claude Code (VS Code) | `CLAUDE.md` -> `AGENT.md` | `projekt.md`, `.MxAgile/` |
+| Claude Code (VS Code) | `CLAUDE.md` -> `AGENT.md` | `projekt.md`, `.mxagile/` |
 | Maia (Studio Pro) | `skillssource/AGENTS.md` | `projekt.md` |
-| GitHub Copilot / Codex | `AGENTS.md` -> `AGENT.md` | `projekt.md`, `.MxAgile/` |
+| GitHub Copilot / Codex | `AGENTS.md` -> `AGENT.md` | `projekt.md`, `.mxagile/` |
 | Concord MCP | `.concord/project-memory.md` | `projekt.md` |
-| MxAgile Prozess-Agenten | `.MxAgile/agents/` (generiert) | `.MxAgile/orchestrator.md` |
+| MxAgile Prozess-Agenten | `.mxagile/agents/` (generiert) | `.mxagile/orchestrator.md` |
 
 ---
 
@@ -43,7 +43,7 @@ kein Mockup-Abgleich, unentdeckte UI-Abweichungen, Statusdrift in
 
 1. **Phasenfolge ist bindend, kein Direktsprung.** Jede Story/Wave durchlaeuft
    Discovery → Refinement → Ready → Implementing → Verifying gemaess
-   `.MxAgile/orchestrator.md`. Ein Agent implementiert niemals direkt aus einer
+   `.mxagile/orchestrator.md`. Ein Agent implementiert niemals direkt aus einer
    Anforderung heraus, ohne vorher zu pruefen, in welcher Phase sich die
    betroffene Wave laut `.concord/scratch/process-state.yaml` befindet.
 2. **Vor der Implementierung:** Wenn Discovery (inkl. UI-Inventar unter
@@ -130,9 +130,9 @@ nicht ueber eine Systemvermutung.
 | Thema | Datei |
 |---|---|
 | Projektziel, Architektur, Module | `projekt.md` |
-| Prozessfluss, Phasen, Gates | `.MxAgile/orchestrator.md` |
-| Prozess-Policies (Safety, Backlog, Tests) | `.MxAgile/policies/` |
-| Prozess-Skills (Discovery, Refinement, Gates) | `.MxAgile/skills/` |
+| Prozessfluss, Phasen, Gates | `.mxagile/orchestrator.md` |
+| Prozess-Policies (Safety, Backlog, Tests) | `.mxagile/policies/` |
+| Prozess-Skills (Discovery, Refinement, Gates) | `.mxagile/skills/` |
 | mxcli-Befehle, Concord MCP, Tool-Routing | `CLAUDE.md` |
 | Aktuelle User Stories und Sprint-Kontext | `sprints/generated/` nach `scripts/sync-epics-stories.ps1` |
 | Synchronisierungsablauf | `sprints/sync-workflow.md` |
@@ -142,8 +142,8 @@ nicht ueber eine Systemvermutung.
 | Mockup-Validierungsbericht | `planning/mockup-validation-report.md` |
 | Mendix-Programmierregeln, Domain-Konventionen | `skillssource/AGENTS.md` |
 | Architekturentscheidungen | `sprints/decisions.md` |
-| Mercedes-Benz Plattformmodule | `.MxAgile/modules/platform-modules.md` |
-| Modul-spezifisches Plattformwissen | `.MxAgile/modules/` |
+| Mercedes-Benz Plattformmodule | `.mxagile/modules/platform-modules.md` |
+| Modul-spezifisches Plattformwissen | `.mxagile/modules/` |
 | Projekt-input-Resourcen | `input-resources/` |
 
 ### Projektlokale Mendix-Skills
@@ -158,7 +158,7 @@ Referenzdokumente und werden nicht als globale Copilot-Skills vorausgesetzt.
 
 ## Plattformmodule
 
-Vor Eigenentwicklung immer zuerst `.MxAgile/modules/platform-modules.md` pruefen.
+Vor Eigenentwicklung immer zuerst `.mxagile/modules/platform-modules.md` pruefen.
 
 Mercedes-Benz Plattformmodule sind zu bevorzugen.
 
@@ -182,19 +182,19 @@ Relevante Eingabeartefakte haben Vorrang vor Annahmen des Agenten.
 ### Mendix Epics Board und abgeleitete Artefakte
 
 Regeln fuer Board-Synchronisierung, abgeleitete Artefakte und Wave-Traceability:
-siehe `.MxAgile/policies/backlog-sync.md`.
+siehe `.mxagile/policies/backlog-sync.md`.
 
 ### HTML-Mockups
 
-Regeln fuer Mockup-Analyse mit Playwright: siehe `.MxAgile/policies/mockup-analysis.md`.
+Regeln fuer Mockup-Analyse mit Playwright: siehe `.mxagile/policies/mockup-analysis.md`.
 Details zur Ablage und Verwendung: `input-resources/README.md`.
 
 @projekt.md
 @.claude/setup.md
 
 > **Projektkontext:** `projekt.md` und `setup.md` sind oben via @-Include geladen.
-> **Prozesssteuerung:** `.MxAgile/orchestrator.md` definiert den Prozessfluss.
-> **Policies:** `.MxAgile/policies/` enthaelt wiederverwendbare Prozessregeln.
+> **Prozesssteuerung:** `.mxagile/orchestrator.md` definiert den Prozessfluss.
+> **Policies:** `.mxagile/policies/` enthaelt wiederverwendbare Prozessregeln.
 > **Setup:** `scripts/setup-agent-system.ps1` regeneriert alle Plattform-Skills.
 
 ---
@@ -240,7 +240,7 @@ blockiert oder beendet keine anderen Studio-Pro-Instanzen.
 
 ### Wave-Report und Board-Traceability
 
-Siehe `.MxAgile/policies/backlog-sync.md` fuer Wave-Report-Regeln und Board-Traceability.
+Siehe `.mxagile/policies/backlog-sync.md` fuer Wave-Report-Regeln und Board-Traceability.
 Wave-relevante Commits nennen die Story-IDs explizit:
 `feat: implement foundation [{STORYPREFIX}-123] [{STORYPREFIX}-124]`.
 
@@ -354,5 +354,6 @@ Browser-Automation und die Verifikation der laufenden Mendix-App zu verwenden.
 
 Die Interpretation des Mockups richtet sich nach den Regeln in
 `input-resources/README.md`.
+
 
 

@@ -216,7 +216,7 @@ MENDIX_APP_ADMIN_PASSWORD=
 
 oder ein expliziter nicht lauffähiger Platzhalter.
 
-🔴 P1: Namensdrift .MxAgile versus .mxagile
+🔴 P1: Namensdrift .mxagile versus .mxagile
 
 Dokumentation und Skripte verwenden unterschiedliche Groß-/Kleinschreibung. Auf Windows fällt das oft nicht auf, im Devcontainer/Linux jedoch schon. Das kann genau dort Pfade brechen, wo du plattformübergreifend arbeiten möchtest.
 
@@ -308,7 +308,7 @@ MISSING/PARTIAL
 
 Meine klare Priorisierung
 Alle Skripte parserfest machen und Smoke-Tests ergänzen.
-.MxAgile/.mxagile sowie alte/neue Artifact-Pfade konsolidieren.
+.mxagile/.mxagile sowie alte/neue Artifact-Pfade konsolidieren.
 Eine einzige kanonische Lifecycle-Linie festlegen.
 Brownfield adopt tatsächlich implementieren.
 Trace Index zu einem echten Graphen erweitern.
@@ -320,3 +320,4 @@ Erst danach README, majorchange.md und TODO auf den realen Stand synchronisieren
 Kurzfazit
 
 Das Projekt ist nicht gescheitert und auch kein bloßer Dokumentationsentwurf mehr. Die wichtigste Architekturentscheidung ist gelungen: MxAgile bleibt Mendix-nativ, mockupgetrieben, agentenagnostisch und trennt Prozesslogik von mxcli-Engineering. Der große offene Block ist nun weniger konzeptionell als technisch: Die Lifecycle-Skripte und Artefaktpfade müssen auf eine konsistente, getestete Implementierung zusammengeführt werden.
+

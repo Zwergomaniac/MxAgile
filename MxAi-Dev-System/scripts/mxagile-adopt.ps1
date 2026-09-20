@@ -80,3 +80,4 @@ if ($skippedItems.Count -gt 0) {
 }
 Write-Host "Log file: $logFile"
 Write-Host "------------------------"
+

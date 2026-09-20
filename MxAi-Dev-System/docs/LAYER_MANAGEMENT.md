@@ -30,3 +30,4 @@ cp -r company-layers/<layer-name> .mxagile/layers/<layer-name>
 2. **Validate**: Run framework validation tools to ensure the layer is correct.
 3. **Activate**: Link or copy the layer to `.mxagile/layers/`.
 4. **Apply**: Re-run framework operations to incorporate changes.
+

@@ -16,10 +16,10 @@ neuen Arbeitspaket.
    Akzeptanzkriterien, Beschreibung und Abhaengigkeiten erfassen.
 3. **Input-Resources pruefen** — Gibt es unter `input-resources/` relevante
    Mockups, UI-Referenzen, Anforderungsdokumente oder Prozessdarstellungen?
-4. **Mockup analysieren** (falls vorhanden) — Gemaess `.MxAgile/policies/mockup-analysis.md`.
+4. **Mockup analysieren** (falls vorhanden) — Gemaess `.mxagile/policies/mockup-analysis.md`.
 5. **Bestehendes Modell lesen** — Welche Entities, Microflows, Pages existieren
    bereits im betroffenen Modul? Welche Plattformmodule sind relevant?
-   `.MxAgile/modules/platform-modules.md` pruefen.
+   `.mxagile/modules/platform-modules.md` pruefen.
 6. **Entscheidungen pruefen** — `sprints/decisions.md` auf relevante Vorarbeiten
    durchsehen.
 7. **Luecken markieren** — Fehlende Informationen als `DECISION REQUIRED` oder
@@ -32,4 +32,5 @@ neuen Arbeitspaket.
 - Story-Spezifikation unter `planning/stories/`
 - Liste der offenen `DECISION REQUIRED` und `ASSUMPTION`
 - Identifizierte Abhaengigkeiten zu anderen Stories oder Modulen
+
 

@@ -1,4 +1,4 @@
-# .MxAgile/ — Agentenagnostisches Mendix Delivery System
+# .mxagile/ — Agentenagnostisches Mendix Delivery System
 
 Dieses Verzeichnis ist die **plattformneutrale Prozessschicht** fuer AI-gestuetzte
 Mendix-Entwicklung. Es definiert *was* in welcher Reihenfolge passiert — unabhaengig
@@ -9,11 +9,11 @@ OpenCode, Hermes) die Arbeit ausfuehrt.
 
 Jede AI-Plattform hat ein eigenes Format fuer Skills, Agenten und Instruktionen.
 Statt denselben Inhalt manuell in 4-5 Formaten zu pflegen, liegt die **neutrale
-Fachlogik** hier in `.MxAgile/`. Ein Generierungsskript erzeugt daraus physische
+Fachlogik** hier in `.mxagile/`. Ein Generierungsskript erzeugt daraus physische
 Plattform-Kopien mit dem jeweils passenden Frontmatter.
 
 ```
-.MxAgile/ (neutral, template-owned)
+.mxagile/ (neutral, template-owned)
     |
     v  scripts/generate-mxagile-platform-skills.ps1
     |
@@ -29,7 +29,7 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 ## Verzeichnisstruktur
 
 ```
-.MxAgile/
+.mxagile/
 ├── README.md               <- Diese Datei
 ├── version.yaml            <- Template-Version und Kompatibilitaet
 ├── GLOSSARY.yaml           <- Interne Begriffe und Plattform-Routing
@@ -129,7 +129,7 @@ Verifying:  1. Quality-Gate (Technik)
 
 | Quelle | Verzeichnis | Eigentuemer | Update |
 |---|---|---|---|
-| **MxAgile** (Prozess) | `.MxAgile/` | Template | Template-Versionierung |
+| **MxAgile** (Prozess) | `.mxagile/` | Template | Template-Versionierung |
 | **mxcli** (Technik) | `.ai-context/skills/` | mxcli | `mxcli init` |
 | **Concord** (Wissen) | Concord MCP | Concord Runtime | Automatisch |
 | **Mendix MPR** (Modell) | Agent Documents | Studio Pro | Modellaenderung |
@@ -138,7 +138,7 @@ Strikt getrennte Namensraeume — kein Verzeichnis gehoert zwei Eigentuemern.
 
 ## Eigentum und Aenderungsregeln
 
-- `.MxAgile/` ist **read-only aus dem Template**. Projektspezifische Regeln
+- `.mxagile/` ist **read-only aus dem Template**. Projektspezifische Regeln
   gehoeren in `AGENT.md`, nicht hierher.
 - Generierte Plattform-Kopien tragen einen `# GENERATED` Header und werden
   nicht manuell editiert.
@@ -156,7 +156,7 @@ Copilot-Agents ein anderes Format verwenden.
 |---|---|
 | `scripts/setup-agent-system.ps1` | **Single Entry Point** — ruft beide Einzelskripte |
 | `scripts/apply-project-agent-instructions.ps1` | AGENT.md → Plattform-Einstiegspunkte |
-| `scripts/generate-mxagile-platform-skills.ps1` | `.MxAgile/` → Plattform-Skills und -Agents |
+| `scripts/generate-mxagile-platform-skills.ps1` | `.mxagile/` → Plattform-Skills und -Agents |
 
 ## Versionierung
 
@@ -186,5 +186,6 @@ Copilot-Agents ein anderes Format verwenden.
 52 bestaetigte Entscheidungen (D1-D52) und der vollstaendige Umsetzungsplan:
 
 `.concord/plans/MxAgile-restructuring-plan.md`
+
 
 

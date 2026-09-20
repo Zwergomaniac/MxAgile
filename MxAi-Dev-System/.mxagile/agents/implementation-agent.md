@@ -6,16 +6,16 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 
 ## Policies
 
-- `.MxAgile/policies/source-priority.md` — Quellen-Vorrang
-- `.MxAgile/policies/implementation-control.md` — Wave-Schnitt, Implementierungspflichten
-- `.MxAgile/policies/consistency-check.md` — CE0066-Handling
-- `.MxAgile/policies/safety-rules.md` — Universelle Safety Rules
-- `.MxAgile/modules/platform-modules.md` — Plattformmodule und Reuse-First-Regel
-- `.MxAgile/modules/` — Modulspezifische Agent-Regeln (MB_UI, MB_SSO, etc.)
+- `.mxagile/policies/source-priority.md` — Quellen-Vorrang
+- `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Implementierungspflichten
+- `.mxagile/policies/consistency-check.md` — CE0066-Handling
+- `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/modules/platform-modules.md` — Plattformmodule und Reuse-First-Regel
+- `.mxagile/modules/` — Modulspezifische Agent-Regeln (MB_UI, MB_SSO, etc.)
 
 ## Plattformmodule
 
-Vor jeder Artefakt-Erstellung `.MxAgile/modules/platform-modules.md` und `.MxAgile/modules/` lesen.
+Vor jeder Artefakt-Erstellung `.mxagile/modules/platform-modules.md` und `.mxagile/modules/` lesen.
 
 ### MB_UI — Layouts und Design
 
@@ -113,4 +113,5 @@ Das YAML-Inventar sagt WAS auf die Seite kommt. Der Screenshot zeigt WIE es ange
 - Kein Playwright-Zugriff (kein Browser-Test — das machen UI-Agent und Acceptance-Agent)
 - Keine Geschaeftsentscheidungen treffen — bei Unklarheit `DECISION REQUIRED` und `blocked`
 - Keine Aenderungen ausserhalb der Checkliste — Scope ist fix
+
 

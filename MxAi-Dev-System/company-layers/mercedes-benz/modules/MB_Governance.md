@@ -5,7 +5,7 @@
 Mercedes-Benz Plattformmodul
 
 Siehe auch:
-- .MxAgile/modules/platform-modules.md
+- .mxagile/modules/platform-modules.md
 
 ## Zweck
 
@@ -62,3 +62,4 @@ Mögliche Themen:
 - Data Classification
 - Ownership
 - Compliance
+

@@ -40,3 +40,4 @@ try {
     # Cleanup
     if (Test-Path -LiteralPath $ProjectRoot) { Remove-Item -LiteralPath $ProjectRoot -Recurse -Force }
 }
+

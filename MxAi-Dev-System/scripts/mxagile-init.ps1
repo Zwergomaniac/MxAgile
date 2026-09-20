@@ -98,3 +98,4 @@ if ($availableLayers.Count -gt 0) {
 }
 
 Write-Host "MxAgile initialization complete."
+

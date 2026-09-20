@@ -295,3 +295,4 @@ These commands will be implemented as scripts (e.g., PowerShell) that orchestrat
 6.  [ ] Update any custom scripts or agent prompts that had hardcoded `mxagile-ai` paths.
 7.  [ ] For the next new feature, use the full `mxagile` lifecycle, starting with Discovery.
 
+

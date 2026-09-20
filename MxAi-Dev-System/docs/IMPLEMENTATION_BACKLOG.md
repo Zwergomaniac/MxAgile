@@ -259,6 +259,24 @@ Acceptance Criteria:
 - Convergence does not treat unconfirmed inference as accepted evidence.
 
 
+DECISION D-011: COMPANY LAYERS MUST BE EXTERNALLY DISTRIBUTED
+
+Status:
+    DECISION REQUIRED
+
+Decision:
+
+Company layers must not rely on the local `company-layers/` folder for runtime or distribution.
+They must be managed as external dependencies (e.g., git submodules, separate repositories, or versioned artifacts).
+
+Acceptance Criteria:
+
+- Local `company-layers/` folder is removed or treated as transient.
+- External distribution mechanism defined and implemented.
+- Installation scripts updated to fetch external dependencies.
+- CI/CD pipeline handles external layer resolution.
+
+
 ======================================================================
 WORK PACKAGE 0: WORKSPACE RECONCILIATION
 ======================================================================
@@ -1624,6 +1642,34 @@ TODO:
 - [x] Document inference versus confirmation.
 - [x] Document stale semantics.
 - [x] Document Refinement.
+
+
+======================================================================
+WORK PACKAGE 21: COMPANY LAYER EXTERNALIZATION, DISTRIBUTION AND BOOTSTRAP
+======================================================================
+
+Objective:
+
+Externalize company layers and implement a bootstrap mechanism to manage them as versioned dependencies.
+
+TODO:
+
+- [ ] Define external repository structure for company layers.
+- [ ] Implement mechanism to clone/pull layers to `.mxagile/layers/`.
+- [ ] Add bootstrap script to `mxagile-init.ps1` to resolve dependencies.
+- [ ] Update `mxcli` configuration to support versioned layer references.
+- [ ] Create automated tests for layer resolution.
+- [ ] Migrate existing content from `company-layers/` to external sources.
+- [ ] Mark `company-layers/` as deprecated and suggest removal.
+- [ ] Ensure CI/CD process validates external layer integrity.
+
+Acceptance Criteria:
+
+- `company-layers/` folder is no longer required for project execution.
+- Layers are pulled from authorized external sources during initialization.
+- Versioning is supported for layer dependencies.
+- Bootstrap process is idempotent and secure.
+- CI/CD successfully resolves all dependencies.
 - [x] Document Reconciliation.
 - [x] Document Analyze.
 - [x] Document Convergence.
@@ -2199,3 +2245,4 @@ The technical owner makes the final transition decision.
 Until that decision is made, the overall project phase remains:
 
     Stabilization, Integration and Pilot Validation
+

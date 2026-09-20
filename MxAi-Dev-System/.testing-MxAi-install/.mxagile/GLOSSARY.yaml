@@ -4,12 +4,12 @@ metadata:
   scope: This file is copied with the Mendix project template.
   precedence:
     - Project-specific facts and decisions in projekt.md take precedence for the project.
-    - Platform module detail references in .MxAgile/modules/ take precedence for technical module behavior.
+    - Platform module detail references in .mxagile/modules/ take precedence for technical module behavior.
     - This glossary provides terminology and default routing, not an implementation specification.
 
 reading_order:
   - Read this glossary for internal terms and initial routing.
-  - Read .MxAgile/modules/platform-modules.md before proposing custom Mendix functionality.
+  - Read .mxagile/modules/platform-modules.md before proposing custom Mendix functionality.
   - Read the relevant module detail before work involving authentication, roles, UI, feedback, or governance.
   - Record unresolved facts as ASSUMPTION or DECISION REQUIRED.
 
@@ -18,7 +18,7 @@ terms:
     MxAgile:
       category: Delivery process
       description: Project-local process for AI-assisted Mendix delivery from intake through verification.
-      agent_hint: Follow .MxAgile/orchestrator.md and the relevant phase gate.
+      agent_hint: Follow .mxagile/orchestrator.md and the relevant phase gate.
     MxMocketeer:
       category: Shared Copilot prompt
       description: Discovery and interactive HTML mockup prompt for clarifying requirements and UI flows.
@@ -72,7 +72,7 @@ terms:
     MB_SSO:
       category: Mendix platform module
       description: Preferred authentication and employee-information module based on claims.
-      agent_hint: Use MB_SSO.MBUser for employee data, not System.User. Read .MxAgile/modules/MB_SSO.md before implementing authentication or project roles.
+      agent_hint: Use MB_SSO.MBUser for employee data, not System.User. Read .mxagile/modules/MB_SSO.md before implementing authentication or project roles.
     CONST_UserroleAppname:
       category: MB_SSO configuration
       description: Constant that defines the prefix for project roles.
@@ -84,11 +84,11 @@ terms:
     MB_UI:
       category: Mendix platform module
       description: Mercedes-Benz design system for Mendix layouts, navigation, components, and theme tokens.
-      agent_hint: Use MB_UI.MB_Main_Layout for pages and MB_UI.MB_Popup for dialogs. Extend rather than replace MB_UI; read .MxAgile/modules/MB_UI.md for details.
+      agent_hint: Use MB_UI.MB_Main_Layout for pages and MB_UI.MB_Popup for dialogs. Extend rather than replace MB_UI; read .mxagile/modules/MB_UI.md for details.
     MB_Feedback:
       category: Mendix platform module
       description: Standard feedback capability with rating persistence, dialog, snippet, and role model.
-      agent_hint: Check MB_Feedback before building custom feedback pages or rating entities. Read .MxAgile/modules/MB_Feedback.md for integration and role mapping.
+      agent_hint: Check MB_Feedback before building custom feedback pages or rating entities. Read .mxagile/modules/MB_Feedback.md for integration and role mapping.
     MB_Governance:
       category: Mendix platform module
       description: Platform module for governance and compliance requirements.
@@ -222,3 +222,4 @@ agent_rules:
   - Check whether a relevant platform capability is available in the concrete project; do not assume a module is installed.
   - For vehicle or engineering-data integrations, identify and confirm the system of record, data classification, and integration owner.
   - Treat compliance and security as delivery constraints, but request confirmation for obligations not documented in an authoritative project or platform source.
+

@@ -30,7 +30,7 @@ Nicht über Änderungen am Modul selbst.
 ### MB_SSO
 
 Authentifizierung und Mitarbeiterinformationen via Claims.
--> Detail-Referenz: `.MxAgile/modules/MB_SSO.md`
+-> Detail-Referenz: `.mxagile/modules/MB_SSO.md`
 
 ### MB OIDC
 
@@ -39,12 +39,12 @@ Federation, OIDC, Rollen- und Claim-Mapping.
 ### MB No Access
 
 Standardverhalten fuer Nutzer ohne fachliche Rolle.
--> Detail-Referenz: `.MxAgile/modules/MB_NoAccess.md`
+-> Detail-Referenz: `.mxagile/modules/MB_NoAccess.md`
 
 ### MB UI
 
 Designsystem, CSS, Layouts und Standardkomponenten.
--> Detail-Referenz: `.MxAgile/modules/MB_UI.md`
+-> Detail-Referenz: `.mxagile/modules/MB_UI.md`
 
 ### MB Databricks
 
@@ -65,4 +65,5 @@ Pflichtmodul für Lizenzierung.
 ### MB Feedback
 
 Standard fuer Nutzerfeedback.
--> Detail-Referenz: `.MxAgile/modules/MB_Feedback.md`
+-> Detail-Referenz: `.mxagile/modules/MB_Feedback.md`
+

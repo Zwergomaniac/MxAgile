@@ -5,7 +5,7 @@
 Mercedes-Benz Plattformmodul (v2.0.1)
 
 Siehe auch:
-- .MxAgile/modules/platform-modules.md
+- .mxagile/modules/platform-modules.md
 
 ## Zweck
 
@@ -71,4 +71,5 @@ Um Feedback in die App einzubinden:
 2. `SNIP_Feedback` in bestehende Seiten einbetten statt eigene Feedback-Seiten zu bauen
 3. Keine eigene AppRating-Entity anlegen — `MB_Feedback.AppRating` verwenden
 4. Rollemapping nicht vergessen: ohne `Restricted` koennen Nutzer kein Feedback abgeben
+
 

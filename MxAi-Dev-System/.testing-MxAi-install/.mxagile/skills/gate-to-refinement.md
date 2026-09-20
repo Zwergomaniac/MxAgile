@@ -15,7 +15,7 @@ Prueft ob die Discovery-Phase vollstaendig abgeschlossen ist bevor Refinement be
 - [ ] UI-Inventar vorhanden unter `planning/ui-inventory/` (wenn Mockups unter `input-resources/ui-ux/` existieren)
 - [ ] Falls generiertes Mockup: `"approved": true` im mocketeer-spec (Entwicklerfreigabe erteilt)
 - [ ] Bestehendes Modell im betroffenen Modul gelesen
-- [ ] Plattformmodule geprueft (`.MxAgile/modules/platform-modules.md`)
+- [ ] Plattformmodule geprueft (`.mxagile/modules/platform-modules.md`)
 - [ ] Board-Sync ist aktuell (wenn Board konfiguriert — optional, D52)
 
 ## Pruefung
@@ -39,4 +39,5 @@ in `.concord/scratch/process-state.yaml` — `not_recorded` darf danach nicht st
 - **Bestanden:** `gate_to_refinement: passed` eintragen, Phasenwechsel zu Refinement
 - **Nicht bestanden:** `gate_to_refinement: failed` eintragen mit kurzer Begruendung,
   fehlende Artefakte dem Entwickler auflisten, in Discovery-Phase bleiben
+
 

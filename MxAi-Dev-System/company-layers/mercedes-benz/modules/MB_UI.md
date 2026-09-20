@@ -5,7 +5,7 @@
 Mercedes-Benz Plattformmodul (v2.1.2)
 
 Siehe auch:
-- .MxAgile/modules/platform-modules.md
+- .mxagile/modules/platform-modules.md
 
 ## Zweck
 
@@ -194,4 +194,5 @@ Agents sollten bevorzugt die `--mbui-*` Tokens direkt verwenden; die Atlas-Varia
 - Eigene NavigationBar statt MB_UI Snippets
 - Legacy-Layouts (MercedesBenz_*) fuer neue Seiten verwenden
 - MB_UI.UserInfo-Attribute manuell befuellen statt ueber MB_UI Microflows
+
 

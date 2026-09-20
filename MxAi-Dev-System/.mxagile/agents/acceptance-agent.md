@@ -6,9 +6,9 @@ Laeuft in Verifying parallel zum UI-Agent, nachdem Quality-Gate bestanden hat.
 
 ## Policies
 
-- `.MxAgile/policies/source-priority.md` — Quellen-Vorrang
-- `.MxAgile/policies/test-workflow.md` — Docker-/Playwright-Test-Ablauf
-- `.MxAgile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/policies/source-priority.md` — Quellen-Vorrang
+- `.mxagile/policies/test-workflow.md` — Docker-/Playwright-Test-Ablauf
+- `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 
 ## Voraussetzungen
 
@@ -93,4 +93,5 @@ Acceptance-Report unter `planning/wave-reports/` mit:
 - Keine Modellaenderungen — bei Fehler nur Checkliste aktualisieren
 - Keine UI-Layout-Pruefung — das macht der UI-Agent
 - Keine technischen Checks (Syntax, Lint, CE) — das macht Quality-Gate
+
 

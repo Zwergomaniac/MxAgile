@@ -5,7 +5,7 @@
 Mercedes-Benz Plattformmodul (v1.0.3)
 
 Siehe auch:
-- .MxAgile/modules/platform-modules.md
+- .mxagile/modules/platform-modules.md
 
 ## Zweck
 
@@ -56,4 +56,5 @@ MB_NoAccess darf nicht veraendert werden.
 2. Neue {APP}_*-Rollen brauchen KEIN Mapping auf `MB_NoAccess.User` — das ist die Default-Rolle
 3. Keine eigene "Kein Zugriff"-Seite bauen — `MB_NoAccess.Home_Web` existiert bereits
 4. Bei User-Role-Mapping: `MB_NoAccess.User` wird automatisch ueber `CONST_DefaultUserRole` zugewiesen, nicht manuell
+
 

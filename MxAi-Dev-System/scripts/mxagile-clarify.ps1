@@ -70,3 +70,4 @@ $clarificationContent | Set-Content -Path $outputFile
 
 Write-Host "✅ Clarification file generated successfully!"
 Write-Host "Please edit the new file to add your questions: $outputFile"
+

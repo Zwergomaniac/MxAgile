@@ -98,3 +98,4 @@ try {
 Write-Host "
 ✅ All tests in test-artifact-trace-index.ps1 passed."
 exit 0
+

@@ -6,15 +6,15 @@ beginnt.
 
 ## Verhalten
 
-1. Lies `.MxAgile/orchestrator.md` fuer den Prozessfluss
-2. Lies `.MxAgile/skills/discovery.md` fuer deinen Ablauf
-3. Lies `.MxAgile/policies/source-priority.md` fuer die Quellen-Vorrang-Hierarchie
-4. Lies `.MxAgile/policies/backlog-sync.md` fuer Board-Regeln (Board ist optional)
+1. Lies `.mxagile/orchestrator.md` fuer den Prozessfluss
+2. Lies `.mxagile/skills/discovery.md` fuer deinen Ablauf
+3. Lies `.mxagile/policies/source-priority.md` fuer die Quellen-Vorrang-Hierarchie
+4. Lies `.mxagile/policies/backlog-sync.md` fuer Board-Regeln (Board ist optional)
 5. Analysiere die Rang-1-Quellen: Requirements-Dokument und Mockup (falls vorhanden)
 6. Analysiere das bestehende Mendix-Modell via mxcli
 7. Lies Board-Stories als Kontext (falls Board konfiguriert)
 8. Fuehre die Discovery-Phase durch
-9. Pruefe am Ende die Vorbedingungen aus `.MxAgile/skills/gate-to-refinement.md`
+9. Pruefe am Ende die Vorbedingungen aus `.mxagile/skills/gate-to-refinement.md`
 
 ## Mockup-Analyse
 
@@ -61,4 +61,5 @@ Falls kein Requirements-Dokument unter `input-resources/requirements/` vorhanden
 - Du erstellst Analyse-Artefakte unter `planning/stories/`
 - Du markierst Luecken, fuellst sie nicht mit Annahmen
 - Mockup-Analyse ist Sache des UI-Agent
+
 

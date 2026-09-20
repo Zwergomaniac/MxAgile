@@ -4,7 +4,7 @@ Eine Story-Spezifikation je Requirement: `{STORYPREFIX}-<Nr>.md`, zum Beispiel
 `{STORYPREFIX}-001.md`. `{STORYPREFIX}` wird beim Projekt-Setup festgelegt
 (siehe `SETUP.md`).
 
-Entsteht in der Discovery-Phase (`.MxAgile/skills/discovery.md`), aus
+Entsteht in der Discovery-Phase (`.mxagile/skills/discovery.md`), aus
 Requirements-Dokument, Mockup und bestehendem Modell.
 
 ## Pflicht-Frontmatter
@@ -21,5 +21,6 @@ Reconciliation-Felder).
 
 Wird in der Refinement-Phase vervollstaendigt, bevor das Gate `mxagile-gate-to-ready`
 daraus die wave-bezogene Implementierungscheckliste erzeugt.
+
 
 

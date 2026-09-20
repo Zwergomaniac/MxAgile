@@ -32,3 +32,4 @@ Write-Host "Generating adoption report..."
 
 
 Write-Host "MxAgile adoption process initiated. Please review the generated artifacts and the adoption report."
+

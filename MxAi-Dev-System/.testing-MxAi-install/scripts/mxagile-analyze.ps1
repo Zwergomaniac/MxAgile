@@ -69,3 +69,4 @@ if ($findings.Count -gt 0) {
 } else {
     Write-Host "MxAgile analysis complete. No consistency issues found."
 }
+

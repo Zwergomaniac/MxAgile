@@ -2,6 +2,12 @@
 
 Welcome to MxAgile, a framework for specification-driven, Mendix-native application development powered by AI agents.
 
+## Core Engineering Tools
+
+MxAgile uses `mxcli` as its core engineering layer. 
+
+*Note: The current `mxcli.exe` binary in the root will be migrated to a fully reproducible download/bootstrap process in a future development phase.*
+
 ## Core Concepts
 
 MxAgile is built on a few key principles to ensure a traceable, verifiable, and maintainable development lifecycle:
@@ -18,6 +24,16 @@ For a deep dive into the architecture, see the [MxAgile Major Evolution document
 
 Setting up a project with MxAgile is designed to be simple.
 
+### Agent Environment Synchronization
+
+**IMPORTANT:** Whenever changes are made within the `.mxagile/` directory, you MUST run the generator script to synchronize your agent environment:
+
+```powershell
+.\scripts\generate-mxagile-platform-skills.ps1
+```
+
+This ensures that agent configurations (`.claude/`, `.github/`, `.agents/`, etc.) stay in sync with the core platform definitions.
+
 ### Prerequisites
 
 *   Python 3.8+ (with Pip)
@@ -27,18 +43,19 @@ Setting up a project with MxAgile is designed to be simple.
 
 1.  Clone this repository to your local machine.
 2.  Open a PowerShell terminal in the project root directory.
-3.  Run the initialization script:
+3.  Run the appropriate installer script:
 
-    ```powershell
-    .\scripts\mxagile-init.ps1
-    ```
+    *   **Generic MxAgile:**
+        ```powershell
+        .\scripts\install-mxagile.ps1
+        ```
 
-This script will perform the following actions:
+    *   **Mercedes-Benz Environment:**
+        ```powershell
+        .\scripts\install-mercedes.ps1
+        ```
 
-*   Check if Python and Pip are available.
-*   Install all required Python packages from `requirements.txt`.
-*   Create the necessary directory structure for the framework (e.g., `.mxagile`, `specs`, `requirements`).
-*   (Optional) Prompt you to install a company-specific layer for standards and reusable components.
+These scripts verify your environment, initialize the MxAgile framework, and set up your specific configuration layer safely.
 
 ## Basic Workflow
 
@@ -76,3 +93,4 @@ The core workflow is driven by PowerShell scripts located in the `/scripts` dire
 *   **Installation Guide:** [./docs/installation.md](./docs/installation.md)
 *   **Company Layers Guide:** [./docs/company-layers.md](./docs/company-layers.md)
 *   **Planning with Waves:** [./docs/waves.md](./docs/waves.md)
+
