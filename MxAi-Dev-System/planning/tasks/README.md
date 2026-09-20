@@ -3,7 +3,7 @@
 Eine Implementierungscheckliste je Wave: `W<n>-implementation-checklist.yaml`,
 zum Beispiel `W1-implementation-checklist.yaml`.
 
-Entsteht im Gate `dfc-gate-to-ready` aus UI-Inventar und Story-Spezifikationen
+Entsteht im Gate `mxagile-gate-to-ready` aus UI-Inventar und Story-Spezifikationen
 (siehe `.MxAgile/skills/gate-to-ready.md`). Nicht manuell vor dem Gate anlegen.
 
 Jedes Item nennt die betroffenen Requirements im Feld `req` — das ist die
@@ -22,4 +22,5 @@ und `status`-Werte (u.a. `verification_failed` fuer eine gescheiterte Wave-Abnah
 3. Acceptance-Agent traegt `test_result` / `inspect_result` ein.
 4. Bei Abweichungen: betroffene Items auf `status: failed`, kein Ruecklauf der
    gesamten Checkliste.
+
 

@@ -19,6 +19,7 @@ Reconciliation-Felder).
 - Vorgeschlagene Entities, Attribute, Associations, Microflows, Pages
 - Offene Punkte als `DECISION REQUIRED` oder `ASSUMPTION`
 
-Wird in der Refinement-Phase vervollstaendigt, bevor das Gate `dfc-gate-to-ready`
+Wird in der Refinement-Phase vervollstaendigt, bevor das Gate `mxagile-gate-to-ready`
 daraus die wave-bezogene Implementierungscheckliste erzeugt.
+
 

@@ -1,6 +1,6 @@
 defaults:
   output_dir: ".claude/agents"
-  file_prefix: "dfc-"
+  file_prefix: "mxagile-"
   template: |
     ---
     model: sonnet
@@ -73,3 +73,4 @@ overrides:
         - Write
       description: "Acceptance-Agent: Modell-Inspektion + Playwright User Journeys fuer fachliche Pruefung"
       ---
+

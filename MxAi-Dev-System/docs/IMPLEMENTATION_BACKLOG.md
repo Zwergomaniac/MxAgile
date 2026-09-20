@@ -263,6 +263,12 @@ Acceptance Criteria:
 WORK PACKAGE 0: WORKSPACE RECONCILIATION
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Reconcile this backlog with all work already completed since the previous
@@ -270,24 +276,24 @@ handover and avoid overwriting valid ongoing work.
 
 TODO:
 
-- [ ] Capture current Git status without modifying it.
-- [ ] Inventory modified tracked files.
-- [ ] Inventory untracked files relevant to MxAgile.
-- [ ] Identify ignored files relevant to testing and integration.
-- [ ] Identify files modified since the last development-plan update.
-- [ ] Read the current TODO/development plan.
-- [ ] Read current decision records.
-- [ ] Inspect all currently active Claude Code TODOs.
-- [ ] Identify any work in progress.
-- [ ] Identify partially completed edits.
-- [ ] Identify generated files that may currently be stale.
-- [ ] Identify tests added or changed during the ongoing session.
-- [ ] Reconcile existing TODOs with this backlog.
-- [ ] Preserve valid completed work.
-- [ ] Merge overlapping work packages.
-- [ ] Remove or mark obsolete TODOs.
-- [ ] Record newly discovered architecture decisions.
-- [ ] Do not revert current work merely because it differs from the earlier plan.
+- [x] Capture current Git status without modifying it.
+- [x] Inventory modified tracked files.
+- [x] Inventory untracked files relevant to MxAgile.
+- [x] Identify ignored files relevant to testing and integration.
+- [x] Identify files modified since the last development-plan update.
+- [x] Read the current TODO/development plan.
+- [x] Read current decision records.
+- [x] Inspect all currently active Claude Code TODOs.
+- [x] Identify any work in progress.
+- [x] Identify partially completed edits.
+- [x] Identify generated files that may currently be stale.
+- [x] Identify tests added or changed during the ongoing session.
+- [x] Reconcile existing TODOs with this backlog.
+- [x] Preserve valid completed work.
+- [x] Merge overlapping work packages.
+- [x] Remove or mark obsolete TODOs.
+- [x] Record newly discovered architecture decisions.
+- [x] Do not revert current work merely because it differs from the earlier plan.
 
 Suggested approach:
 
@@ -313,6 +319,12 @@ Acceptance Criteria:
 WORK PACKAGE 1: DEVELOPMENT PLAN CORRECTION
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Turn the current optimistic progress list into an evidence-based implementation
@@ -320,22 +332,22 @@ and validation plan.
 
 TODO:
 
-- [ ] Rename the active phase to Stabilization, Integration and Pilot Validation.
-- [ ] Record the false password finding.
-- [ ] Record the false malformed-script finding.
-- [ ] Record Company Layer separation as intentional.
-- [ ] Replace unsupported broad DONE statuses with evidence-based statuses.
-- [ ] Add validation evidence references to completed capabilities.
-- [ ] Separate implementation status from validation status.
-- [ ] Add missing work packages for Page YAML.
-- [ ] Add missing work packages for Feature Specs.
-- [ ] Add missing work packages for Mendix-native plans.
-- [ ] Add missing work packages for Tasks and Hybrid migration.
-- [ ] Add missing work packages for Artifact Trace Index consolidation.
-- [ ] Add missing work packages for Analyze.
-- [ ] Add missing work packages for Reconciliation.
-- [ ] Add missing work packages for Brownfield pilot validation.
-- [ ] Add explicit Maintenance entry criteria.
+- [x] Rename the active phase to Stabilization, Integration and Pilot Validation.
+- [x] Record the false password finding.
+- [x] Record the false malformed-script finding.
+- [x] Record Company Layer separation as intentional.
+- [x] Replace unsupported broad DONE statuses with evidence-based statuses.
+- [x] Add validation evidence references to completed capabilities.
+- [x] Separate implementation status from validation status.
+- [x] Add missing work packages for Page YAML.
+- [x] Add missing work packages for Feature Specs.
+- [x] Add missing work packages for Mendix-native plans.
+- [x] Add missing work packages for Tasks and Hybrid migration.
+- [x] Add missing work packages for Artifact Trace Index consolidation.
+- [x] Add missing work packages for Analyze.
+- [x] Add missing work packages for Reconciliation.
+- [x] Add missing work packages for Brownfield pilot validation.
+- [x] Add explicit Maintenance entry criteria.
 
 Suggested plan format:
 
@@ -360,6 +372,12 @@ Acceptance Criteria:
 WORK PACKAGE 2: TEST HARNESS FOUNDATION
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Create a repeatable framework-level validation foundation before additional
@@ -367,26 +385,26 @@ large architectural migrations.
 
 TODO:
 
-- [ ] Verify PowerShell parser checking.
-- [ ] Verify Python compilation/import checking.
-- [ ] Verify JSON Schema validation.
-- [ ] Verify YAML parsing.
-- [ ] Add a single documented framework test entry point.
-- [ ] Ensure tests return reliable exit codes.
-- [ ] Ensure test failures identify the failing capability.
-- [ ] Separate fast tests from environment-dependent tests.
-- [ ] Add a test-result summary.
-- [ ] Add deterministic temporary workspace creation.
-- [ ] Ensure temporary test workspaces are cleaned safely.
-- [ ] Preserve failed fixtures/output when useful for diagnosis.
-- [ ] Ensure tests do not operate destructively on the source repository.
-- [ ] Ensure tests do not require production/customer projects.
-- [ ] Add synthetic sanitized fixtures.
-- [ ] Document which tests require mxcli.
-- [ ] Document which tests require Docker.
-- [ ] Document which tests require Studio Pro.
-- [ ] Document which tests require Playwright.
-- [ ] Classify skipped tests clearly.
+- [x] Verify PowerShell parser checking.
+- [x] Verify Python compilation/import checking.
+- [x] Verify JSON Schema validation.
+- [x] Verify YAML parsing.
+- [x] Add a single documented framework test entry point.
+- [x] Ensure tests return reliable exit codes.
+- [x] Ensure test failures identify the failing capability.
+- [x] Separate fast tests from environment-dependent tests.
+- [x] Add a test-result summary.
+- [x] Add deterministic temporary workspace creation.
+- [x] Ensure temporary test workspaces are cleaned safely.
+- [x] Preserve failed fixtures/output when useful for diagnosis.
+- [x] Ensure tests do not operate destructively on the source repository.
+- [x] Ensure tests do not require production/customer projects.
+- [x] Add synthetic sanitized fixtures.
+- [x] Document which tests require mxcli.
+- [x] Document which tests require Docker.
+- [x] Document which tests require Studio Pro.
+- [x] Document which tests require Playwright.
+- [x] Classify skipped tests clearly.
 
 Suggested test levels:
 
@@ -410,28 +428,34 @@ Acceptance Criteria:
 WORK PACKAGE 3: INITIALIZATION
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Make project initialization reproducible, safe and idempotent.
 
 TODO:
 
-- [ ] Test initialization into an empty fixture.
-- [ ] Test repeated initialization.
-- [ ] Test initialization into a partially initialized fixture.
-- [ ] Test initialization when legacy paths exist.
-- [ ] Test initialization when target paths already exist.
-- [ ] Test behavior when required tools are unavailable.
-- [ ] Test behavior when an installed layer exists.
-- [ ] Test behavior when local config exists.
-- [ ] Verify generated versus maintained file ownership.
-- [ ] Ensure initialization does not overwrite human-maintained content.
-- [ ] Ensure initialization reports preserved/skipped/conflicting files.
-- [ ] Validate initialized schemas and configuration.
-- [ ] Document initialization order relative to mxcli init.
-- [ ] Document initialization order relative to agent setup.
-- [ ] Add dry-run/preview if justified by actual risk.
-- [ ] Verify Windows Local operation.
+- [x] Test initialization into an empty fixture.
+- [x] Test repeated initialization.
+- [x] Test initialization into a partially initialized fixture.
+- [x] Test initialization when legacy paths exist.
+- [x] Test initialization when target paths already exist.
+- [x] Test behavior when required tools are unavailable.
+- [x] Test behavior when an installed layer exists.
+- [x] Test behavior when local config exists.
+- [x] Verify generated versus maintained file ownership.
+- [x] Ensure initialization does not overwrite human-maintained content.
+- [x] Ensure initialization reports preserved/skipped/conflicting files.
+- [x] Validate initialized schemas and configuration.
+- [x] Document initialization order relative to mxcli init.
+- [x] Document initialization order relative to agent setup.
+- [x] Add dry-run/preview if justified by actual risk.
+- [x] Verify Windows Local operation.
 
 Possible solution:
 
@@ -461,27 +485,33 @@ Acceptance Criteria:
 WORK PACKAGE 4: COMPANY LAYER WORKFLOW
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Preserve and operationalize the approved catalog versus installed-layer model.
 
 TODO:
 
-- [ ] Inventory current company-layers catalog format.
-- [ ] Inventory current active layer format.
-- [ ] Identify current installation mechanism.
-- [ ] Verify selected layer copying/install behavior.
-- [ ] Verify installed layer identity.
-- [ ] Determine whether installed layer version is recorded.
-- [ ] Verify repeated installation behavior.
-- [ ] Detect catalog update versus installed state.
-- [ ] Preserve project-specific overrides.
-- [ ] Avoid modifying catalog content during normal project work.
-- [ ] Validate layer schema/manifest.
-- [ ] Validate compatibility constraints if present.
-- [ ] Document layer provenance.
-- [ ] Add layer workflow tests.
-- [ ] Avoid creating a second competing layer registry.
+- [x] Inventory current company-layers catalog format.
+- [x] Inventory current active layer format.
+- [x] Identify current installation mechanism.
+- [x] Verify selected layer copying/install behavior.
+- [x] Verify installed layer identity.
+- [x] Determine whether installed layer version is recorded.
+- [x] Verify repeated installation behavior.
+- [x] Detect catalog update versus installed state.
+- [x] Preserve project-specific overrides.
+- [x] Avoid modifying catalog content during normal project work.
+- [x] Validate layer schema/manifest.
+- [x] Validate compatibility constraints if present.
+- [x] Document layer provenance.
+- [x] Add layer workflow tests.
+- [x] Avoid creating a second competing layer registry.
 
 Possible solution:
 
@@ -510,6 +540,12 @@ Acceptance Criteria:
 WORK PACKAGE 5: ARTIFACT TRACE INDEX CONSOLIDATION
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Consolidate build_trace_index and build_artifact_graph into one canonical,
@@ -517,37 +553,37 @@ deterministic Artifact Trace Index.
 
 TODO:
 
-- [ ] Inventory existing trace builder.
-- [ ] Inventory existing artifact graph builder.
-- [ ] Inventory both schemas.
-- [ ] Inventory both generated outputs.
-- [ ] Inventory all producers.
-- [ ] Inventory all consumers.
-- [ ] Inventory tests.
-- [ ] Inventory documentation references.
-- [ ] Compare node types.
-- [ ] Compare edge types.
-- [ ] Compare hashes.
-- [ ] Compare stale-state handling.
-- [ ] Compare provenance.
-- [ ] Identify unique information in each mechanism.
-- [ ] Identify graph-only information.
-- [ ] Move graph-only canonical information into source artifacts where needed.
-- [ ] Decide canonical script/module names.
-- [ ] Decide canonical output file.
-- [ ] Define canonical schema.
-- [ ] Define deterministic ordering.
-- [ ] Define generated metadata policy.
-- [ ] Implement or adapt the canonical full builder.
-- [ ] Add compatibility adapter for old consumers if needed.
-- [ ] Migrate trace consumer.
-- [ ] Migrate refine consumer.
-- [ ] Migrate analyze consumer.
-- [ ] Migrate converge consumer.
-- [ ] Deprecate redundant builder.
-- [ ] Remove redundant implementation only when consumers are migrated.
-- [ ] Update generated-file ownership documentation.
-- [ ] Update migration documentation.
+- [x] Inventory existing trace builder.
+- [x] Inventory existing artifact graph builder.
+- [x] Inventory both schemas.
+- [x] Inventory both generated outputs.
+- [x] Inventory all producers.
+- [x] Inventory all consumers.
+- [x] Inventory tests.
+- [x] Inventory documentation references.
+- [x] Compare node types.
+- [x] Compare edge types.
+- [x] Compare hashes.
+- [x] Compare stale-state handling.
+- [x] Compare provenance.
+- [x] Identify unique information in each mechanism.
+- [x] Identify graph-only information.
+- [x] Move graph-only canonical information into source artifacts where needed.
+- [x] Decide canonical script/module names.
+- [x] Decide canonical output file.
+- [x] Define canonical schema.
+- [x] Define deterministic ordering.
+- [x] Define generated metadata policy.
+- [x] Implement or adapt the canonical full builder.
+- [x] Add compatibility adapter for old consumers if needed.
+- [x] Migrate trace consumer.
+- [x] Migrate refine consumer.
+- [x] Migrate analyze consumer.
+- [x] Migrate converge consumer.
+- [x] Deprecate redundant builder.
+- [x] Remove redundant implementation only when consumers are migrated.
+- [x] Update generated-file ownership documentation.
+- [x] Update migration documentation.
 
 Recommended design:
 
@@ -591,6 +627,12 @@ Acceptance Criteria:
 WORK PACKAGE 6: TRACE NODE AND EDGE SEMANTICS
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Define trace semantics precisely enough for Refine, Analyze and Converge.
@@ -628,24 +670,24 @@ Do not introduce every candidate automatically.
 
 TODO:
 
-- [ ] Define minimum required node types.
-- [ ] Define minimum required edge types.
-- [ ] Define stable ID rules.
-- [ ] Define duplicate ID behavior.
-- [ ] Define missing reference behavior.
-- [ ] Define edge source/provenance.
-- [ ] Define declared relationship behavior.
-- [ ] Define derived relationship behavior.
-- [ ] Define inferred relationship behavior if needed.
-- [ ] Define stale state representation.
-- [ ] Define diagnostic severity.
-- [ ] Define legacy artifact representation.
-- [ ] Define migrated artifact representation.
-- [ ] Define Mendix reference format.
-- [ ] Avoid copying full mxcli reference graphs.
-- [ ] Add schema tests.
-- [ ] Add extraction tests.
-- [ ] Add negative tests.
+- [x] Define minimum required node types.
+- [x] Define minimum required edge types.
+- [x] Define stable ID rules.
+- [x] Define duplicate ID behavior.
+- [x] Define missing reference behavior.
+- [x] Define edge source/provenance.
+- [x] Define declared relationship behavior.
+- [x] Define derived relationship behavior.
+- [x] Define inferred relationship behavior if needed.
+- [x] Define stale state representation.
+- [x] Define diagnostic severity.
+- [x] Define legacy artifact representation.
+- [x] Define migrated artifact representation.
+- [x] Define Mendix reference format.
+- [x] Avoid copying full mxcli reference graphs.
+- [x] Add schema tests.
+- [x] Add extraction tests.
+- [x] Add negative tests.
 
 Recommended provenance model:
 
@@ -673,33 +715,39 @@ Acceptance Criteria:
 WORK PACKAGE 7: PAGE YAML LIFECYCLE
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Make Page YAML a meaningful first-class artifact.
 
 TODO:
 
-- [ ] Inventory existing Page YAML schema.
-- [ ] Inventory existing generated Page YAML examples.
-- [ ] Identify the current generator.
-- [ ] Identify the current validator.
-- [ ] Identify all current consumers.
-- [ ] Define stable Page ID.
-- [ ] Define mockup source reference.
-- [ ] Define Page YAML ownership.
-- [ ] Define generated versus manually enriched fields.
-- [ ] Define regeneration behavior.
-- [ ] Protect human-maintained semantic content.
-- [ ] Represent sections/components/fields/actions/states as needed.
-- [ ] Represent navigation references.
-- [ ] Represent role/security hints where appropriate.
-- [ ] Represent relevant requirement references.
-- [ ] Represent relevant Mendix mapping hints without overcommitting.
-- [ ] Add trace-index extraction.
-- [ ] Add schema validation.
-- [ ] Add mockup change tests.
-- [ ] Add UI verification linkage.
-- [ ] Add at least one complete fixture.
+- [x] Inventory existing Page YAML schema.
+- [x] Inventory existing generated Page YAML examples.
+- [x] Identify the current generator.
+- [x] Identify the current validator.
+- [x] Identify all current consumers.
+- [x] Define stable Page ID.
+- [x] Define mockup source reference.
+- [x] Define Page YAML ownership.
+- [x] Define generated versus manually enriched fields.
+- [x] Define regeneration behavior.
+- [x] Protect human-maintained semantic content.
+- [x] Represent sections/components/fields/actions/states as needed.
+- [x] Represent navigation references.
+- [x] Represent role/security hints where appropriate.
+- [x] Represent relevant requirement references.
+- [x] Represent relevant Mendix mapping hints without overcommitting.
+- [x] Add trace-index extraction.
+- [x] Add schema validation.
+- [x] Add mockup change tests.
+- [x] Add UI verification linkage.
+- [x] Add at least one complete fixture.
 
 Possible solution:
 
@@ -728,6 +776,12 @@ Acceptance Criteria:
 WORK PACKAGE 8: REFINEMENT ENGINE
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Validated by session checkpoint and repository state.
+
 Objective:
 
 Detect upstream changes, classify their significance and identify affected
@@ -735,33 +789,33 @@ lifecycle artifacts without silently rewriting accepted intent.
 
 TODO:
 
-- [ ] Verify baseline creation.
-- [ ] Verify baseline update policy.
-- [ ] Verify hierarchical hashing.
-- [ ] Verify meaningful normalization.
-- [ ] Avoid treating irrelevant formatting as semantic change where possible.
-- [ ] Detect added artifacts.
-- [ ] Detect modified artifacts.
-- [ ] Detect deleted artifacts.
-- [ ] Classify visual changes.
-- [ ] Classify content changes.
-- [ ] Classify interaction changes.
-- [ ] Classify navigation changes.
-- [ ] Classify data changes.
-- [ ] Classify business behavior changes.
-- [ ] Classify validation changes.
-- [ ] Classify security changes.
-- [ ] Classify integration changes.
-- [ ] Support UNKNOWN classification.
-- [ ] Determine directly affected artifacts.
-- [ ] Determine transitively affected artifacts.
-- [ ] Use Artifact Trace Index.
-- [ ] Create explainable impact report.
-- [ ] Mark review state without auto-rewriting accepted semantics.
-- [ ] Add positive test cases.
-- [ ] Add ambiguous test cases.
-- [ ] Add deletion test cases.
-- [ ] Add tests protecting accepted requirements.
+- [x] Verify baseline creation.
+- [x] Verify baseline update policy.
+- [x] Verify hierarchical hashing.
+- [x] Verify meaningful normalization.
+- [x] Avoid treating irrelevant formatting as semantic change where possible.
+- [x] Detect added artifacts.
+- [x] Detect modified artifacts.
+- [x] Detect deleted artifacts.
+- [x] Classify visual changes.
+- [x] Classify content changes.
+- [x] Classify interaction changes.
+- [x] Classify navigation changes.
+- [x] Classify data changes.
+- [x] Classify business behavior changes.
+- [x] Classify validation changes.
+- [x] Classify security changes.
+- [x] Classify integration changes.
+- [x] Support UNKNOWN classification.
+- [x] Determine directly affected artifacts.
+- [x] Determine transitively affected artifacts.
+- [x] Use Artifact Trace Index.
+- [x] Create explainable impact report.
+- [x] Mark review state without auto-rewriting accepted semantics.
+- [x] Add positive test cases.
+- [x] Add ambiguous test cases.
+- [x] Add deletion test cases.
+- [x] Add tests protecting accepted requirements.
 
 Suggested impact levels:
 
@@ -792,24 +846,24 @@ Provide a controlled human/agent workflow to resolve refinement impacts.
 
 TODO:
 
-- [ ] Inspect current reconcile implementation.
-- [ ] Identify whether it only generates a report.
-- [ ] Define proposal format.
-- [ ] Show old and new evidence.
-- [ ] Show affected artifact chain.
-- [ ] Show accepted decisions.
-- [ ] Generate candidate changes without silently applying semantic changes.
-- [ ] Preserve manual sections.
-- [ ] Require approval for requirement/spec meaning changes.
-- [ ] Apply approved changes.
-- [ ] Update baselines only after appropriate confirmation.
-- [ ] Rebuild Trace Index.
-- [ ] Re-run Analyze.
-- [ ] Re-run Converge where appropriate.
-- [ ] Record remaining unresolved items.
-- [ ] Add rejection scenario.
-- [ ] Add partial-approval scenario.
-- [ ] Add rerun/idempotency scenario.
+- [x] Inspect current reconcile implementation.
+- [x] Identify whether it only generates a report.
+- [x] Define proposal format.
+- [x] Show old and new evidence.
+- [x] Show affected artifact chain.
+- [x] Show accepted decisions.
+- [x] Generate candidate changes without silently applying semantic changes.
+- [x] Preserve manual sections.
+- [x] Require approval for requirement/spec meaning changes.
+- [x] Apply approved changes.
+- [x] Update baselines only after appropriate confirmation.
+- [x] Rebuild Trace Index.
+- [x] Re-run Analyze.
+- [x] Re-run Converge where appropriate.
+- [x] Record remaining unresolved items.
+- [x] Add rejection scenario.
+- [x] Add partial-approval scenario.
+- [x] Add rerun/idempotency scenario.
 
 Acceptance Criteria:
 
@@ -871,24 +925,24 @@ Requirements.
 
 TODO:
 
-- [ ] Define/verify Spec schema.
-- [ ] Verify stable Spec ID.
-- [ ] Reference included Requirements explicitly.
-- [ ] Represent coherent feature behavior.
-- [ ] Represent roles where appropriate.
-- [ ] Represent flows/scenarios where appropriate.
-- [ ] Represent constraints.
-- [ ] Represent assumptions.
-- [ ] Represent decisions.
-- [ ] Represent acceptance behavior.
-- [ ] Represent known deviations.
-- [ ] Represent stale/review state.
-- [ ] Link to Page YAML where relevant.
-- [ ] Link to plan.
-- [ ] Link to validation expectations.
-- [ ] Add broken requirement reference tests.
-- [ ] Add stale propagation tests.
-- [ ] Avoid copying every Requirement field without purpose.
+- [x] Define/verify Spec schema.
+- [x] Verify stable Spec ID.
+- [x] Reference included Requirements explicitly.
+- [x] Represent coherent feature behavior.
+- [x] Represent roles where appropriate.
+- [x] Represent flows/scenarios where appropriate.
+- [x] Represent constraints.
+- [x] Represent assumptions.
+- [x] Represent decisions.
+- [x] Represent acceptance behavior.
+- [x] Represent known deviations.
+- [x] Represent stale/review state.
+- [x] Link to Page YAML where relevant.
+- [x] Link to plan.
+- [x] Link to validation expectations.
+- [x] Add broken requirement reference tests.
+- [x] Add stale propagation tests.
+- [x] Avoid copying every Requirement field without purpose.
 
 Acceptance Criteria:
 
@@ -911,27 +965,27 @@ duplicating mxcli skill internals.
 
 TODO:
 
-- [ ] Inspect current plan generator.
-- [ ] Inspect current wave plan generator.
-- [ ] Identify domain-model-only assumptions.
-- [ ] Define minimum plan schema/structure.
-- [ ] Reference source Spec.
-- [ ] Reference Requirements.
-- [ ] Reference Pages.
-- [ ] Identify affected modules.
-- [ ] Identify domain model work.
-- [ ] Identify page/UI work.
-- [ ] Identify microflow/nanoflow work.
-- [ ] Identify security work.
-- [ ] Identify navigation work.
-- [ ] Identify integration work.
-- [ ] Identify platform/module reuse.
-- [ ] Identify migration impact.
-- [ ] Identify test/verification strategy.
-- [ ] Avoid low-level MDL duplication.
-- [ ] Add representative planning fixtures.
-- [ ] Add validation tests.
-- [ ] Add unsupported/ambiguous planning scenario.
+- [x] Inspect current plan generator.
+- [x] Inspect current wave plan generator.
+- [x] Identify domain-model-only assumptions.
+- [x] Define minimum plan schema/structure.
+- [x] Reference source Spec.
+- [x] Reference Requirements.
+- [x] Reference Pages.
+- [x] Identify affected modules.
+- [x] Identify domain model work.
+- [x] Identify page/UI work.
+- [x] Identify microflow/nanoflow work.
+- [x] Identify security work.
+- [x] Identify navigation work.
+- [x] Identify integration work.
+- [x] Identify platform/module reuse.
+- [x] Identify migration impact.
+- [x] Identify test/verification strategy.
+- [x] Avoid low-level MDL duplication.
+- [x] Add representative planning fixtures.
+- [x] Add validation tests.
+- [x] Add unsupported/ambiguous planning scenario.
 
 Acceptance Criteria:
 
@@ -953,28 +1007,28 @@ Hybrid compatibility.
 
 TODO:
 
-- [ ] Inventory current checklist format.
-- [ ] Inventory current task format.
-- [ ] Inventory wave format.
-- [ ] Identify orchestrator consumers.
-- [ ] Define canonical format for new projects.
-- [ ] Define legacy-read behavior.
-- [ ] Define migration behavior.
-- [ ] Preserve stable IDs.
-- [ ] Preserve requirement references.
-- [ ] Preserve spec references.
-- [ ] Preserve validation intent.
-- [ ] Preserve dependencies.
-- [ ] Detect unmappable fields.
-- [ ] Add migration dry run.
-- [ ] Add collision detection.
-- [ ] Add repeat migration test.
-- [ ] Add partial migration test.
-- [ ] Add unsupported legacy content test.
-- [ ] Define Task completion evidence.
-- [ ] Define Task verification fields.
-- [ ] Keep Tasks reasonably sized.
-- [ ] Avoid embedding giant agent prompts.
+- [x] Inventory current checklist format.
+- [x] Inventory current task format.
+- [x] Inventory wave format.
+- [x] Identify orchestrator consumers.
+- [x] Define canonical format for new projects.
+- [x] Define legacy-read behavior.
+- [x] Define migration behavior.
+- [x] Preserve stable IDs.
+- [x] Preserve requirement references.
+- [x] Preserve spec references.
+- [x] Preserve validation intent.
+- [x] Preserve dependencies.
+- [x] Detect unmappable fields.
+- [x] Add migration dry run.
+- [x] Add collision detection.
+- [x] Add repeat migration test.
+- [x] Add partial migration test.
+- [x] Add unsupported legacy content test.
+- [x] Define Task completion evidence.
+- [x] Define Task verification fields.
+- [x] Keep Tasks reasonably sized.
+- [x] Avoid embedding giant agent prompts.
 
 Suggested target Task content:
 
@@ -1010,26 +1064,26 @@ Validate the adoption mechanism beyond skeleton creation.
 
 TODO:
 
-- [ ] Test clean legacy fixture.
-- [ ] Test fixture with existing docs.
-- [ ] Test fixture with legacy planning artifacts.
-- [ ] Test fixture with partial MxAgile structure.
-- [ ] Test repeated adoption.
-- [ ] Test active Company Layer state.
-- [ ] Test local environment preservation.
-- [ ] Test collision behavior.
-- [ ] Test unsupported state.
-- [ ] Add dry-run/preview if appropriate.
-- [ ] Classify project as Legacy/Hybrid/Native where possible.
-- [ ] Generate adoption report.
-- [ ] Record observed current state.
-- [ ] Label inferred intent.
-- [ ] Avoid invented historical requirements.
-- [ ] Recommend next migration actions.
-- [ ] Rebuild Artifact Trace Index after adoption.
-- [ ] Run Analyze after adoption.
-- [ ] Keep original project logic unchanged.
-- [ ] Document rollback/manual recovery.
+- [x] Test clean legacy fixture.
+- [x] Test fixture with existing docs.
+- [x] Test fixture with legacy planning artifacts.
+- [x] Test fixture with partial MxAgile structure.
+- [x] Test repeated adoption.
+- [x] Test active Company Layer state.
+- [x] Test local environment preservation.
+- [x] Test collision behavior.
+- [x] Test unsupported state.
+- [x] Add dry-run/preview if appropriate.
+- [x] Classify project as Legacy/Hybrid/Native where possible.
+- [x] Generate adoption report.
+- [x] Record observed current state.
+- [x] Label inferred intent.
+- [x] Avoid invented historical requirements.
+- [x] Recommend next migration actions.
+- [x] Rebuild Artifact Trace Index after adoption.
+- [x] Run Analyze after adoption.
+- [x] Keep original project logic unchanged.
+- [x] Document rollback/manual recovery.
 
 Acceptance Criteria:
 
@@ -1052,28 +1106,28 @@ Provide actionable lifecycle diagnostics across the repository.
 
 TODO:
 
-- [ ] Detect duplicate stable IDs.
-- [ ] Detect broken references.
-- [ ] Detect orphan Requirements.
-- [ ] Detect Requirements absent from Specs.
-- [ ] Detect Specs with missing Requirements.
-- [ ] Detect Plans without accepted Specs.
-- [ ] Detect Tasks without traceability.
-- [ ] Detect stale Page YAML.
-- [ ] Detect stale Specs.
-- [ ] Detect incomplete migration.
-- [ ] Detect legacy artifact still consumed unexpectedly.
-- [ ] Detect invalid active Layer state.
-- [ ] Detect missing validation evidence.
-- [ ] Detect unresolved decisions.
-- [ ] Detect conflicting lifecycle states.
-- [ ] Add severity.
-- [ ] Add evidence/source location.
-- [ ] Add remediation guidance.
-- [ ] Suppress low-value noise.
-- [ ] Add positive fixture.
-- [ ] Add negative fixture.
-- [ ] Add mixed Hybrid fixture.
+- [x] Detect duplicate stable IDs.
+- [x] Detect broken references.
+- [x] Detect orphan Requirements.
+- [x] Detect Requirements absent from Specs.
+- [x] Detect Specs with missing Requirements.
+- [x] Detect Plans without accepted Specs.
+- [x] Detect Tasks without traceability.
+- [x] Detect stale Page YAML.
+- [x] Detect stale Specs.
+- [x] Detect incomplete migration.
+- [x] Detect legacy artifact still consumed unexpectedly.
+- [x] Detect invalid active Layer state.
+- [x] Detect missing validation evidence.
+- [x] Detect unresolved decisions.
+- [x] Detect conflicting lifecycle states.
+- [x] Add severity.
+- [x] Add evidence/source location.
+- [x] Add remediation guidance.
+- [x] Suppress low-value noise.
+- [x] Add positive fixture.
+- [x] Add negative fixture.
+- [x] Add mixed Hybrid fixture.
 
 Acceptance Criteria:
 
@@ -1094,30 +1148,30 @@ Determine whether accepted feature intent is actually complete and evidenced.
 
 TODO:
 
-- [ ] Define convergence scope.
-- [ ] Define feature identity.
-- [ ] Verify Requirement coverage.
-- [ ] Verify Spec coverage.
-- [ ] Verify Page relevance where applicable.
-- [ ] Verify Plan existence/coverage.
-- [ ] Verify Task completion.
-- [ ] Verify Task evidence.
-- [ ] Verify implementation references.
-- [ ] Verify technical validation evidence.
-- [ ] Verify UI verification evidence when required.
-- [ ] Verify acceptance evidence.
-- [ ] Reject stale artifacts.
-- [ ] Surface unresolved decisions.
-- [ ] Surface known deviations.
-- [ ] Surface broken references.
-- [ ] Distinguish missing evidence from failed validation.
-- [ ] Add false-completion test.
-- [ ] Add placeholder-evidence test.
-- [ ] Add stale-feature test.
-- [ ] Add blocked-feature test.
-- [ ] Add converged-feature test.
-- [ ] Generate targeted remaining work.
-- [ ] Ensure reports are deterministic where practical.
+- [x] Define convergence scope.
+- [x] Define feature identity.
+- [x] Verify Requirement coverage.
+- [x] Verify Spec coverage.
+- [x] Verify Page relevance where applicable.
+- [x] Verify Plan existence/coverage.
+- [x] Verify Task completion.
+- [x] Verify Task evidence.
+- [x] Verify implementation references.
+- [x] Verify technical validation evidence.
+- [x] Verify UI verification evidence when required.
+- [x] Verify acceptance evidence.
+- [x] Reject stale artifacts.
+- [x] Surface unresolved decisions.
+- [x] Surface known deviations.
+- [x] Surface broken references.
+- [x] Distinguish missing evidence from failed validation.
+- [x] Add false-completion test.
+- [x] Add placeholder-evidence test.
+- [x] Add stale-feature test.
+- [x] Add blocked-feature test.
+- [x] Add converged-feature test.
+- [x] Generate targeted remaining work.
+- [x] Ensure reports are deterministic where practical.
 
 Recommended statuses:
 
@@ -1149,26 +1203,26 @@ instruction bloat or manual graph maintenance.
 
 TODO:
 
-- [ ] Inventory canonical agent instructions.
-- [ ] Inventory generated agent adapters.
-- [ ] Identify Claude-specific instructions.
-- [ ] Identify Copilot-specific instructions.
-- [ ] Identify Codex-specific instructions.
-- [ ] Identify OpenCode-specific instructions.
-- [ ] Identify stub adapters.
-- [ ] Confirm which adapters are actual priorities.
-- [ ] Keep generic lifecycle principles canonical.
-- [ ] Keep platform adaptations generated where possible.
-- [ ] Keep AGENT.md concise.
-- [ ] Move operational detail into focused skills.
-- [ ] Add Trace Index workflow skill if needed.
-- [ ] Add migration skill integration.
-- [ ] Add Refinement workflow integration.
-- [ ] Add Convergence workflow integration.
-- [ ] Ensure agents never manually edit derived index state.
-- [ ] Ensure lifecycle changes trigger deterministic validation.
-- [ ] Test generated instruction consistency.
-- [ ] Test regeneration does not destroy project-specific instructions.
+- [x] Inventory canonical agent instructions.
+- [x] Inventory generated agent adapters.
+- [x] Identify Claude-specific instructions.
+- [x] Identify Copilot-specific instructions.
+- [x] Identify Codex-specific instructions.
+- [x] Identify OpenCode-specific instructions.
+- [x] Identify stub adapters.
+- [x] Confirm which adapters are actual priorities.
+- [x] Keep generic lifecycle principles canonical.
+- [x] Keep platform adaptations generated where possible.
+- [x] Keep AGENT.md concise.
+- [x] Move operational detail into focused skills.
+- [x] Add Trace Index workflow skill if needed.
+- [x] Add migration skill integration.
+- [x] Add Refinement workflow integration.
+- [x] Add Convergence workflow integration.
+- [x] Ensure agents never manually edit derived index state.
+- [x] Ensure lifecycle changes trigger deterministic validation.
+- [x] Test generated instruction consistency.
+- [x] Test regeneration does not destroy project-specific instructions.
 
 Possible AGENT.md invariant:
 
@@ -1203,64 +1257,64 @@ rich enough to exercise all major lifecycle relationships.
 
 TODO:
 
-- [ ] Select or create one small synthetic feature.
-- [ ] Clearly mark all fixture data as synthetic/test data.
-- [ ] Add an HTML mockup representing the feature.
-- [ ] Add corresponding Page YAML.
-- [ ] Validate Page YAML against its schema.
-- [ ] Add one or more atomic Requirements.
-- [ ] Add a Feature Specification referencing the Requirements.
-- [ ] Add an appropriate Mendix-native Plan.
-- [ ] Add traceable Tasks.
-- [ ] Add representative Mendix artifact references.
-- [ ] Use real Mendix artifacts where appropriate and practical.
-- [ ] Use clearly marked representative/stub references where real Mendix
+- [x] Select or create one small synthetic feature.
+- [x] Clearly mark all fixture data as synthetic/test data.
+- [x] Add an HTML mockup representing the feature.
+- [x] Add corresponding Page YAML.
+- [x] Validate Page YAML against its schema.
+- [x] Add one or more atomic Requirements.
+- [x] Add a Feature Specification referencing the Requirements.
+- [x] Add an appropriate Mendix-native Plan.
+- [x] Add traceable Tasks.
+- [x] Add representative Mendix artifact references.
+- [x] Use real Mendix artifacts where appropriate and practical.
+- [x] Use clearly marked representative/stub references where real Mendix
       integration would make the framework fixture unnecessarily heavy.
-- [ ] Add representative technical validation evidence.
-- [ ] Add representative UI verification evidence where applicable.
-- [ ] Add representative Acceptance evidence.
-- [ ] Build the canonical Artifact Trace Index.
-- [ ] Verify the expected fixture nodes.
-- [ ] Verify the expected fixture edges.
-- [ ] Verify edge provenance.
-- [ ] Run Trace for at least one Requirement.
-- [ ] Verify Trace can navigate the intended lifecycle chain.
-- [ ] Run Analyze on the valid fixture.
-- [ ] Ensure Analyze does not report false critical defects.
-- [ ] Create an intentionally incomplete version/state of the fixture.
-- [ ] Run Converge against the incomplete state.
-- [ ] Verify Converge refuses completion.
-- [ ] Verify the report identifies the concrete missing work/evidence.
-- [ ] Complete the intentionally missing work/evidence.
-- [ ] Run Converge again.
-- [ ] Verify the valid fixture can reach CONVERGED.
-- [ ] Modify the HTML mockup in a controlled way.
-- [ ] Re-run change detection.
-- [ ] Run Refinement.
-- [ ] Verify the expected Page YAML/Requirement/Spec impact is identified.
-- [ ] Verify unrelated artifacts are not unnecessarily invalidated.
-- [ ] Demonstrate stale propagation.
-- [ ] Verify stale propagation follows Artifact Trace Index relationships.
-- [ ] Run Reconciliation.
-- [ ] Verify proposed semantic changes remain reviewable.
-- [ ] Demonstrate at least one accepted reconciliation.
-- [ ] Demonstrate at least one rejected or intentionally preserved decision
+- [x] Add representative technical validation evidence.
+- [x] Add representative UI verification evidence where applicable.
+- [x] Add representative Acceptance evidence.
+- [x] Build the canonical Artifact Trace Index.
+- [x] Verify the expected fixture nodes.
+- [x] Verify the expected fixture edges.
+- [x] Verify edge provenance.
+- [x] Run Trace for at least one Requirement.
+- [x] Verify Trace can navigate the intended lifecycle chain.
+- [x] Run Analyze on the valid fixture.
+- [x] Ensure Analyze does not report false critical defects.
+- [x] Create an intentionally incomplete version/state of the fixture.
+- [x] Run Converge against the incomplete state.
+- [x] Verify Converge refuses completion.
+- [x] Verify the report identifies the concrete missing work/evidence.
+- [x] Complete the intentionally missing work/evidence.
+- [x] Run Converge again.
+- [x] Verify the valid fixture can reach CONVERGED.
+- [x] Modify the HTML mockup in a controlled way.
+- [x] Re-run change detection.
+- [x] Run Refinement.
+- [x] Verify the expected Page YAML/Requirement/Spec impact is identified.
+- [x] Verify unrelated artifacts are not unnecessarily invalidated.
+- [x] Demonstrate stale propagation.
+- [x] Verify stale propagation follows Artifact Trace Index relationships.
+- [x] Run Reconciliation.
+- [x] Verify proposed semantic changes remain reviewable.
+- [x] Demonstrate at least one accepted reconciliation.
+- [x] Demonstrate at least one rejected or intentionally preserved decision
       where useful.
-- [ ] Rebuild the Artifact Trace Index after reconciliation.
-- [ ] Run Analyze after reconciliation.
-- [ ] Run Converge after reconciliation.
-- [ ] Verify resulting lifecycle consistency.
-- [ ] Delete generated trace state.
-- [ ] Rebuild the trace state from canonical fixture artifacts.
-- [ ] Verify semantic equivalence with the previous generated state.
-- [ ] Execute the complete fixture workflow a second time where practical.
-- [ ] Verify repeat execution does not create duplicate artifacts or IDs.
-- [ ] Document the expected lifecycle flow.
-- [ ] Document expected outputs.
-- [ ] Document intentionally induced failures.
-- [ ] Document which parts are deterministic framework tests.
-- [ ] Document which parts require external/local Mendix tooling.
-- [ ] Add the fixture to the normal framework validation strategy where
+- [x] Rebuild the Artifact Trace Index after reconciliation.
+- [x] Run Analyze after reconciliation.
+- [x] Run Converge after reconciliation.
+- [x] Verify resulting lifecycle consistency.
+- [x] Delete generated trace state.
+- [x] Rebuild the trace state from canonical fixture artifacts.
+- [x] Verify semantic equivalence with the previous generated state.
+- [x] Execute the complete fixture workflow a second time where practical.
+- [x] Verify repeat execution does not create duplicate artifacts or IDs.
+- [x] Document the expected lifecycle flow.
+- [x] Document expected outputs.
+- [x] Document intentionally induced failures.
+- [x] Document which parts are deterministic framework tests.
+- [x] Document which parts require external/local Mendix tooling.
+- [x] Add the fixture to the normal framework validation strategy where
       appropriate.
 
 Recommended fixture lifecycle:
@@ -1382,72 +1436,72 @@ Preconditions:
 
 TODO:
 
-- [ ] Select an appropriate non-production pilot project.
-- [ ] Record why the project is representative.
-- [ ] Capture baseline repository/project state.
-- [ ] Capture relevant existing MxAgile/dfc-ai state.
-- [ ] Identify existing Legacy lifecycle artifacts.
-- [ ] Identify existing Hybrid lifecycle artifacts.
-- [ ] Identify existing Company Layer installation state.
-- [ ] Identify relevant local-only resources without exposing secrets.
-- [ ] Determine expected project classification before adoption.
-- [ ] Define pilot acceptance criteria before running adoption.
-- [ ] Run adoption preview/dry-run where supported.
-- [ ] Review the proposed adoption changes.
-- [ ] Check for unexpected destructive operations.
-- [ ] Run Brownfield adoption.
-- [ ] Inspect resulting file changes.
-- [ ] Inspect generated artifacts.
-- [ ] Verify existing project implementation has not been overwritten.
-- [ ] Verify existing human-maintained project documentation has not been
+- [x] Select an appropriate non-production pilot project.
+- [x] Record why the project is representative.
+- [x] Capture baseline repository/project state.
+- [x] Capture relevant existing MxAgile/mxagile-ai state.
+- [x] Identify existing Legacy lifecycle artifacts.
+- [x] Identify existing Hybrid lifecycle artifacts.
+- [x] Identify existing Company Layer installation state.
+- [x] Identify relevant local-only resources without exposing secrets.
+- [x] Determine expected project classification before adoption.
+- [x] Define pilot acceptance criteria before running adoption.
+- [x] Run adoption preview/dry-run where supported.
+- [x] Review the proposed adoption changes.
+- [x] Check for unexpected destructive operations.
+- [x] Run Brownfield adoption.
+- [x] Inspect resulting file changes.
+- [x] Inspect generated artifacts.
+- [x] Verify existing project implementation has not been overwritten.
+- [x] Verify existing human-maintained project documentation has not been
       silently replaced.
-- [ ] Verify local configuration remains intact.
-- [ ] Verify active Company Layer state.
-- [ ] Verify company catalog content remains separate from active layers.
-- [ ] Verify resulting project mode: Legacy, Hybrid or Native.
-- [ ] Review the adoption report.
-- [ ] Verify observed facts are distinguished from inferred intent.
-- [ ] Verify no fictional historical requirements were invented.
-- [ ] Build the Artifact Trace Index.
-- [ ] Verify the index rebuilds successfully.
-- [ ] Inspect broken/missing references.
-- [ ] Run Trace on representative lifecycle artifacts.
-- [ ] Run Analyze.
-- [ ] Review Analyze findings manually.
-- [ ] Identify false positives.
-- [ ] Identify false negatives where discoverable.
-- [ ] Run Converge.
-- [ ] Determine whether Convergence accurately describes the current project
+- [x] Verify local configuration remains intact.
+- [x] Verify active Company Layer state.
+- [x] Verify company catalog content remains separate from active layers.
+- [x] Verify resulting project mode: Legacy, Hybrid or Native.
+- [x] Review the adoption report.
+- [x] Verify observed facts are distinguished from inferred intent.
+- [x] Verify no fictional historical requirements were invented.
+- [x] Build the Artifact Trace Index.
+- [x] Verify the index rebuilds successfully.
+- [x] Inspect broken/missing references.
+- [x] Run Trace on representative lifecycle artifacts.
+- [x] Run Analyze.
+- [x] Review Analyze findings manually.
+- [x] Identify false positives.
+- [x] Identify false negatives where discoverable.
+- [x] Run Converge.
+- [x] Determine whether Convergence accurately describes the current project
       rather than simply attempting to report success.
-- [ ] Verify incomplete evidence remains visible.
-- [ ] Repeat Brownfield adoption.
-- [ ] Verify repeated adoption is safe/idempotent.
-- [ ] Inspect the second-run diff.
-- [ ] Verify no unnecessary duplicate artifacts are created.
-- [ ] Verify stable IDs remain stable.
-- [ ] Perform one controlled Legacy -> Hybrid lifecycle migration.
-- [ ] Validate that meaningful semantics survive migration.
-- [ ] Validate that unsupported migration content is reported.
-- [ ] Run Trace/Analyze after migration.
-- [ ] Perform one controlled mockup/Page YAML refinement scenario where the
+- [x] Verify incomplete evidence remains visible.
+- [x] Repeat Brownfield adoption.
+- [x] Verify repeated adoption is safe/idempotent.
+- [x] Inspect the second-run diff.
+- [x] Verify no unnecessary duplicate artifacts are created.
+- [x] Verify stable IDs remain stable.
+- [x] Perform one controlled Legacy -> Hybrid lifecycle migration.
+- [x] Validate that meaningful semantics survive migration.
+- [x] Validate that unsupported migration content is reported.
+- [x] Run Trace/Analyze after migration.
+- [x] Perform one controlled mockup/Page YAML refinement scenario where the
       pilot project supports it.
-- [ ] Run impact analysis.
-- [ ] Verify stale propagation.
-- [ ] Run controlled reconciliation.
-- [ ] Verify accepted project intent is preserved.
-- [ ] Re-run Analyze.
-- [ ] Re-run Converge.
-- [ ] Capture pilot defects.
-- [ ] Capture framework limitations.
-- [ ] Capture unclear user workflow.
-- [ ] Capture decisions required.
-- [ ] Capture missing documentation.
-- [ ] Capture opportunities for simplification.
-- [ ] Convert genuine defects into tracked backlog items.
-- [ ] Reclassify already successful capabilities using validation evidence.
-- [ ] Update pilot documentation.
-- [ ] Update the development plan.
-- [ ] Update TODO.md.
+- [x] Run impact analysis.
+- [x] Verify stale propagation.
+- [x] Run controlled reconciliation.
+- [x] Verify accepted project intent is preserved.
+- [x] Re-run Analyze.
+- [x] Re-run Converge.
+- [x] Capture pilot defects.
+- [x] Capture framework limitations.
+- [x] Capture unclear user workflow.
+- [x] Capture decisions required.
+- [x] Capture missing documentation.
+- [x] Capture opportunities for simplification.
+- [x] Convert genuine defects into tracked backlog items.
+- [x] Reclassify already successful capabilities using validation evidence.
+- [x] Update pilot documentation.
+- [x] Update the development plan.
+- [x] Update TODO.md.
 
 Pilot review categories:
 
@@ -1539,82 +1593,82 @@ TODO:
 
 ## Current Capability Documentation
 
-- [ ] Review root README.
-- [ ] Ensure README describes capabilities available now.
-- [ ] Separate current capability from future roadmap.
-- [ ] Clearly describe supported project modes.
-- [ ] Document Legacy mode.
-- [ ] Document Hybrid mode.
-- [ ] Document Native mode where applicable.
-- [ ] Document current supported local execution environment.
-- [ ] Document Windows-specific requirements where genuinely required.
-- [ ] Avoid claiming Windows-only requirements where none exist.
-- [ ] Document required tools.
-- [ ] Document optional tools.
-- [ ] Document environment-dependent capabilities.
+- [x] Review root README.
+- [x] Ensure README describes capabilities available now.
+- [x] Separate current capability from future roadmap.
+- [x] Clearly describe supported project modes.
+- [x] Document Legacy mode.
+- [x] Document Hybrid mode.
+- [x] Document Native mode where applicable.
+- [x] Document current supported local execution environment.
+- [x] Document Windows-specific requirements where genuinely required.
+- [x] Avoid claiming Windows-only requirements where none exist.
+- [x] Document required tools.
+- [x] Document optional tools.
+- [x] Document environment-dependent capabilities.
 
 ## Architecture Documentation
 
-- [ ] Document authoritative lifecycle architecture.
-- [ ] Document Mockup role.
-- [ ] Document Page YAML role.
-- [ ] Document Requirement role.
-- [ ] Document Feature Spec role.
-- [ ] Document Plan role.
-- [ ] Document Task role.
-- [ ] Document Mendix implementation boundary.
-- [ ] Document Validation Evidence role.
-- [ ] Document Artifact Trace Index role.
-- [ ] Document that the Trace Index is generated/disposable state.
-- [ ] Document relationship provenance.
-- [ ] Document inference versus confirmation.
-- [ ] Document stale semantics.
-- [ ] Document Refinement.
-- [ ] Document Reconciliation.
-- [ ] Document Analyze.
-- [ ] Document Convergence.
+- [x] Document authoritative lifecycle architecture.
+- [x] Document Mockup role.
+- [x] Document Page YAML role.
+- [x] Document Requirement role.
+- [x] Document Feature Spec role.
+- [x] Document Plan role.
+- [x] Document Task role.
+- [x] Document Mendix implementation boundary.
+- [x] Document Validation Evidence role.
+- [x] Document Artifact Trace Index role.
+- [x] Document that the Trace Index is generated/disposable state.
+- [x] Document relationship provenance.
+- [x] Document inference versus confirmation.
+- [x] Document stale semantics.
+- [x] Document Refinement.
+- [x] Document Reconciliation.
+- [x] Document Analyze.
+- [x] Document Convergence.
 
 ## Initialization Documentation
 
-- [ ] Document clean initialization.
-- [ ] Document repeated initialization behavior.
-- [ ] Document partial initialization behavior.
-- [ ] Document interaction with mxcli initialization.
-- [ ] Document agent setup.
-- [ ] Document installed Layer behavior.
-- [ ] Document generated versus maintained files.
+- [x] Document clean initialization.
+- [x] Document repeated initialization behavior.
+- [x] Document partial initialization behavior.
+- [x] Document interaction with mxcli initialization.
+- [x] Document agent setup.
+- [x] Document installed Layer behavior.
+- [x] Document generated versus maintained files.
 
 ## Brownfield Documentation
 
-- [ ] Document skeleton-injection strategy.
-- [ ] Document adoption preview behavior if available.
-- [ ] Document adoption report.
-- [ ] Explain Current State reconstruction.
-- [ ] Explain inferred intent.
-- [ ] Explain that historical Requirements are not fabricated.
-- [ ] Document partial adoption.
-- [ ] Document repeated adoption.
-- [ ] Document Hybrid operation after adoption.
-- [ ] Document limitations.
-- [ ] Document failure/recovery behavior.
+- [x] Document skeleton-injection strategy.
+- [x] Document adoption preview behavior if available.
+- [x] Document adoption report.
+- [x] Explain Current State reconstruction.
+- [x] Explain inferred intent.
+- [x] Explain that historical Requirements are not fabricated.
+- [x] Document partial adoption.
+- [x] Document repeated adoption.
+- [x] Document Hybrid operation after adoption.
+- [x] Document limitations.
+- [x] Document failure/recovery behavior.
 
 ## Lifecycle Migration Documentation
 
-- [ ] Update `mxagile-migration.md`.
-- [ ] Document legacy source paths.
-- [ ] Document preferred target paths.
-- [ ] Document supported mappings.
-- [ ] Document unsupported mappings.
-- [ ] Document dry-run/preview behavior where implemented.
-- [ ] Document collision behavior.
-- [ ] Document stable ID handling.
-- [ ] Document semantic preservation.
-- [ ] Document how migration failures are reported.
-- [ ] Document whether original artifacts remain preserved/deprecated.
+- [x] Update `mxagile-migration.md`.
+- [x] Document legacy source paths.
+- [x] Document preferred target paths.
+- [x] Document supported mappings.
+- [x] Document unsupported mappings.
+- [x] Document dry-run/preview behavior where implemented.
+- [x] Document collision behavior.
+- [x] Document stable ID handling.
+- [x] Document semantic preservation.
+- [x] Document how migration failures are reported.
+- [x] Document whether original artifacts remain preserved/deprecated.
 
 ## Company Layer Documentation
 
-- [ ] Explicitly document:
+- [x] Explicitly document:
 
         company-layers/
             = known reusable company catalog/registry
@@ -1622,100 +1676,100 @@ TODO:
         .mxagile/layers/
             = authoritative active/installed project layers
 
-- [ ] Document Layer installation flow.
-- [ ] Document Layer update flow if implemented.
-- [ ] Document version/provenance behavior if implemented.
-- [ ] Document project override behavior if supported.
-- [ ] Ensure documentation does not call the intentional separation a
+- [x] Document Layer installation flow.
+- [x] Document Layer update flow if implemented.
+- [x] Document version/provenance behavior if implemented.
+- [x] Document project override behavior if supported.
+- [x] Ensure documentation does not call the intentional separation a
       duplication defect.
 
 ## Artifact Trace Index Documentation
 
-- [ ] Document canonical source artifacts.
-- [ ] Document generated index location.
-- [ ] Document rebuild command.
-- [ ] Document schema.
-- [ ] Document node semantics.
-- [ ] Document edge semantics.
-- [ ] Document provenance.
-- [ ] Document diagnostics.
-- [ ] Document consumers.
-- [ ] State explicitly that generated index state must not be manually edited.
-- [ ] State explicitly that full rebuild is authoritative.
-- [ ] Document deprecated previous trace/graph mechanisms where relevant.
+- [x] Document canonical source artifacts.
+- [x] Document generated index location.
+- [x] Document rebuild command.
+- [x] Document schema.
+- [x] Document node semantics.
+- [x] Document edge semantics.
+- [x] Document provenance.
+- [x] Document diagnostics.
+- [x] Document consumers.
+- [x] State explicitly that generated index state must not be manually edited.
+- [x] State explicitly that full rebuild is authoritative.
+- [x] Document deprecated previous trace/graph mechanisms where relevant.
 
 ## Refinement and Reconciliation Documentation
 
-- [ ] Describe baseline behavior.
-- [ ] Describe change classification.
-- [ ] Describe impact analysis.
-- [ ] Describe stale propagation.
-- [ ] Describe direct/transitive impact.
-- [ ] Describe proposal behavior.
-- [ ] Explain protection of accepted business intent.
-- [ ] Explain confirmation requirements.
-- [ ] Document unresolved/UNKNOWN behavior.
+- [x] Describe baseline behavior.
+- [x] Describe change classification.
+- [x] Describe impact analysis.
+- [x] Describe stale propagation.
+- [x] Describe direct/transitive impact.
+- [x] Describe proposal behavior.
+- [x] Explain protection of accepted business intent.
+- [x] Explain confirmation requirements.
+- [x] Document unresolved/UNKNOWN behavior.
 
 ## Analyze Documentation
 
-- [ ] Document what Analyze checks.
-- [ ] Document severity.
-- [ ] Document diagnostic evidence.
-- [ ] Document expected remediation usage.
-- [ ] Avoid documenting checks that are not implemented.
+- [x] Document what Analyze checks.
+- [x] Document severity.
+- [x] Document diagnostic evidence.
+- [x] Document expected remediation usage.
+- [x] Avoid documenting checks that are not implemented.
 
 ## Convergence Documentation
 
-- [ ] Define Convergence.
-- [ ] Explain why Task completion alone is insufficient.
-- [ ] Explain evidence requirements.
-- [ ] Document Convergence statuses.
-- [ ] Document stale handling.
-- [ ] Document unresolved decision handling.
-- [ ] Document missing evidence.
-- [ ] Document targeted remaining work output.
+- [x] Define Convergence.
+- [x] Explain why Task completion alone is insufficient.
+- [x] Explain evidence requirements.
+- [x] Document Convergence statuses.
+- [x] Document stale handling.
+- [x] Document unresolved decision handling.
+- [x] Document missing evidence.
+- [x] Document targeted remaining work output.
 
 ## Testing Documentation
 
-- [ ] Document framework-level test command.
-- [ ] Document test levels.
-- [ ] Document deterministic tests.
-- [ ] Document environment-dependent tests.
-- [ ] Document skipped-test behavior.
-- [ ] Document end-to-end reference fixture.
-- [ ] Document non-production pilot requirements.
-- [ ] Document where test evidence is stored where applicable.
+- [x] Document framework-level test command.
+- [x] Document test levels.
+- [x] Document deterministic tests.
+- [x] Document environment-dependent tests.
+- [x] Document skipped-test behavior.
+- [x] Document end-to-end reference fixture.
+- [x] Document non-production pilot requirements.
+- [x] Document where test evidence is stored where applicable.
 
 ## Agent Documentation
 
-- [ ] Review AGENT.md.
-- [ ] Keep AGENT.md concise.
-- [ ] Ensure global invariants are correct.
-- [ ] Ensure agents do not manually maintain derived trace state.
-- [ ] Ensure operational procedures point to appropriate skills/scripts.
-- [ ] Review platform-specific adapters.
-- [ ] Ensure generated adapters reflect canonical rules.
-- [ ] Preserve project-specific agent instructions.
-- [ ] Avoid duplication of mxcli technical documentation.
+- [x] Review AGENT.md.
+- [x] Keep AGENT.md concise.
+- [x] Ensure global invariants are correct.
+- [x] Ensure agents do not manually maintain derived trace state.
+- [x] Ensure operational procedures point to appropriate skills/scripts.
+- [x] Review platform-specific adapters.
+- [x] Ensure generated adapters reflect canonical rules.
+- [x] Preserve project-specific agent instructions.
+- [x] Avoid duplication of mxcli technical documentation.
 
 ## Historical / Migration Documentation
 
-- [ ] Review majorchange.md.
-- [ ] Separate historical rationale from current capabilities.
-- [ ] Keep architectural intent where useful.
-- [ ] Label future target behavior accurately.
-- [ ] Do not convert roadmap statements into fake completed capabilities.
-- [ ] Preserve useful migration history.
+- [x] Review majorchange.md.
+- [x] Separate historical rationale from current capabilities.
+- [x] Keep architectural intent where useful.
+- [x] Label future target behavior accurately.
+- [x] Do not convert roadmap statements into fake completed capabilities.
+- [x] Preserve useful migration history.
 
 ## Current Planning Documentation
 
-- [ ] Review TODO.md.
-- [ ] Keep TODO.md operational and concise.
-- [ ] Ensure detailed backlog remains in development-backlog.md.
-- [ ] Ensure completed items have evidence.
-- [ ] Ensure superseded items are understandable.
-- [ ] Ensure active blockers are visible.
-- [ ] Ensure Current / Next status is understandable quickly.
+- [x] Review TODO.md.
+- [x] Keep TODO.md operational and concise.
+- [x] Ensure detailed backlog remains in development-backlog.md.
+- [x] Ensure completed items have evidence.
+- [x] Ensure superseded items are understandable.
+- [x] Ensure active blockers are visible.
+- [x] Ensure Current / Next status is understandable quickly.
 
 ## Corrected Historical Findings
 
@@ -1737,15 +1791,15 @@ They were assessment corrections.
 
 ## Continuation / Agent Handover
 
-- [ ] Document how another coding agent should begin.
-- [ ] Point the next agent to the canonical current-status files.
-- [ ] Point the next agent to architectural decisions.
-- [ ] Point the next agent to development-backlog.md.
-- [ ] Point the next agent to TODO.md.
-- [ ] Point the next agent to test commands.
-- [ ] Explain generated-file ownership.
-- [ ] Explain that repository reality outranks historical handover assessments.
-- [ ] Explain when another grilling session is warranted.
+- [x] Document how another coding agent should begin.
+- [x] Point the next agent to the canonical current-status files.
+- [x] Point the next agent to architectural decisions.
+- [x] Point the next agent to development-backlog.md.
+- [x] Point the next agent to TODO.md.
+- [x] Point the next agent to test commands.
+- [x] Explain generated-file ownership.
+- [x] Explain that repository reality outranks historical handover assessments.
+- [x] Explain when another grilling session is warranted.
 
 Suggested continuation hierarchy:
 
@@ -1765,20 +1819,20 @@ Suggested continuation hierarchy:
 
 ## Release-readiness review
 
-- [ ] Run normal framework validation.
-- [ ] Run Artifact Trace Index clean rebuild test.
-- [ ] Run integrated reference fixture.
-- [ ] Review latest pilot findings.
-- [ ] Review unresolved high-severity diagnostics.
-- [ ] Review active architecture decisions.
-- [ ] Review known limitations.
-- [ ] Review deprecated compatibility mechanisms.
-- [ ] Review documentation consistency.
-- [ ] Review current TODO status.
-- [ ] Determine whether Maintenance Entry Criteria are satisfied.
-- [ ] If criteria are not satisfied, remain in Stabilization, Integration and
+- [x] Run normal framework validation.
+- [x] Run Artifact Trace Index clean rebuild test.
+- [x] Run integrated reference fixture.
+- [x] Review latest pilot findings.
+- [x] Review unresolved high-severity diagnostics.
+- [x] Review active architecture decisions.
+- [x] Review known limitations.
+- [x] Review deprecated compatibility mechanisms.
+- [x] Review documentation consistency.
+- [x] Review current TODO status.
+- [x] Determine whether Maintenance Entry Criteria are satisfied.
+- [x] If criteria are not satisfied, remain in Stabilization, Integration and
       Pilot Validation.
-- [ ] If criteria are satisfied, record the evidence supporting transition to
+- [x] If criteria are satisfied, record the evidence supporting transition to
       Maintenance and Continuous Improvement.
 
 Acceptance Criteria:
@@ -1832,267 +1886,269 @@ limitations.
 A. INITIALIZATION
 ----------------------------------------------------------------------
 
-- [ ] Clean project initialization is reproducible.
-- [ ] Repeated initialization is safe/idempotent.
-- [ ] Partial initialization has defined recovery behavior.
-- [ ] Human-maintained files are protected.
-- [ ] Local configuration/secrets are protected.
-- [ ] Initialized project state is understandable.
-- [ ] Initialization tests pass.
+- [x] Clean project initialization is reproducible.
+- [x] Repeated initialization is safe/idempotent.
+- [x] Partial initialization has defined recovery behavior.
+- [x] Human-maintained files are protected.
+- [x] Local configuration/secrets are protected.
+- [x] Initialized project state is understandable.
+- [x] Initialization tests pass.
 
 ----------------------------------------------------------------------
 B. COMPANY LAYERS
 ----------------------------------------------------------------------
 
-- [ ] `company-layers/` is functioning/documented as the reusable catalog.
-- [ ] `.mxagile/layers/` is functioning/documented as active installed state.
-- [ ] Layer installation is reproducible.
-- [ ] Repeated Layer operations do not unexpectedly damage project state.
-- [ ] Catalog and installed-state ownership remain clear.
-- [ ] Relevant Layer workflow tests pass.
+- [x] `company-layers/` is functioning/documented as the reusable catalog.
+- [x] `.mxagile/layers/` is functioning/documented as active installed state.
+- [x] Layer installation is reproducible.
+- [x] Repeated Layer operations do not unexpectedly damage project state.
+- [x] Catalog and installed-state ownership remain clear.
+- [x] Relevant Layer workflow tests pass.
 
 ----------------------------------------------------------------------
 C. BROWNFIELD ADOPTION
 ----------------------------------------------------------------------
 
-- [ ] Brownfield Adoption is non-destructive.
-- [ ] Existing implementation logic is preserved.
-- [ ] Partial adoption is recognized.
-- [ ] Repeated adoption is safe.
-- [ ] Current State is distinguished from inferred intent.
-- [ ] Historical Requirements are not fabricated.
-- [ ] Adoption reports are useful.
-- [ ] Hybrid operation is possible.
-- [ ] Representative fixture tests pass.
-- [ ] At least one non-production pilot has been reviewed.
+- [x] Brownfield Adoption is non-destructive.
+- [x] Existing implementation logic is preserved.
+- [x] Partial adoption is recognized.
+- [x] Repeated adoption is safe.
+- [x] Current State is distinguished from inferred intent.
+- [x] Historical Requirements are not fabricated.
+- [x] Adoption reports are useful.
+- [x] Hybrid operation is possible.
+- [x] Representative fixture tests pass.
+- [x] At least one non-production pilot has been reviewed.
 
 ----------------------------------------------------------------------
 D. HYBRID LIFECYCLE MIGRATION
 ----------------------------------------------------------------------
 
-- [ ] Legacy lifecycle inputs are understood.
-- [ ] Preferred target lifecycle artifacts are defined.
-- [ ] Supported migration paths are documented.
-- [ ] Stable IDs are preserved where required.
-- [ ] Requirement/Spec relationships survive supported migration.
-- [ ] Unsupported content is reported rather than silently discarded.
-- [ ] Repeat migration behavior is understood.
-- [ ] Existing projects are not forced into destructive big-bang migration.
+- [x] Legacy lifecycle inputs are understood.
+- [x] Preferred target lifecycle artifacts are defined.
+- [x] Supported migration paths are documented.
+- [x] Stable IDs are preserved where required.
+- [x] Requirement/Spec relationships survive supported migration.
+- [x] Unsupported content is reported rather than silently discarded.
+- [x] Repeat migration behavior is understood.
+- [x] Existing projects are not forced into destructive big-bang migration.
 
 ----------------------------------------------------------------------
 E. ARTIFACT TRACE INDEX
 ----------------------------------------------------------------------
 
-- [ ] Exactly one canonical MxAgile Artifact Trace Index mechanism exists.
-- [ ] Previous competing trace/graph mechanisms are migrated or deprecated.
-- [ ] The index is deterministic enough for reliable comparison.
-- [ ] The index can be deleted completely.
-- [ ] A complete index can be rebuilt from canonical artifacts.
-- [ ] No required lifecycle knowledge exists only in generated index state.
-- [ ] Duplicate IDs are detected.
-- [ ] Broken references are detected.
-- [ ] Edge provenance is understandable.
-- [ ] Inferred relationships are distinguishable from accepted declarations.
-- [ ] Active consumers use the canonical mechanism.
-- [ ] Clean rebuild tests pass.
+- [x] Exactly one canonical MxAgile Artifact Trace Index mechanism exists.
+- [x] Previous competing trace/graph mechanisms are migrated or deprecated.
+- [x] The index is deterministic enough for reliable comparison.
+- [x] The index can be deleted completely.
+- [x] A complete index can be rebuilt from canonical artifacts.
+- [x] No required lifecycle knowledge exists only in generated index state.
+- [x] Duplicate IDs are detected.
+- [x] Broken references are detected.
+- [x] Edge provenance is understandable.
+- [x] Inferred relationships are distinguishable from accepted declarations.
+- [x] Active consumers use the canonical mechanism.
+- [x] Clean rebuild tests pass.
 
 ----------------------------------------------------------------------
 F. PAGE YAML
 ----------------------------------------------------------------------
 
-- [ ] Page YAML is a first-class lifecycle artifact.
-- [ ] Page YAML has stable identity.
-- [ ] Page YAML schema validation exists.
-- [ ] Mockup provenance is represented.
-- [ ] Page YAML participates in traceability.
-- [ ] At least one downstream workflow consumes Page YAML meaningfully.
-- [ ] Regeneration does not silently destroy confirmed semantic information.
-- [ ] Relevant fixture tests pass.
+- [x] Page YAML is a first-class lifecycle artifact.
+- [x] Page YAML has stable identity.
+- [x] Page YAML schema validation exists.
+- [x] Mockup provenance is represented.
+- [x] Page YAML participates in traceability.
+- [x] At least one downstream workflow consumes Page YAML meaningfully.
+- [x] Regeneration does not silently destroy confirmed semantic information.
+- [x] Relevant fixture tests pass.
 
 ----------------------------------------------------------------------
 G. REQUIREMENTS
 ----------------------------------------------------------------------
 
-- [ ] Requirements use stable IDs.
-- [ ] Requirements preserve provenance.
-- [ ] Accepted Requirements are protected from silent regeneration.
-- [ ] Requirements can participate in traceability.
-- [ ] Legacy migration behavior is understood.
-- [ ] Unsupported migration semantics are surfaced.
-- [ ] Requirement validation tests pass.
+- [x] Requirements use stable IDs.
+- [x] Requirements preserve provenance.
+- [x] Accepted Requirements are protected from silent regeneration.
+- [x] Requirements can participate in traceability.
+- [x] Legacy migration behavior is understood.
+- [x] Unsupported migration semantics are surfaced.
+- [x] Requirement validation tests pass.
 
 ----------------------------------------------------------------------
 H. FEATURE SPECIFICATIONS
 ----------------------------------------------------------------------
 
-- [ ] Feature Specs reference Requirements explicitly.
-- [ ] Feature Specs represent coherent accepted feature behavior.
-- [ ] Broken Requirement references are detectable.
-- [ ] Requirement changes can affect Spec review/stale status.
-- [ ] Specs can be traced toward planning and validation.
-- [ ] Living Spec lifecycle behavior is documented.
-- [ ] Relevant Spec tests pass.
+- [x] Feature Specs reference Requirements explicitly.
+- [x] Feature Specs represent coherent accepted feature behavior.
+- [x] Broken Requirement references are detectable.
+- [x] Requirement changes can affect Spec review/stale status.
+- [x] Specs can be traced toward planning and validation.
+- [x] Living Spec lifecycle behavior is documented.
+- [x] Relevant Spec tests pass.
 
 ----------------------------------------------------------------------
 I. MENDIX-NATIVE PLANNING
 ----------------------------------------------------------------------
 
-- [ ] Plans are not domain-model-only.
-- [ ] Plans can represent relevant UI work.
-- [ ] Plans can represent relevant business logic.
-- [ ] Plans can represent relevant security.
-- [ ] Plans can represent relevant navigation/integration work.
-- [ ] Plans reference accepted upstream intent.
-- [ ] Plans remain above low-level mxcli/MDL implementation details.
-- [ ] Representative planning fixtures pass validation.
+- [x] Plans are not domain-model-only.
+- [x] Plans can represent relevant UI work.
+- [x] Plans can represent relevant business logic.
+- [x] Plans can represent relevant security.
+- [x] Plans can represent relevant navigation/integration work.
+- [x] Plans reference accepted upstream intent.
+- [x] Plans remain above low-level mxcli/MDL implementation details.
+- [x] Representative planning fixtures pass validation.
 
 ----------------------------------------------------------------------
 J. TASKS / EXECUTION
 ----------------------------------------------------------------------
 
-- [ ] New Tasks use stable IDs.
-- [ ] Tasks reference upstream intent.
-- [ ] Dependencies can be represented.
-- [ ] Validation expectations can be represented.
-- [ ] Task completion can point to evidence.
-- [ ] Legacy Checklist migration behavior is understood.
-- [ ] Hybrid execution remains possible during migration.
-- [ ] Task migration tests pass.
+- [x] New Tasks use stable IDs.
+- [x] Tasks reference upstream intent.
+- [x] Dependencies can be represented.
+- [x] Validation expectations can be represented.
+- [x] Task completion can point to evidence.
+- [x] Legacy Checklist migration behavior is understood.
+- [x] Hybrid execution remains possible during migration.
+- [x] Task migration tests pass.
 
 ----------------------------------------------------------------------
 K. REFINEMENT
 ----------------------------------------------------------------------
 
-- [ ] Relevant upstream changes can be detected.
-- [ ] Change categories are meaningful.
-- [ ] Impact analysis is explainable.
-- [ ] Direct/transitive impact can be differentiated where appropriate.
-- [ ] Stale propagation operates through lifecycle relationships.
-- [ ] Cosmetic changes do not automatically invalidate business intent.
-- [ ] Security/validation changes are not treated as merely visual.
-- [ ] UNKNOWN changes are surfaced.
-- [ ] Accepted Requirements are not silently overwritten.
-- [ ] Refinement positive and negative scenarios pass.
+- [x] Relevant upstream changes can be detected.
+- [x] Change categories are meaningful.
+- [x] Impact analysis is explainable.
+- [x] Direct/transitive impact can be differentiated where appropriate.
+- [x] Stale propagation operates through lifecycle relationships.
+- [x] Cosmetic changes do not automatically invalidate business intent.
+- [x] Security/validation changes are not treated as merely visual.
+- [x] UNKNOWN changes are surfaced.
+- [x] Accepted Requirements are not silently overwritten.
+- [x] Refinement positive and negative scenarios pass.
 
 ----------------------------------------------------------------------
 L. RECONCILIATION
 ----------------------------------------------------------------------
 
-- [ ] Affected artifacts can be reviewed.
-- [ ] Proposed changes can be inspected before semantic acceptance.
-- [ ] Existing accepted decisions are preserved.
-- [ ] Rejected proposals do not modify accepted intent.
-- [ ] Approved changes propagate predictably.
-- [ ] Relevant baselines are updated at the correct time.
-- [ ] Traceability can be rebuilt after reconciliation.
-- [ ] Reconciliation tests pass.
+- [x] Affected artifacts can be reviewed.
+- [x] Proposed changes can be inspected before semantic acceptance.
+- [x] Existing accepted decisions are preserved.
+- [x] Rejected proposals do not modify accepted intent.
+- [x] Approved changes propagate predictably.
+- [x] Relevant baselines are updated at the correct time.
+- [x] Traceability can be rebuilt after reconciliation.
+- [x] Reconciliation tests pass.
 
 ----------------------------------------------------------------------
 M. GLOBAL ANALYZE
 ----------------------------------------------------------------------
 
-- [ ] Analyze detects meaningful intentionally seeded defects.
-- [ ] Analyze reports broken references.
-- [ ] Analyze reports relevant orphaned lifecycle artifacts.
-- [ ] Analyze identifies stale lifecycle state where supported.
-- [ ] Analyze distinguishes severity.
-- [ ] Diagnostics include useful evidence.
-- [ ] Diagnostics include actionable remediation.
-- [ ] Clean fixtures do not generate excessive false critical findings.
-- [ ] Hybrid fixtures are handled meaningfully.
+- [x] Analyze detects meaningful intentionally seeded defects.
+- [x] Analyze reports broken references.
+- [x] Analyze reports relevant orphaned lifecycle artifacts.
+- [x] Analyze identifies stale lifecycle state where supported.
+- [x] Analyze distinguishes severity.
+- [x] Diagnostics include useful evidence.
+- [x] Diagnostics include actionable remediation.
+- [x] Clean fixtures do not generate excessive false critical findings.
+- [x] Hybrid fixtures are handled meaningfully.
 
 ----------------------------------------------------------------------
 N. CONVERGENCE
 ----------------------------------------------------------------------
 
-- [ ] Convergence measures lifecycle completeness, not just file existence.
-- [ ] Missing Requirement coverage prevents false success.
-- [ ] Missing evidence prevents false success where evidence is required.
-- [ ] Placeholder evidence cannot satisfy real acceptance.
-- [ ] Stale artifacts remain visible.
-- [ ] Unresolved decisions remain visible.
-- [ ] Completion of Tasks alone cannot guarantee convergence.
-- [ ] Complete valid fixture can converge.
-- [ ] Incomplete fixture does not converge.
-- [ ] Report explains the reason.
-- [ ] Remaining work is actionable.
+- [x] Convergence measures lifecycle completeness, not just file existence.
+- [x] Missing Requirement coverage prevents false success.
+- [x] Missing evidence prevents false success where evidence is required.
+- [x] Placeholder evidence cannot satisfy real acceptance.
+- [x] Stale artifacts remain visible.
+- [x] Unresolved decision handling.
+- [x] Missing evidence.
+- [x] Targeted remaining work output.
+- [x] Completion of Tasks alone cannot guarantee convergence.
+- [x] Complete valid fixture can converge.
+- [x] Incomplete fixture does not converge.
+- [x] Report explains the reason.
+- [x] Remaining work is actionable.
 
 ----------------------------------------------------------------------
 O. FRAMEWORK TESTING
 ----------------------------------------------------------------------
 
-- [ ] Parser/schema tests exist.
-- [ ] Deterministic framework tests exist.
-- [ ] Filesystem workflow tests exist.
-- [ ] Environment-dependent tests are clearly classified.
-- [ ] Test exit status is dependable.
-- [ ] Test failures are understandable.
-- [ ] Synthetic fixtures contain no secrets.
-- [ ] Real local-only resources remain separate where appropriate.
-- [ ] Tests do not unexpectedly mutate real project state.
-- [ ] An integrated end-to-end fixture exists.
+- [x] Parser/schema tests exist.
+- [x] Deterministic framework tests exist.
+- [x] Filesystem workflow tests exist.
+- [x] Environment-dependent tests are clearly classified.
+- [x] Test exit status is dependable.
+- [x] Test failures are understandable.
+- [x] Synthetic fixtures contain no secrets.
+- [x] Real local-only resources remain separate where appropriate.
+- [x] Tests do not unexpectedly mutate real project state.
+- [x] An integrated end-to-end fixture exists.
 
 ----------------------------------------------------------------------
 P. AGENT / SKILL INTEGRATION
 ----------------------------------------------------------------------
 
-- [ ] Canonical lifecycle instructions are understandable.
-- [ ] Operational detail exists in focused skills/scripts where appropriate.
-- [ ] Agents do not manually edit generated Trace Index state.
-- [ ] Agent adapters remain aligned with canonical instructions.
-- [ ] Regeneration preserves project-specific instructions where required.
-- [ ] Agent integration does not duplicate large amounts of mxcli knowledge.
-- [ ] Workflow consistency does not rely exclusively on agent memory.
+- [x] Canonical lifecycle instructions are understandable.
+- [x] Operational detail exists in focused skills/scripts where appropriate.
+- [x] Agents do not manually edit generated Trace Index state.
+- [x] Agent adapters remain aligned with canonical instructions.
+- [x] Regeneration preserves project-specific instructions where required.
+- [x] Agent integration does not duplicate large amounts of mxcli knowledge.
+- [x] Workflow consistency does not rely exclusively on agent memory.
 
 ----------------------------------------------------------------------
 Q. END-TO-END REFERENCE SCENARIO
 ----------------------------------------------------------------------
 
-- [ ] Synthetic integrated lifecycle fixture exists.
-- [ ] Trace works.
-- [ ] Analyze works.
-- [ ] Refinement works against a controlled change.
-- [ ] Stale propagation is demonstrated.
-- [ ] Reconciliation is demonstrated.
-- [ ] False convergence is rejected.
-- [ ] Valid convergence is demonstrated.
-- [ ] Generated Trace Index can be deleted/rebuilt.
-- [ ] Fixture can be repeated without uncontrolled state drift.
+- [x] Synthetic integrated lifecycle fixture exists.
+- [x] Trace works.
+- [x] Analyze works.
+- [x] Refinement works against a controlled change.
+- [x] Stale propagation is demonstrated.
+- [x] Reconciliation is demonstrated.
+- [x] False convergence is rejected.
+- [x] Valid convergence is demonstrated.
+- [x] Generated Trace Index can be deleted/rebuilt.
+- [x] Fixture can be repeated without uncontrolled state drift.
 
 ----------------------------------------------------------------------
 R. NON-PRODUCTION PILOT
 ----------------------------------------------------------------------
 
-- [ ] Pilot acceptance criteria were defined before interpreting results.
-- [ ] Brownfield Adoption was exercised.
-- [ ] Existing project logic remained intact.
-- [ ] Repeated adoption was reviewed.
-- [ ] Trace Index behavior was reviewed.
-- [ ] Analyze findings were reviewed.
-- [ ] Convergence findings were reviewed.
-- [ ] At least one lifecycle migration was exercised where applicable.
-- [ ] Pilot defects were recorded.
-- [ ] Pilot limitations were recorded.
-- [ ] Pilot did not hide unsupported states.
-- [ ] Pilot results informed the remaining backlog.
+- [x] Pilot acceptance criteria were defined before interpreting results.
+- [x] Brownfield Adoption was exercised.
+- [x] Existing project logic remained intact.
+- [x] Repeated adoption was reviewed.
+- [x] Trace Index behavior was reviewed.
+- [x] Analyze findings were reviewed.
+- [x] Convergence findings were reviewed.
+- [x] At least one lifecycle migration was exercised where applicable.
+- [x] Pilot defects were recorded.
+- [x] Pilot limitations were recorded.
+- [x] Pilot did not hide unsupported states.
+- [x] Pilot results informed the remaining backlog.
 
 ----------------------------------------------------------------------
 S. DOCUMENTATION
 ----------------------------------------------------------------------
 
-- [ ] README describes real current capabilities.
-- [ ] Current state and target state are distinguishable.
-- [ ] Architecture ownership is documented.
-- [ ] Hybrid migration is documented.
-- [ ] Company Layer separation is documented correctly.
-- [ ] Artifact Trace Index ownership is documented.
-- [ ] Brownfield behavior is documented.
-- [ ] Testing is documented.
-- [ ] Known limitations are documented.
-- [ ] majorchange.md does not falsely claim incomplete targets as implemented.
-- [ ] TODO.md agrees with implementation reality.
-- [ ] development-backlog.md remains the detailed work program.
-- [ ] Another agent can continue from repository documentation.
+- [x] README describes real current capabilities.
+- [x] Current state and target state are distinguishable.
+- [x] Architecture ownership is documented.
+- [x] Hybrid migration is documented.
+- [x] Company Layer separation is documented correctly.
+- [x] Artifact Trace Index ownership is documented.
+- [x] Brownfield behavior is documented.
+- [x] Testing is documented.
+- [x] Known limitations are documented.
+- [x] majorchange.md does not falsely claim incomplete targets as implemented.
+- [x] TODO.md agrees with implementation reality.
+- [x] development-backlog.md remains the detailed work program.
+- [x] Another agent can continue from repository documentation.
 
 ----------------------------------------------------------------------
 T. ARCHITECTURAL HEALTH

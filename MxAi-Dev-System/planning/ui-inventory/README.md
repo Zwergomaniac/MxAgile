@@ -16,7 +16,8 @@ Mockup per Playwright und listet Felder, Buttons, Navigation und Widgets auf.
 
 ## Verwendung
 
-Pflichtvorbedingung fuer `dfc-gate-to-refinement` (Gate 1), wenn Mockups
+Pflichtvorbedingung fuer `mxagile-gate-to-refinement` (Gate 1), wenn Mockups
 vorhanden sind. Fliesst zusammen mit den Story-Spezifikationen in die
 wave-bezogene Implementierungscheckliste unter `planning/checklists/` ein.
+
 

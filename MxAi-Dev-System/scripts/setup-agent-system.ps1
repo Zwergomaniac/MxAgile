@@ -5,7 +5,7 @@
 .DESCRIPTION
     Runs both agent setup scripts in the correct order:
     1. apply-project-agent-instructions.ps1 — distributes AGENT.md to platform entry points
-    2. generate-dfc-platform-skills.ps1 — generates platform skills/agents from .MxAgile/
+    2. generate-mxagile-platform-skills.ps1 — generates platform skills/agents from .MxAgile/
 
     Each script can also be run independently.
 
@@ -13,7 +13,7 @@
     Root directory of the Mendix project. Defaults to the script's parent's parent.
 
 .PARAMETER DryRun
-    Pass through to generate-dfc-platform-skills.ps1 — show what would be generated.
+    Pass through to generate-mxagile-platform-skills.ps1 — show what would be generated.
 #>
 [CmdletBinding()]
 param(
@@ -39,7 +39,7 @@ if (Test-Path $applyScript) {
 }
 
 # Step 2: Generate DFC platform skills and agents
-$generateScript = Join-Path $scriptsDir 'generate-dfc-platform-skills.ps1'
+$generateScript = Join-Path $scriptsDir 'generate-mxagile-platform-skills.ps1'
 if (Test-Path $generateScript) {
     Write-Host "--- Step 2: Generating DFC platform skills ---"
     $params = @{ ProjectRoot = $ProjectRoot }
@@ -47,8 +47,9 @@ if (Test-Path $generateScript) {
     & $generateScript @params
     Write-Host ""
 } else {
-    Write-Warning "generate-dfc-platform-skills.ps1 not found — skipping"
+    Write-Warning "generate-mxagile-platform-skills.ps1 not found — skipping"
 }
 
 Write-Host "=== Setup complete ==="
+
 

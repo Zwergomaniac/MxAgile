@@ -1,0 +1,67 @@
+{
+  "nodes": [
+    {
+      "id": "REQ-01",
+      "type": "requirement",
+      "path": "requirements\\REQ-01.yml",
+      "hash": "323f6c019eef19306b0c408ec6cda16b7637ca880afe5f1c5c897efbf5f427e4",
+      "content": {
+        "ID": "REQ-01",
+        "description": "The user must be able to see a list of their recent orders on the dashboard.",
+        "derivedFrom": "PAGE-01"
+      }
+    },
+    {
+      "id": "SPEC-01",
+      "type": "spec",
+      "path": "specs\\SPEC-01.yml",
+      "hash": "df9430e7b817d65e0e65c0cf7d35725557d654c159a69d552133a25e8f5a71fd",
+      "content": {
+        "ID": "SPEC-01",
+        "description": "Build the 'Recent Orders' widget on the customer dashboard.",
+        "requirements": [
+          "REQ-01"
+        ]
+      }
+    },
+    {
+      "id": "TASK-01",
+      "type": "task",
+      "path": "planning\\tasks\\TASK-01.yml",
+      "hash": "88d18071bbfd4b1d9dad3588b00f2beee4758a2ce424fd2867186dc575f2e3c0",
+      "content": {
+        "ID": "TASK-01",
+        "description": "Create the datasource microflow and list view for the 'Recent Orders' widget.",
+        "spec": "SPEC-01"
+      }
+    },
+    {
+      "id": "PAGE-01",
+      "type": "page",
+      "path": "pages\\PAGE-01.yml",
+      "hash": "5effbc35b5db7d42973bac0c8326eb4ca7a86a1aae672da6429579c4ba1c1cb9",
+      "content": {
+        "ID": "PAGE-01",
+        "description": "The main customer dashboard page.",
+        "sourceMockup": "mockups/dashboard.html"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "PAGE-01",
+      "to": "REQ-01",
+      "type": "DERIVED_FROM"
+    },
+    {
+      "from": "REQ-01",
+      "to": "SPEC-01",
+      "type": "IMPLEMENTED_BY"
+    },
+    {
+      "from": "SPEC-01",
+      "to": "TASK-01",
+      "type": "IMPLEMENTED_BY"
+    }
+  ]
+}

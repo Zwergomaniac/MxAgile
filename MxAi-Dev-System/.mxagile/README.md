@@ -15,11 +15,11 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 ```
 .MxAgile/ (neutral, template-owned)
     |
-    v  scripts/generate-dfc-platform-skills.ps1
+    v  scripts/generate-mxagile-platform-skills.ps1
     |
     +---> .claude/skills/dfc/       (Claude Code)
-    +---> .claude/agents/dfc-*      (Claude Code)
-    +---> .github/skills/dfc-*/     (GitHub Copilot)
+    +---> .claude/agents/mxagile-*      (Claude Code)
+    +---> .github/skills/mxagile-*/     (GitHub Copilot)
     +---> .agents/skills/dfc/       (Codex / Generic)
     +---> .grok/skills/dfc/         (Grok)
     +---> .opencode/skills/dfc/     (OpenCode)
@@ -142,7 +142,7 @@ Strikt getrennte Namensraeume — kein Verzeichnis gehoert zwei Eigentuemern.
   gehoeren in `AGENT.md`, nicht hierher.
 - Generierte Plattform-Kopien tragen einen `# GENERATED` Header und werden
   nicht manuell editiert.
-- **Alle generierten Artefakte tragen den Prefix `dfc-`** im Dateinamen.
+- **Alle generierten Artefakte tragen den Prefix `mxagile-`** im Dateinamen.
 
 ## Adapter und Generierung
 
@@ -156,7 +156,7 @@ Copilot-Agents ein anderes Format verwenden.
 |---|---|
 | `scripts/setup-agent-system.ps1` | **Single Entry Point** — ruft beide Einzelskripte |
 | `scripts/apply-project-agent-instructions.ps1` | AGENT.md → Plattform-Einstiegspunkte |
-| `scripts/generate-dfc-platform-skills.ps1` | `.MxAgile/` → Plattform-Skills und -Agents |
+| `scripts/generate-mxagile-platform-skills.ps1` | `.MxAgile/` → Plattform-Skills und -Agents |
 
 ## Versionierung
 
@@ -173,8 +173,8 @@ Copilot-Agents ein anderes Format verwenden.
 
 | Plattform | Skill-Verzeichnis | Agent-Verzeichnis | Status |
 |---|---|---|---|
-| Claude Code | `.claude/skills/dfc/` | `.claude/agents/dfc-*` | Vollstaendig |
-| GitHub Copilot | `.github/skills/dfc-*/` | — | Vollstaendig |
+| Claude Code | `.claude/skills/dfc/` | `.claude/agents/mxagile-*` | Vollstaendig |
+| GitHub Copilot | `.github/skills/mxagile-*/` | — | Vollstaendig |
 | OpenAI Codex | `.agents/skills/dfc/` | — | Vollstaendig |
 | Grok | `.grok/skills/dfc/` | — | Vollstaendig |
 | OpenCode | `.opencode/skills/dfc/` | — | Stub |
@@ -186,4 +186,5 @@ Copilot-Agents ein anderes Format verwenden.
 52 bestaetigte Entscheidungen (D1-D52) und der vollstaendige Umsetzungsplan:
 
 `.concord/plans/MxAgile-restructuring-plan.md`
+
 

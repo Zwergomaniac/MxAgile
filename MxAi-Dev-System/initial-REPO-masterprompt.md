@@ -1,22 +1,22 @@
-# MASTER PROMPT: DFC-AI Major Evolution
+# MASTER PROMPT: mxagile-AI Major Evolution
 ## Mendix-native Spec-Driven Development, Mockup-Driven Discovery and Brownfield Migration
 
-You are working on an existing agentic Mendix development framework named `dfc-ai`.
+You are working on an existing agentic Mendix development framework named `mxagile-ai`.
 
 Your task is NOT to replace the existing framework with GitHub Spec Kit.
 
-Your task is to evolve the existing `dfc-ai` framework into a Mendix-native, mockup-driven, spec-driven development framework that adopts the strongest architectural concepts of Spec Kit while preserving and strengthening the valuable DFC-AI concepts that already exist.
+Your task is to evolve the existing `mxagile-ai` framework into a Mendix-native, mockup-driven, spec-driven development framework that adopts the strongest architectural concepts of Spec Kit while preserving and strengthening the valuable mxagile-AI concepts that already exist.
 
 The working directory contains the editable copy of the framework.
 
 IMPORTANT:
-- Work only inside the editable `dfc-ai COPILOT-Edit` copy.
+- Work only inside the editable `mxagile-ai COPILOT-Edit` copy.
 - Do not modify the IST/reference copy.
 - Treat the existing implementation as valuable production work.
 - Do not perform a blind rewrite.
 - Do not delete or replace working mechanisms simply because an equivalent Spec Kit mechanism exists.
 - Preserve backward compatibility wherever reasonably possible.
-- Existing DFC-AI projects must have a realistic incremental migration path.
+- Existing mxagile-AI projects must have a realistic incremental migration path.
 - Perform the work iteratively and validate continuously.
 - Before making structural changes, analyze the actual repository thoroughly.
 - Where this prompt makes an assumption that conflicts with the actual repository, prefer the repository reality, document the deviation, and preserve the architectural intention described here.
@@ -25,7 +25,7 @@ IMPORTANT:
 1. PRIMARY OBJECTIVE
 ======================================================================
 
-Evolve DFC-AI into a framework with the following conceptual pipeline:
+Evolve mxagile-AI into a framework with the following conceptual pipeline:
 
     PROJECT INITIALIZATION
               |
@@ -78,7 +78,7 @@ Evolve DFC-AI into a framework with the following conceptual pipeline:
 
 This must NOT become a conventional high-code Spec Kit implementation.
 
-DFC-AI continues to own:
+mxagile-AI continues to own:
 - Mendix methodology
 - Discovery methodology
 - Mockup methodology
@@ -112,7 +112,7 @@ Before implementing anything, recursively inspect the complete repository.
 
 Pay particular attention to:
 
-- `.dfc-ai`
+- `.mxagile-ai`
 - `skillssource`
 - `scripts`
 - `adapters`
@@ -196,11 +196,11 @@ It must serve simultaneously as:
 5. conceptual explanation for future coding agents,
 6. human-readable explanation of why this evolution was made.
 
-It must be sufficiently detailed to allow older DFC-AI projects to be migrated later.
+It must be sufficiently detailed to allow older mxagile-AI projects to be migrated later.
 
 Include at least:
 
-# DFC-AI Major Evolution
+# mxagile-AI Major Evolution
 
 ## 1. Executive Summary
 
@@ -208,7 +208,7 @@ Explain:
 - what changed,
 - why it changed,
 - what remains unchanged,
-- why DFC-AI is not simply becoming Spec Kit,
+- why mxagile-AI is not simply becoming Spec Kit,
 - why mockup-driven development remains central.
 
 ## 2. Design Principles
@@ -227,7 +227,7 @@ Include principles such as:
 - Automation should be script-driven where determinism matters
 - Agent reasoning should be used where semantic interpretation matters
 - mxcli is the Mendix engineering/execution layer
-- DFC-AI remains agent-harness independent where possible
+- mxagile-AI remains agent-harness independent where possible
 
 ## 3. Old Architecture
 
@@ -535,7 +535,7 @@ Document all new or changed commands.
 
 ## 25. Migration Checklist
 
-Provide a practical checklist for upgrading an existing DFC-AI project.
+Provide a practical checklist for upgrading an existing mxagile-AI project.
 
 ======================================================================
 4. DO NOT FORK OR COPY SPEC KIT BLINDLY
@@ -545,7 +545,7 @@ Do not vendor large portions of GitHub Spec Kit unless technically necessary and
 
 Prefer adopting architectural concepts.
 
-DFC-AI must remain understandable without requiring developers to understand Spec Kit internals.
+mxagile-AI must remain understandable without requiring developers to understand Spec Kit internals.
 
 Where useful, borrow concepts similar to:
 
@@ -562,11 +562,11 @@ Where useful, borrow concepts similar to:
 - living specs
 - brownfield adoption
 
-But adapt semantics to Mendix and the actual DFC-AI architecture.
+But adapt semantics to Mendix and the actual mxagile-AI architecture.
 
 Avoid naming every command `speckit.*` unless there is a compelling compatibility reason.
 
-DFC-AI should remain DFC-AI.
+mxagile-AI should remain mxagile-AI.
 
 ======================================================================
 5. INITIALIZATION / BOOTSTRAP
@@ -596,7 +596,7 @@ Running initialization repeatedly must not destroy user data.
 It should detect:
 
 A. Empty/new project
-B. Existing DFC-AI project
+B. Existing mxagile-AI project
 C. Existing Mendix project without the new lifecycle
 D. Partially migrated project
 
@@ -606,7 +606,7 @@ Do not overwrite user-owned project artifacts without explicit migration logic.
 
 Potential managed framework structure:
 
-    .dfc-ai/
+    .mxagile-ai/
         config.*
         constitution.*
         state/
@@ -1224,7 +1224,7 @@ Prefer structured data internally plus readable report output.
 23. IMPLEMENTATION BOUNDARY
 ======================================================================
 
-DFC-AI must explicitly separate orchestration from Mendix engineering.
+mxagile-AI must explicitly separate orchestration from Mendix engineering.
 
 Conceptual model:
 
@@ -1465,7 +1465,7 @@ Validate YAML deterministically where possible.
 31. AGENT-HARNESS INDEPENDENCE
 ======================================================================
 
-DFC-AI should work with different coding agents where feasible.
+mxagile-AI should work with different coding agents where feasible.
 
 Target conceptual compatibility with:
 - Claude Code
@@ -1522,7 +1522,7 @@ Prefer minimal evolution.
 
 If new directories are necessary, consider concepts such as:
 
-    .dfc-ai/
+    .mxagile-ai/
         config
         constitution
         state
@@ -1550,7 +1550,7 @@ Three modes should conceptually be supported:
 
 MODE 1: LEGACY
 
-    old DFC-AI workflow continues
+    old mxagile-AI workflow continues
 
 MODE 2: HYBRID
 
@@ -1608,7 +1608,7 @@ Document:
 37. TESTING THE FRAMEWORK ITSELF
 ======================================================================
 
-Add tests for the DFC-AI framework, not only generated Mendix applications.
+Add tests for the mxagile-AI framework, not only generated Mendix applications.
 
 Important cases:
 
@@ -1698,12 +1698,12 @@ REFINEMENT:
     continue implementation
 
 ======================================================================
-39. DO NOT LOSE EXISTING DFC-AI ADVANTAGES
+39. DO NOT LOSE EXISTING mxagile-AI ADVANTAGES
 ======================================================================
 
 During implementation continuously ask:
 
-"Does the new solution make an existing DFC-AI capability worse?"
+"Does the new solution make an existing mxagile-AI capability worse?"
 
 Especially protect:
 - HTML mockup workflow
@@ -1719,9 +1719,9 @@ Especially protect:
 - current deterministic scripts
 - Mendix-specific knowledge
 
-If a Spec Kit concept conflicts with a stronger DFC-AI concept:
+If a Spec Kit concept conflicts with a stronger mxagile-AI concept:
 
-Prefer DFC-AI and document the reason.
+Prefer mxagile-AI and document the reason.
 
 ======================================================================
 40. IMPLEMENTATION STRATEGY
@@ -1979,7 +1979,7 @@ Answer internally and document meaningful deviations:
 
 A. Can a new project initialize reproducibly?
 
-B. Can an existing DFC-AI project adopt the new architecture without reconstructing fictional history?
+B. Can an existing mxagile-AI project adopt the new architecture without reconstructing fictional history?
 
 C. Can old and new workflows coexist during migration?
 
@@ -2011,7 +2011,7 @@ P. Did instruction/context bloat become worse?
 
 Q. Is `majorchange.md` sufficient to migrate an older project later?
 
-R. Did any existing useful DFC-AI capability regress?
+R. Did any existing useful mxagile-AI capability regress?
 
 If any answer is unsatisfactory, address it before declaring the migration complete.
 
@@ -2019,7 +2019,7 @@ If any answer is unsatisfactory, address it before declaring the migration compl
 47. MOST IMPORTANT NON-NEGOTIABLE RULES
 ======================================================================
 
-1. DO NOT TURN DFC-AI INTO A GENERIC HIGH-CODE FRAMEWORK.
+1. DO NOT TURN mxagile-AI INTO A GENERIC HIGH-CODE FRAMEWORK.
 
 2. DO NOT REPLACE THE MOCKUP PROCESS.
 
@@ -2092,9 +2092,9 @@ When encountering ambiguity:
 
 The goal is not maximum change.
 
-The goal is a coherent next major version of DFC-AI that combines:
+The goal is a coherent next major version of mxagile-AI that combines:
 
-    DFC-AI's mockup-driven Mendix discovery
+    mxagile-AI's mockup-driven Mendix discovery
                     +
     structured Page YAML
                     +

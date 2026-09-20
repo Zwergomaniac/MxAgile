@@ -39,9 +39,9 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 ## Phase: Discovery
 
 - **Entry Gate:** keines (oder Intake COMPLETE)
-- **Skills:** dfc-discovery
-- **Agents:** dfc-discovery-agent + **dfc-ui-agent** (parallel, D41)
-- **Exit Gate:** dfc-gate-to-refinement
+- **Skills:** mxagile-discovery
+- **Agents:** mxagile-discovery-agent + **mxagile-ui-agent** (parallel, D41)
+- **Exit Gate:** mxagile-gate-to-refinement
 - **Pflichtartefakte:**
   - Relevante Input-Resources identifiziert (`input-resources/`)
   - Story-Spezifikation erstellt (`planning/stories/{STORYPREFIX}-*.md`, eine Datei je Requirement)
@@ -65,10 +65,10 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 
 ## Phase: Refinement
 
-- **Entry Gate:** dfc-gate-to-refinement
-- **Skills:** dfc-refinement
-- **Agents:** dfc-refinement-agent
-- **Exit Gate:** dfc-gate-to-ready
+- **Entry Gate:** mxagile-gate-to-refinement
+- **Skills:** mxagile-refinement
+- **Agents:** mxagile-refinement-agent
+- **Exit Gate:** mxagile-gate-to-ready
 - **Pflichtartefakte:**
   - Alle `DECISION REQUIRED` beantwortet oder als bewusste Annahme (`ASSUMPTION`) markiert
   - Entscheidungen in `sprints/decisions.md` dokumentiert
@@ -85,7 +85,7 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 
 ## Phase: Ready
 
-- **Entry Gate:** dfc-gate-to-ready
+- **Entry Gate:** mxagile-gate-to-ready
 - **Skills:** (keine eigenen)
 - **Agents:** (keine eigenen)
 - **Exit Gate:** Entwicklerfreigabe zur Implementierung
@@ -106,7 +106,7 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 
 - **Entry Gate:** Entwicklerfreigabe
 - **Skills:** mxcli-technische Skills (aus `.ai-context/skills/`)
-- **Agents:** **dfc-implementation-agent** (als Subagent, D35)
+- **Agents:** **mxagile-implementation-agent** (als Subagent, D35)
 - **Exit Gate:** Alle Checklisten-Items abgearbeitet
 - **Pflichtartefakte:**
   - Mendix-Mapping dokumentiert in der Checkliste
@@ -131,8 +131,8 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 ## Phase: Verifying
 
 - **Entry Gate:** Implementierung abgeschlossen
-- **Skills:** check-syntax, test-app, assess-quality (aus `.ai-context/skills/`), dfc-quality-gate
-- **Agents:** **dfc-ui-agent** (Verifying-Modus) + **dfc-acceptance-agent** (parallel, D40)
+- **Skills:** check-syntax, test-app, assess-quality (aus `.ai-context/skills/`), mxagile-quality-gate
+- **Agents:** **mxagile-ui-agent** (Verifying-Modus) + **mxagile-acceptance-agent** (parallel, D40)
 - **Exit Gate:** Alle Pruefungen bestanden
 - **Ablauf (D40):**
 
@@ -207,4 +207,5 @@ Bei Abweichungen:
   blockiert den Phasenwechsel bis die Luecken geschlossen sind.
 - Der Ruecklauf Verifying→Implementing ist Checklisten-basiert: nur `failed`-Items
   werden erneut bearbeitet, nicht die gesamte Implementierung.
+
 

@@ -1,4 +1,4 @@
-Jetzt klappt es. Ich kann die angehängte dfc-ai COPILOT-Edit.zip vollständig lesen und habe den aktuellen Stand gegen das Zielbild aus REPO-masterprompt.md und majorchange.md geprüft. Ergebnis: MxAgile ist konzeptionell deutlich vorangekommen, aber die neue Architektur ist derzeit ein Hybrid aus belastbarer Prozessschicht und mehreren noch prototypischen beziehungsweise defekten Lifecycle-Skripten.
+Jetzt klappt es. Ich kann die angehängte mxagile-ai COPILOT-Edit.zip vollständig lesen und habe den aktuellen Stand gegen das Zielbild aus REPO-masterprompt.md und majorchange.md geprüft. Ergebnis: MxAgile ist konzeptionell deutlich vorangekommen, aber die neue Architektur ist derzeit ein Hybrid aus belastbarer Prozessschicht und mehreren noch prototypischen beziehungsweise defekten Lifecycle-Skripten.
 
 Gesamturteil
 
@@ -198,7 +198,7 @@ Kritische Findings
 Im aktuellen ZIP zeigen mehrere PowerShell-Dateien offensichtlich fehlende Ausdrücke, unvollständige Pipelines, falsche Join-Path-Aufrufe oder fehlende Blöcke. Besonders auffällig:
 
 install-mxcli.ps1
-generate-dfc-platform-skills.ps1
+generate-mxagile-platform-skills.ps1
 mxagile-clarify.ps1
 mxagile-reconcile.ps1
 mxagile-tasks.ps1

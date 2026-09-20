@@ -6,7 +6,7 @@
 Write-Host "🚀 Handing off to Python-based Trace Indexer..."
 
 $PSScriptRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
-$PythonScriptPath = Join-Path $PSScriptRoot "build_trace_index.py"
+$PythonScriptPath = Join-Path $PSScriptRoot "build-trace-index.py"
 
 # Execute the python script
 python $PythonScriptPath .

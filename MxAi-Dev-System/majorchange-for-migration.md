@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document outlines the major architectural evolution of the `dfc-ai` framework into `MxAgile`. This evolution transforms the framework into a more universal, Mendix-native, spec-driven development system that integrates the powerful lifecycle concepts of Spec Kit while preserving and strengthening the core principles of the original framework.
+This document outlines the major architectural evolution of the `mxagile-ai` framework into `MxAgile`. This evolution transforms the framework into a more universal, Mendix-native, spec-driven development system that integrates the powerful lifecycle concepts of Spec Kit while preserving and strengthening the core principles of the original framework.
 
 *   **What changed:** The framework is renamed to `MxAgile`. A formal, traceable, and verifiable lifecycle from mockup to Mendix implementation has been established. This includes the introduction of Living Feature Specs, a structured Refinement Engine for managing change, a global consistency analysis command, and formal processes for brownfield adoption and project initialization. Company-specific content (like Mercedes-Benz modules) is now optional and managed via a pluggable layer system.
 *   **Why it changed:** To increase reproducibility, improve traceability, formalize the artifact lifecycle, and make the framework more universal and adaptable for different projects and companies, reducing the risk of artifact drift and providing a clearer path for both greenfield and brownfield projects.
@@ -25,13 +25,13 @@ This document outlines the major architectural evolution of the `dfc-ai` framewo
 
 ## 3. Old Architecture (pre-MxAgile)
 
-The previous `dfc-ai` architecture was based on a solid, phase-driven model defined in `orchestrator.md`.
+The previous `mxagile-ai` architecture was based on a solid, phase-driven model defined in `orchestrator.md`.
 
 *   **Workflow:** A sequence of phases (`Intake` -> `Discovery` -> `Refinement` -> `Ready` -> `Implementing` -> `Verifying`) with specific agent responsibilities.
 *   **Source of Truth:** A clear hierarchy prioritized customer mockups and requirements documents over the Mendix model or board stories.
 *   **Artifacts:**
     *   **Inputs:** HTML Mockups and Requirement documents in `input-resources/`.
-    *   **Discovery:** A `dfc-ui-agent` analyzed mockups with Playwright to create a "field inventory" (the precursor to Page YAML) in `planning/ui-inventory/`. A `dfc-discovery-agent` analyzed requirements to create `planning/stories/*.md` files.
+    *   **Discovery:** A `mxagile-ui-agent` analyzed mockups with Playwright to create a "field inventory" (the precursor to Page YAML) in `planning/ui-inventory/`. A `mxagile-discovery-agent` analyzed requirements to create `planning/stories/*.md` files.
     *   **Planning:** The `Ready` gate generated an `implementation-checklist.yaml`, a highly structured file that served as the task list for the `Implementation-Agent`.
     *   **Validation:** A multi-step `Verifying` phase used `mxcli`, Docker, and Playwright for technical, UI, and functional validation.
 *   **Gaps:** The architecture lacked a "living spec" to group requirements, a formal process for refining artifacts when mockups change, a global analysis command, and a clear brownfield adoption path. Company-specific logic was tightly integrated.
@@ -225,15 +225,15 @@ For existing Mendix projects, the `adopt` command will:
 
 ## 17. Legacy Compatibility
 
-Existing `dfc-ai` projects can be migrated using `mxagile adopt`. The process is designed to be incremental. A project can operate in a mixed "Hybrid" mode.
+Existing `mxagile-ai` projects can be migrated using `mxagile adopt`. The process is designed to be incremental. A project can operate in a mixed "Hybrid" mode.
 
 ## 18. Migration Matrix
 
-| OLD ARTIFACT / MECHANISM (`dfc-ai`) | NEW ARTIFACT / MECHANISM (`MxAgile`) | MIGRATION REQUIRED? | AUTOMATIC / MANUAL | BREAKING? |
+| OLD ARTIFACT / MECHANISM (`mxagile-ai`) | NEW ARTIFACT / MECHANISM (`MxAgile`) | MIGRATION REQUIRED? | AUTOMATIC / MANUAL | BREAKING? |
 |---|---|---|---|---|
-| `.dfc-ai/` directory | `.mxagile/` directory | Yes | Automatic (`mv`) | Yes (Path) |
-| File/content `dfc-ai` references | `MxAgile` references | Yes | Automatic (sed/replace) | Yes (String) |
-| `.dfc-ai/modules/MB_*` | `.mxagile/layers/mercedes-benz/modules/` | Yes | Automatic (`mv`) | Yes (Path) |
+| `.mxagile-ai/` directory | `.mxagile/` directory | Yes | Automatic (`mv`) | Yes (Path) |
+| File/content `mxagile-ai` references | `MxAgile` references | Yes | Automatic (sed/replace) | Yes (String) |
+| `.mxagile-ai/modules/MB_*` | `.mxagile/layers/mercedes-benz/modules/` | Yes | Automatic (`mv`) | Yes (Path) |
 | `planning/stories/*.md` | `requirements/*.md` + `specs/*.md` | Yes | Manual Logic | Yes (Concept) |
 | `planning/checklists/*.yaml` | `planning/tasks/TASK-*.yaml` | Yes | Automatic (Script) | Yes (Structure) |
 | `planning/ui-inventory/*.yaml` | `planning/ui-inventory/*.yml` (as Page YAML) | Yes | Automatic (Script) | No |
@@ -248,22 +248,22 @@ Projects can operate in three modes:
 
 ## 20. Breaking Changes
 
--   **Project Name:** All `dfc-ai` file paths, directory paths, and content strings are replaced with `MxAgile`. Scripts relying on the old name will fail.
+-   **Project Name:** All `mxagile-ai` file paths, directory paths, and content strings are replaced with `MxAgile`. Scripts relying on the old name will fail.
 -   **Company-Specific Content:** Previously integrated Mercedes-Benz content is moved to an optional layer. Projects using it must be configured to include the `mercedes-benz` layer during `init` or `adopt`.
 -   **Planning Artifacts:** `planning/stories` and `planning/checklists` are replaced by `requirements`, `specs`, and `planning/tasks`, which have a new structure and relationship.
 
 ## 21. Rollback Considerations
 
-Rollback is possible by reverting the initial refactoring commit that renames `dfc-ai` to `MxAgile` and creates the new directory structure. Since `mxagile adopt` does not destroy existing artifacts, a project can safely revert to the pre-adoption state.
+Rollback is possible by reverting the initial refactoring commit that renames `mxagile-ai` to `MxAgile` and creates the new directory structure. Since `mxagile adopt` does not destroy existing artifacts, a project can safely revert to the pre-adoption state.
 
 ## 22. Agent Migration Notes
 
-Old agent prompts that directly reference `dfc-ai` paths or artifacts will need to be updated. The core `orchestrator.md` will guide them to the new artifact locations (`specs/`, `requirements/`, etc.). The agent-adapter architecture is preserved, so the core logic change is minimal.
+Old agent prompts that directly reference `mxagile-ai` paths or artifacts will need to be updated. The core `orchestrator.md` will guide them to the new artifact locations (`specs/`, `requirements/`, etc.). The agent-adapter architecture is preserved, so the core logic change is minimal.
 
 ## 23. Directory Changes
 
--   `.dfc-ai/` -> `.mxagile/`
--   `.dfc-ai/modules/` -> `.mxagile/layers/<company>/modules/`
+-   `.mxagile-ai/` -> `.mxagile/`
+-   `.mxagile-ai/modules/` -> `.mxagile/layers/<company>/modules/`
 -   `planning/stories/` -> `requirements/`
 -   (new) `specs/`
 -   `planning/checklists/` -> `planning/tasks/`
@@ -285,12 +285,13 @@ These commands will be implemented as scripts (e.g., PowerShell) that orchestrat
 ## 25. Migration Checklist
 
 1.  [ ] Ensure the project is under version control and has no uncommitted changes.
-2.  [ ] Run the global refactoring script to rename `dfc-ai` to `MxAgile`.
+2.  [ ] Run the global refactoring script to rename `mxagile-ai` to `MxAgile`.
 3.  [ ] Run `mxagile adopt`. This will:
     *   Initialize the `.mxagile` directory.
     *   Prompt you to select the `mercedes-benz` layer to preserve the old modules.
     *   Inventory the existing project and create baseline specs/requirements.
 4.  [ ] Review the adoption report and the newly generated artifacts in `requirements/` and `specs/`. Manually verify and accept the inferred requirements.
 5.  [ ] Move old `planning/stories` and `planning/checklists` to an `_archive` directory.
-6.  [ ] Update any custom scripts or agent prompts that had hardcoded `dfc-ai` paths.
+6.  [ ] Update any custom scripts or agent prompts that had hardcoded `mxagile-ai` paths.
 7.  [ ] For the next new feature, use the full `mxagile` lifecycle, starting with Discovery.
+

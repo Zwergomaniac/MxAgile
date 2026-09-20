@@ -1,7 +1,7 @@
 defaults:
   output_dir: ".github/skills"
   file_name: "SKILL.md"
-  directory_prefix: "dfc-"
+  directory_prefix: "mxagile-"
   subdirectory: true
   template: |
     ---
@@ -13,30 +13,31 @@ overrides:
   discovery:
     template: |
       ---
-      name: "dfc-discovery"
+      name: "mxagile-discovery"
       description: "Systematische Analyse aller Quellen vor Refinement/Implementierung"
       ---
   refinement:
     template: |
       ---
-      name: "dfc-refinement"
+      name: "mxagile-refinement"
       description: "Klaerung offener Punkte und Widersprueche vor Implementierung"
       ---
   quality-gate:
     template: |
       ---
-      name: "dfc-quality-gate"
+      name: "mxagile-quality-gate"
       description: "Mehrstufige Validierung nach Implementierung"
       ---
   gate-to-refinement:
     template: |
       ---
-      name: "dfc-gate-to-refinement"
+      name: "mxagile-gate-to-refinement"
       description: "Gate-Pruefung: Discovery vollstaendig?"
       ---
   gate-to-ready:
     template: |
       ---
-      name: "dfc-gate-to-ready"
+      name: "mxagile-gate-to-ready"
       description: "Gate-Pruefung: Refinement vollstaendig, bereit fuer Implementierung?"
       ---
+

@@ -20,9 +20,9 @@ if (-not (Test-Path $projectFile)) { Write-Host "FAIL: project.mpr deleted"; exi
 
 # 5. Idempotency
 Write-Host "Running adoption script second time..."
-$output = & $script -TargetDir $mockDir 2>&1
+$output = & $script -TargetDir $mockDir *>&1
 # Strip ANSI escape codes before matching
-$plainOutput = $output -replace "\e\[[0-9;]*m", ""
+$plainOutput = ($output | Out-String) -replace "\e\[[0-9;]*m", ""
 if (-not ($plainOutput -match "Skipping .mxagile")) { Write-Host "FAIL: Did not skip existing .mxagile directory"; exit 1 }
 
 # 6. Clean

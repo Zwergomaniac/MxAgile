@@ -6,4 +6,6 @@ nicht automatisch.
 
 | Kategorie | Board-Storys | Bewertung | Lokale Handlung |
 |---|---|---|---|
-| [Kategorie] | [PROJ-1] | [Gruen / Gelb / Rot] | [Handlung] |
+| Kategorie | Board-Storys | Bewertung | Lokale Handlung |
+|---|---|---|---|
+| REQ-01 | [PROJ-1] | Gelb | Implementierung basierend auf PAGE-01 Validierung |

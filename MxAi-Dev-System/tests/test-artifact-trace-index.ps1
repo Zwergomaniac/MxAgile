@@ -1,136 +1,100 @@
-# Test suite for artifact-trace-index.json builder
+# Test suite for the consolidated artifact index builder.
 
-# Setup
-$TestDir = Join-Path $env:TEMP "tmp-test-artifact-trace"
-if (Test-Path $TestDir) {
-    Remove-Item -Recurse -Force $TestDir
-}
-New-Item -ItemType Directory -Path $TestDir | Out-Null
-
-# Create directories that the script will scan
-New-Item -ItemType Directory -Path (Join-Path $TestDir "specs") | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $TestDir "requirements") | Out-Null
-
-
-$BuilderScriptPath = "$PSScriptRoot/../scripts/build_trace_index.py"
-$IndexPath = Join-Path $TestDir ".mxagile/state/trace-index.json"
-
-function Get-FileSha256 {
-    param ([string]$FilePath)
-    $stream = [System.IO.File]::OpenRead($FilePath)
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $hashBytes = $sha.ComputeHash($stream)
-    $stream.Close()
-    return [System.BitConverter]::ToString($hashBytes).Replace("-", "").ToLower()
-}
-
-# --- Test 1: Deletion and Regeneration ---
+# Overall error handling to ensure script exits with non-zero on failure
 try {
-    # 1. Run the builder script
-    python $BuilderScriptPath --project-root $TestDir
-    
-    # 2. Verify the index file is created
-    if (-not (Test-Path $IndexPath)) {
-        throw "Index file was not created on the first run."
+
+    # --- Setup ---
+    $TestDir = Join-Path $env:TEMP "tmp-test-artifact-trace"
+    if (Test-Path $TestDir) {
+        Remove-Item -Recurse -Force $TestDir
     }
-    
-    # 3. Delete the index file
+    New-Item -ItemType Directory -Path $TestDir | Out-Null
+
+    # Create directories that the script will scan
+    $SpecDir = Join-Path $TestDir "specs"
+    $ReqDir = Join-Path $TestDir "requirements"
+    New-Item -ItemType Directory -Path $SpecDir | Out-Null
+    New-Item -ItemType Directory -Path $ReqDir | Out-Null
+
+    $PSScriptRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+    $BuilderScriptPath = Join-Path $PSScriptRoot "..\scripts\build_artifact_index.py"
+    $IndexPath = Join-Path $TestDir ".mxagile\state\artifact-index.json"
+
+    function Assert-Condition {
+        param ($Condition, $Message)
+        if (-not $Condition) {
+            throw "Assertion Failed: $Message"
+        }
+    }
+
+    # --- Test 1: Deletion and Regeneration ---
+    Write-Host "[TEST] Running: Deletion and Regeneration"
+    & python $BuilderScriptPath $TestDir
+    Assert-Condition (Test-Path $IndexPath) "Index file was not created on the first run."
+    $firstRunContent = Get-Content $IndexPath
     Remove-Item -Path $IndexPath
-    
-    # 4. Rerun the builder script
-    python $BuilderScriptPath --project-root $TestDir
-    
-    # 5. Verify the index file is recreated
-    if (Test-Path $IndexPath) {
-        Write-Host "[PASS] Deletion and Regeneration"
-    } else {
-        throw "Index file was not recreated after deletion."
-    }
-} catch {
-    Write-Host "[FAIL] Deletion and Regeneration: $_"
-}
+    & python $BuilderScriptPath $TestDir
+    Assert-Condition (Test-Path $IndexPath) "Index file was not recreated after deletion."
+    Write-Host "[PASS] Deletion and Regeneration"
 
-# --- Test 2: Idempotency ---
-try {
-    # 1. Run the builder script
-    python $BuilderScriptPath --project-root $TestDir
-    
-    # 2. Calculate the hash
-    $hash1 = Get-FileSha256 -FilePath $IndexPath
-    
-    # 3. Run the builder script a second time
-    python $BuilderScriptPath --project-root $TestDir
-    
-    # 4. Recalculate the hash
-    $hash2 = Get-FileSha256 -FilePath $IndexPath
-    
-    # 5. Verify that the two hashes are identical
-    if ($hash1 -eq $hash2) {
-        Write-Host "[PASS] Idempotency"
-    } else {
-        throw "Hashes do not match. Expected $hash1, got $hash2."
-    }
-} catch {
-    Write-Host "[FAIL] Idempotency: $_"
-}
+    # --- Test 2: Idempotency ---
+    Write-Host "[TEST] Running: Idempotency"
+    $hash1 = (Get-FileHash -Path $IndexPath -Algorithm SHA256).Hash
+    & python $BuilderScriptPath $TestDir # Rerun
+    $hash2 = (Get-FileHash -Path $IndexPath -Algorithm SHA256).Hash
+    Assert-Condition ($hash1 -eq $hash2) "Index file hash changed on second run, expected it to be idempotent."
+    Write-Host "[PASS] Idempotency"
 
-# --- Test 3: Change Propagation ---
-try {
-    # 1. Create a dummy spec file
-    $specFilePath = Join-Path $TestDir "specs/SPEC-01.yml"
+    # --- Test 3: Change Propagation ---
+    Write-Host "[TEST] Running: Change Propagation"
+    $specFilePath = Join-Path $SpecDir "SPEC-01.yml"
     Set-Content -Path $specFilePath -Value "ID: SPEC-01`nName: My First Spec"
-
-    # 2. Run the builder script to create a baseline
-    python $BuilderScriptPath --project-root $TestDir
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath | ConvertFrom-Json
+    $originalHash = ($indexJson.nodes | Where-Object { $_.id -eq 'SPEC-01' }).hash
+    Assert-Condition ($originalHash -ne $null) "Could not find SPEC-01 in index before change."
     
-    # 3. Read the index and store the hash of a specific artifact
-    $indexContent = Get-Content $IndexPath | ConvertFrom-Json
-    $originalHash = $indexContent.specs."SPEC-01".hash
-    
-    # 4. Modify the content of the corresponding source artifact file
+    # Modify the file and re-run
     Add-Content -Path $specFilePath -Value "`nDescription: A change"
-    
-    # 5. Rerun the builder script
-    python $BuilderScriptPath --project-root $TestDir
-    
-    # 6. Read the new index and verify the hash has changed
-    $newIndexContent = Get-Content $IndexPath | ConvertFrom-Json
-    $newHash = $newIndexContent.specs."SPEC-01".hash
-    
-    if ($originalHash -ne $newHash) {
-        Write-Host "[PASS] Change Propagation"
-    } else {
-        throw "Hash for modified file did not change."
-    }
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath | ConvertFrom-Json
+    $newHash = ($indexJson.nodes | Where-Object { $_.id -eq 'SPEC-01' }).hash
+    Assert-Condition ($originalHash -ne $newHash) "Hash for modified file SPEC-01 did not change."
+    Write-Host "[PASS] Change Propagation"
+
+    # --- Test 4: Ghost Node Detection ---
+    Write-Host "[TEST] Running: Ghost Node Detection"
+    Remove-Item -Path $specFilePath
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath | ConvertFrom-Json
+    $ghostNode = $indexJson.nodes | Where-Object { $_.id -eq 'SPEC-01' }
+    Assert-Condition (-not $ghostNode) "Node for deleted file SPEC-01 still exists in the index."
+    Write-Host "[PASS] Ghost Node Detection"
+
+    # --- Test 5: Edge Creation ---
+    Write-Host "[TEST] Running: Edge Creation"
+    $reqFilePath = Join-Path $ReqDir "REQ-01.yml"
+    Set-Content -Path $reqFilePath -Value "ID: REQ-01`nName: A requirement"
+    $specFilePath = Join-Path $SpecDir "SPEC-02.yml"
+    Set-Content -Path $specFilePath -Value "ID: SPEC-02`nName: Another spec`nrequirements: [REQ-01]"
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath | ConvertFrom-Json
+    $edge = $indexJson.edges | Where-Object { $_.from -eq 'REQ-01' -and $_.to -eq 'SPEC-02' }
+    Assert-Condition ($edge) "Edge from REQ-01 to SPEC-02 was not created."
+    Write-Host "[PASS] Edge Creation"
+
 } catch {
-    Write-Host "[FAIL] Change Propagation: $_"
+    Write-Error "A test failed: $_"
+    exit 1
+} finally {
+    # --- Cleanup ---
+    if (Test-Path $TestDir) {
+        Remove-Item -Recurse -Force $TestDir -ErrorAction SilentlyContinue
+        Write-Host "[INFO] Cleaned up test directory."
+    }
 }
 
-# --- Test 4: Ghost Node Detection ---
-try {
-    # 1. We already have a file from the previous test. Rerun the builder.
-    python $BuilderScriptPath --project-root $TestDir
-    
-    # 2. Delete a source artifact file
-    $fileToDelete = Join-Path $TestDir "specs/SPEC-01.yml"
-    Remove-Item -Path $fileToDelete
-    
-    # 3. Rerun the builder script
-    python $BuilderScriptPath --project-root $TestDir
-    
-    # 4. Read the new index and verify the node is gone
-    $indexContent = Get-Content $IndexPath | ConvertFrom-Json
-    
-    if (-not $indexContent.specs.'SPEC-01') {
-        Write-Host "[PASS] Ghost Node Detection"
-    } else {
-        throw "Node for deleted file still exists in the index."
-    }
-} catch {
-    Write-Host "[FAIL] Ghost Node Detection: $_"
-}
-
-# --- Cleanup ---
-finally {
-    Remove-Item -Recurse -Force $TestDir -ErrorAction SilentlyContinue
-}
+# If we get here, all tests passed.
+Write-Host "
+✅ All tests in test-artifact-trace-index.ps1 passed."
+exit 0

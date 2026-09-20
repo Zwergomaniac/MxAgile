@@ -36,8 +36,8 @@
 ## Verbindlicher MxAgile-Workflow — keine eigenmächtige Abkürzung
 
 **Hintergrund:** In einem Referenzprojekt wurden mehrere Waves direkt implementiert,
-ohne Discovery (`dfc-discovery-agent`/`dfc-ui-agent`, UI-Inventar) oder Verifying
-(`dfc-ui-agent`/`dfc-acceptance-agent`, Wave-Report) zu durchlaufen. Ergebnis:
+ohne Discovery (`mxagile-discovery-agent`/`mxagile-ui-agent`, UI-Inventar) oder Verifying
+(`mxagile-ui-agent`/`mxagile-acceptance-agent`, Wave-Report) zu durchlaufen. Ergebnis:
 kein Mockup-Abgleich, unentdeckte UI-Abweichungen, Statusdrift in
 `.concord/scratch/process-state.yaml`. Diese Regeln verhindern die Wiederholung:
 
@@ -354,4 +354,5 @@ Browser-Automation und die Verifikation der laufenden Mendix-App zu verwenden.
 
 Die Interpretation des Mockups richtet sich nach den Regeln in
 `input-resources/README.md`.
+
 
