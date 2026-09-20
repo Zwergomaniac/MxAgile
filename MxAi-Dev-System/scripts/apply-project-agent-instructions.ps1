@@ -47,7 +47,7 @@ function Remove-ManagedBlock {
         [string]$Content
     )
 
-    if ([string]:: {
+    if ([string]::IsNullOrEmpty($Content)) {
         return ""
     }
 

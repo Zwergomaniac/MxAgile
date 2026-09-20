@@ -118,11 +118,11 @@ try {
     $LayerId   = [string]$LayerManifest.id
     $LayerName = [string]$LayerManifest.name
 
-    if ([string]:: {
+    if ([string]::IsNullOrWhiteSpace($LayerId)) {
         throw "layer.json does not define a valid 'id'."
     }
 
-    if ([string]:: {
+    if ([string]::IsNullOrWhiteSpace($LayerName)) {
         throw "layer.json does not define a valid 'name'."
     }
 
@@ -135,9 +135,7 @@ try {
     try {
         $ResolvedRevision = (& git rev-parse HEAD).Trim()
 
-        if ($LASTEXITCODE -ne 0 -or
-            [string]:: {
-
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($ResolvedRevision)) {
             throw "Unable to determine resolved Git revision."
         }
     }

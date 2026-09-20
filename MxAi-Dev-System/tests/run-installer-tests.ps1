@@ -405,14 +405,7 @@ function Test-NoRuntimeLocalLayerDependency {
     }
 }
 
-function Test-BrownfieldTemplateAvailable {
-    $templatePath = Join-Path $ProjectTemplatesRoot $BrownfieldTemplate
-    if (-not (Test-Path -LiteralPath $templatePath -PathType Container)) {
-        Add-TestResult -Name 'Brownfield template' -Status SKIPPED_ENVIRONMENT -Reason "Template not found: $templatePath"
-        return $false
-    }
-    return $true
-}
+
 
 Write-Host '=== MxAgile Installer Test Suite ===' -ForegroundColor Cyan
 Write-Host "Repository: $RepoRoot"
@@ -426,16 +419,35 @@ foreach ($required in @($WorkcopyScript, $GenericInstaller, $MercedesInstaller))
 }
 
 if (-not ($Results | Where-Object { $_.Status -eq 'FAIL' })) {
+    Write-Host "`n---> Starting Test: PowerShellParser" -ForegroundColor Cyan
     Test-PowerShellParser
+    Write-Host "`n---> Starting Test: MprSafety" -ForegroundColor Cyan
     Test-MprSafety
+    Write-Host "`n---> Starting Test: NoRuntimeLocalLayerDependency" -ForegroundColor Cyan
     Test-NoRuntimeLocalLayerDependency
+    Write-Host "`n---> Starting Test: Greenfield generic" -ForegroundColor Cyan
     Test-GenericInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-generic' -Label 'Greenfield'
+    Write-Host "`n---> Starting Test: Greenfield Mercedes" -ForegroundColor Cyan
     Test-MercedesInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-mercedes' -Label 'Greenfield'
+    Write-Host "`n---> Starting Test: MercedesRemoteFailure" -ForegroundColor Cyan
     Test-MercedesRemoteFailure
 
-    if (Test-BrownfieldTemplateAvailable) {
-        Test-GenericInstallation -TemplateName $BrownfieldTemplate -TestDirName 'brownfield-generic' -Label 'Brownfield'
-        Test-MercedesInstallation -TemplateName $BrownfieldTemplate -TestDirName 'brownfield-mercedes' -Label 'Brownfield'
+    $brownfieldTemplates = Get-ChildItem -Path $ProjectTemplatesRoot -Directory | Where-Object { $_.Name -like 'brownfield*' }
+
+    if ($brownfieldTemplates.Count -eq 0) {
+        Add-TestResult -Name 'Brownfield templates' -Status SKIPPED_ENVIRONMENT -Reason 'No brownfield* templates found in project-templates'
+    }
+    else {
+        foreach ($template in $brownfieldTemplates) {
+            $templateName = $template.Name
+            # Create a label like "Brownfield (spec)" from "brownfield_spec"
+            $labelSuffix = ($templateName -replace '^brownfield_?', '')
+            $label = "Brownfield ($labelSuffix)"
+            Write-Host "`n---> Starting Test: $($label) generic" -ForegroundColor Cyan
+            Test-GenericInstallation -TemplateName $templateName -TestDirName "$templateName-generic" -Label $label
+            Write-Host "`n---> Starting Test: $($label) Mercedes" -ForegroundColor Cyan
+            Test-MercedesInstallation -TemplateName $templateName -TestDirName "$templateName-mercedes" -Label $label
+        }
     }
 }
 

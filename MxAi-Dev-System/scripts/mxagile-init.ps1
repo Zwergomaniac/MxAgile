@@ -109,6 +109,7 @@ $Directories = @(
     (Join-Path $MxAgileDir "schemas")
     (Join-Path $MxAgileDir "templates")
     (Join-Path $MxAgileDir "layers")
+    (Join-Path $MxAgileDir "skills")
 )
 
 foreach ($Directory in $Directories) {
@@ -131,3 +132,20 @@ foreach ($Directory in $Directories) {
 
 Write-Host ""
 Write-Host "MxAgile initialization complete." -ForegroundColor Green
+
+# ---------------------------------------------------------------------
+# Core agent files
+# ---------------------------------------------------------------------
+
+$AgentFiles = @(
+    (Join-Path $ProjectRoot "AGENT.md")
+    (Join-Path $ProjectRoot "AGENTS.md")
+    (Join-Path $ProjectRoot "CLAUDE.md")
+)
+
+foreach ($AgentFile in $AgentFiles) {
+    if (-not (Test-Path -LiteralPath $AgentFile -PathType Leaf)) {
+        Write-Host "Creating placeholder agent file: $AgentFile"
+        [System.IO.File]::WriteAllLines($AgentFile, @(""))
+    }
+}
