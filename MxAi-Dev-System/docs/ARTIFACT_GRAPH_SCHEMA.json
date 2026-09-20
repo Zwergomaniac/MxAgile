@@ -1,0 +1,27 @@
+{
+  "description": "Artifact Graph Schema Definition",
+  "nodes": {
+    "fields": {
+      "id": "string",
+      "type": "string (Mockup, PageYAML, Requirement, FeatureSpec, Plan, Task, MendixArtifact)",
+      "hash": "string",
+      "status": "string (Active, Stale)"
+    }
+  },
+  "edges": {
+    "fields": {
+      "from": "string (node.id)",
+      "to": "string (node.id)",
+      "relationship": "string"
+    }
+  },
+  "supportedChain": [
+    "Mockup",
+    "PageYAML",
+    "Requirement",
+    "FeatureSpec",
+    "Plan",
+    "Task",
+    "MendixArtifact"
+  ]
+}

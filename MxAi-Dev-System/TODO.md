@@ -1,62 +1,46 @@
-# MxAgile - TODO
+# MxAgile Development Plan
 
-## Epic: Core Workflow & Artifact Migration (Completed)
+# Architectural Decisions
+- **Lifecycle:** Hybrid approach (maintaining old + new paths), prioritizing migration to new structure (`requirements/`, `specs/`, `planning/tasks/`). Migration guidance via `mxagile-migration.md`.
+- **Layers:** Clear separation: `company-layers/` (Local Registry/Database) vs `.mxagile/layers/` (Framework Active).
+- **Brownfield Adoption:** Skeleton-injection method (injecting MxAgile into existing projects without destroying logic).
+- **Security:** Manual management of secrets via `.env.mendix`.
 
-- [x] **Test Company Layer Workflow (`mxagile-add-layer.ps1`)**
-- [x] **Test Wave Planning (`mxagile-plan-wave.ps1`)**
-- [x] **Test Greenfield Initialization (`mxagile-init.ps1`)**
-- [x] **Test Framework Installation (`install-mxagile.ps1`)**
-- [x] **Implement Refinement Engine (`mxagile-refine.ps1`)**
-  - [x] Implement hash-based change detection.
-  - [x] Implement Python-based semantic diffing (initial version).
-  - [x] Implement impact analysis and report generation.
-- [x] **Implement Living Spec Scripts**
-- [x] **Implement Brownfield Adoption (`mxagile-adopt.ps1`)**
-- [x] **Implement Analysis & Verification Scripts**
-  - [x] `mxagile-analyze.ps1`: Implement orphan/unused check in Python.
-  - [x] `mxagile-converge.ps1` (New Script): Implement the check that all requirements have validation evidence.
-- [x] **Implement Traceability Query (`mxagile-trace.ps1`)**
-  - [x] Create Python script and wrapper to trace parent/child relationships.
-- [x] **Implement Specification Quality Gate**
-  - [x] Create a script or agent skill to check a `.spec` file against a quality checklist.
-- [x] **Unify Artifacts with YAML:**
-  - [x] Convert `.spec`, `.req`, `.wave` to `.yml` format.
-  - [x] Convert `glossary.md` and `platform-modules.md` to `.yml`.
-- [x] **Rewrite Indexer in Python:**
-  - [x] Replace `mxagile-build-trace-index.ps1` with a Python script that reads all artifact types.
-- [x] **Update All Scripts and Skills:**
-  - [x] Update all scripts and agent skills that create or read artifacts to use the new `.yml` format.
+## Phase 1: Safety, Executability & Foundational Härtung (COMPLETED)
+- [x] Workspace forensic analysis and file system inventory.
+- [x] Naming drift validation (.MxAgile vs .mxagile).
+- [x] Parser-check of critical PowerShell scripts.
+- [x] Grilling session and architectural decision formalization.
+- [x] Fix path error in `scripts/mxagile-reconcile.ps1`.
+- [x] Secure `env.mendix.example` (remove hardcoded passwords).
+- [x] Establish `tests/smoke-test.ps1` for core script validation.
 
-## Epic: Formalize Core Workflows (NEW)
+## Phase 2: Framework Test Harness (CURRENT FOCUS)
+- [ ] Implement `init` idempotency tests (verify repeated runs don't corrupt workspace).
+- [ ] Implement skeleton adoption test (verify `scripts/mxagile-adopt.ps1` safely injects structure).
+- [ ] Create basic fixture library for testing migration logic.
 
-*This epic ensures that the existing scripts fully implement the vision from `majorchange.md`.* 
+## Phase 3: Lifecycle Convergence & Migration
+- [ ] Refine `mxagile-migration.md` skill to handle specific edge cases in story conversion.
+- [ ] Implement automatic conversion script for `planning/stories` -> `requirements/`.
+- [ ] Implement automatic conversion script for `planning/checklists` -> `planning/tasks/`.
+- [ ] Finalize documentation of layer separation and management workflows.
 
-- [x] **Formalize Refinement Engine (`mxagile-refine.ps1`):**
-  - [x] Implement semantic diffing to distinguish visual vs. behavioral changes (see Section 10 & 14 of `majorchange.md`).
-- [x] **Implement Traceability Query (`mxagile-trace.ps1`):**
-  - [x] Implement the query logic to trace an ID through the `trace-index.json` (see Section 7).
-- [ ] **Implement Convergence Loop (`mxagile-converge.ps1`):**
-  - [ ] Enhance the script to perform the full convergence check and generate remaining tasks if gaps are found (see Section 25).
-- [ ] **Expand Global Analysis (`mxagile-analyze.ps1`):**
-  - [ ] Expand the script to check for consistency across the full artifact chain as described in `majorchange.md`.
+## Phase 4: Refinement Engine & Semantic Traceability
+- [ ] Develop baseline detection for HTML mockups.
+- [ ] Implement hash/change detection for Page YAML vs. Mockup state.
+- [ ] Build artifact graph linking: Mockup -> Page YAML -> Requirement -> Feature Spec -> Plan -> Task -> Mendix Artifact.
+- [ ] Implement "impacted artifact" resolution (stale propagation).
 
-## Epic: Framework Hardening & Testing (NEW)
+## Phase 5: Agentic Convergence & Validation
+- [ ] Implement robust convergence check (`converge.py` improvement: validation of implementation status).
+- [ ] Implement automated Mendix quality/security gates for CI.
+- [ ] Finalize agent adapters for remaining experimental platforms (OpenCode/Hermes).
+- [ ] Run full project quality assessment using best practices report.
 
-*This epic covers the need for robust testing of the framework itself.* 
-
-- [ ] **Create Framework Test Suite:**
-  - [ ] Add tests for `mxagile init` (clean project, repeated init).
-  - [ ] Add tests for `mxagile adopt` (legacy brownfield project).
-  - [ ] Add tests for `mxagile refine` (visual vs. semantic mockup changes).
-
-## Epic: Documentation & Finalization (NEW)
-
-*This epic covers the final steps to make the project complete and usable.* 
-
-- [ ] **Update `majorchange.md` to Reflect Final State:**
-  - [ ] Mark the YAML migration as complete.
-  - [ ] Align the document with the implemented reality.
-- [ ] **Create Project Constitution (`constitution.md`):**
-  - [ ] Create the file with key project principles as a starting point for new projects.
-- [ ] **Create User Documentation:**
-  - [ ] Update READMEs and create simple guides for the main workflows (Greenfield, Brownfield, Refinement).
+---
+### Guidelines for Contributors
+- Always check the latest `TODO.md` before starting a task.
+- Follow the architectural decisions formalized in the grilling session.
+- Keep the `mxagile-migration.md` skill up-to-date with new migration patterns.
+- If you encounter ambiguities or undocumented behaviors, do not silently resolve them. Grill the technical owner/developer for clarification.

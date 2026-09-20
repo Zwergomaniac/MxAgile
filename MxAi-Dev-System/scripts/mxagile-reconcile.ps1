@@ -24,7 +24,13 @@ if (-not $specEntry) {
 }
 
 $specFilePath = Join-Path $ProjectRoot $specEntry.source
-$clarificationFile = Get-ChildItem -Path (Join-Path $ProjectRoot "planning/clarifications") -Filter "$($SpecId).clarification.md" -Recurse
+$clarificationDir = Join-Path $ProjectRoot "planning/clarifications"
+if (Test-Path $clarificationDir) {
+    $clarificationFile = Get-ChildItem -Path $clarificationDir -Filter "$($SpecId).clarification.md" -Recurse
+} else {
+    Write-Warning "Clarification directory not found at '$clarificationDir'."
+    $clarificationFile = $null
+}
 
 if (-not (Test-Path $specFilePath)) {
     Write-Error "Original spec file '$($specEntry.source)' not found."

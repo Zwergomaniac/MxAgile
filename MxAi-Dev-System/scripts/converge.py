@@ -3,42 +3,80 @@ import os
 import argparse
 
 def check_convergence(project_root):
-    """Checks if all requirements have corresponding validation evidence."""
+    """Checks if all requirements have corresponding validation evidence and links to Mendix artifacts."""
     index_path = os.path.join(project_root, '.mxagile', 'state', 'trace-index.json')
+    graph_path = os.path.join(project_root, '.mxagile', 'state', 'artifact-graph.json')
     report_path = os.path.join(project_root, 'convergence-report.md')
     validation_dir = os.path.join(project_root, 'validation')
 
-    if not os.path.exists(index_path):
-        print(f"Error: Trace index not found at {index_path}")
-        return
+    # Load Trace Index
+    all_reqs = {}
+    if os.path.exists(index_path):
+        with open(index_path, 'r') as f:
+            index = json.load(f)
+            all_reqs = index.get('requirements', {})
 
-    with open(index_path, 'r') as f:
-        index = json.load(f)
-
-    all_reqs = index.get('requirements', {}).keys()
     missing_validation = []
-
-    print(f"Checking convergence for {len(all_reqs)} requirement(s)...")
-
-    for req_id in all_reqs:
-        # Convention: Validation evidence is a file named TC-<req_id>.md in the validation folder
+    for req_id in all_reqs.keys():
         evidence_file = f"TC-{req_id}.md"
-        evidence_path = os.path.join(validation_dir, evidence_file)
-        if not os.path.exists(evidence_path):
+        if not os.path.exists(os.path.join(validation_dir, evidence_file)):
             missing_validation.append(req_id)
+
+    # Load Artifact Graph
+    stale_nodes = []
+    req_implementation = {}
+    if os.path.exists(graph_path):
+        with open(graph_path, 'r') as f:
+            graph = json.load(f)
+            nodes = graph.get('nodes', [])
+            edges = graph.get('edges', [])
+
+            # Identify stale nodes
+            stale_nodes = [node['id'] for node in nodes if node.get('status') == 'Stale']
+
+            # Track implementation status
+            req_nodes = {node['id']: node for node in nodes if node.get('type') == 'Requirement'}
+            
+            for req_id in req_nodes.keys():
+                req_implementation[req_id] = []
+                # Find edges from this requirement to other artifacts
+                for edge in edges:
+                    if edge['from'] == req_id:
+                        target = edge['to']
+                        # Assuming target is an artifact if it's not a requirement
+                        if target not in req_nodes:
+                            req_implementation[req_id].append(target)
 
     # --- Generate Report ---
     with open(report_path, 'w') as f:
         f.write("# MxAgile Convergence Report\n\n")
+
+        # 1. Validation Evidence
         if not missing_validation:
-            f.write("✅ All requirements have corresponding validation evidence.\n")
-            print("✅ All requirements have corresponding validation evidence.")
+            f.write("✅ All requirements have corresponding validation evidence.\n\n")
         else:
             f.write("## ❗ Missing Validation Evidence\n\n")
-            f.write("The following requirements are missing a validation evidence file (e.g., `validation/TC-REQ-XYZ.md`):\n\n")
             for req_id in missing_validation:
                 f.write(f"- `{req_id}`\n")
-            print(f"❗ Found {len(missing_validation)} requirements with missing validation.")
+            f.write("\n")
+
+        # 2. Stale Nodes
+        if stale_nodes:
+            f.write("## ⚠️ Stale Nodes\n\n")
+            for node_id in stale_nodes:
+                f.write(f"- `{node_id}`\n")
+            f.write("\n")
+        else:
+            f.write("✅ No stale nodes identified.\n\n")
+
+        # 3. Requirement Implementation Summary
+        f.write("## 📊 Requirement Implementation Summary\n\n")
+        f.write("| Requirement | Implemented Artifacts |\n")
+        f.write("|-------------|-----------------------|\n")
+        for req_id, artifacts in req_implementation.items():
+            artifact_list = ", ".join([f"`{a}`" for a in artifacts]) if artifacts else "None"
+            f.write(f"| `{req_id}` | {artifact_list} |\n")
+        f.write("\n")
 
     print(f"Convergence check complete. Report generated at {report_path}")
 
