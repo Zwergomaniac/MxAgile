@@ -1,85 +1,208 @@
 <#
 .SYNOPSIS
-Applies project-specific instructions after mxcli init.
+Applies project-specific agent instructions to platform entry points.
 
 .DESCRIPTION
-Preserves the mxcli-generated reference in AGENTS.md and CLAUDE.md while adding
-a managed project-instruction block from AGENT.md. It also generates the native
-GitHub Copilot instruction file from AGENT.md.
+Uses AGENT.md from the target project as the project instruction source.
+
+Existing mxcli-generated AGENTS.md and CLAUDE.md content is preserved outside
+the managed MxAgile block.
+
+GitHub Copilot instructions are written below the supplied ProjectRoot.
 #>
 
-$ErrorActionPreference = 'Stop'
-$projectRoot = Split-Path -Parent $PSScriptRoot
-$sourcePath = Join-Path $projectRoot 'AGENT.md'
-$agentsPath = Join-Path $projectRoot 'AGENTS.md'
-$claudePath = Join-Path $projectRoot 'CLAUDE.md'
-$copilotPath = Join-Path $projectRoot '.github\copilot-instructions.md'
-$gitIgnorePath = Join-Path $projectRoot '.gitignore'
-$startMarker = '<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->'
-$endMarker = '<!-- END PROJECT AGENT INSTRUCTIONS -->'
+[CmdletBinding()]
+param (
+    [string]$ProjectRoot = (Get-Location).Path
+)
 
-foreach ($requiredPath in @($sourcePath, $agentsPath, $claudePath)) {
-    if (-not (Test-Path -Path $requiredPath -PathType Leaf)) {
-        throw "Required file '$requiredPath' does not exist. Run 'mxcli init' before this script."
-    }
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
+    throw "Project root does not exist: $ProjectRoot"
 }
 
-function Remove-ManagedBlock {
-    param([string]$Content)
+$ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
 
-    $pattern = '(?s)<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->.*?<!-- END PROJECT AGENT INSTRUCTIONS -->\s*'
-    return [regex]::Replace($Content, $pattern, '')
+$SourcePath = Join-Path $ProjectRoot "AGENT.md"
+$AgentsPath = Join-Path $ProjectRoot "AGENTS.md"
+$ClaudePath = Join-Path $ProjectRoot "CLAUDE.md"
+
+$GitHubDirectory = Join-Path $ProjectRoot ".github"
+$CopilotPath = Join-Path $GitHubDirectory "copilot-instructions.md"
+
+$GitIgnorePath = Join-Path $ProjectRoot ".gitignore"
+
+$StartMarker = "<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->"
+$EndMarker   = "<!-- END PROJECT AGENT INSTRUCTIONS -->"
+
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
+
+function Remove-ManagedBlock {
+    param(
+        [AllowEmptyString()]
+        [string]$Content
+    )
+
+    if ([string]:: {
+        return ""
+    }
+
+    $pattern =
+        '(?s)<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->.*?<!-- END PROJECT AGENT INSTRUCTIONS -->\s*'
+
+    return [regex]::Replace($Content, $pattern, "")
+}
+
+function Ensure-Directory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        New-Item `
+            -ItemType Directory `
+            -Path $Path `
+            -Force |
+            Out-Null
+    }
 }
 
 function Add-GitIgnoreEntry {
-    param([string]$Entry)
+    param(
+        [Parameter(Mandatory)]
+        [string]$Entry
+    )
 
-    $content = if (Test-Path -Path $gitIgnorePath -PathType Leaf) {
-        Get-Content -Path $gitIgnorePath -Raw
-    } else {
-        ''
+    $content = if (Test-Path -LiteralPath $GitIgnorePath -PathType Leaf) {
+        Get-Content -LiteralPath $GitIgnorePath -Raw
+    }
+    else {
+        ""
     }
 
-    # Split instead of a regex anchor: "$" does not match before CRLF, so an anchored
-    # test re-appends an already present entry on every run.
-    $existing = $content -split "`r?`n" | ForEach-Object { $_.Trim() }
+    $existing = @(
+        $content -split "`r?`n" |
+        ForEach-Object { $_.Trim() }
+    )
+
     if ($existing -notcontains $Entry) {
-        $prefix = if ($content -and -not $content.EndsWith("`n")) { "`n" } else { '' }
-        [System.IO.File]::AppendAllText($gitIgnorePath, "$prefix$Entry`n", [System.Text.UTF8Encoding]::new($false))
+        $prefix =
+            if ($content -and -not $content.EndsWith("`n")) {
+                "`n"
+            }
+            else {
+                ""
+            }
+
+        [System.IO.File]::AppendAllText(
+            $GitIgnorePath,
+            "$prefix$Entry`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
     }
 }
 
-$projectInstructions = Get-Content -Path $sourcePath -Raw
-$agentsReference = Remove-ManagedBlock (Get-Content -Path $agentsPath -Raw)
-$claudeReference = Remove-ManagedBlock (Get-Content -Path $claudePath -Raw)
-$copilotReference = if (Test-Path -Path $copilotPath -PathType Leaf) {
-    Remove-ManagedBlock (Get-Content -Path $copilotPath -Raw)
-} else {
-    ''
+# ---------------------------------------------------------------------
+# Validate required project files
+# ---------------------------------------------------------------------
+
+foreach ($requiredPath in @($SourcePath, $AgentsPath, $ClaudePath)) {
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw @"
+Required project file does not exist:
+
+  $requiredPath
+
+Ensure mxcli init and the MxAgile project skeleton have been initialized first.
+"@
+    }
 }
 
-$agentsBlock = @"
-$startMarker
-$projectInstructions
-$endMarker
+# ---------------------------------------------------------------------
+# Ensure output directories
+# ---------------------------------------------------------------------
+
+Ensure-Directory -Path $GitHubDirectory
+
+# ---------------------------------------------------------------------
+# Read project instructions and existing projections
+# ---------------------------------------------------------------------
+
+$ProjectInstructions = Get-Content `
+    -LiteralPath $SourcePath `
+    -Raw
+
+$AgentsReference = Remove-ManagedBlock (
+    Get-Content -LiteralPath $AgentsPath -Raw
+)
+
+$ClaudeReference = Remove-ManagedBlock (
+    Get-Content -LiteralPath $ClaudePath -Raw
+)
+
+$CopilotReference =
+    if (Test-Path -LiteralPath $CopilotPath -PathType Leaf) {
+        Remove-ManagedBlock (
+            Get-Content -LiteralPath $CopilotPath -Raw
+        )
+    }
+    else {
+        ""
+    }
+
+$AgentsBlock = @"
+$StartMarker
+$ProjectInstructions
+$EndMarker
 
 "@
 
-$claudeBlock = @"
-$startMarker
+$ClaudeBlock = @"
+$StartMarker
 @AGENT.md
-$endMarker
+$EndMarker
 
 "@
 
-$utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
-[System.IO.File]::WriteAllText($agentsPath, ($agentsBlock + $agentsReference), $utf8WithoutBom)
-[System.IO.File]::WriteAllText($claudePath, ($claudeBlock + $claudeReference), $utf8WithoutBom)
-# Copilot resolves no @-includes, so AGENT.md is inlined here as well.
-[System.IO.File]::WriteAllText($copilotPath, ($agentsBlock + $copilotReference), $utf8WithoutBom)
-Add-GitIgnoreEntry -Entry '/.env.mendix'
-Add-GitIgnoreEntry -Entry '/.mxcli/catalog.db'
-Add-GitIgnoreEntry -Entry '/sprints/generated/'
-Add-GitIgnoreEntry -Entry '/planning/generated/'
+$Utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
 
-Write-Host 'Applied project instructions while preserving mxcli references.'
+# ---------------------------------------------------------------------
+# Write projections
+# ---------------------------------------------------------------------
+
+[System.IO.File]::WriteAllText(
+    $AgentsPath,
+    ($AgentsBlock + $AgentsReference),
+    $Utf8WithoutBom
+)
+
+[System.IO.File]::WriteAllText(
+    $ClaudePath,
+    ($ClaudeBlock + $ClaudeReference),
+    $Utf8WithoutBom
+)
+
+[System.IO.File]::WriteAllText(
+    $CopilotPath,
+    ($AgentsBlock + $CopilotReference),
+    $Utf8WithoutBom
+)
+
+# ---------------------------------------------------------------------
+# Local-state ignore rules
+# ---------------------------------------------------------------------
+
+Add-GitIgnoreEntry -Entry "/.env.mendix"
+Add-GitIgnoreEntry -Entry "/.mxcli/catalog.db"
+Add-GitIgnoreEntry -Entry "/sprints/generated/"
+Add-GitIgnoreEntry -Entry "/planning/generated/"
+
+Write-Host "Applied project instructions:"
+Write-Host "  $AgentsPath"
+Write-Host "  $ClaudePath"
+Write-Host "  $CopilotPath"

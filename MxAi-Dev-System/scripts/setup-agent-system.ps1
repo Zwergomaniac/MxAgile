@@ -1,56 +1,89 @@
 <#
 .SYNOPSIS
-    Single entry point for setting up the complete agent system.
+Sets up all MxAgile agent instructions and platform projections.
 
 .DESCRIPTION
-    Runs both agent setup scripts in the correct order:
-    1. apply-project-agent-instructions.ps1 — distributes AGENT.md to platform entry points
-    2. generate-mxagile-platform-skills.ps1 — generates platform skills/agents from .mxagile/
+Runs:
+1. apply-project-agent-instructions.ps1
+2. generate-mxagile-platform-skills.ps1
 
-    Each script can also be run independently.
-
-.PARAMETER ProjectRoot
-    Root directory of the Mendix project. Defaults to the script's parent's parent.
-
-.PARAMETER DryRun
-    Pass through to generate-mxagile-platform-skills.ps1 — show what would be generated.
+All project output is written relative to the explicitly supplied ProjectRoot.
 #>
+
 [CmdletBinding()]
-param(
-    [string]$ProjectRoot = (Split-Path -Parent (Split-Path -Parent $PSCommandPath)),
+param (
+    [string]$ProjectRoot = (Get-Location).Path,
+
     [switch]$DryRun
 )
 
-$ErrorActionPreference = 'Stop'
-$scriptsDir = Split-Path -Parent $PSCommandPath
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
+    throw "Project root does not exist: $ProjectRoot"
+}
+
+$ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
+
+$ApplyScript = Join-Path $PSScriptRoot "apply-project-agent-instructions.ps1"
+$GenerateScript = Join-Path $PSScriptRoot "generate-mxagile-platform-skills.ps1"
 
 Write-Host "=== Agent System Setup ==="
 Write-Host "Project: $ProjectRoot"
 Write-Host ""
 
-# Step 1: Distribute AGENT.md to platform entry points
-$applyScript = Join-Path $scriptsDir 'apply-project-agent-instructions.ps1'
-if (Test-Path $applyScript) {
-    Write-Host "--- Step 1: Distributing AGENT.md ---"
-    & $applyScript
-    Write-Host ""
-} else {
-    Write-Warning "apply-project-agent-instructions.ps1 not found — skipping"
+# ---------------------------------------------------------------------
+# Step 1
+# ---------------------------------------------------------------------
+
+if (-not (Test-Path -LiteralPath $ApplyScript -PathType Leaf)) {
+    throw "apply-project-agent-instructions.ps1 not found: $ApplyScript"
 }
 
-# Step 2: Generate DFC platform skills and agents
-$generateScript = Join-Path $scriptsDir 'generate-mxagile-platform-skills.ps1'
-if (Test-Path $generateScript) {
-    Write-Host "--- Step 2: Generating DFC platform skills ---"
-    $params = @{ ProjectRoot = $ProjectRoot }
-    if ($DryRun) { $params.DryRun = $true }
-    & $generateScript @params
-    Write-Host ""
-} else {
-    Write-Warning "generate-mxagile-platform-skills.ps1 not found — skipping"
+Write-Host "--- Step 1: Distributing AGENT.md ---"
+
+try {
+    & $ApplyScript -ProjectRoot $ProjectRoot
+
+    if (-not $?) {
+        throw "apply-project-agent-instructions.ps1 returned unsuccessful status."
+    }
+}
+catch {
+    throw "Step 1 failed: $($_.Exception.Message)"
 }
 
-Write-Host "=== Setup complete ==="
+Write-Host ""
 
+# ---------------------------------------------------------------------
+# Step 2
+# ---------------------------------------------------------------------
 
+if (-not (Test-Path -LiteralPath $GenerateScript -PathType Leaf)) {
+    throw "generate-mxagile-platform-skills.ps1 not found: $GenerateScript"
+}
 
+Write-Host "--- Step 2: Generating MxAgile platform skills ---"
+
+try {
+    if ($DryRun) {
+        & $GenerateScript `
+            -ProjectRoot $ProjectRoot `
+            -DryRun
+    }
+    else {
+        & $GenerateScript `
+            -ProjectRoot $ProjectRoot
+    }
+
+    if (-not $?) {
+        throw "generate-mxagile-platform-skills.ps1 returned unsuccessful status."
+    }
+}
+catch {
+    throw "Step 2 failed: $($_.Exception.Message)"
+}
+
+Write-Host ""
+Write-Host "=== Agent System Setup complete ===" -ForegroundColor Green

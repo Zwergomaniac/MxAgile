@@ -1,101 +1,133 @@
-# scripts/mxagile-init.ps1
+<#
+.SYNOPSIS
+Initializes the local MxAgile project structure and mxcli tooling.
 
+.DESCRIPTION
+Creates required project-local MxAgile directories and ensures mxcli.exe
+is available in the target Mendix project.
+
+Framework-owned source content is expected to be provided by the bootstrap
+installation process. This script does not resolve Company Layers.
+#>
+
+[CmdletBinding()]
 param (
     [string]$ProjectRoot = (Get-Location).Path
 )
 
-# --- Dependency Check ---
-Write-Host "Checking for Python and pip..."
-$pythonPath = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonPath) {
-    Write-Error "Python is not installed or not in PATH. Please install Python and try again."
-    exit 1
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
+    throw "Project root does not exist: $ProjectRoot"
 }
 
-$pipPath = Get-Command pip -ErrorAction SilentlyContinue
-if (-not $pipPath) {
-    Write-Warning "pip is not installed or not in PATH. Cannot install dependencies."
-} else {
-    $requirementsFile = Join-Path $ProjectRoot "requirements.txt"
-    if (Test-Path $requirementsFile) {
-        Write-Host "Found requirements.txt. Installing dependencies..."
-        pip install -r $requirementsFile
-    } else {
-        Write-Host "No requirements.txt found, skipping dependency installation."
+$ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
+
+# ---------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------
+
+Write-Host "Checking for Python and pip..."
+
+$PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+
+if (-not $PythonCommand) {
+    throw "Python is not installed or not available in PATH."
+}
+
+$PipCommand = Get-Command pip -ErrorAction SilentlyContinue
+
+$RequirementsFile = Join-Path $ProjectRoot "requirements.txt"
+
+if ($PipCommand -and
+    (Test-Path -LiteralPath $RequirementsFile -PathType Leaf)) {
+
+    Write-Host "Found requirements.txt. Installing dependencies..."
+
+    & $PipCommand.Source install -r $RequirementsFile
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "pip dependency installation failed with exit code $LASTEXITCODE."
     }
 }
-
-# --- Check for mxcli.exe ---
-Write-Host "Checking for mxcli.exe..."
-$mxcliPath = Join-Path $ProjectRoot "mxcli.exe"
-
-if (-not (Test-Path $mxcliPath)) {
-    Write-Host "mxcli.exe not found in project root. Running installer..."
-    $installerScript = Join-Path $PSScriptRoot "install-mxcli.ps1"
-    & $installerScript -TargetDir $ProjectRoot
+elseif (-not $PipCommand) {
+    Write-Warning "pip is not available; dependency installation skipped."
 }
 else {
-    Write-Host "mxcli.exe already exists in project root."
+    Write-Host "No requirements.txt found, skipping dependency installation."
 }
 
-Write-Host "Starting MxAgile initialization in: $ProjectRoot"
+# ---------------------------------------------------------------------
+# mxcli
+# ---------------------------------------------------------------------
 
-# --- Core Directories ---
-$mxAgileDir = Join-Path $ProjectRoot ".mxagile"
-$specsDir = Join-Path $ProjectRoot "specs"
-$reqsDir = Join-Path $ProjectRoot "requirements"
-$tasksDir = Join-Path $ProjectRoot "planning/tasks"
+Write-Host "Checking for mxcli.exe..."
 
-$dirsToCreate = @(
-    $mxAgileDir,
-    $specsDir,
-    $reqsDir,
-    $tasksDir,
-    (Join-Path $mxAgileDir "state"),
-    (Join-Path $mxAgileDir "schemas"),
-    (Join-Path $mxAgileDir "templates"),
-    (Join-Path $mxAgileDir "layers")
+$MxcliPath = Join-Path $ProjectRoot "mxcli.exe"
+
+if (-not (Test-Path -LiteralPath $MxcliPath -PathType Leaf)) {
+
+    Write-Host "mxcli.exe not found in project root. Running installer..."
+
+    $MxcliInstaller = Join-Path $PSScriptRoot "install-mxcli.ps1"
+
+    if (-not (Test-Path -LiteralPath $MxcliInstaller -PathType Leaf)) {
+        throw "mxcli installer not found: $MxcliInstaller"
+    }
+
+    & $MxcliInstaller -TargetDir $ProjectRoot
+
+    if (-not $?) {
+        throw "mxcli installer failed."
+    }
+}
+
+if (-not (Test-Path -LiteralPath $MxcliPath -PathType Leaf)) {
+    throw "mxcli.exe is still missing after installation: $MxcliPath"
+}
+
+Write-Host "mxcli ready:"
+Write-Host "  $MxcliPath"
+
+# ---------------------------------------------------------------------
+# Core directories
+# ---------------------------------------------------------------------
+
+Write-Host ""
+Write-Host "Starting MxAgile initialization in:"
+Write-Host "  $ProjectRoot"
+
+$MxAgileDir = Join-Path $ProjectRoot ".mxagile"
+
+$Directories = @(
+    $MxAgileDir
+    (Join-Path $ProjectRoot "specs")
+    (Join-Path $ProjectRoot "requirements")
+    (Join-Path $ProjectRoot "planning\tasks")
+    (Join-Path $MxAgileDir "state")
+    (Join-Path $MxAgileDir "schemas")
+    (Join-Path $MxAgileDir "templates")
+    (Join-Path $MxAgileDir "layers")
 )
 
-foreach ($dir in $dirsToCreate) {
-    if (-not (Test-Path $dir)) {
-        Write-Host "Creating directory: $dir"
-        New-Item -ItemType Directory -Path $dir | Out-Null
-    } else {
-        Write-Host "Directory exists, skipping: $dir"
+foreach ($Directory in $Directories) {
+
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
+
+        Write-Host "Creating directory: $Directory"
+
+        New-Item `
+            -ItemType Directory `
+            -Path $Directory `
+            -Force |
+            Out-Null
+    }
+    else {
+
+        Write-Host "Directory exists, skipping: $Directory"
     }
 }
 
-# --- Company Layer Selection ---
-$layersDir = Join-Path $mxAgileDir "layers"
-$availableLayers = Get-ChildItem -Path $layersDir -Directory | Where-Object { $_.Name -ne '_template' } | ForEach-Object { $_.Name }
-
-if ($availableLayers.Count -gt 0) {
-    Write-Host "Found available company layers: $($availableLayers -join ", ")"
-    
-    $layerNameToInstall = ''
-
-    if ($Layer -ne '') {
-        if ($Layer -ne 'n') {
-            $layerNameToInstall = $Layer
-        }
-    } else {
-        $choice = Read-Host "Do you want to install a company-specific layer? (y/n)"
-        if ($choice -eq 'y') {
-            $layerNameToInstall = Read-Host "Enter the name of the layer to install"
-        }
-    }
-
-    if ($layerNameToInstall -ne '') {
-        if ($availableLayers -contains $layerNameToInstall) {
-            $layerPath = Join-Path $layersDir $layerNameToInstall
-            Write-Host "Installing layer: $layerNameToInstall from $layerPath..."
-            # TODO: Add file copy/overlay logic here
-        } else {
-            Write-Warning "Layer '$layerNameToInstall' not found. Continuing with generic setup."
-        }
-    }
-}
-
-Write-Host "MxAgile initialization complete."
-
+Write-Host ""
+Write-Host "MxAgile initialization complete." -ForegroundColor Green
