@@ -18,14 +18,14 @@ Setting up a new MxAgile project involves running the appropriate installer.
 
 Choose the installation script based on your requirements:
 
-*   **Generic Setup:** Use for general projects without specific company-layer requirements.
+*   **Generic Setup:** Use for general projects without specific company-layer requirements. Uses the canonical Core URL (`https://github.com/Zwergomaniac/MxAgile.git`) by default.
     ```powershell
-    .\scripts\install-mxagile.ps1
+    .\install-mxagile.ps1
     ```
 
-*   **Mercedes-Benz Environment:** Use when working with Mercedes-Benz specific standards. This will automatically fetch and apply the necessary company layer.
+*   **Mercedes-Benz Environment:** Use when working with Mercedes-Benz specific standards. This will automatically fetch and apply the necessary company layer and use the canonical Core URL.
     ```powershell
-    .\scripts\install-mercedes.ps1
+    .\install-mxagile-mercedes.ps1
     ```
 
 Both scripts will:

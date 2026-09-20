@@ -1,8 +1,0 @@
-defaults:
-  output_dir: ".grok/skills/dfc"
-  file_name: "{{name}}.md"
-  subdirectory: false
-  template: |
-    # {{name}}
-
-overrides: {}

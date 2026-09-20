@@ -47,15 +47,15 @@ This ensures that agent configurations (`.claude/`, `.github/`, `.agents/`, etc.
 
     *   **Generic MxAgile:**
         ```powershell
-        .\scripts\install-mxagile.ps1
+        .\install-mxagile.ps1
         ```
 
     *   **Mercedes-Benz Environment:**
         ```powershell
-        .\scripts\install-mercedes.ps1
+        .\install-mxagile-mercedes.ps1
         ```
 
-These scripts verify your environment, initialize the MxAgile framework, and set up your specific configuration layer safely.
+These scripts use the canonical Core URL (`https://github.com/Zwergomaniac/MxAgile.git`) by default.
 
 ## Basic Workflow
 
