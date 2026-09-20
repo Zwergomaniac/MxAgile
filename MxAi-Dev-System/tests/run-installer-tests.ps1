@@ -26,11 +26,17 @@ Keeps successful .testing-* workspaces. Failed workspaces are always retained.
 .PARAMETER StopOnFailure
 Stops after the first failed test. By default, independent tests continue.
 
+.PARAMETER Test
+Specifies which test categories to run. Defaults to 'All'.
+
 .EXAMPLE
 pwsh -NoProfile -File ./tests/run-installer-tests.ps1
 
 .EXAMPLE
 pwsh -NoProfile -File ./tests/run-installer-tests.ps1 -SkipMercedesIntegration
+
+.EXAMPLE
+pwsh -NoProfile -File ./tests/run-installer-tests.ps1 -Test MprSafety,GreenfieldGeneric
 #>
 [CmdletBinding()]
 param(
@@ -38,11 +44,25 @@ param(
     [string]$BrownfieldTemplate = 'brownfield',
     [switch]$SkipMercedesIntegration,
     [switch]$KeepSuccessfulWorkspaces,
-    [switch]$StopOnFailure
+    [switch]$StopOnFailure,
+    [string[]]$Test = @('All')
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+# If a single string with commas is passed from the command line, split it.
+if ($Test.Count -eq 1 -and $Test[0].Contains(',')) {
+    $Test = $Test[0].Split(',') | ForEach-Object { $_.Trim() }
+}
+
+$allowedCategories = @('All', 'Parser', 'MprSafety', 'LocalLayerDependency', 'GreenfieldGeneric', 'GreenfieldMercedes', 'MercedesRemoteFailure', 'BrownfieldGeneric', 'BrownfieldMercedes')
+foreach ($t in $Test) {
+    if ($allowedCategories -notcontains $t) {
+        Write-Error "Invalid test category: '$t'. Allowed values are: $($allowedCategories -join ', ')"
+        exit 1
+    }
+}
 
 $SuitePath = $MyInvocation.MyCommand.Path
 $TestsRoot = Split-Path -Parent $SuitePath
@@ -60,7 +80,7 @@ $CurrentTest = $null
 function Add-TestResult {
     param(
         [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][ValidateSet('PASS', 'FAIL', 'SKIPPED_ENVIRONMENT')][string]$Status,
+        [Parameter(Mandatory)][ValidateSet('PASS', 'FAIL', 'SKIPPED_ENVIRONMENT', 'TEST_TIMEOUT', 'NOT_RUN_DUE_TO_PREREQUISITE')][string]$Status,
         [string]$Reason = '',
         [string]$Workspace = '',
         [string]$Command = '',
@@ -190,6 +210,7 @@ function New-Workcopy {
         [Parameter(Mandatory)][string]$TestDirName
     )
 
+    Write-Host "PROGRESS: Creating workcopy '$TestDirName' from template '$TemplateName'..."
     $workspace = Join-Path $RepoRoot ".testing-$TestDirName"
     $result = Invoke-PwshFile -FilePath $WorkcopyScript `
         -Arguments @('-TemplateName', $TemplateName, '-TestDirName', $TestDirName, '-Force') `
@@ -261,9 +282,11 @@ function Test-PowerShellParser {
 function Test-MprSafety {
     $root = Join-Path $RepoRoot '.testing-mpr-safety'
     try {
+        Write-Host "PROGRESS: Creating safety test workspace..."
         if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
         New-Item -ItemType Directory -Path $root | Out-Null
 
+        Write-Host "PROGRESS: Running zero-MPR safety check..."
         $zero = Invoke-PwshFile -FilePath $GenericInstaller -WorkingDirectory $root
         if ($zero.ExitCode -eq 0) { throw 'Zero-MPR invocation unexpectedly succeeded.' }
         $zeroTouched = Test-Path -LiteralPath (Join-Path $root '.mxagile')
@@ -272,6 +295,7 @@ function Test-MprSafety {
 
         Set-Content -LiteralPath (Join-Path $root 'One.mpr') -Value 'fixture'
         Set-Content -LiteralPath (Join-Path $root 'Two.mpr') -Value 'fixture'
+        Write-Host "PROGRESS: Running multiple-MPR safety check..."
         $multiple = Invoke-PwshFile -FilePath $GenericInstaller -WorkingDirectory $root
         if ($multiple.ExitCode -eq 0) { throw 'Multiple-MPR invocation unexpectedly succeeded.' }
         $multipleTouched = Test-Path -LiteralPath (Join-Path $root '.mxagile')
@@ -291,17 +315,19 @@ function Test-GenericInstallation {
     $workspace = $null
     try {
         $workspace = New-Workcopy -TemplateName $TemplateName -TestDirName $TestDirName
-        $sourceFingerprintBefore = Get-TreeFingerprint -Root $RepoRoot
+        Write-Host "PROGRESS: Running first generic install in '$workspace'..."
         $first = Invoke-PwshFile -FilePath $GenericInstaller -WorkingDirectory $workspace
         if ($first.ExitCode -ne 0) {
             throw "First install failed with exit code $($first.ExitCode).`nSTDOUT:`n$($first.StdOut)`nSTDERR:`n$($first.StdErr)"
         }
 
+        Write-Host "PROGRESS: Verifying first install artifacts..."
         Assert-Path -Path (Join-Path $workspace '.mxagile') -Description '.mxagile directory'
         if (Test-Path -LiteralPath (Join-Path $workspace '.mxagile/layers/mercedes-benz')) {
             throw 'Generic installation unexpectedly installed the Mercedes layer.'
         }
 
+        Write-Host "PROGRESS: Running second generic install (idempotency check)..."
         $second = Invoke-PwshFile -FilePath $GenericInstaller -WorkingDirectory $workspace
         if ($second.ExitCode -ne 0) {
             throw "Second install failed with exit code $($second.ExitCode).`nSTDOUT:`n$($second.StdOut)`nSTDERR:`n$($second.StdErr)"
@@ -324,22 +350,26 @@ function Test-MercedesInstallation {
     }
     try {
         $workspace = New-Workcopy -TemplateName $TemplateName -TestDirName $TestDirName
+        Write-Host "PROGRESS: Running first Mercedes install in '$workspace'..."
         $first = Invoke-PwshFile -FilePath $MercedesInstaller -WorkingDirectory $workspace
         if ($first.ExitCode -ne 0) {
             throw "First Mercedes install failed with exit code $($first.ExitCode).`nSTDOUT:`n$($first.StdOut)`nSTDERR:`n$($first.StdErr)"
         }
 
+        Write-Host "PROGRESS: Verifying Mercedes layer installation..."
         $layer = Join-Path $workspace '.mxagile/layers/mercedes-benz'
         Assert-Path -Path $layer -Description 'Mercedes layer'
         Assert-Path -Path (Join-Path $layer 'provenance.json') -Description 'Mercedes layer provenance'
         if (Test-Path -LiteralPath (Join-Path $layer '.git')) { throw 'Installed Mercedes layer contains nested .git metadata.' }
 
+        Write-Host "PROGRESS: Verifying Mercedes layer provenance..."
         $provenance = Get-Content -LiteralPath (Join-Path $layer 'provenance.json') -Raw | ConvertFrom-Json
         $sourceText = [string]$provenance.source
         if ($sourceText -notlike '*mercedes-benz.ghe.com/DFC-Applikationsentwicklung/MxAgile-CompanyLayer.git*') {
             throw "Unexpected Mercedes provenance source: '$sourceText'"
         }
 
+        Write-Host "PROGRESS: Running second Mercedes install (idempotency check)..."
         $second = Invoke-PwshFile -FilePath $MercedesInstaller -WorkingDirectory $workspace
         if ($second.ExitCode -ne 0) {
             throw "Second Mercedes install failed with exit code $($second.ExitCode).`nSTDOUT:`n$($second.StdOut)`nSTDERR:`n$($second.StdErr)"
@@ -364,12 +394,16 @@ function Test-MercedesRemoteFailure {
     $name = 'Mercedes remote failure'
     $workspace = $null
     try {
+        Write-Host "PROGRESS: Creating workcopy for remote failure test..."
         $workspace = New-Workcopy -TemplateName $GreenfieldTemplate -TestDirName 'remote-failure'
         $invalidUrl = 'https://invalid.invalid/MxAgile-CompanyLayer.git'
+        
+        Write-Host "PROGRESS: Invoking Mercedes installer with invalid URL..."
         $result = Invoke-PwshFile -FilePath $MercedesInstaller `
             -Arguments @('-MercedesGitUrl', $invalidUrl) `
             -WorkingDirectory $workspace
 
+        Write-Host "PROGRESS: Verifying remote failure outcome..."
         if ($result.ExitCode -eq 0) { throw 'Mercedes installer returned success for an invalid layer URL.' }
         if ($result.StdOut -match '(?i)Mercedes-Benz installation complete') {
             throw 'Mercedes installer printed a false success message after layer failure.'
@@ -405,11 +439,16 @@ function Test-NoRuntimeLocalLayerDependency {
     }
 }
 
+function Should-Run-Test {
+    param([string]$Category)
+    return ($Test -contains 'All' -or $Test -contains $Category)
+}
 
 
 Write-Host '=== MxAgile Installer Test Suite ===' -ForegroundColor Cyan
 Write-Host "Repository: $RepoRoot"
 Write-Host "PowerShell: $(& $Pwsh --version)"
+Write-Host "Tests to run: $($Test -join ', ')"
 Write-Host ''
 
 foreach ($required in @($WorkcopyScript, $GenericInstaller, $MercedesInstaller)) {
@@ -419,47 +458,64 @@ foreach ($required in @($WorkcopyScript, $GenericInstaller, $MercedesInstaller))
 }
 
 if (-not ($Results | Where-Object { $_.Status -eq 'FAIL' })) {
-    Write-Host "`n---> Starting Test: PowerShellParser" -ForegroundColor Cyan
-    Test-PowerShellParser
-    Write-Host "`n---> Starting Test: MprSafety" -ForegroundColor Cyan
-    Test-MprSafety
-    Write-Host "`n---> Starting Test: NoRuntimeLocalLayerDependency" -ForegroundColor Cyan
-    Test-NoRuntimeLocalLayerDependency
-    Write-Host "`n---> Starting Test: Greenfield generic" -ForegroundColor Cyan
-    Test-GenericInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-generic' -Label 'Greenfield'
-    Write-Host "`n---> Starting Test: Greenfield Mercedes" -ForegroundColor Cyan
-    Test-MercedesInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-mercedes' -Label 'Greenfield'
-    Write-Host "`n---> Starting Test: MercedesRemoteFailure" -ForegroundColor Cyan
-    Test-MercedesRemoteFailure
+    if (Should-Run-Test -Category 'Parser') {
+        Write-Host "`n---> Starting Test: PowerShellParser" -ForegroundColor Cyan
+        Test-PowerShellParser
+    }
+    if (Should-Run-Test -Category 'MprSafety') {
+        Write-Host "`n---> Starting Test: MprSafety" -ForegroundColor Cyan
+        Test-MprSafety
+    }
+    if (Should-Run-Test -Category 'LocalLayerDependency') {
+        Write-Host "`n---> Starting Test: NoRuntimeLocalLayerDependency" -ForegroundColor Cyan
+        Test-NoRuntimeLocalLayerDependency
+    }
+    if (Should-Run-Test -Category 'GreenfieldGeneric') {
+        Write-Host "`n---> Starting Test: Greenfield generic" -ForegroundColor Cyan
+        Test-GenericInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-generic' -Label 'Greenfield'
+    }
+    if (Should-Run-Test -Category 'GreenfieldMercedes') {
+        Write-Host "`n---> Starting Test: Greenfield Mercedes" -ForegroundColor Cyan
+        Test-MercedesInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-mercedes' -Label 'Greenfield'
+    }
+    if (Should-Run-Test -Category 'MercedesRemoteFailure') {
+        Write-Host "`n---> Starting Test: MercedesRemoteFailure" -ForegroundColor Cyan
+        Test-MercedesRemoteFailure
+    }
 
     $brownfieldTemplates = Get-ChildItem -Path $ProjectTemplatesRoot -Directory | Where-Object { $_.Name -like 'brownfield*' }
 
     if ($brownfieldTemplates.Count -eq 0) {
-        Add-TestResult -Name 'Brownfield templates' -Status SKIPPED_ENVIRONMENT -Reason 'No brownfield* templates found in project-templates'
+        if (Should-Run-Test -Category 'BrownfieldGeneric' -or Should-Run-Test -Category 'BrownfieldMercedes') {
+            Add-TestResult -Name 'Brownfield templates' -Status SKIPPED_ENVIRONMENT -Reason 'No brownfield* templates found in project-templates'
+        }
     }
     else {
         foreach ($template in $brownfieldTemplates) {
             $templateName = $template.Name
-            # Create a label like "Brownfield (spec)" from "brownfield_spec"
             $labelSuffix = ($templateName -replace '^brownfield_?', '')
             $label = "Brownfield ($labelSuffix)"
-            Write-Host "`n---> Starting Test: $($label) generic" -ForegroundColor Cyan
-            Test-GenericInstallation -TemplateName $templateName -TestDirName "$templateName-generic" -Label $label
-            Write-Host "`n---> Starting Test: $($label) Mercedes" -ForegroundColor Cyan
-            Test-MercedesInstallation -TemplateName $templateName -TestDirName "$templateName-mercedes" -Label $label
+            if (Should-Run-Test -Category 'BrownfieldGeneric') {
+                Write-Host "`n---> Starting Test: $($label) generic" -ForegroundColor Cyan
+                Test-GenericInstallation -TemplateName $templateName -TestDirName "$templateName-generic" -Label $label
+            }
+            if (Should-Run-Test -Category 'BrownfieldMercedes') {
+                Write-Host "`n---> Starting Test: $($label) Mercedes" -ForegroundColor Cyan
+                Test-MercedesInstallation -TemplateName $templateName -TestDirName "$templateName-mercedes" -Label $label
+            }
         }
     }
 }
 
 $pass = @($Results | Where-Object Status -eq 'PASS').Count
 $fail = @($Results | Where-Object Status -eq 'FAIL').Count
-$skip = @($Results | Where-Object Status -eq 'SKIPPED_ENVIRONMENT').Count
+$skip = @($Results | Where-Object { $_.Status -like 'SKIPPED*' -or $_.Status -like 'NOT_RUN*' }).Count
 
 Write-Host ''
 Write-Host '-------------------------------------'
 Write-Host "PASS:                $pass" -ForegroundColor Green
 Write-Host "FAIL:                $fail" -ForegroundColor $(if ($fail) { 'Red' } else { 'Green' })
-Write-Host "SKIPPED_ENVIRONMENT: $skip" -ForegroundColor Yellow
+Write-Host "SKIPPED/NOT_RUN:     $skip" -ForegroundColor Yellow
 Write-Host '-------------------------------------'
 
 if ($fail -gt 0) {
@@ -479,7 +535,7 @@ if ($fail -gt 0) {
 }
 
 if ($skip -gt 0) {
-    Write-Host 'RESULT: PASS WITH ENVIRONMENT SKIPS' -ForegroundColor Yellow
+    Write-Host 'RESULT: PASS WITH SKIPS' -ForegroundColor Yellow
     exit 0
 }
 

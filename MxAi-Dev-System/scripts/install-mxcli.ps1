@@ -1,8 +1,10 @@
+[CmdletBinding()]
 param (
-    [string]$TargetDir
+    [string]$TargetDir = $PSScriptRoot
 )
 
-# ============================================================# mxcli Stable Updater / Installer
+# ============================================================
+# mxcli Stable Updater / Installer
 # - Sucht neuesten stabilen GitHub Release
 # - Ignoriert Nightly / Pre-Releases / Drafts
 # - Laedt Windows x64 (amd64)
@@ -20,33 +22,13 @@ Write-Host "=== mxcli Stable Installer ===" -ForegroundColor Cyan
 Write-Host "Repository: $Repo"
 Write-Host ""
 
-# ------------------------------------------------------------
-# 1. Zielpfad auswaehlen
-# ------------------------------------------------------------
-
-if ([string]::IsNullOrEmpty($TargetDir)) {
-    Add-Type -AssemblyName System.Windows.Forms
-    $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-    $dialog.Description = "Zielordner fuer mxcli auswaehlen"
-    $dialog.ShowNewFolderButton = $true
-
-    if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
-        Write-Host "Abgebrochen." -ForegroundColor Yellow
-        exit 0
-    }
-    $TargetDir = $dialog.SelectedPath
-}
-else {
-    Write-Host "Zielverzeichnis via -TargetDir Parameter: $TargetDir" -ForegroundColor Cyan
-}
-
 $TargetExe = Join-Path $TargetDir "mxcli.exe"
 
 Write-Host "Ziel: $TargetExe" -ForegroundColor Gray
 Write-Host ""
 
 # ------------------------------------------------------------
-# 2. GitHub Releases laden
+# 1. GitHub Releases laden
 # ------------------------------------------------------------
 
 Write-Host "Suche neuesten stabilen mxcli Release..." -ForegroundColor Cyan
@@ -76,9 +58,41 @@ if (-not $release) {
     throw "Kein stabiler mxcli Release gefunden."
 }
 
-Write-Host "Gefunden: $($release.tag_name)" -ForegroundColor Green
-Write-Host "Release:   $($release.name)"
+Write-Host "Neuester Release: $($release.tag_name)" -ForegroundColor Green
+Write-Host "Release-Name:   $($release.name)"
 Write-Host ""
+
+# ------------------------------------------------------------
+# 2. Lokale Version prüfen und bei Bedarf abbrechen
+# ------------------------------------------------------------
+
+if (Test-Path $TargetExe) {
+    try {
+        $localVersionString = & $TargetExe --version 2>$null
+        $remoteVersionString = $release.tag_name
+
+        $localMatch = [regex]::Match($localVersionString, '(\d+\.\d+\.\d+)')
+        $remoteMatch = [regex]::Match($remoteVersionString, '(\d+\.\d+\.\d+)')
+
+        if ($localMatch.Success -and $remoteMatch.Success) {
+            $localSemVer = [System.Version]$localMatch.Groups[1].Value
+            $remoteSemVer = [System.Version]$remoteMatch.Groups[1].Value
+
+            if ($localSemVer -ge $remoteSemVer) {
+                Write-Host ""
+                Write-Output "mxcli is already up-to-date (version $localSemVer)."
+                exit 0
+            }
+            else {
+                Write-Host "Lokale Version $localSemVer ist aelter als Remote-Version $remoteSemVer. Update wird ausgefuehrt..." -ForegroundColor Yellow
+                Write-Host ""
+            }
+        }
+    }
+    catch {
+        Write-Warning "Version der vorhandenen mxcli.exe konnte nicht ermittelt werden. Update wird fortgesetzt."
+    }
+}
 
 # ------------------------------------------------------------
 # 3. Windows x64 Asset suchen
@@ -118,26 +132,7 @@ if (-not (Test-Path $tempFile)) {
 }
 
 # ------------------------------------------------------------
-# 5. Bestehende Version anzeigen
-# ------------------------------------------------------------
-
-if (Test-Path $TargetExe) {
-    Write-Host ""
-    Write-Host "Vorhandene Installation gefunden:" -ForegroundColor Yellow
-
-    try {
-        $oldVersion = & $TargetExe --version 2>$null
-        Write-Host "  $oldVersion"
-    }
-    catch {
-        Write-Host "  Version konnte nicht ermittelt werden."
-    }
-
-    Write-Host "Ersetze vorhandene mxcli.exe..."
-}
-
-# ------------------------------------------------------------
-# 6. Installieren
+# 5. Installieren
 # ------------------------------------------------------------
 
 Copy-Item `
@@ -148,7 +143,7 @@ Copy-Item `
 Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
 
 # ------------------------------------------------------------
-# 7. Installation pruefen
+# 6. Installation pruefen
 # ------------------------------------------------------------
 
 Write-Host ""

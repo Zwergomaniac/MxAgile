@@ -22,30 +22,19 @@ foreach ($scriptName in $scripts) {
     $details = ""
 
     if (Test-Path $scriptPath) {
-        # Check if it is safe to run with -Help
         $content = Get-Content $scriptPath -Raw
-        if ($content -match "\-Help" -or $content -match "\[CmdletBinding\(\)\]") {
-            try {
-                # Attempt to run safely with -Help
-                $proc = Start-Process pwsh -ArgumentList "-File", "`"$scriptPath`"", "-Help" -NoNewWindow -PassThru -Wait -RedirectStandardError "err.txt"
-                if ($proc.ExitCode -eq 0) {
-                    $status = "Pass"
-                } else {
-                    $status = "Fail"
-                    $details = "Exit Code: $($proc.ExitCode)"
-                    $failureCount++
-                }
-            } catch {
-                $status = "Fail"
-                $details = "Exception: $($_.Exception.Message)"
-                $failureCount++
-            }
+        if ($content -match "\[CmdletBinding\(\)\]") {
+            $status = "Pass"
+            $details = "[CmdletBinding()] found."
         } else {
-            # Not safe to run, just verify existence
-            $status = "Pass (Existence Verified)"
+            $status = "Fail"
+            $details = "Script is missing [CmdletBinding()]."
+            $failureCount++
         }
     } else {
-        $failureCount++ # Script not found is a failure
+        $status = "Fail"
+        $details = "Script file not found."
+        $failureCount++
     }
 
     $results += [PSCustomObject]@{

@@ -1,0 +1,20 @@
+=== MxAgile Installer Test Suite ===
+Repository: D:\Mendix\Mx AI Template for new projects\MxAi-Dev-System
+PowerShell: PowerShell 7.5.5
+Tests to run: GreenfieldGeneric
+
+
+---> Starting Test: Greenfield generic
+PROGRESS: Creating workcopy 'greenfield-generic' from template 'greenfield'...
+PROGRESS: Running first generic install in 'D:\Mendix\Mx AI Template for new projects\MxAi-Dev-System\.testing-greenfield-generic'...
+PROGRESS: Verifying first install artifacts...
+PROGRESS: Running second generic install (idempotency check)...
+PASS                 Greenfield generic
+  First install and idempotent rerun succeeded.
+
+-------------------------------------
+PASS:                1
+FAIL:                0
+SKIPPED/NOT_RUN:     0
+-------------------------------------
+RESULT: PASS

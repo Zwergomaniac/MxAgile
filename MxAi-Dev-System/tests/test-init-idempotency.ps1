@@ -11,8 +11,7 @@ New-Item -Path (Join-Path $ProjectRoot "requirements.txt") -ItemType File | Out-
 try {
     # Run init 1
     Write-Host "Running init 1..."
-    # Pass 'n' via input to Read-Host
-    $output1 = "n" | & (Join-Path $PSScriptRoot "../scripts/mxagile-init.ps1") -ProjectRoot $ProjectRoot 2>&1
+    $output1 = & (Join-Path $PSScriptRoot "../scripts/mxagile-init.ps1") -ProjectRoot $ProjectRoot 2>&1
 
     # Verify structure
     $requiredDirs = @(".mxagile", "specs", "requirements", "planning/tasks")
@@ -22,7 +21,7 @@ try {
 
     # Run init 2
     Write-Host "Running init 2..."
-    $output2 = "n" | & (Join-Path $PSScriptRoot "../scripts/mxagile-init.ps1") -ProjectRoot $ProjectRoot 2>&1
+    $output2 = & (Join-Path $PSScriptRoot "../scripts/mxagile-init.ps1") -ProjectRoot $ProjectRoot 2>&1
 
     # Verify it completes successfully and check for skip message
     if ($LASTEXITCODE -ne 0) { throw "Script failed on second run" }
