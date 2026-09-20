@@ -31,10 +31,10 @@
 
 *This epic ensures that the existing scripts fully implement the vision from `majorchange.md`.* 
 
-- [ ] **Formalize Refinement Engine (`mxagile-refine.ps1`):**
-  - [ ] Implement semantic diffing to distinguish visual vs. behavioral changes (see Section 10 & 14 of `majorchange.md`).
-- [ ] **Implement Traceability Query (`mxagile-trace.ps1`):**
-  - [ ] Implement the query logic to trace an ID through the `trace-index.json` (see Section 7).
+- [x] **Formalize Refinement Engine (`mxagile-refine.ps1`):**
+  - [x] Implement semantic diffing to distinguish visual vs. behavioral changes (see Section 10 & 14 of `majorchange.md`).
+- [x] **Implement Traceability Query (`mxagile-trace.ps1`):**
+  - [x] Implement the query logic to trace an ID through the `trace-index.json` (see Section 7).
 - [ ] **Implement Convergence Loop (`mxagile-converge.ps1`):**
   - [ ] Enhance the script to perform the full convergence check and generate remaining tasks if gaps are found (see Section 25).
 - [ ] **Expand Global Analysis (`mxagile-analyze.ps1`):**
@@ -60,4 +60,3 @@
   - [ ] Create the file with key project principles as a starting point for new projects.
 - [ ] **Create User Documentation:**
   - [ ] Update READMEs and create simple guides for the main workflows (Greenfield, Brownfield, Refinement).
-

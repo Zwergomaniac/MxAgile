@@ -1,7 +1,7 @@
 # scripts/reset-testing-instance.ps1
 # This script automates the creation of a clean testing environment.
 param (
-    [string]$MxcliPath = "../../mxcli.exe", # Default path, can be overridden
+
     [string]$TemplateName = "greenfield"
 )
 
@@ -67,20 +67,38 @@ Write-Host "Navigate to '$TestingDir' to work within the simulated project."
 Write-Host "
 🚀 Initializing MxCLI to provide agent skills..."
 
-# The mxcli executable is in the root of the parent project structure
+$mxcliTarget = Join-Path $TestingDir "mxcli.exe"
 
-if (Test-Path $MxcliPath) {
-    # We need to execute from within the testing directory
-    Push-Location $TestingDir
-    
-    try {
-        & $MxcliPath init --non-interactive --no-banner
-        Write-Host "✅ MxCLI initialized successfully."
-    } catch {
-        Write-Warning "MxCLI init failed. Agent skills will not be available in this test instance."
-    }
-    
-    Pop-Location
+if (Test-Path $mxcliTarget) {
+    Write-Host "- mxcli.exe already found in test environment."
 } else {
-    Write-Warning "Could not find mxcli.exe at '$MxcliPath'. Skipping initialization."
+    Write-Host "- mxcli.exe not found. Downloading..."
+    $mxcliUrl = "https://github.com/mendixlabs/mxcli/releases/download/v0.22.0/mxcli-windows-amd64.exe"
+
+    & curl.exe `
+        --fail `
+        --location `
+        --ssl-revoke-best-effort `
+        --output $mxcliTarget `
+        $mxcliUrl
+
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $mxcliTarget)) {
+        Write-Error "Failed to download mxcli.exe. Please check the URL and your network connection."
+        exit 1
+    }
+    Write-Host "- mxcli.exe downloaded successfully."
+}
+
+# Execute from within the testing directory
+Push-Location $TestingDir
+
+try {
+    & $mxcliTarget init
+    Write-Host "✅ MxCLI initialized successfully."
+}
+catch {
+    Write-Warning "MxCLI init failed. Agent skills will not be available in this test instance."
+}
+finally {
+    Pop-Location
 }

@@ -158,11 +158,11 @@ $wrapperArgs = @('exec', $Script)
 if ($Project) { $wrapperArgs += @('-p', $Project) }
 if ($RemainingArgs) { $wrapperArgs += $RemainingArgs }
 
-$localWrapper = Join-Path $PSScriptRoot 'mxcli.ps1'
-if (Test-Path -Path $localWrapper -PathType Leaf) {
-    & $localWrapper @wrapperArgs
-} else {
-    & mxcli @wrapperArgs
+$mxcliPath = Join-Path $projectRoot 'mxcli.exe'
+if (-not (Test-Path -Path $mxcliPath -PathType Leaf)) {
+    Write-Error "mxcli.exe not found in project root. Please run `mxagile-init.ps1` first."
+    exit 1
 }
+& $mxcliPath @wrapperArgs
 exit $LASTEXITCODE
 

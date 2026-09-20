@@ -25,6 +25,19 @@ if (-not $pipPath) {
     }
 }
 
+# --- Check for mxcli.exe ---
+Write-Host "Checking for mxcli.exe..."
+$mxcliPath = Join-Path $ProjectRoot "mxcli.exe"
+
+if (-not (Test-Path $mxcliPath)) {
+    Write-Host "mxcli.exe not found in project root. Running installer..."
+    $installerScript = Join-Path $PSScriptRoot "install-mxcli.ps1"
+    & $installerScript -TargetDir $ProjectRoot
+}
+else {
+    Write-Host "mxcli.exe already exists in project root."
+}
+
 Write-Host "Starting MxAgile initialization in: $ProjectRoot"
 
 # --- Core Directories ---
@@ -59,16 +72,27 @@ $availableLayers = Get-ChildItem -Path $layersDir -Directory | Where-Object { $_
 
 if ($availableLayers.Count -gt 0) {
     Write-Host "Found available company layers: $($availableLayers -join ", ")"
-    $choice = Read-Host "Do you want to install a company-specific layer? (y/n)"
+    
+    $layerNameToInstall = ''
 
-    if ($choice -eq 'y') {
-        $layerName = Read-Host "Enter the name of the layer to install"
-        if ($availableLayers -contains $layerName) {
-            $layerPath = Join-Path $layersDir $layerName
-            Write-Host "Installing layer: $layerName from $layerPath..." 
+    if ($Layer -ne '') {
+        if ($Layer -ne 'n') {
+            $layerNameToInstall = $Layer
+        }
+    } else {
+        $choice = Read-Host "Do you want to install a company-specific layer? (y/n)"
+        if ($choice -eq 'y') {
+            $layerNameToInstall = Read-Host "Enter the name of the layer to install"
+        }
+    }
+
+    if ($layerNameToInstall -ne '') {
+        if ($availableLayers -contains $layerNameToInstall) {
+            $layerPath = Join-Path $layersDir $layerNameToInstall
+            Write-Host "Installing layer: $layerNameToInstall from $layerPath..."
             # TODO: Add file copy/overlay logic here
         } else {
-            Write-Warning "Layer '$layerName' not found. Continuing with generic setup."
+            Write-Warning "Layer '$layerNameToInstall' not found. Continuing with generic setup."
         }
     }
 }
