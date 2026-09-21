@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Process State",
+  "description": "Per-wave runtime lifecycle state. File: .concord/scratch/process-state.yaml (gitignored). CANONICAL UPDATE RULE: always write the COMPLETE wave block — never append individual keys into an existing block. Appending creates duplicate YAML keys. See .mxagile/policies/lifecycle-resync.md.",
+  "type": "object",
+  "required": ["waves"],
+  "additionalProperties": false,
+  "properties": {
+    "waves": {
+      "type": "object",
+      "description": "Keyed by wave ID (e.g. W01, W02). Each wave block must be written atomically.",
+      "additionalProperties": {
+        "$ref": "#/definitions/wave"
+      }
+    }
+  },
+  "definitions": {
+    "wave": {
+      "type": "object",
+      "required": ["phase", "gates"],
+      "additionalProperties": false,
+      "description": "State for one wave. phase MUST appear exactly once — write the full block, never append.",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": ["discovery", "refinement", "ready", "implementing", "verifying", "done"],
+          "description": "Current lifecycle phase. Defined in .mxagile/lifecycle.yaml. One occurrence per wave block."
+        },
+        "gates": {
+          "type": "object",
+          "required": ["gate_to_refinement", "gate_to_ready"],
+          "additionalProperties": false,
+          "properties": {
+            "gate_to_refinement": { "$ref": "#/definitions/gate_result" },
+            "gate_to_ready": { "$ref": "#/definitions/gate_result" }
+          }
+        },
+        "paused_at": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) when the wave was paused"
+        },
+        "pause_reason": {
+          "type": "string",
+          "description": "Human-readable reason for the pause"
+        },
+        "completed_scripts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MDL scripts executed and done in this wave"
+        },
+        "next_script": {
+          "type": "string",
+          "description": "Next MDL script to execute on resume (supplementary — checklist is authoritative)"
+        },
+        "build_status": {
+          "type": "object",
+          "properties": {
+            "docker_check": { "type": "string" },
+            "errors": { "type": "integer", "minimum": 0 },
+            "security_level": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "resume_from": {
+          "type": "string",
+          "description": "Supplementary free-text hint. Structured checklist state (done/pending/failed) is authoritative for resume position."
+        }
+      }
+    },
+    "gate_result": {
+      "type": "object",
+      "required": ["result"],
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": ["not_recorded", "passed", "failed"],
+          "description": "not_recorded is only valid before the gate has been run for this wave."
+        },
+        "evaluated": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) of evaluation"
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Key-value evidence supporting the gate result. Any structure allowed.",
+          "additionalProperties": true
+        },
+        "blockers_open": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "text"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" }
+            }
+          }
+        },
+        "note": {
+          "type": "string"
+        },
+        "passed_conditions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "failure_reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

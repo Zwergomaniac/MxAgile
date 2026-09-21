@@ -8,6 +8,47 @@ Der aktuelle Phasenstatus wird in `.concord/scratch/process-state.yaml` festgeha
 (lokal, gitignored). Gate-Skills pruefen Vorbedingungen vor Phasenwechseln.
 
 Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
+Lifecycle Re-Sync & Interruption: siehe `policies/lifecycle-resync.md`.
+
+---
+
+## Startup Re-Sync
+
+Beim Starten in einem bestehenden Projekt oder nach einer Session-Pause:
+den Lifecycle-Zustand aus Repository-Artefakten rekonstruieren, BEVOR Lifecycle-Arbeit
+fortgesetzt wird. Vollstaendiger Algorithmus: `policies/lifecycle-resync.md`.
+
+Quellen in Autoritaetsreihenfolge:
+1. Repository-Artefakte (Checkliste, Story-Specs, Decisions, Input-Resources)
+2. `.concord/scratch/process-state.yaml`
+3. `.mxagile/lifecycle.yaml`
+
+Abgeschlossene Lifecycle-Phasen werden NICHT neu durchlaufen, nur weil eine neue
+Agent-Session startet. Konversationsspeicher ist ergaenzend, nicht autoritativ.
+
+---
+
+## Interruption Handling
+
+Ein Benutzer kann den Agent jederzeit unterbrechen. Die bevorzugte Reaktion:
+
+    1. Legitime Anfrage ausfuehren
+    2. Lifecycle-Wahrheit bewahren
+    3. Danach re-synchronisieren
+
+Unterbrechungsklassen (vollstaendige Definitionen in `policies/lifecycle-resync.md`):
+
+| Klasse | Beispiel | Lifecycle-Konsequenz |
+|---|---|---|
+| OBSERVATION | "Start die App", "Zeig die Seite" | Phase UNVERAENDERT; vorherige Arbeit fortsetzen |
+| CLARIFICATION | Entwickler liefert fehlende Entscheidung | Betroffene Artefakte aktualisieren; nur betroffenes Gate re-evaluieren |
+| CHANGE | Mockup geaendert, neue Anforderung | Frueheste betroffene Phase bestimmen; nur betroffenen Scope re-eintreten |
+| PAUSE | "Stopp hier" | Abgeschlossene Items bewahren; strukturierter Pause-Eintrag in process-state |
+| EXPLORATORY | "Versuche dies ausser Reihenfolge" | Nur mit ausdruecklicher Freigabe; Gates NICHT als bestanden markieren |
+
+**Kein uebertriebenes Ablehnen:** Kein Agent darf eine legitime Benutzeranfrage
+lediglich deshalb ablehnen, weil sich das Projekt in einer bestimmten Lifecycle-Phase
+befindet. Runtime starten, Seite zeigen, Logs pruefen — alles gueltige Anfragen in jeder Phase.
 
 ---
 
@@ -227,6 +268,11 @@ Bei Abweichungen:
   blockiert den Phasenwechsel bis die Luecken geschlossen sind.
 - Der Ruecklauf Verifying→Implementing ist Checklisten-basiert: nur `failed`-Items
   werden erneut bearbeitet, nicht die gesamte Implementierung.
+- **Process-State kanonische Aktualisierung:** Beim Schreiben von `process-state.yaml`
+  immer den GESAMTEN Wave-Block neu schreiben. Niemals einzelne Keys an einen
+  bestehenden Block anhaengen — das erzeugt duplizierte YAML-Keys (z.B. zwei `phase:`
+  Zeilen). Schema: `.mxagile/schemas/process-state.schema.json`.
+  Vollstaendige Regeln: `policies/lifecycle-resync.md`.
 
 ### Verification-Invarianten (Development Runtime)
 

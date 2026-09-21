@@ -161,11 +161,18 @@ lifecycle:
 
   state_tracking:
     file: ".concord/scratch/process-state.yaml"
+    schema: ".mxagile/schemas/process-state.schema.json"
     gitignored: true
     scope: per_wave
     required_gate_keys:
       - "waves.<wave>.gates.gate_to_refinement: not_recorded | passed | failed"
       - "waves.<wave>.gates.gate_to_ready: not_recorded | passed | failed"
+    canonical_update_rule: >
+      Always write the COMPLETE wave block when updating process-state.yaml.
+      Never append individual keys into an existing block.
+      Appending creates duplicate YAML keys (e.g. two phase: lines).
+      See .mxagile/policies/lifecycle-resync.md for the full update procedure.
+    resync_policy: ".mxagile/policies/lifecycle-resync.md"
     note: >
       Gates write results in the same work step they run.
       not_recorded is only valid before a gate has been executed for a wave.
