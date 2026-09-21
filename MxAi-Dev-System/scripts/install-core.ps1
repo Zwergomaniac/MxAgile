@@ -37,7 +37,7 @@ try {
     }
     Write-Host "✔️ Project preflight check passed (found $($mprFiles.Name))"
 
-    # Call mxagile-init.ps1
+    # Step 1a: MxAgile directory scaffold — also installs mxcli.exe
     $initScript = Join-Path $PSScriptRoot "mxagile-init.ps1"
     if (-not (Test-Path -LiteralPath $initScript)) {
         throw "mxagile-init.ps1 not found in script directory."
@@ -45,6 +45,33 @@ try {
     Write-Host "Calling mxagile-init.ps1..."
     & $initScript -ProjectRoot $ProjectRoot
     Write-Host "✔️ mxagile-init.ps1 executed."
+
+    # Step 1b: mxcli init --all-tools
+    # Must run AFTER mxcli.exe is installed (by mxagile-init.ps1 above) and
+    # BEFORE MxAgile managed-block injection, because mxcli init overwrites CLAUDE.md and AGENTS.md.
+    $mxcliExe = Join-Path $ProjectRoot "mxcli.exe"
+    if (-not (Test-Path -LiteralPath $mxcliExe -PathType Leaf)) {
+        throw "mxcli.exe not found after mxagile-init.ps1 — mxcli installation may have failed."
+    }
+    Write-Host "Running mxcli init --all-tools..."
+    & $mxcliExe init --all-tools $ProjectRoot
+    if ($LASTEXITCODE -ne 0) { throw "mxcli init --all-tools failed with exit code $LASTEXITCODE." }
+    Write-Host "✔️ mxcli init --all-tools completed."
+
+    # Step 1c: Copy canonical .mxagile/ payload (skills, agents, policies, lifecycle.yaml, etc.)
+    # The canonical source is at $PSScriptRoot/../.mxagile/ (the framework dev tree).
+    $canonicalSource = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".." ".mxagile"))
+    if (-not (Test-Path -LiteralPath $canonicalSource -PathType Container)) {
+        throw "Canonical .mxagile/ source not found at: $canonicalSource"
+    }
+    Write-Host "Installing canonical MxAgile payload from: $canonicalSource"
+    $destMxAgile = Join-Path $ProjectRoot ".mxagile"
+    # Exclude 'layers' — that directory holds dev-tree or project-specific Company Layer content.
+    # The empty layers/ scaffold is created by mxagile-init.ps1; layers are installed separately.
+    Get-ChildItem -LiteralPath $canonicalSource -Exclude "layers" | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $destMxAgile -Recurse -Force
+    }
+    Write-Host "✔️ Canonical MxAgile payload installed."
 
 
     # Distribute update-mxcli.ps1

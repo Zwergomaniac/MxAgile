@@ -41,6 +41,9 @@ $ClaudePath  = Join-Path $ProjectRoot "CLAUDE.md"
 $GitHubDirectory = Join-Path $ProjectRoot ".github"
 $CopilotPath     = Join-Path $GitHubDirectory "copilot-instructions.md"
 
+$SkillsSourceDir   = Join-Path $ProjectRoot "skillssource"
+$SkillsAgentsPath  = Join-Path $SkillsSourceDir "AGENTS.md"
+
 $GitIgnorePath = Join-Path $ProjectRoot ".gitignore"
 
 # Current canonical markers
@@ -274,6 +277,46 @@ Apply-ManagedBlock `
     -FilePath        $CopilotPath `
     -BlockContent    $ProjectInstructions `
     -FileDescription ".github/copilot-instructions.md"
+
+# skillssource/AGENTS.md — project knowledge index/router for Maia and skillssource-aware tools.
+# mxcli init does not create this file; MxAgile owns the managed block.
+# Existing user content (domain conventions, coding rules) is preserved outside the block.
+if (Test-Path -LiteralPath $SkillsSourceDir -PathType Container) {
+    $skillsAgentsBlock = @'
+## MxAgile Project Knowledge Index
+
+This section routes to canonical project knowledge. Never duplicate content here.
+
+**Project description:** `projekt.md` (goals, tech stack, modules, sprint structure)
+
+**Input resources** (when present):
+- UI/UX mockups and requirements: `input-resources/`
+- Analysis guidelines: `input-resources/README.md`
+
+**Planning and specifications** (when present):
+- Story specifications: `planning/stories/`
+- Execution waves: `planning/execution-waves.md`
+- Implementation checklists: `planning/checklists/`
+- Decisions: `sprints/decisions.md`
+
+**Requirements and specs** (when present):
+- `requirements/`, `specs/`
+
+**MxAgile lifecycle:**
+- Canonical definition: `.mxagile/lifecycle.yaml`
+- Narrative expansion: `.mxagile/orchestrator.md`
+- Framework skills and agents: `.mxagile/`
+
+Paths marked "(when present)" may not exist yet in a new project. Discover what exists and proceed per the MxAgile lifecycle.
+'@
+
+    Apply-ManagedBlock `
+        -FilePath        $SkillsAgentsPath `
+        -BlockContent    $skillsAgentsBlock `
+        -FileDescription "skillssource/AGENTS.md"
+
+    Write-Host "  $SkillsAgentsPath"
+}
 
 # ---------------------------------------------------------------------
 # Local-state ignore rules
