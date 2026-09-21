@@ -101,7 +101,7 @@ try {
             Write-Host "Calling fetch-layer.ps1..."
             & $fetchScript -RepositoryUrl $CompanyLayerSource -Ref $CompanyLayerRef -ProjectRoot $ProjectRoot
             Write-Host "✔️ fetch-layer.ps1 executed."
-            
+
             # For validation, we need to read the layer.json from the temp dir, which fetch-layer doesn't expose
             # We will rely on the output of fetch-layer.ps1 for success and find the layer afterwards for validation
             $layersDir = Join-Path $ProjectRoot ".mxagile\layers"
@@ -116,7 +116,7 @@ try {
             # --- LOCAL SOURCE ---
             Write-Host "Installing from local source: $CompanyLayerSource"
             $sourcePath = Resolve-Path -LiteralPath $CompanyLayerSource
-            
+
             # 1. Validation
             if (-not (Test-Path -LiteralPath $sourcePath -PathType Container)) {
                 throw "Local source directory not found: $sourcePath"
@@ -185,6 +185,19 @@ try {
 
     Write-Host ""
     Write-Host "✅ Core installation complete." -ForegroundColor Green
+
+    Write-Host ""
+    Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "MxAgile Recommended Validation:" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Start a NEW agent session in this project and enter:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  Run the MxAgile system check and output the complete diagnostic report." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  (New session required: the check must verify discovery from the" -ForegroundColor DarkGray
+    Write-Host "   installed repository, not from this installation session.)" -ForegroundColor DarkGray
+    Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+
     exit 0
 
 } catch {

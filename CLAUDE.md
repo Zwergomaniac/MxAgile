@@ -50,3 +50,45 @@ The canonical installer supports:
 
 Do not introduce an implicit local Company Layer fallback.
 
+## Architecture Overview
+
+```mermaid
+flowchart LR
+    CA[.mxagile/\ncanonical source]
+    GEN[generate-mxagile-platform-skills.ps1]
+    APA[apply-project-agent-instructions.ps1]
+
+    CA -->|skills + agents| GEN
+    GEN -->|GENERATED projections| CP[.claude/skills/\n.github/skills/\n.agents/skills/mxagile/\netc.]
+
+    NI[AGENT.md\nneutral project instructions]
+    NI -->|managed block| APA
+    APA -->|MANAGED_BLOCK| PE[AGENTS.md\nCLAUDE.md\ncopilot-instructions.md]
+```
+
+Generated platform projections must not be manually maintained.
+Canonical source changes flow through the generator.
+
+## Reference Documentation
+
+- [docs/injection-contract.md](MxAi-Dev-System/docs/injection-contract.md) — authoritative artifact ownership contract
+- [docs/architecture.md](MxAi-Dev-System/docs/architecture.md) — detailed architecture diagrams
+
+## mxcli
+
+`mxcli.exe` is the required Mendix engineering tool.
+
+- Installer: `scripts/install-mxcli.ps1`
+- Updater: `scripts/install-mxcli.ps1` (distributed to projects as `update-mxcli.ps1`)
+- Ownership: MxAgile Core
+
+Do not change mxcli installation without updating the canonical installer.
+
+## Testing Strategy
+
+- Tier 0: parser/static/marker validation — run first, run often
+- Tier 1: managed block fixtures, injection snapshot, platform projection tests
+- Tier 2: canonical install into disposable fixture project
+- Tier 3+: E2E bootstrap (expensive — run on significant changes only)
+
+See `tests/` directory for existing test suite.

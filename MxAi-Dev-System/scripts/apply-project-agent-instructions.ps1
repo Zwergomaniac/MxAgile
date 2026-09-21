@@ -5,10 +5,19 @@ Applies project-specific agent instructions to platform entry points.
 .DESCRIPTION
 Uses AGENT.md from the target project as the project instruction source.
 
-Existing mxcli-generated AGENTS.md and CLAUDE.md content is preserved outside
-the managed MxAgile block.
+Existing AGENTS.md, CLAUDE.md, and Copilot instruction content outside the
+managed MxAgile block is preserved. The managed block is appended at the end
+of existing user content on first insertion, and replaced in-place on reruns.
 
-GitHub Copilot instructions are written below the supplied ProjectRoot.
+Managed block markers:
+  <!-- MXAGILE:MANAGED:START --> / <!-- MXAGILE:MANAGED:END -->
+
+Old markers (backward-compatible, migrated on first run):
+  <!-- BEGIN PROJECT AGENT INSTRUCTIONS --> / <!-- END PROJECT AGENT INSTRUCTIONS -->
+
+Error conditions (script exits with non-zero):
+  - DUPLICATE: more than one managed block found in a file
+  - MALFORMED: START marker count does not match END marker count
 #>
 
 [CmdletBinding()]
@@ -25,23 +34,32 @@ if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
 
 $ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
 
-$SourcePath = Join-Path $ProjectRoot "AGENT.md"
-$AgentsPath = Join-Path $ProjectRoot "AGENTS.md"
-$ClaudePath = Join-Path $ProjectRoot "CLAUDE.md"
+$SourcePath  = Join-Path $ProjectRoot "AGENT.md"
+$AgentsPath  = Join-Path $ProjectRoot "AGENTS.md"
+$ClaudePath  = Join-Path $ProjectRoot "CLAUDE.md"
 
 $GitHubDirectory = Join-Path $ProjectRoot ".github"
-$CopilotPath = Join-Path $GitHubDirectory "copilot-instructions.md"
+$CopilotPath     = Join-Path $GitHubDirectory "copilot-instructions.md"
 
 $GitIgnorePath = Join-Path $ProjectRoot ".gitignore"
 
-$StartMarker = "<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->"
-$EndMarker   = "<!-- END PROJECT AGENT INSTRUCTIONS -->"
+# Current canonical markers
+$NewStartMarker = "<!-- MXAGILE:MANAGED:START -->"
+$NewEndMarker   = "<!-- MXAGILE:MANAGED:END -->"
+
+# Legacy markers (detected for migration; do not write these)
+$OldStartMarker = "<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->"
+$OldEndMarker   = "<!-- END PROJECT AGENT INSTRUCTIONS -->"
+
+$Utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
 
 # ---------------------------------------------------------------------
-# Helpers
+# Remove-LegacyBlock
+# Strips the old-marker managed block from content (used internally).
+# Retained for backward-compat reference; Apply-ManagedBlock handles
+# migration automatically.
 # ---------------------------------------------------------------------
-
-function Remove-ManagedBlock {
+function Remove-LegacyBlock {
     param(
         [AllowEmptyString()]
         [string]$Content
@@ -51,12 +69,124 @@ function Remove-ManagedBlock {
         return ""
     }
 
-    $pattern =
-        '(?s)<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->.*?<!-- END PROJECT AGENT INSTRUCTIONS -->\s*'
-
+    $pattern = '(?s)<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->.*?<!-- END PROJECT AGENT INSTRUCTIONS -->\s*'
     return [regex]::Replace($Content, $pattern, "")
 }
 
+# ---------------------------------------------------------------------
+# Apply-ManagedBlock
+# Idempotent injection of a managed block into a file.
+#
+# Behavior:
+#   MISSING (no block)       -> Append block at end of existing content.
+#   VALID (one block)        -> Replace block in-place; migrate old markers.
+#   DUPLICATE (>1 block)     -> Throw diagnostic error. Script exits non-zero.
+#   MALFORMED (count != END) -> Throw diagnostic error. Script exits non-zero.
+# ---------------------------------------------------------------------
+function Apply-ManagedBlock {
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory)]
+        [string]$BlockContent,
+
+        [Parameter(Mandatory)]
+        [string]$FileDescription
+    )
+
+    # Read current file content (empty string if file does not exist yet)
+    $currentContent = ""
+    if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
+        $currentContent = Get-Content -LiteralPath $FilePath -Raw
+        if ($null -eq $currentContent) { $currentContent = "" }
+    }
+
+    # Count occurrences of each marker variant
+    $newStartCount = ([regex]::Matches($currentContent, [regex]::Escape($NewStartMarker))).Count
+    $newEndCount   = ([regex]::Matches($currentContent, [regex]::Escape($NewEndMarker))).Count
+    $oldStartCount = ([regex]::Matches($currentContent, [regex]::Escape($OldStartMarker))).Count
+    $oldEndCount   = ([regex]::Matches($currentContent, [regex]::Escape($OldEndMarker))).Count
+
+    $totalStart = $newStartCount + $oldStartCount
+    $totalEnd   = $newEndCount   + $oldEndCount
+
+    # --- DUPLICATE ---
+    if ($totalStart -gt 1 -or $totalEnd -gt 1) {
+        throw @"
+MXAGILE INJECTION ERROR: Multiple managed blocks detected in ${FileDescription}.
+  File   : $FilePath
+  START markers (new): $newStartCount  (old): $oldStartCount  (total): $totalStart
+  END   markers (new): $newEndCount  (old): $oldEndCount  (total): $totalEnd
+
+Manual intervention required. Remove the duplicate managed blocks before rerunning.
+"@
+    }
+
+    # --- MALFORMED ---
+    if ($totalStart -ne $totalEnd) {
+        throw @"
+MXAGILE INJECTION ERROR: Malformed managed block in ${FileDescription}.
+  File   : $FilePath
+  START markers found: $totalStart
+  END   markers found: $totalEnd
+
+Manual intervention required. Fix the managed block before rerunning.
+"@
+    }
+
+    # Build the replacement managed block
+    $newBlock = "${NewStartMarker}`n${BlockContent}`n${NewEndMarker}"
+
+    if ($totalStart -eq 0) {
+        # --- MISSING: no block — append at end ---
+        if ([string]::IsNullOrEmpty($currentContent.Trim())) {
+            $newContent = $newBlock + "`n"
+        } else {
+            $trimmed = $currentContent.TrimEnd("`r", "`n")
+            $newContent = $trimmed + "`n`n" + $newBlock + "`n"
+        }
+    } else {
+        # --- VALID: one block — replace in-place, migrating old markers if needed ---
+        $useStart = if ($oldStartCount -gt 0) { $OldStartMarker } else { $NewStartMarker }
+        $useEnd   = if ($oldEndCount   -gt 0) { $OldEndMarker   } else { $NewEndMarker   }
+
+        $startIdx = $currentContent.IndexOf($useStart)
+        $endIdx   = $currentContent.IndexOf($useEnd)
+        $endPos   = $endIdx + $useEnd.Length
+
+        # Content before the block (trim trailing whitespace/newlines)
+        $before = $currentContent.Substring(0, $startIdx).TrimEnd("`r", "`n")
+
+        # Content after the block (trim leading whitespace/newlines)
+        $after = if ($endPos -lt $currentContent.Length) {
+            $currentContent.Substring($endPos).TrimStart("`r", "`n")
+        } else {
+            ""
+        }
+
+        # Reconstruct: before + blank line + block + blank line + after
+        $parts = @()
+        if ($before.Length -gt 0) {
+            $parts += $before
+            $parts += ""  # blank line separator
+        }
+        $parts += $newBlock
+
+        if ($after.Length -gt 0) {
+            $parts += ""  # blank line separator
+            $parts += $after
+        }
+
+        $newContent = ($parts -join "`n") + "`n"
+    }
+
+    [System.IO.File]::WriteAllText($FilePath, $newContent, $Utf8WithoutBom)
+}
+
+# ---------------------------------------------------------------------
+# Ensure-Directory
+# ---------------------------------------------------------------------
 function Ensure-Directory {
     param(
         [Parameter(Mandatory)]
@@ -64,14 +194,13 @@ function Ensure-Directory {
     )
 
     if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
-        New-Item `
-            -ItemType Directory `
-            -Path $Path `
-            -Force |
-            Out-Null
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
     }
 }
 
+# ---------------------------------------------------------------------
+# Add-GitIgnoreEntry
+# ---------------------------------------------------------------------
 function Add-GitIgnoreEntry {
     param(
         [Parameter(Mandatory)]
@@ -80,8 +209,7 @@ function Add-GitIgnoreEntry {
 
     $content = if (Test-Path -LiteralPath $GitIgnorePath -PathType Leaf) {
         Get-Content -LiteralPath $GitIgnorePath -Raw
-    }
-    else {
+    } else {
         ""
     }
 
@@ -91,26 +219,18 @@ function Add-GitIgnoreEntry {
     )
 
     if ($existing -notcontains $Entry) {
-        $prefix =
-            if ($content -and -not $content.EndsWith("`n")) {
-                "`n"
-            }
-            else {
-                ""
-            }
-
+        $prefix = if ($content -and -not $content.EndsWith("`n")) { "`n" } else { "" }
         [System.IO.File]::AppendAllText(
             $GitIgnorePath,
             "$prefix$Entry`n",
-            [System.Text.UTF8Encoding]::new($false)
+            $Utf8WithoutBom
         )
     }
 }
 
 # ---------------------------------------------------------------------
-# Validate required project files
+# Validate required source file
 # ---------------------------------------------------------------------
-
 foreach ($requiredPath in @($SourcePath, $AgentsPath, $ClaudePath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw @"
@@ -126,77 +246,38 @@ Ensure mxcli init and the MxAgile project skeleton have been initialized first.
 # ---------------------------------------------------------------------
 # Ensure output directories
 # ---------------------------------------------------------------------
-
 Ensure-Directory -Path $GitHubDirectory
 
 # ---------------------------------------------------------------------
-# Read project instructions and existing projections
+# Read project instructions
 # ---------------------------------------------------------------------
-
-$ProjectInstructions = Get-Content `
-    -LiteralPath $SourcePath `
-    -Raw
-
-$AgentsReference = Remove-ManagedBlock (
-    Get-Content -LiteralPath $AgentsPath -Raw
-)
-
-$ClaudeReference = Remove-ManagedBlock (
-    Get-Content -LiteralPath $ClaudePath -Raw
-)
-
-$CopilotReference =
-    if (Test-Path -LiteralPath $CopilotPath -PathType Leaf) {
-        Remove-ManagedBlock (
-            Get-Content -LiteralPath $CopilotPath -Raw
-        )
-    }
-    else {
-        ""
-    }
-
-$AgentsBlock = @"
-$StartMarker
-$ProjectInstructions
-$EndMarker
-
-"@
-
-$ClaudeBlock = @"
-$StartMarker
-@AGENT.md
-$EndMarker
-
-"@
-
-$Utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
+$ProjectInstructions = Get-Content -LiteralPath $SourcePath -Raw
+if ($null -eq $ProjectInstructions) { $ProjectInstructions = "" }
 
 # ---------------------------------------------------------------------
-# Write projections
+# Apply managed blocks
+# AGENTS.md  : full AGENT.md content
+# CLAUDE.md  : @AGENT.md reference (Claude-specific include syntax)
+# Copilot    : full AGENT.md content (no @-include support in Copilot)
 # ---------------------------------------------------------------------
+Apply-ManagedBlock `
+    -FilePath        $AgentsPath `
+    -BlockContent    $ProjectInstructions `
+    -FileDescription "AGENTS.md"
 
-[System.IO.File]::WriteAllText(
-    $AgentsPath,
-    ($AgentsBlock + $AgentsReference),
-    $Utf8WithoutBom
-)
+Apply-ManagedBlock `
+    -FilePath        $ClaudePath `
+    -BlockContent    "@AGENT.md" `
+    -FileDescription "CLAUDE.md"
 
-[System.IO.File]::WriteAllText(
-    $ClaudePath,
-    ($ClaudeBlock + $ClaudeReference),
-    $Utf8WithoutBom
-)
-
-[System.IO.File]::WriteAllText(
-    $CopilotPath,
-    ($AgentsBlock + $CopilotReference),
-    $Utf8WithoutBom
-)
+Apply-ManagedBlock `
+    -FilePath        $CopilotPath `
+    -BlockContent    $ProjectInstructions `
+    -FileDescription ".github/copilot-instructions.md"
 
 # ---------------------------------------------------------------------
 # Local-state ignore rules
 # ---------------------------------------------------------------------
-
 Add-GitIgnoreEntry -Entry "/.env.mendix"
 Add-GitIgnoreEntry -Entry "/.mxcli/catalog.db"
 Add-GitIgnoreEntry -Entry "/sprints/generated/"
