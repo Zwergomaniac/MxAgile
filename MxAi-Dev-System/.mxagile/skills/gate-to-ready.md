@@ -13,6 +13,9 @@ bevor die Implementierung freigegeben wird.
 - [ ] Marketplace-Widgets identifiziert fuer `standard_widget: false` Items (D49)
 - [ ] Company Layer Platform-Constraints beruecksichtigt: falls Layer installiert (.mxagile/layers/) → Layer-spezifische Modul- und UI-Vorgaben eingehalten; falls keine Layer → NOT_APPLICABLE
 - [ ] Keine offenen Blocker
+- [ ] **Wenn `development.ui_driven = true`:** Fuer jede Seite im UI-Inventar sind
+      `source_mockup`, `ui_inventory` und `layout_reference` verfuegbar und werden
+      als bindende Referenz-Felder in die Checkliste uebernommen
 
 ## Pflichtausgabe: implementation-checklist.yaml (D37)
 
@@ -36,6 +39,16 @@ sources:
   requirements: input-resources/requirements/...
 
 items:
+  - id: Customer_NewEdit
+    type: page
+    req: [{STORYPREFIX}-001]
+    source: ui-inventory
+    source_mockup: input-resources/ui-ux/customer-newedit.html
+    ui_inventory: planning/ui-inventory/Customer_NewEdit.yaml
+    layout_reference: .concord/screenshots/mockup/Customer_NewEdit_default.png
+    fidelity: high
+    status: pending
+
   - id: Customer.Name
     type: entity_attribute
     req: [{STORYPREFIX}-001]
@@ -77,6 +90,12 @@ items:
 - Items aus dem UI-Inventar bekommen `suggested_mendix_type` und `standard_widget` uebernommen
 - Items aus der Story-Spec die nicht im UI-Inventar vorkommen (z.B. reine Backend-Logik) werden separat aufgefuehrt
 - Security-Items am Ende: Entity Access Rules pro Entity, dann gesammelter Security-Pass (D48)
+- **Wenn `development.ui_driven = true`:** Page-Items (type: page) bekommen zusaetzliche Pflichtfelder:
+  - `source_mockup` — Pfad zum HTML-Mockup (aus `source_mockup` im Page YAML)
+  - `ui_inventory` — Pfad zum YAML-Inventar dieser Seite
+  - `layout_reference` — Pfad zum Referenz-Screenshot (aus `layout_reference` im Page YAML)
+  - `fidelity` — Fidelity-Anforderung aus `mxagile-project.yaml` (`standard` oder `high`)
+  - Diese Felder machen Mockup-Treue zur **Implementierungspflicht** — nicht zu optionalem Kontext
 
 ## Pruefung
 

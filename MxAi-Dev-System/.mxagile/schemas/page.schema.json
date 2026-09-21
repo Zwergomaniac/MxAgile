@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "MxAgile Page YAML",
-    "description": "A structured, semantic representation of a UI mockup page.",
+    "description": "A structured, semantic representation of a UI mockup page. Produced by the UI-Agent Analyze mode. Consumed by the Implementation-Agent and UI-Agent Verify mode.",
     "type": "object",
     "properties": {
         "page_id": {
@@ -9,7 +9,12 @@
             "pattern": "^PAGE-[A-Z0-9_-]+$"
         },
         "source_mockup": {
-            "type": "string"
+            "type": "string",
+            "description": "Relative path to the source HTML mockup file."
+        },
+        "layout_reference": {
+            "type": "string",
+            "description": "Path to the canonical reference screenshot for this page. Set by UI-Agent Analyze. Used by Implementation-Agent and UI-Agent Verify."
         },
         "purpose": {
             "type": "string"
@@ -39,7 +44,7 @@
                                         "properties": {
                                             "id": { "type": "string", "pattern": "^FIELD-[A-Z0-9_-]+$" },
                                             "label": { "type": "string" },
-                                            "type": { "type": "string", "description": "e.g., text, number, date" },
+                                            "type": { "type": "string", "description": "e.g., text, number, date, dropdown, checkbox" },
                                             "suggested_mendix_type": { "type": "string" }
                                         },
                                         "required": ["id", "label"]
@@ -52,7 +57,12 @@
                                         "properties": {
                                             "id": { "type": "string", "pattern": "^ACT-[A-Z0-9_-]+$" },
                                             "label": { "type": "string" },
-                                            "triggers": { "type": "string", "description": "e.g., opens a page, calls a microflow" }
+                                            "visual_priority": {
+                                                "type": "string",
+                                                "enum": ["primary", "secondary", "destructive", "link"],
+                                                "description": "Visual prominence of the action in the mockup."
+                                            },
+                                            "triggers": { "type": "string", "description": "e.g., opens a page, calls a microflow, closes page" }
                                         },
                                         "required": ["id", "label"]
                                     }
@@ -61,6 +71,54 @@
                         }
                     }
                 }
+            }
+        },
+        "navigation": {
+            "type": "array",
+            "description": "Typed navigation relationships originating from this page. Each entry maps an action to its target page.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "action_id": {
+                        "type": "string",
+                        "description": "The ACT- id that triggers the navigation (must match an action defined in sections.components.actions)."
+                    },
+                    "leads_to_page": {
+                        "type": "string",
+                        "description": "Target page name or page_id. Must correspond to a page in the ui-inventory."
+                    },
+                    "condition": {
+                        "type": ["string", "null"],
+                        "description": "Optional guard condition under which this navigation fires (e.g., 'only when IsValid = true')."
+                    }
+                },
+                "required": ["action_id", "leads_to_page"]
+            }
+        },
+        "interaction_states": {
+            "type": "array",
+            "description": "Meaningful UI states captured during mockup analysis (e.g., empty state, error state, loading, expanded tab).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "state_id": {
+                        "type": "string",
+                        "description": "Short stable identifier, e.g., STATE-CUSTOMER-EMPTY"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human-readable description of what this state represents."
+                    },
+                    "trigger": {
+                        "type": "string",
+                        "description": "What causes this state (e.g., 'no records found', 'Name field left empty and Save clicked')."
+                    },
+                    "screenshot": {
+                        "type": "string",
+                        "description": "Path to mockup screenshot of this state under .concord/screenshots/mockup/."
+                    }
+                },
+                "required": ["state_id", "description"]
             }
         }
     },

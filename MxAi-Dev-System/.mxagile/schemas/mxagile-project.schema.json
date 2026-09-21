@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Project Configuration",
+  "description": "Project-level MxAgile configuration. Agents read mxagile-project.yaml in the project root to determine UI-driven mode, concern-specific source authority, and fidelity requirements. If the file is absent all defaults apply and existing MxAgile behavior is preserved.",
+  "type": "object",
+  "properties": {
+    "development": {
+      "type": "object",
+      "description": "Development mode flags.",
+      "properties": {
+        "ui_driven": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true the mockup is the authoritative delivery reference for configured UI concerns. Discovery must find and process all HTML mockups. Implementation follows the UI inventory as a binding contract. Verification enforces fidelity."
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_authority": {
+      "type": "object",
+      "description": "Per-concern source authority. Each concern is resolved independently; a source does not globally override another source. Only conflicts within the same concern and no configured winner produce DECISION REQUIRED.",
+      "properties": {
+        "ui_visual": {
+          "type": "string",
+          "enum": ["mockup", "requirements", "decision_required"],
+          "default": "mockup",
+          "description": "Visual appearance and layout."
+        },
+        "ui_interaction": {
+          "type": "string",
+          "enum": ["mockup", "requirements", "decision_required"],
+          "default": "mockup",
+          "description": "Interaction behavior: field behaviour, button enablement, visible state transitions."
+        },
+        "navigation": {
+          "type": "string",
+          "enum": ["mockup", "requirements", "decision_required"],
+          "default": "mockup",
+          "description": "Navigation flows between pages."
+        },
+        "business_logic": {
+          "type": "string",
+          "enum": ["mockup", "requirements", "decision_required"],
+          "default": "requirements",
+          "description": "Business rules, mandatory field semantics, calculations, status transitions."
+        },
+        "data_rules": {
+          "type": "string",
+          "enum": ["mockup", "requirements", "decision_required"],
+          "default": "requirements",
+          "description": "Data types, constraints, validation rules, entity definitions."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "fidelity": {
+          "type": "string",
+          "enum": ["standard", "high"],
+          "default": "standard",
+          "description": "standard: UI-Agent Verify checks structural field/button presence. high: additionally verifies semantic layout (section grouping, element ordering, component types, navigation flows, interaction states, visual hierarchy)."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

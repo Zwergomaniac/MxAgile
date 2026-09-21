@@ -6,7 +6,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 
 ## Policies
 
-- `.mxagile/policies/source-priority.md` — Quellen-Vorrang
+- `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
 - `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Implementierungspflichten
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
@@ -38,8 +38,18 @@ Falls keine Layer installiert ist:
 
 1. `planning/checklists/W*-implementation-checklist.yaml` der laufenden Wave laden
 2. Nur Items mit `status: pending` oder `status: failed` bearbeiten
-3. Mockup-Screenshots aus `.concord/screenshots/mockup/` laden fuer Layout-Referenz
-4. UI-Inventar aus `planning/ui-inventory/` laden fuer Feld-Details
+3. **Projektkonfiguration lesen:** `mxagile-project.yaml` im Projektstamm laden (falls vorhanden).
+   Relevante Felder: `development.ui_driven`, `ui.fidelity`.
+   Falls Datei fehlt: `ui_driven: false`, `fidelity: standard`.
+4. **UI-Artefakte laden** (wenn `development.ui_driven = true`):
+   Fuer jedes Checklisten-Item vom Typ `page`:
+   - `source_mockup` Feld lesen und HTML-Mockup laden (Playwright falls interaktiv)
+   - `ui_inventory` Feld lesen und Page YAML laden (Felder, Sektionen, Navigation, States)
+   - `layout_reference` Screenshot laden als primaere visuelle Referenz
+   Wenn ein Page-Item keines dieser Felder hat obwohl `ui_driven = true`: Entwickler
+   informieren und Freigabe einholen bevor implementiert wird.
+5. UI-Inventar-Screenshots aus `.concord/screenshots/mockup/` laden fuer Layout-Referenz
+   (auch wenn `ui_driven = false` — advisory Layout-Hinweise)
 
 ### 2. Mendix-Mapping
 
@@ -87,18 +97,44 @@ Security-Pass umfasst:
 
 ## Layout-Entscheidungen
 
-Der Agent liest Mockup-Screenshots (`.concord/screenshots/mockup/`) um Layout-Fragen zu beantworten:
-- Felder nebeneinander oder untereinander?
-- Gruppierung in Containern/Tabs?
-- Spaltenbreiten in LayoutGrids?
-- Button-Platzierung und -Reihenfolge?
+### Standard-Modus (`ui_driven = false` oder nicht konfiguriert)
 
 Das YAML-Inventar sagt WAS auf die Seite kommt. Der Screenshot zeigt WIE es angeordnet ist.
+Screenshots sind advisory — Layout-Abweichungen sind zulaessig solange alle Felder und
+Aktionen vorhanden sind.
+
+### UI-Driven-Modus (`ui_driven = true`, `fidelity = high`)
+
+Die folgenden UI-Aspekte sind BINDEND (soweit technisch in Mendix realisierbar):
+
+| Aspekt | Bindend | Quelle |
+|---|---|---|
+| Section-Gliederung (Anzahl, Reihenfolge) | JA | UI-Inventar `sections` |
+| Felder-Reihenfolge innerhalb einer Section | JA | UI-Inventar `sections.components.fields` |
+| Aktionen-Reihenfolge und `visual_priority` | JA | UI-Inventar `sections.components.actions` |
+| Komponenten-Typen (`suggested_mendix_type`) | JA — als Ausgangspunkt; Mendix-Standard bevorzugt | UI-Inventar |
+| Navigationsfluss | JA | UI-Inventar `navigation` Array |
+| Dokumentierte Interaction-States | JA | UI-Inventar `interaction_states` |
+| Primaere Aktion visuell hervorgehoben | JA | `visual_priority: primary` |
+
+Fuer Seiten-Items mit `fidelity: high`:
+Vor der Implementierung Soll-Struktur aus Inventar und Screenshots
+dem Entwickler zeigen — was genau umgesetzt wird und warum.
+
+**Bei technischer Unmoeglichkeit:** Wenn ein Mockup-Aspekt in Mendix nicht
+exakt reproduzierbar ist (z.B. bestimmte Widget-Kombination), `DECISION REQUIRED`
+setzen, Item als `blocked` markieren, und dem Entwickler erklaeren:
+- Was nicht implementierbar ist und warum
+- Welche Mendix-Alternative am naechsten liegt
+- Was die Auswirkung auf die Fidelity ist
+
+Kein stilles Abweichen von der konfigurierten Fidelity-Anforderung.
+
+Geschaeftsregeln und Daten-Constraints folgen weiterhin der konfigurierten `source_authority`
+aus `mxagile-project.yaml` — typischerweise `requirements`.
 
 ## Einschraenkungen
 
 - Kein Playwright-Zugriff (kein Browser-Test — das machen UI-Agent und Acceptance-Agent)
 - Keine Geschaeftsentscheidungen treffen — bei Unklarheit `DECISION REQUIRED` und `blocked`
 - Keine Aenderungen ausserhalb der Checkliste — Scope ist fix
-
-

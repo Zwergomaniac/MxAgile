@@ -1,8 +1,24 @@
 # [PROJEKTNAME] — Maia Coding Instructions
 
 > **Projektkontext (Ziel, Module, Stack, Sprint-Struktur):** siehe `projekt.md` im Projektstamm.
-> Diese Datei enthält Maia-spezifische Mendix-Programmierregeln und Domain-Konventionen.
+> Diese Datei enthaelt Maia-spezifische Mendix-Programmierregeln und Domain-Konventionen.
 > Nicht hier: Tool-Routing, mxcli-Befehle (→ `CLAUDE.md`).
+
+---
+
+## Input Resources
+
+Stakeholder-Artefakte und visuelle Referenzen fuer die Implementierung:
+
+- **`input-resources/`** — Alle Eingabeartefakte (Mockups, Requirements, Prozesse)
+  - `input-resources/README.md` — Uebersicht, Verbindlichkeit, Vorgehen
+  - `input-resources/ui-ux/` — HTML-Mockups, Wireframes, visuelle Referenzen
+    - `input-resources/ui-ux/README.md` — Was hier liegt und wie Agenten damit umgehen
+  - `input-resources/requirements/` — ergaenzende Anforderungsdokumente
+  - `input-resources/processes/` — Prozessdarstellungen, Zustandsmodelle
+
+Dieser Abschnitt ist ein INDEX. Der Inhalt dieser Verzeichnisse wird nicht hier dupliziert.
+Vor jeder Story-Analyse den aktuellen Inhalt von `input-resources/` inventarisieren.
 
 ---
 
@@ -87,11 +103,10 @@ No entity without access rules at Production security level.
 
 ---
 
-## Module-Specific Rules
+## Company Layer Platform Modules
 
-See `.mxagile/modules/` for Mercedes-Benz platform module documentation and conventions.
+See `.mxagile/layers/` for installed Company Layer module documentation and constraints.
 
 ## Agent Test Workflow
 
 See `.mxagile/policies/test-workflow.md` for Docker and Playwright test rules.
-

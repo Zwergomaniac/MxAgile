@@ -17,6 +17,12 @@ Prueft ob die Discovery-Phase vollstaendig abgeschlossen ist bevor Refinement be
 - [ ] Bestehendes Modell im betroffenen Modul gelesen
 - [ ] Company Layer Platform-Constraints evaluiert: falls Layer installiert (.mxagile/layers/) → platform-modules.yml gelesen; falls keine Layer → NOT_APPLICABLE
 - [ ] Board-Sync ist aktuell (wenn Board konfiguriert — optional, D52)
+- [ ] **Concern-Reconciliation abgeschlossen (wenn `development.ui_driven = true`):**
+      UI-Inventar und Story-Specs auf Widersprueche geprueft.
+      Jeder Widerspruch nach konfigurierter `source_authority` aufgeloest oder als
+      `DECISION REQUIRED` markiert.
+      Kein DECISION REQUIRED aus reiner Concern-Trennung: Mockup bestimmt Layout,
+      Requirements bestimmen Pflichtfeld-Logik — das ist kein Widerspruch.
 
 ## Pruefung
 
@@ -24,6 +30,10 @@ Fuer jede Vorbedingung: existiert das Artefakt und ist es inhaltlich plausibel?
 
 Die UI-Inventar-Pruefung stellt sicher dass der UI-Agent (parallel zu Discovery) seine
 Arbeit abgeschlossen hat. Wenn keine Mockups vorhanden sind, entfaellt diese Bedingung.
+
+Wenn `development.ui_driven = true`: UI-Agent Analyze ist keine optionale Ergaenzung
+sondern ein Pflicht-Schritt. Der Gate MUSS pruefen ob das UI-Inventar fuer alle
+gefundenen Mockups erstellt wurde.
 
 Die Pruefung auf fachliche Grundlage verhindert, dass der Agent Geschaeftsregeln,
 Validierungen oder Akzeptanzkriterien antizipiert. Nur explizit dokumentierte oder
@@ -39,5 +49,3 @@ in `.concord/scratch/process-state.yaml` — `not_recorded` darf danach nicht st
 - **Bestanden:** `gate_to_refinement: passed` eintragen, Phasenwechsel zu Refinement
 - **Nicht bestanden:** `gate_to_refinement: failed` eintragen mit kurzer Begruendung,
   fehlende Artefakte dem Entwickler auflisten, in Discovery-Phase bleiben
-
-
