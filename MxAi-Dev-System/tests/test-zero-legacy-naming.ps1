@@ -11,23 +11,23 @@
     - .mxagile/README.md uses current paths (not dfc/ in active sections)
     - Generator script does not contain dfc/ output paths
     - project-templates do not contain dfc/ platform skill directories
-    - .mxagile/agents/mxagile-maintainer.md correctly marks DFC as LEGACY
+    - .mxagile/agents/maintainer.md correctly marks DFC as LEGACY
 
     ALLOWED OCCURRENCES (excluded from guard):
     - tests/fixtures/legacy-dfc/** (intentional legacy fixture)
     - docs/migrations/** (migration documentation)
     - docs/architecture.md (CURRENT vs TARGET gap table)
     - docs/injection-contract.md (migration explanation section)
-    - .mxagile/skills/mxagile-system-check.md (stale detection knowledge)
+    - .mxagile/skills/system-check.md (stale detection knowledge for old installs)
     - tests/test-injection-contract.ps1 (tests that dfc/ does NOT exist)
     - tests/test-zero-legacy-naming.ps1 (this file)
     - tests/test-legacy-migration.ps1 (migration test)
     - install-mxagile-mercedes.ps1 (external GitHub org URL)
     - tests/run-installer-tests.ps1 (validates external GitHub org URL)
-    - .mxagile/agents/mxagile-maintainer.md (intentional legacy knowledge)
+    - .mxagile/agents/maintainer.md (intentional legacy knowledge)
 
 .NOTES
-    Do NOT make this a simple grep-for-dfc guard — that would break legitimate
+    Do NOT make this a simple grep-for-dfc guard  -- that would break legitimate
     migration knowledge. This guard is SEMANTIC, not syntactic.
 #>
 
@@ -45,7 +45,7 @@ function Assert-True {
         Write-Host "  PASS: $TestName" -ForegroundColor Green
         $script:PassCount++
     } else {
-        Write-Host "  FAIL: $TestName — $Message" -ForegroundColor Red
+        Write-Host "  FAIL: $TestName  -- $Message" -ForegroundColor Red
         $script:FailCount++
         $script:FailDetails += "[$TestName] $Message"
     }
@@ -67,7 +67,7 @@ function Assert-FileNotContains {
     if ($null -eq $content) {
         Assert-True $TestName $false "File not found: $FilePath"
     } else {
-        Assert-True $TestName ($content -notmatch $Pattern) "FORBIDDEN pattern '$Pattern' found in $FilePath — legacy naming must not appear in active code"
+        Assert-True $TestName ($content -notmatch $Pattern) "FORBIDDEN pattern '$Pattern' found in $FilePath  -- legacy naming must not appear in active code"
     }
 }
 
@@ -117,7 +117,7 @@ Assert-FileNotContains "Generator: no .opencode/skills/dfc/ output" $generatorPa
 Assert-FileNotContains "Generator: no .hermes/skills/dfc/ output" $generatorPath '\.hermes\\\\skills\\\\dfc'
 
 # Allowed: comment explaining the migration (not an output path)
-# The .DESCRIPTION comment referencing "dfc/" is documentation, not an output — intentionally not checked
+# The .DESCRIPTION comment referencing "dfc/" is documentation, not an output  -- intentionally not checked
 
 Write-Host ""
 
@@ -129,7 +129,7 @@ Write-Host "--- Section 3: .mxagile/README.md ---"
 
 $readmePath = Join-Path $ScriptDir ".mxagile/README.md"
 
-# In the platform support table, check for legacy paths — if they appear as current, that's wrong
+# In the platform support table, check for legacy paths  -- if they appear as current, that's wrong
 # We check for the specific table row patterns that would indicate stale current-labeling
 Assert-FileNotContains "README: no Claude dfc/ in platform table" $readmePath '`\.claude/skills/dfc/`'
 Assert-FileNotContains "README: no Codex dfc/ in platform table" $readmePath '`\.agents/skills/dfc/`'
@@ -173,12 +173,12 @@ Write-Host ""
 
 Write-Host "--- Section 5: Maintainer Agent legacy labeling ---"
 
-$maintainerPath = Join-Path $ScriptDir ".mxagile/agents/mxagile-maintainer.md"
+$maintainerPath = Join-Path $ScriptDir ".mxagile/agents/maintainer.md"
 
-Assert-True "Maintainer Agent exists" (Test-Path -LiteralPath $maintainerPath -PathType Leaf) "mxagile-maintainer.md not found"
+Assert-True "Maintainer Agent exists" (Test-Path -LiteralPath $maintainerPath -PathType Leaf) "maintainer.md not found"
 Assert-FileContains "Maintainer: marks DFC as legacy" $maintainerPath '(?i)(legacy|historical|predecessor)'
 Assert-FileContains "Maintainer: describes current canonical path" $maintainerPath '\.mxagile/'
-Assert-FileNotContains "Maintainer: does not recommend creating dfc/ dirs" $maintainerPath 'create.*\.claude/skills/dfc'
+Assert-FileContains "Maintainer: explicitly prohibits creating dfc/ dirs" $maintainerPath '(?i)do not create.*\.claude/skills/dfc'
 
 Write-Host ""
 
@@ -190,7 +190,7 @@ Write-Host "--- Section 6: Legacy fixture integrity ---"
 
 $fixturePath = Join-Path $ScriptDir "tests/fixtures/legacy-dfc"
 
-Assert-True "Legacy fixture directory exists" (Test-Path -LiteralPath $fixturePath -PathType Container) "tests/fixtures/legacy-dfc/ not found — required for migration tests"
+Assert-True "Legacy fixture directory exists" (Test-Path -LiteralPath $fixturePath -PathType Container) "tests/fixtures/legacy-dfc/ not found  -- required for migration tests"
 Assert-True "Legacy fixture has .MxAgile dir" (Test-Path (Join-Path $fixturePath ".MxAgile") -PathType Container) "Legacy fixture missing .MxAgile/ directory"
 Assert-True "Legacy fixture has dfc/ Claude skills" (Test-Path (Join-Path $fixturePath ".claude/skills/dfc") -PathType Container) "Legacy fixture missing .claude/skills/dfc/"
 Assert-True "Legacy fixture README exists" (Test-Path (Join-Path $fixturePath "README.md")) "Legacy fixture missing README.md"

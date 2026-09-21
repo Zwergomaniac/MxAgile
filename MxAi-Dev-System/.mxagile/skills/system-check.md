@@ -113,9 +113,9 @@ Answer each question from your available instructions (loaded CLAUDE.md, AGENTS.
    - Expected: `mxcli`
    - Your answer: [answer] — PASS / FAIL / UNKNOWN
 
-3. **Basic lifecycle ordering**: What is the basic phase order?
-   - Expected: Discovery → Requirements → Refinement → Planning → Implementation → Validation
-   - Your answer: [answer] — PASS / FAIL / UNKNOWN
+3. **Canonical lifecycle**: Read `.mxagile/lifecycle.yaml` — does it exist and define the canonical phases?
+   - Expected: File exists; `phases` block defines `discovery`, `refinement`, `implementing`, `verifying`; `initial_phase: discovery`
+   - Your answer: [phases found in lifecycle.yaml, or MISSING if file absent] — PASS / FAIL / UNKNOWN
 
 4. **Files not manually maintained**: What files should NOT be manually maintained?
    - Expected: Generated platform projections (`.claude/skills/mxagile-*/`, `.github/skills/mxagile-*/`, `.agents/skills/mxagile/`, `.claude/agents/mxagile-*.md`, etc.)

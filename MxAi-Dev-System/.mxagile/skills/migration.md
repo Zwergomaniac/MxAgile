@@ -1,12 +1,3 @@
----
-name: mxagile-migration
-description: Guides the migration of project artifacts from legacy planning structures (planning/stories, planning/checklists) to the MxAgile framework (requirements/, planning/tasks/).
-triggers:
-  - "migrate project"
-  - "migrate story"
-  - "migration guide"
----
-
 # MxAgile Migration Skill
 
 This skill provides a structured process to migrate legacy project artifacts to the MxAgile framework.

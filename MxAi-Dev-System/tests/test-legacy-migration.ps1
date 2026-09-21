@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Verifies that MxAgile retains complete, correct knowledge of legacy DFC
-    structures — and knows how to detect and migrate them. Exercises the
+    structures  -- and knows how to detect and migrate them. Exercises the
     tests/fixtures/legacy-dfc/ directory as a representative BEFORE state.
 
     Three invariants this test enforces:
@@ -17,7 +17,7 @@
 
 .NOTES
     Do not rename or restructure tests/fixtures/legacy-dfc/ without updating
-    both this test and mxagile-maintainer.md.
+    both this test and maintainer.md.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -35,7 +35,7 @@ function Assert-True {
         Write-Host "  PASS: $TestName" -ForegroundColor Green
         $script:PassCount++
     } else {
-        Write-Host "  FAIL: $TestName — $Message" -ForegroundColor Red
+        Write-Host "  FAIL: $TestName  -- $Message" -ForegroundColor Red
         $script:FailCount++
         $script:FailDetails += "[$TestName] $Message"
     }
@@ -67,7 +67,7 @@ Write-Host "Verifying MxAgile understands, detects, and can migrate legacy DFC s
 Write-Host ""
 
 # =========================================================================
-# Section 1: Legacy fixture — BEFORE state structure
+# Section 1: Legacy fixture  -- BEFORE state structure
 # =========================================================================
 
 Write-Host "--- Section 1: Legacy fixture BEFORE state ---"
@@ -125,7 +125,7 @@ Assert-FileContains "Agents dfc/discovery.md: has Source: .MxAgile/" `
 $dfcSkillContent = Get-Content -LiteralPath (Join-Path $fixturePath ".MxAgile/skills/discovery.md") -Raw
 Assert-True "Canonical .MxAgile/skills/discovery.md: no GENERATED header" `
     ($dfcSkillContent -notmatch '# GENERATED') `
-    ".MxAgile canonical skills should not have GENERATED headers — they are the source"
+    ".MxAgile canonical skills should not have GENERATED headers  -- they are the source"
 
 Write-Host ""
 
@@ -135,7 +135,7 @@ Write-Host ""
 
 Write-Host "--- Section 3: Maintainer Agent knowledge ---"
 
-$maintainerPath = Join-Path $ScriptDir ".mxagile/agents/mxagile-maintainer.md"
+$maintainerPath = Join-Path $ScriptDir ".mxagile/agents/maintainer.md"
 
 Assert-FileExists "Maintainer Agent exists" $maintainerPath
 

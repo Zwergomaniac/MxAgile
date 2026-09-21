@@ -64,7 +64,8 @@ $skillDescriptions = @{
     'quality-gate'       = 'Mehrstufige Validierung nach Implementierung'
     'gate-to-refinement' = 'Gate-Pruefung: Discovery vollstaendig?'
     'gate-to-ready'      = 'Gate-Pruefung: Refinement vollstaendig, bereit fuer Implementierung?'
-    'mxagile-system-check' = 'Validate MxAgile installation and agent discovery'
+    'system-check'       = 'Validate MxAgile installation and agent discovery'
+    'migration'          = 'Migrate project artifacts from legacy planning structures to MxAgile framework'
 }
 
 # --- Agent descriptions ---
@@ -74,7 +75,7 @@ $agentDescriptions = @{
     'ui-agent'             = 'UI-Agent: Mockup-Analyse (Discovery) und Soll-Ist-Vergleich (Verifying) per Playwright'
     'implementation-agent' = 'Implementation-Agent: arbeitet implementation-checklist.yaml ab, fuehrt MDL aus'
     'acceptance-agent'     = 'Acceptance-Agent: Modell-Inspektion + Playwright User Journeys fuer fachliche Pruefung'
-    'mxagile-maintainer'   = 'MxAgile-Maintainer: erkennt und migriert Legacy-DFC-Installationen; erzeugt niemals neue DFC-Ausgaben'
+    'maintainer'           = 'MxAgile-Maintainer: erkennt und migriert Legacy-DFC-Installationen; erzeugt niemals neue DFC-Ausgaben'
 }
 
 $agentTools = @{
@@ -83,7 +84,7 @@ $agentTools = @{
     'ui-agent'             = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
     'implementation-agent' = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
     'acceptance-agent'     = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
-    'mxagile-maintainer'   = @('Read', 'Grep', 'Glob', 'Bash')
+    'maintainer'           = @('Read', 'Grep', 'Glob', 'Bash')
 }
 
 # ============================================================
