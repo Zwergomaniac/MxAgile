@@ -5,7 +5,7 @@
 .DESCRIPTION
     Tests the complete injection contract by:
       1. Creating a disposable test project with a dummy .mpr file and pre-created
-         instruction files (bypasses mxagile-init.ps1 — tests agent setup only)
+         instruction files (bypasses mxagile-init.ps1  -- tests agent setup only)
       2. Copying .mxagile/skills/ from the framework source
       3. Running setup-agent-system.ps1 (which calls apply-project-agent-instructions.ps1
          and generate-mxagile-platform-skills.ps1)
@@ -51,7 +51,7 @@ function Assert-True {
         Write-Host "  PASS: $TestName" -ForegroundColor Green
         $script:PassCount++
     } else {
-        Write-Host "  FAIL: $TestName — $Message" -ForegroundColor Red
+        Write-Host "  FAIL: $TestName  -- $Message" -ForegroundColor Red
         $script:FailCount++
         $script:FailDetails += "[$TestName] $Message"
     }
@@ -154,11 +154,8 @@ try {
         }
 
         # Check system-check skill specifically
-        $sysCheckDir = Join-Path $claudeSkillsDir "mxagile-mxagile-system-check"
-        $sysCheckDir2 = Join-Path $claudeSkillsDir "mxagile-system-check"
-        $sysCheckPresent = (Test-Path $sysCheckDir) -or (Test-Path $sysCheckDir2) -or
-            ($claudeSkillDirs | Where-Object { $_.Name -like "*system-check*" }).Count -gt 0
-        Assert-True "Claude skills: mxagile-system-check present" $sysCheckPresent "mxagile-system-check not found in .claude/skills/"
+        $sysCheckDir = Join-Path $claudeSkillsDir "mxagile-system-check"
+        Assert-True "Claude skills: mxagile-system-check present" (Test-Path $sysCheckDir) "mxagile-system-check not found in .claude/skills/"
     }
 
     # ==========================================================================
@@ -194,10 +191,10 @@ try {
             }
             Write-Host "  INFO: $($agentFiles.Count) mxagile-* agent files found" -ForegroundColor DarkGray
         } else {
-            Write-Host "  INFO: No agent source files found — skipping agent assertions" -ForegroundColor DarkGray
+            Write-Host "  INFO: No agent source files found  -- skipping agent assertions" -ForegroundColor DarkGray
         }
     } else {
-        Write-Host "  INFO: .claude/agents/ not created — no agent sources or skipped" -ForegroundColor DarkGray
+        Write-Host "  INFO: .claude/agents/ not created  -- no agent sources or skipped" -ForegroundColor DarkGray
     }
 
     # ==========================================================================

@@ -67,7 +67,7 @@ function Assert-True {
         Write-Host "  PASS: $TestName" -ForegroundColor Green
         $script:PassCount++
     } else {
-        Write-Host "  FAIL: $TestName — $Message" -ForegroundColor Red
+        Write-Host "  FAIL: $TestName  -- $Message" -ForegroundColor Red
         $script:FailCount++
         $script:FailDetails += "[$TestName] $Message"
     }
@@ -84,9 +84,9 @@ $OldStart = "<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->"
 $OldEnd   = "<!-- END PROJECT AGENT INSTRUCTIONS -->"
 
 # =============================================================================
-# Fixture A — No existing instruction file content (empty placeholders)
+# Fixture A  -- No existing instruction file content (empty placeholders)
 # =============================================================================
-Write-Host "`nFixture A — Empty placeholder files (no existing block)" -ForegroundColor Cyan
+Write-Host "`nFixture A  -- Empty placeholder files (no existing block)" -ForegroundColor Cyan
 
 $tmpA = New-TestProject
 try {
@@ -109,9 +109,9 @@ try {
 }
 
 # =============================================================================
-# Fixture B — User content BEFORE block (pre-existing user content, no block)
+# Fixture B  -- User content BEFORE block (pre-existing user content, no block)
 # =============================================================================
-Write-Host "`nFixture B — User content before block (no existing block)" -ForegroundColor Cyan
+Write-Host "`nFixture B  -- User content before block (no existing block)" -ForegroundColor Cyan
 
 $tmpB = New-TestProject
 try {
@@ -137,9 +137,9 @@ try {
 }
 
 # =============================================================================
-# Fixture C — User content BEFORE and AFTER existing block (replace block)
+# Fixture C  -- User content BEFORE and AFTER existing block (replace block)
 # =============================================================================
-Write-Host "`nFixture C — User content before and after existing block (replace)" -ForegroundColor Cyan
+Write-Host "`nFixture C  -- User content before and after existing block (replace)" -ForegroundColor Cyan
 
 $tmpC = New-TestProject
 try {
@@ -176,9 +176,9 @@ USER_CONTENT_AFTER_48321
 }
 
 # =============================================================================
-# Fixture D — Idempotency (second run produces exactly one block)
+# Fixture D  -- Idempotency (second run produces exactly one block)
 # =============================================================================
-Write-Host "`nFixture D — Idempotency (second run)" -ForegroundColor Cyan
+Write-Host "`nFixture D  -- Idempotency (second run)" -ForegroundColor Cyan
 
 $tmpD = New-TestProject
 try {
@@ -206,9 +206,9 @@ try {
 }
 
 # =============================================================================
-# Fixture E — Malformed marker (START without END) — must FAIL
+# Fixture E  -- Malformed marker (START without END)  -- must FAIL
 # =============================================================================
-Write-Host "`nFixture E — Malformed block (START without END, must fail)" -ForegroundColor Cyan
+Write-Host "`nFixture E  -- Malformed block (START without END, must fail)" -ForegroundColor Cyan
 
 $tmpE = New-TestProject
 try {
@@ -228,9 +228,9 @@ try {
 }
 
 # =============================================================================
-# Fixture F — Old marker migration
+# Fixture F  -- Old marker migration
 # =============================================================================
-Write-Host "`nFixture F — Old marker migration" -ForegroundColor Cyan
+Write-Host "`nFixture F  -- Old marker migration" -ForegroundColor Cyan
 
 $tmpF = New-TestProject
 try {

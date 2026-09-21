@@ -72,30 +72,62 @@ flowchart LR
 
 ---
 
-## Section 3: Lifecycle (Current vs Target)
+## Section 3: Canonical Lifecycle
+
+Canonical machine-readable definition: `.mxagile/lifecycle.yaml` (schema_version: 1).
+Narrative expansion: `.mxagile/orchestrator.md`.
+Unit of progression: **wave** (a set of requirements processed together).
+
+### Phase Flow
 
 ```mermaid
 flowchart LR
-    subgraph CURRENT["CURRENT — Implemented"]
-        I[Installation] --> AG[Agent Setup]
-        AG --> SK[Skill Projection]
-        AG --> MB[Managed Block Injection]
-    end
+    IT([Intake\noptional/external]):::optional --> DI
 
-    subgraph TARGET["TARGET — Full Lifecycle"]
-        IN[Input] --> DI[Discovery]
-        DI --> RE[Requirements]
-        RE --> RF[Refinement]
-        RF --> RS[Ready Spec]
-        RS --> PL[Planning]
-        PL --> IM[Implementation]
-        IM --> VA[Validation]
-        VA --> CO[Convergence]
-        CO -->|issue| RF
-    end
+    DI[Discovery] -->|gate-to-refinement| RF[Refinement]
+    RF -->|gate-to-ready| RD[Ready\ngate state]
+    RD -->|developer approval| IM[Implementing]
+    IM --> VR[Verifying]
+    VR --> Done([Done])
+
+    RF -->|scope returns| DI
+    IM -->|spec issue| RF
+    IM -->|missing context| DI
+    VR -->|impl defect\nfailed items only| IM
+    VR -->|spec/refinement issue| RF
+    VR -->|missing context| DI
+
+    classDef optional fill:#f9f,stroke:#999,stroke-dasharray:5 5
 ```
 
-Lifecycle phases (Discovery through Convergence) are defined in `.mxagile/orchestrator.md`. MxAgile skills implement individual phases. The installer provides the foundation; lifecycle execution requires an active agent session.
+### Return Routing
+
+| Condition | Return to | Scope |
+|---|---|---|
+| Implementation defect found in Verifying | Implementing | Failed checklist items only |
+| Specification or refinement defect found | Refinement | Affected story specifications |
+| Fundamental missing context or changed input | Discovery | Affected stories; unaffected remain CURRENT |
+
+### Change Propagation
+
+```mermaid
+flowchart TD
+    CS[Changed Source Artifact] --> IA[Impact Assessment:\nwhich stories/specs are affected?]
+    IA --> AS[Affected Scope\nwave + story granularity]
+    AS --> EN[Earliest Necessary Phase\nfor affected scope only]
+    EN --> FL[Forward Lifecycle]
+    FL --> Done([Done])
+
+    IA -->|unaffected scope| CUR[Remains CURRENT]
+```
+
+| Source change | May affect | Earliest return |
+|---|---|---|
+| Mockup changed | Story specs, UI inventory, implementation, verification | Discovery |
+| Spec changed after implementation | Checklist, implementation, verification | Refinement |
+| Implementation defect | Verification evidence | Implementing |
+
+MxAgile skills implement individual phases. The installer provides the foundation; lifecycle execution requires an active agent session.
 
 ---
 
@@ -108,11 +140,14 @@ Lifecycle phases (Discovery through Convergence) are defined in `.mxagile/orches
 | Managed block position | Block inserted at TOP (before user content) | Block inserted at END (user content first) | FIXED — new `Apply-ManagedBlock` function appends at end on first insert |
 | Malformed/duplicate block detection | Silent overwrite | Fail with diagnostic | FIXED — `Apply-ManagedBlock` fails with clear error on DUPLICATE or MALFORMED |
 | Mercedes layer `.git/` in dev repo | Present (staged for deletion) | Absent (stripped on install) | `fetch-layer.ps1` and `install-core.ps1` strip `.git/` on install; dev repo had it temporarily |
-| System Check skill | Absent | `.mxagile/skills/mxagile-system-check.md` | CREATED |
+| System Check skill | Absent | `.mxagile/skills/system-check.md` | CREATED |
 | Injection Contract document | Absent | `docs/injection-contract.md` | CREATED |
 | Post-install validation prompt | Absent | Shown after successful install | ADDED to `install-core.ps1` |
 | Agent behavioral validation | Not systematic | System Check skill (section H) | CREATED |
 | Script canonical name (generator) | `generate-dfc-platform-skills.ps1` | `generate-mxagile-platform-skills.ps1` | RENAMED |
+| Canonical lifecycle source | Narrative only in `orchestrator.md`; wrong phase names in architecture.md (Requirements, Planning, Convergence) | `lifecycle.yaml` (machine-readable) + corrected diagrams | CREATED |
+| Architecture lifecycle diagram | CURRENT/TARGET split with non-canonical phase names | Canonical phases + feedback-loop diagram + change-propagation diagram | FIXED |
+| System Check lifecycle validation | Hardcoded phase string referencing `orchestrator.md` | Reads `lifecycle.yaml` to validate canonical source exists | FIXED |
 
 ---
 

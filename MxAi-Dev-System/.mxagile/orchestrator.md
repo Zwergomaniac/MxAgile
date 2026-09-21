@@ -1,7 +1,8 @@
 # MxAgile Orchestrator — Prozessfluss
 
-Dieses Dokument definiert die verbindliche Phasenfolge fuer AI-gestuetzte
-Mendix-Entwicklung. Jeder Agent liest dieses Dokument und folgt der aktuellen Phase.
+Maschinenlesbare Lifecycle-Definition: `.mxagile/lifecycle.yaml` (schema_version: 1).
+Dieses Dokument ist die narrative Erweiterung davon — detaillierte Vorbedingungen,
+Artefakte, Agenten und Ablaufregeln pro Phase.
 
 Der aktuelle Phasenstatus wird in `.concord/scratch/process-state.yaml` festgehalten
 (lokal, gitignored). Gate-Skills pruefen Vorbedingungen vor Phasenwechseln.

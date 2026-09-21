@@ -33,7 +33,8 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 ├── README.md               <- Diese Datei
 ├── version.yaml            <- Template-Version und Kompatibilitaet
 ├── GLOSSARY.yaml           <- Interne Begriffe und Plattform-Routing
-├── orchestrator.md         <- Prozessfluss: Phasen, Gates, Artefakte
+├── lifecycle.yaml          <- Maschinenlesbare Lifecycle-Definition (schema_version: 1)
+├── orchestrator.md         <- Narrative Erweiterung der Lifecycle-Definition
 ├── skills/                 <- Neutrale Prozess-Skills (Markdown, kein Frontmatter)
 │   ├── discovery.md
 │   ├── refinement.md
@@ -46,7 +47,7 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 │   ├── ui-agent.md
 │   ├── implementation-agent.md
 │   ├── acceptance-agent.md
-│   └── mxagile-maintainer.md   <- Legacy-DFC Erkennungs- und Migrations-Agent
+│   └── maintainer.md           <- Legacy-DFC Erkennungs- und Migrations-Agent
 ├── policies/               <- Wiederverwendbare Prozessregeln
 │   ├── safety-rules.md
 │   ├── source-priority.md
