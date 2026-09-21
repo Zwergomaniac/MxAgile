@@ -66,10 +66,18 @@ try {
     }
     Write-Host "Installing canonical MxAgile payload from: $canonicalSource"
     $destMxAgile = Join-Path $ProjectRoot ".mxagile"
-    # Exclude 'layers' — that directory holds dev-tree or project-specific Company Layer content.
-    # The empty layers/ scaffold is created by mxagile-init.ps1; layers are installed separately.
-    Get-ChildItem -LiteralPath $canonicalSource -Exclude "layers" | ForEach-Object {
+    # Exclude 'layers' — dev-tree or project-specific Company Layer content; installed separately.
+    # Exclude 'state'  — PROJECT/RUNTIME state; must never be distributed from the framework dev
+    #                    repository. The empty state/ scaffold is created by mxagile-init.ps1.
+    #                    Company Layer manifests exist only when that layer is actually installed.
+    Get-ChildItem -LiteralPath $canonicalSource -Exclude "layers", "state" | ForEach-Object {
         Copy-Item -LiteralPath $_.FullName -Destination $destMxAgile -Recurse -Force
+    }
+    # Ensure state/ exists as an empty project-owned directory (mxagile-init.ps1 creates it
+    # before this step, but guard here so the contract holds even if init order changes).
+    $destState = Join-Path $destMxAgile "state"
+    if (-not (Test-Path -LiteralPath $destState -PathType Container)) {
+        New-Item -ItemType Directory -Path $destState -Force | Out-Null
     }
     Write-Host "✔️ Canonical MxAgile payload installed."
 
