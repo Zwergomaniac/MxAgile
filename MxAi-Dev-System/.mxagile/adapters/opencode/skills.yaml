@@ -1,5 +1,5 @@
 defaults:
-  output_dir: ".opencode/skills/dfc"
+  output_dir: ".opencode/skills/mxagile"
   file_name: "{{name}}.md"
   subdirectory: false
   template: |

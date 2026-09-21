@@ -17,13 +17,13 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
     |
     v  scripts/generate-mxagile-platform-skills.ps1
     |
-    +---> .claude/skills/dfc/       (Claude Code)
-    +---> .claude/agents/mxagile-*      (Claude Code)
-    +---> .github/skills/mxagile-*/     (GitHub Copilot)
-    +---> .agents/skills/dfc/       (Codex / Generic)
-    +---> .grok/skills/dfc/         (Grok)
-    +---> .opencode/skills/dfc/     (OpenCode)
-    +---> .hermes/skills/dfc/       (Hermes)
+    +---> .claude/skills/mxagile-*/    (Claude Code)
+    +---> .claude/agents/mxagile-*     (Claude Code)
+    +---> .github/skills/mxagile-*/    (GitHub Copilot)
+    +---> .agents/skills/mxagile/      (Codex / Generic)
+    +---> .grok/skills/mxagile/        (Grok)
+    +---> .opencode/skills/mxagile/    (OpenCode)
+    +---> .hermes/skills/mxagile/      (Hermes)
 ```
 
 ## Verzeichnisstruktur
@@ -45,7 +45,8 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 │   ├── refinement-agent.md
 │   ├── ui-agent.md
 │   ├── implementation-agent.md
-│   └── acceptance-agent.md
+│   ├── acceptance-agent.md
+│   └── mxagile-maintainer.md   <- Legacy-DFC Erkennungs- und Migrations-Agent
 ├── policies/               <- Wiederverwendbare Prozessregeln
 │   ├── safety-rules.md
 │   ├── source-priority.md
@@ -78,7 +79,7 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
         └── skills.yaml
 ```
 
-## Agenten (5)
+## Agenten (6)
 
 | Agent | Phase(n) | Kernaufgabe |
 |---|---|---|
@@ -87,6 +88,7 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 | **Refinement-Agent** | Refinement | Klaerungen, Entscheidungen, Marketplace-Recherche |
 | **Implementation-Agent** | Implementing | Checkliste abarbeiten, MDL ausfuehren (Subagent) |
 | **Acceptance-Agent** | Verifying | Modell-Inspektion + Playwright User Journeys |
+| **MxAgile-Maintainer** | Wartung / Migration | Erkennt und migriert Legacy-DFC-Installationen; erzeugt NIEMALS neue DFC-Ausgaben |
 
 ## Prozessfluss
 
@@ -173,12 +175,12 @@ Copilot-Agents ein anderes Format verwenden.
 
 | Plattform | Skill-Verzeichnis | Agent-Verzeichnis | Status |
 |---|---|---|---|
-| Claude Code | `.claude/skills/dfc/` | `.claude/agents/mxagile-*` | Vollstaendig |
+| Claude Code | `.claude/skills/mxagile-*/` | `.claude/agents/mxagile-*` | Vollstaendig |
 | GitHub Copilot | `.github/skills/mxagile-*/` | — | Vollstaendig |
-| OpenAI Codex | `.agents/skills/dfc/` | — | Vollstaendig |
-| Grok | `.grok/skills/dfc/` | — | Vollstaendig |
-| OpenCode | `.opencode/skills/dfc/` | — | Stub |
-| Hermes | `.hermes/skills/dfc/` | — | Stub |
+| OpenAI Codex | `.agents/skills/mxagile/` | — | Vollstaendig |
+| Grok | `.grok/skills/mxagile/` | — | Vollstaendig |
+| OpenCode | `.opencode/skills/mxagile/` | — | Stub |
+| Hermes | `.hermes/skills/mxagile/` | — | Stub |
 | Maia | (via Concord CDP) | — | Manuell |
 
 ## Planungsdokument

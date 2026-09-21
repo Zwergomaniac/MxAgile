@@ -74,6 +74,7 @@ $agentDescriptions = @{
     'ui-agent'             = 'UI-Agent: Mockup-Analyse (Discovery) und Soll-Ist-Vergleich (Verifying) per Playwright'
     'implementation-agent' = 'Implementation-Agent: arbeitet implementation-checklist.yaml ab, fuehrt MDL aus'
     'acceptance-agent'     = 'Acceptance-Agent: Modell-Inspektion + Playwright User Journeys fuer fachliche Pruefung'
+    'mxagile-maintainer'   = 'MxAgile-Maintainer: erkennt und migriert Legacy-DFC-Installationen; erzeugt niemals neue DFC-Ausgaben'
 }
 
 $agentTools = @{
@@ -82,6 +83,7 @@ $agentTools = @{
     'ui-agent'             = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
     'implementation-agent' = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
     'acceptance-agent'     = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
+    'mxagile-maintainer'   = @('Read', 'Grep', 'Glob', 'Bash')
 }
 
 # ============================================================

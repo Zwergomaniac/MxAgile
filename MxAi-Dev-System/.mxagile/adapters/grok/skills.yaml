@@ -1,5 +1,5 @@
 defaults:
-  output_dir: ".grok/skills/dfc"
+  output_dir: ".grok/skills/mxagile"
   file_name: "{{name}}.md"
   subdirectory: false
   template: |

@@ -1,5 +1,5 @@
 defaults:
-  output_dir: ".hermes/skills/dfc"
+  output_dir: ".hermes/skills/mxagile"
   file_name: "{{name}}.md"
   subdirectory: false
   template: |

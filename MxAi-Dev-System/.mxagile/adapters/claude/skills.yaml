@@ -1,5 +1,6 @@
 defaults:
-  output_dir: ".claude/skills/dfc"
+  output_dir: ".claude/skills"
+  directory_prefix: "mxagile-"
   file_name: "SKILL.md"
   subdirectory: true
   template: |

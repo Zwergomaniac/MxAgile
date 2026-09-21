@@ -1,5 +1,5 @@
 defaults:
-  output_dir: ".agents/skills/dfc"
+  output_dir: ".agents/skills/mxagile"
   file_name: "{{name}}.md"
   subdirectory: false
   template: |
