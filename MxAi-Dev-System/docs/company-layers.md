@@ -13,7 +13,7 @@ To create a new layer, a company architect would typically do the following:
 2.  **Customize the Content:** Edit the files within the layer directory:
     - **`layer.json`**: A manifest file. The `id` field is critical and must be unique.
     - **`glossary.md`**: Define standard business and technical terms.
-    - **`platform-modules.md`**: List required Mendix modules for all company projects.
+    - **`platform-modules.yml`**: List required Mendix modules for all company projects.
     - **`modules/`**: Add company-specific reusable Mendix modules (e.g., connectors, process templates) as `.mpk` files or MDL source.
 
 3.  **Publish to Git:** The entire layer directory should be committed to its own Git repository to make it accessible to developers.

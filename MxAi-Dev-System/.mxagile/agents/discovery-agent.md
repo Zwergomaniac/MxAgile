@@ -36,8 +36,10 @@ Systematische Auswertung des Requirements-Dokuments unter `input-resources/requi
    (mxcli SHOW ENTITIES): existiert die Entity bereits? Attribute vorhanden oder neu?
 3. **Geschaeftsregeln und Validierungen extrahieren** — Pflichtfelder, Berechnungsformeln,
    Statusuebergaenge, Berechtigungsregeln. Jede Regel wird ein Eintrag in der Story-Spec.
-4. **Benutzerrollen gegen Plattformmodule abgleichen** — Genannte Rollen auf {APP}_*-Schema
-   mappen. Pruefen ob MB_SSO-Rollen, MB_NoAccess-Default und MB_UI-Rollen beruecksichtigt sind.
+4. **Benutzerrollen gegen Modul-Constraints abgleichen** — Genannte Rollen auf das projektspezifische
+   Rollenkonzept mappen. Falls eine Company Layer installiert ist (.mxagile/layers/), pruefen ob
+   Layer-spezifische Rollenschemata, Standardverhalten fuer Nutzer ohne Rolle, und UI-Konventionen
+   beruecksichtigt sind (siehe layer-glossar und platform-modules.yml).
 5. **Akzeptanzkriterien in testbare Szenarien uebersetzen** — Given/When/Then Struktur
    sicherstellen. Fehlende oder vage Kriterien als `DECISION REQUIRED` markieren.
 6. **Luecken-Report** — Alle Stellen dokumentieren wo das Requirements-Dokument keine

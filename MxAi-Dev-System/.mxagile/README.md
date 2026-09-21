@@ -57,13 +57,12 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 │   ├── consistency-check.md
 │   ├── mockup-analysis.md
 │   └── intake-completeness.md
-├── modules/                <- Mercedes-Benz Plattformmodul-Dokumentation
-│   ├── platform-modules.md
-│   ├── MB_UI.md
-│   ├── MB_SSO.md
-│   ├── MB_NoAccess.md
-│   ├── MB_Feedback.md
-│   └── MB_Governance.md
+├── layers/                 <- Installed Company Layers (populated by installer, not distributed from Core)
+│   └── {layer-id}/         <- One subdirectory per installed Company Layer
+│       ├── layer.json      <- Layer manifest (id, name, version)
+│       ├── platform-modules.yml  <- Company platform module catalog (optional)
+│       ├── glossary.yml    <- Company-specific terminology (optional)
+│       └── modules/        <- Module detail documentation (optional)
 └── adapters/               <- Plattformspezifisches Frontmatter
     ├── claude/
     │   ├── skills.yaml

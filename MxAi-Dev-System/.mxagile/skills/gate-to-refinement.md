@@ -15,7 +15,7 @@ Prueft ob die Discovery-Phase vollstaendig abgeschlossen ist bevor Refinement be
 - [ ] UI-Inventar vorhanden unter `planning/ui-inventory/` (wenn Mockups unter `input-resources/ui-ux/` existieren)
 - [ ] Falls generiertes Mockup: `"approved": true` im mocketeer-spec (Entwicklerfreigabe erteilt)
 - [ ] Bestehendes Modell im betroffenen Modul gelesen
-- [ ] Plattformmodule geprueft (`.mxagile/modules/platform-modules.md`)
+- [ ] Company Layer Platform-Constraints evaluiert: falls Layer installiert (.mxagile/layers/) → platform-modules.yml gelesen; falls keine Layer → NOT_APPLICABLE
 - [ ] Board-Sync ist aktuell (wenn Board konfiguriert — optional, D52)
 
 ## Pruefung

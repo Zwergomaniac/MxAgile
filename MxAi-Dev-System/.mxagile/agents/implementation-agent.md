@@ -10,40 +10,27 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Implementierungspflichten
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
-- `.mxagile/modules/platform-modules.md` — Plattformmodule und Reuse-First-Regel
-- `.mxagile/modules/` — Modulspezifische Agent-Regeln (MB_UI, MB_SSO, etc.)
 
-## Plattformmodule
+## Company Layer Platform Constraints
 
-Vor jeder Artefakt-Erstellung `.mxagile/modules/platform-modules.md` und `.mxagile/modules/` lesen.
+Vor jeder Artefakt-Erstellung pruefen ob eine Company Layer installiert ist:
 
-### MB_UI — Layouts und Design
+```
+.mxagile/layers/
+```
 
-Seiten MUESSEN MB_UI Layouts verwenden:
-- Standardseiten: `MB_UI.MB_Main_Layout`
-- Mit Hintergrund: `MB_UI.MB_Main_Layout_With_Background`
-- Popups: `MB_UI.MB_Popup` oder `MB_UI.MB_Popup_blank`
-- Building Block: `MB_UI.ElevatedContainer`
-- Snippets: `MB_UI.SNIP_NavigationBar_AppLogo`, `MB_UI.SNIP_NavigationBar_UserMenu`
-- Design Tokens (Farben, Typography, Spacing) aus MB_UI CSS verwenden, nicht hardcoden
-- Legacy-Layouts (MercedesBenz_MenuBar/TopBar/Popup) nicht fuer neue Seiten verwenden
+Falls eine oder mehrere Layers installiert sind:
+1. `platform-modules.yml` der relevanten Layer lesen — welche Module sind verpflichtend?
+2. `modules/` der Layer lesen — gibt es modulspezifische Implementierungsregeln?
+3. Layer-Glossar lesen fuer layer-spezifische Terminologie und Rollenschemata
 
-### MB_SSO — Authentifizierung und Benutzerdaten
-
-- Zentrale Benutzer-Entity: `MB_SSO.MBUser` (33 Attribute inkl. Department, Plant, Supervisor)
-- Association: `MB_SSO.MBUser_Account` → `Administration.Account`
-- Projektrollen folgen `CAP_<RoleName>` (CONST_UserroleAppname = "Cap")
-- Benutzerdaten ueber MBUser beziehen, nicht System.User
-- Projektspezifische Benutzerdaten in eigener Entity mit Association zu MBUser
-
-### MB_NoAccess
-
-Standardseite fuer Nutzer ohne fachliche Rolle. Nicht modifizieren.
+Falls keine Layer installiert ist:
+- Keine company-spezifischen Plattformmodul-Constraints — mit Generic-Mendix-Standards fortfahren
 
 ### Universelle Regeln
 
-- Kein Plattformmodul modifizieren
-- Vor Eigenentwicklung pruefen ob MB-Modul die Funktion liefert
+- Installierte Company Layer Platform-Module nicht modifizieren
+- Vor Eigenentwicklung pruefen ob ein Layer-Modul die Funktion bereits liefert
 
 ## Ablauf
 
@@ -60,7 +47,7 @@ Erster Schritt vor jeder Ausfuehrung: Feld-Inventar in konkrete Mendix-Artefakte
 
 - `suggested_mendix_type` aus dem Inventar als Ausgangspunkt
 - Bestehendes Modell via mxcli pruefen (Konventionen, bestehende Entities)
-- Plattformmodule pruefen: MB_UI Layout fuer den Seitentyp? MB_SSO.MBUser fuer Benutzerdaten?
+- Company Layer pruefen: Gibt es Layer-spezifische Modul- oder UI-Vorgaben fuer diesen Artefakt-Typ?
 - Mapping-Entscheidungen in der Checkliste dokumentieren bevor ausgefuehrt wird
 - Bei `standard_widget: false`: Marketplace-Empfehlung aus Refinement verwenden
 

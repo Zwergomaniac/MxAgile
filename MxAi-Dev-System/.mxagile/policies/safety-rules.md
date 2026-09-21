@@ -27,11 +27,11 @@ Projektspezifische Ergaenzungen gehoeren in `AGENT.md`, nicht hierher.
   oder versionieren.
 - `.env.mendix`, `.mcp.json`, Bridge-Tokens und MCP-Clientkonfigurationen bleiben lokal.
 
-## Plattformmodule
+## Company Layer Platform Modules
 
-- Mercedes-Benz Plattformmodule (MB_SSO, MB_UI, MB OIDC, etc.) duerfen nicht
-  modifiziert werden.
-- Vor Eigenentwicklung immer `.mxagile/modules/platform-modules.md` pruefen.
+- Installierte Company Layer Platform-Module duerfen nicht modifiziert werden.
+- Vor Eigenentwicklung pruefen ob ein installiertes Company Layer Modul die Funktion
+  liefert (`.mxagile/layers/<layer-id>/platform-modules.yml` falls Layer vorhanden).
 
 ## Input-Resources
 

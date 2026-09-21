@@ -38,10 +38,10 @@ Ablauf:
 2. Microflow-Struktur gegen `expect` abgleichen
 3. Pruefen ob erwartete Schritte vorhanden sind (RETRIEVE, IF, CHANGE, COMMIT, etc.)
 4. Ergebnis dokumentieren: `inspect_result: pass/fail` mit Begruendung
-5. Plattformmodul-Integritaet pruefen: Seiten muessen MB_UI Layouts verwenden
-   (`MB_UI.MB_Main_Layout`, `MB_UI.MB_Popup`). Benutzerdaten muessen ueber
-   `MB_SSO.MBUser` laufen, nicht direkt ueber System.User. Bei Verstoessen:
-   `status: failed` mit Begruendung.
+5. Company Layer Integritaet pruefen: Falls eine Company Layer installiert ist (.mxagile/layers/),
+   pruefen ob die Layer-spezifischen Modul- und UI-Anforderungen eingehalten wurden.
+   Relevante Regeln in `.mxagile/layers/<layer-id>/platform-modules.yml` und
+   `.mxagile/layers/<layer-id>/modules/` nachschlagen. Bei Verstoessen: `status: failed` mit Begruendung.
 
 ### 3. End-to-End User Journeys (fuer Items mit `test:`)
 

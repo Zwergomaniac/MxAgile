@@ -11,7 +11,7 @@ bevor die Implementierung freigegeben wird.
 - [ ] Akzeptanzkriterien in der Story-Spezifikation vorhanden
 - [ ] Wave-Planung in `planning/execution-waves.md` aktualisiert
 - [ ] Marketplace-Widgets identifiziert fuer `standard_widget: false` Items (D49)
-- [ ] Plattformmodule beruecksichtigt (MB_UI Layouts, MB_SSO Auth-Schema, MB_NoAccess)
+- [ ] Company Layer Platform-Constraints beruecksichtigt: falls Layer installiert (.mxagile/layers/) → Layer-spezifische Modul- und UI-Vorgaben eingehalten; falls keine Layer → NOT_APPLICABLE
 - [ ] Keine offenen Blocker
 
 ## Pflichtausgabe: implementation-checklist.yaml (D37)

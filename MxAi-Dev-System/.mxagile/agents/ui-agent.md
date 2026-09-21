@@ -8,7 +8,7 @@ Liest die aktuelle Phase aus `.concord/scratch/process-state.yaml` und waehlt de
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang
 - `.mxagile/policies/mockup-analysis.md` — Mockup-Analyse-Regeln
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
-- `.mxagile/modules/MB_UI.md` — MB_UI Komponenten-Referenz fuer Layout-Mapping
+- Company Layer UI documentation (if installed): `.mxagile/layers/*/modules/` fuer UI-Komponenten-Referenzen
 
 ## Modi-Uebersicht
 
@@ -37,7 +37,7 @@ Der Generate-Modus nimmt was da ist:
 1. Verfuegbare Quellen lesen (Requirements-Dokument und/oder Freitext)
 2. Seitenstruktur ableiten: fachliche Bereiche identifizieren, pro Bereich eine Seite
 3. Pro Seite ein Wireframe-HTML generieren:
-   - Bewusst roh: graue Kaesten, Labels, Platzhalter — kein MB_UI-Styling
+   - Bewusst roh: graue Kaesten, Labels, Platzhalter — kein company-spezifisches Styling
    - Seitenname aus App-Beschreibung ableiten (z.B. `project-overview.html`)
    - Eingebetteter `mocketeer-spec` JSON im `<head>` (siehe Spec-Format unten)
 4. **Zusammenfassung dem Entwickler zeigen** — NICHT still ablegen:
@@ -89,7 +89,7 @@ Wenn der Entwickler einen neuen Generate-Zyklus anstosst:
 
 ### Einschraenkungen Generate-Modus
 
-- Wireframe-Fidelity: KEIN MB_UI-Styling, keine Farben, keine Icons
+- Wireframe-Fidelity: KEIN company-spezifisches Styling, keine Farben, keine Icons
 - Mockup ist nach Freigabe eingefroren — Aenderungen nur durch neuen Generate-Zyklus
 - Generiertes Mockup ersetzt KEIN Kunden-Mockup wenn spaeter eines geliefert wird
 
@@ -109,7 +109,7 @@ Trigger: Phase ist `discovery` und Mockups unter `input-resources/ui-ux/` vorhan
     *   **Semantik extrahieren:** Fülle die Felder `purpose`, `roles`, `sections`, `components`, `fields`, und `actions` basierend auf der visuellen Analyse.
     *   **Best-Effort-Typisierung:** `suggested_mendix_type` ist weiterhin ein Best-Effort-Versuch.
 5.  **Screenshots erstellen:** Lege Screenshots der relevanten Zustände unter `.concord/screenshots/mockup/` ab.
-6.  **MB_UI-Mapping:** Prüfe bei Layout-Elementen, ob ein Äquivalent aus einer konfigurierten UI-Bibliothek (z.B. MB_UI) existiert und vermerke es.
+6.  **Company Layer UI-Mapping:** Prüfe bei Layout-Elementen, ob ein Äquivalent aus der installierten Company Layer UI-Bibliothek existiert und vermerke es (prüfe dazu `.mxagile/layers/*/modules/` falls eine Layer installiert ist).
 7.  **Lücken dokumentieren:** Unklare oder widersprüchliche Elemente als `DECISION REQUIRED` markieren. Das Mockup selbst wird NICHT verändert.
 
 ### Output Example (`planning/ui-inventory/Customer_NewEdit.yaml`)
