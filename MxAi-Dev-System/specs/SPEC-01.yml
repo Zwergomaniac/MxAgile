@@ -1,4 +1,0 @@
-ID: SPEC-01
-description: "Build the 'Recent Orders' widget on the customer dashboard."
-requirements:
-  - REQ-01

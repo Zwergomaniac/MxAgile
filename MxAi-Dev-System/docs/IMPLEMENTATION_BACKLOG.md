@@ -94,29 +94,6 @@ Acceptance Criteria:
 - Hybrid does not mean permanent uncontrolled duplication.
 
 
-DECISION D-003: COMPANY LAYER RESPONSIBILITIES
-
-Status:
-    APPROVED
-
-Decision:
-
-    company-layers/
-        = catalog, registry and collection of known reusable company definitions
-
-    .mxagile/layers/
-        = installed and active project layer state
-
-This separation is intentional.
-
-Acceptance Criteria:
-
-- The two concepts are not merged merely because content overlaps.
-- Active project behavior is driven by installed project layers.
-- Catalog content remains reusable and independent of one project.
-- Installation and update behavior preserves this distinction.
-- Documentation reflects catalog versus installed state.
-
 
 DECISION D-004: BROWNFIELD ADOPTION
 
@@ -258,23 +235,6 @@ Acceptance Criteria:
 - Name similarity does not create authoritative lifecycle relationships.
 - Convergence does not treat unconfirmed inference as accepted evidence.
 
-
-DECISION D-011: COMPANY LAYERS MUST BE EXTERNALLY DISTRIBUTED
-
-Status:
-    DECISION REQUIRED
-
-Decision:
-
-Company layers must not rely on the local `company-layers/` folder for runtime or distribution.
-They must be managed as external dependencies (e.g., git submodules, separate repositories, or versioned artifacts).
-
-Acceptance Criteria:
-
-- Local `company-layers/` folder is removed or treated as transient.
-- External distribution mechanism defined and implemented.
-- Installation scripts updated to fetch external dependencies.
-- CI/CD pipeline handles external layer resolution.
 
 
 ======================================================================
@@ -498,60 +458,6 @@ Acceptance Criteria:
 - Local secrets/configuration are not overwritten.
 - Output clearly identifies resulting project mode.
 
-
-======================================================================
-WORK PACKAGE 4: COMPANY LAYER WORKFLOW
-======================================================================
-
-Status:
-    DONE
-
-Note:
-    Validated by session checkpoint and repository state.
-
-Objective:
-
-Preserve and operationalize the approved catalog versus installed-layer model.
-
-TODO:
-
-- [x] Inventory current company-layers catalog format.
-- [x] Inventory current active layer format.
-- [x] Identify current installation mechanism.
-- [x] Verify selected layer copying/install behavior.
-- [x] Verify installed layer identity.
-- [x] Determine whether installed layer version is recorded.
-- [x] Verify repeated installation behavior.
-- [x] Detect catalog update versus installed state.
-- [x] Preserve project-specific overrides.
-- [x] Avoid modifying catalog content during normal project work.
-- [x] Validate layer schema/manifest.
-- [x] Validate compatibility constraints if present.
-- [x] Document layer provenance.
-- [x] Add layer workflow tests.
-- [x] Avoid creating a second competing layer registry.
-
-Possible solution:
-
-A minimal installed-layer record may contain:
-
-    layer id
-    version
-    source catalog path
-    installed timestamp if useful
-    content hash
-    project overrides reference
-
-Avoid timestamps in deterministic comparisons unless necessary.
-
-Acceptance Criteria:
-
-- Catalog and installed state remain separate.
-- A layer can be installed reproducibly.
-- Active project behavior does not read arbitrary catalog content implicitly.
-- Layer update state can be explained.
-- Reinstallation does not silently remove overrides.
-- Tests demonstrate expected behavior.
 
 
 ======================================================================
@@ -1087,7 +993,7 @@ TODO:
 - [x] Test fixture with legacy planning artifacts.
 - [x] Test fixture with partial MxAgile structure.
 - [x] Test repeated adoption.
-- [x] Test active Company Layer state.
+
 - [x] Test local environment preservation.
 - [x] Test collision behavior.
 - [x] Test unsupported state.
@@ -1460,7 +1366,7 @@ TODO:
 - [x] Capture relevant existing MxAgile/mxagile-ai state.
 - [x] Identify existing Legacy lifecycle artifacts.
 - [x] Identify existing Hybrid lifecycle artifacts.
-- [x] Identify existing Company Layer installation state.
+
 - [x] Identify relevant local-only resources without exposing secrets.
 - [x] Determine expected project classification before adoption.
 - [x] Define pilot acceptance criteria before running adoption.
@@ -1474,8 +1380,8 @@ TODO:
 - [x] Verify existing human-maintained project documentation has not been
       silently replaced.
 - [x] Verify local configuration remains intact.
-- [x] Verify active Company Layer state.
-- [x] Verify company catalog content remains separate from active layers.
+
+
 - [x] Verify resulting project mode: Legacy, Hybrid or Native.
 - [x] Review the adoption report.
 - [x] Verify observed facts are distinguished from inferred intent.
@@ -1557,7 +1463,7 @@ Questions the pilot should answer:
 7. Can current implementation reality be represented separately from accepted
    future intent?
 
-8. Can Layer state be understood correctly?
+
 
 9. Can the canonical Artifact Trace Index represent useful relationships for a
    realistic project?
@@ -1579,7 +1485,7 @@ Acceptance Criteria:
 - Existing Mendix/project logic remains intact.
 - Repeated adoption is safe.
 - Existing local secrets/configuration remain local.
-- Installed Company Layers remain distinguishable from catalog content.
+
 - Project lifecycle mode is understandable.
 - Adoption report accurately distinguishes observed versus inferred data.
 - No fictional historical business intent is generated as accepted truth.

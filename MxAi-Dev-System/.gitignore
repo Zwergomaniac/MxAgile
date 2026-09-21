@@ -29,3 +29,32 @@
 
 # Company-specific layers (prototypes)
 # company-layers/
+
+
+# Runtime State, Installed Artifacts, and Generated Files
+
+# Installed Company Layers (should not be tracked)
+/.mxagile/layers/
+
+# Generated trace indexes and other state
+/.mxagile/state/
+
+# Temporary directory for layer fetching
+/.mxagile/tmp_layer/
+
+# Runtime test logs
+/tests/*.log
+
+# Temporary test workspaces
+/tests/temp-project/
+/tests/mock-mendix-project/
+
+# The mxcli binary is a downloaded tool, not source
+/mxcli.exe
+
+# Temporary error logs
+/err.txt
+
+# Concord runtime state
+/.concord/
+
