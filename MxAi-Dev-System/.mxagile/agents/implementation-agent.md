@@ -9,6 +9,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
 - `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Implementierungspflichten
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
+- `.mxagile/policies/development-runtime.md` — Warm Local Development Loop
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 
 ## Company Layer Platform Constraints
@@ -69,10 +70,51 @@ Pro Checklisten-Item:
 2. Validieren: `mxcli check <script>.mdl -p <project>.mpr --references`
 3. Dem Entwickler die Aenderung in Klartext beschreiben (kein MDL im Chat)
 4. Nach Freigabe: `mxcli exec <script>.mdl -p <project>.mpr`
-5. Item als `done` markieren
+5. Wenn Development Runtime laeuft (`--watch`): Warten bis Runtime die Aenderung uebernimmt
+6. Bei runtime-relevantem Item: Runtime-Ergebnis als Entwicklungs-Feedback pruefen
+7. Item als `done` markieren
 
 Bei Fehler oder Blocker: Item als `blocked` markieren mit Begruendung.
 Bei bewusstem Aufschieben: Item als `deferred` markieren.
+
+### 3a. Development Runtime (Warm Local Loop)
+
+Siehe `.mxagile/policies/development-runtime.md` fuer vollstaendige Regeln.
+
+**Wann starten:** Wenn runtime-relevante Items anstehen (Pages, Navigation,
+Microflow-Verhalten, Validierungen, UI-Iteration). Nicht pauschal zu Beginn
+jeder Implementing-Phase.
+
+**Bevorzugter Befehl:**
+
+```
+mxcli run --local -p <project>.mpr --watch
+```
+
+**Ablauf mit warmem Runtime:**
+
+```
+MDL-Aenderung
+    -> Validieren (mxcli check)
+    -> Ausfuehren (mxcli exec)
+    -> Runtime uebernimmt Aenderung (--watch)
+    -> Bei Bedarf: Runtime-Ergebnis inspizieren
+    -> Naechste Aenderung
+```
+
+**Zwei unabhaengige Zustaende:**
+
+| Dimension | Werte |
+|---|---|
+| Lifecycle | `implementing` |
+| Runtime | `not_started` / `running_warm` / `stopped` / `failed` |
+
+Runtime-Zustand loest KEINEN Lifecycle-Uebergang aus.
+
+**Runtime-Feedback ist KEIN Verification-Ersatz.**
+Runtime-Inspektion waehrend Implementing ist Entwicklungs-Feedback.
+Formale Verifikation (Quality Gate, UI-Agent Verify, Acceptance-Agent) bleibt
+unveraendert in der Verifying-Phase.
 
 ### 4. Security (Hybrid, D48)
 
@@ -135,6 +177,8 @@ aus `mxagile-project.yaml` — typischerweise `requirements`.
 
 ## Einschraenkungen
 
-- Kein Playwright-Zugriff (kein Browser-Test — das machen UI-Agent und Acceptance-Agent)
+- Kein formaler Browser-Test (Playwright-Verifikation machen UI-Agent und Acceptance-Agent
+  in Verifying). Runtime-Inspektion waehrend Implementing ist Entwicklungs-Feedback,
+  kein Verifikationsnachweis.
 - Keine Geschaeftsentscheidungen treffen — bei Unklarheit `DECISION REQUIRED` und `blocked`
 - Keine Aenderungen ausserhalb der Checkliste — Scope ist fix

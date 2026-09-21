@@ -119,6 +119,25 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
   Er liest Mockup-Screenshots fuer Layout-Entscheidungen (D46).
   Jede Aenderung wird vor Ausfuehrung validiert und dem Entwickler in Klartext beschrieben.
 
+### Development Runtime (Warm Local Loop)
+
+Fuer runtime-relevante iterative Implementierung (Pages, Navigation, Microflow-Verhalten,
+Validierungen, UI-Iteration) bevorzugt der Implementation-Agent den warmen lokalen
+Entwicklungsloop:
+
+```
+mxcli run --local -p <project>.mpr --watch
+```
+
+Die Runtime wird gestartet wenn Runtime-Feedback nuetzlich wird — nicht pauschal zu Beginn.
+`--watch` erkennt Modellaenderungen und wendet sie automatisch an, ohne volle Neustarts.
+
+Vollstaendige Regeln: `.mxagile/policies/development-runtime.md`.
+
+**Abgrenzung:** Runtime-Inspektion waehrend Implementing ist Entwicklungs-Feedback.
+Sie ersetzt NICHT die formale Verifikation (Quality Gate, UI-Agent Verify, Acceptance-Agent)
+in der Verifying-Phase. Siehe Invarianten unter Uebergaenge und Ausnahmen.
+
 ### Security-Timing (D48)
 
 | Zeitpunkt | Aktion |
@@ -208,5 +227,23 @@ Bei Abweichungen:
   blockiert den Phasenwechsel bis die Luecken geschlossen sind.
 - Der Ruecklauf Verifying→Implementing ist Checklisten-basiert: nur `failed`-Items
   werden erneut bearbeitet, nicht die gesamte Implementierung.
+
+### Verification-Invarianten (Development Runtime)
+
+Folgende Invarianten gelten unabhaengig vom Runtime-Zustand waehrend Implementing:
+
+- Erfolgreicher App-Start ≠ Verifikation gestartet
+- Runtime-Inspektion waehrend Implementing ≠ UI-Agent Verify
+- Visuelles Pruefen waehrend Implementing ≠ Akzeptanz bestanden
+- `mxcli run --local` erfolgreich ≠ Wave verifiziert
+
+Ein Agent darf Runtime-Ergebnisse waehrend Implementing dem Entwickler als
+Entwicklungs-Feedback praesentieren, NICHT als Verifikationsnachweis.
+
+Die Development-Runtime fuehrt eine zweite Zustandsdimension ein:
+Lifecycle-Zustand (`implementing`) und Runtime-Zustand (`running_warm`, `stopped`, etc.)
+sind unabhaengig. Runtime-Zustandsaenderungen loesen KEINEN Phasenwechsel aus.
+
+Vollstaendige Regeln: `.mxagile/policies/development-runtime.md`.
 
 

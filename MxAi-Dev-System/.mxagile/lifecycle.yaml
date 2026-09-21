@@ -81,7 +81,11 @@ lifecycle:
       purpose: >
         Execute the implementation checklist item by item using mxcli MDL scripts.
         Each change is validated before execution and described to the developer.
-        Security is handled at defined timing points (D48).
+        Security is handled at defined timing points (D48). For runtime-relevant
+        items (pages, navigation, microflows, validations), a warm local development
+        runtime (mxcli run --local --watch) provides iterative feedback without
+        full restart cycles. Runtime inspection during Implementing is development
+        feedback, not formal verification.
       entry_conditions:
         - "Developer explicit approval granted"
       exit_gate: "All checklist items in terminal state: done | blocked | deferred"
