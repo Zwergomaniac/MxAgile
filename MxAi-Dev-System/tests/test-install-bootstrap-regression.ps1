@@ -119,6 +119,19 @@ Assert-FileContains "4: bootstrap validates distribution != target (safety check
 Assert-FileContains "4: bootstrap resolves canonical installer from distribution root" `
     $bootstrapScript 'distributionRoot.*scripts.*install-core|canonicalInstaller.*distributionRoot'
 
+# Zero-config assertions: canonical source embedded in bootstrapper
+Assert-FileContains "4b: bootstrap defines canonical distribution URL (zero-config)" `
+    $bootstrapScript 'CanonicalDistributionUrl'
+
+Assert-FileContains "4b: bootstrap defines canonical distribution subdirectory" `
+    $bootstrapScript 'CanonicalDistributionSubdir'
+
+Assert-FileContains "4b: bootstrap falls through to canonical clone when not in distribution tree" `
+    $bootstrapScript 'CanonicalDistributionUrl.*canonical|canonical.*CanonicalDistributionUrl'
+
+Assert-FileContains "4b: mercedes defines canonical distribution URL (zero-config)" `
+    $mercedesScript 'CanonicalDistributionUrl'
+
 Write-Host ""
 
 # =========================================================================

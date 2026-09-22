@@ -54,6 +54,11 @@ param (
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# Canonical MxAgile distribution — used automatically when -DistributionSource is not provided
+# and the bootstrap is not running from inside an existing distribution tree.
+$CanonicalDistributionUrl    = "https://github.com/Zwergomaniac/MxAgile.git"
+$CanonicalDistributionSubdir = "MxAi-Dev-System"   # distribution root lives here within the repo
+
 $tempDistDir = $null
 
 try {
@@ -68,27 +73,43 @@ try {
 
     # =========================================================================
     # 2. Acquire MxAgile distribution
+    #    Resolution order:
+    #      1. Explicit -DistributionSource (override)
+    #      2. $PSScriptRoot contains scripts/install-core.ps1 (dev / running from inside distribution)
+    #      3. Clone from $CanonicalDistributionUrl (zero-config, normal user path)
     # =========================================================================
     $distributionRoot = $null
 
     if ([string]::IsNullOrWhiteSpace($DistributionSource)) {
-        # Development use case: check if this bootstrap lives inside the distribution
+        # Priority 2: dev mode — bootstrap is running from inside the distribution tree
         $devInstaller = Join-Path $PSScriptRoot "scripts\install-core.ps1"
         if (Test-Path -LiteralPath $devInstaller -PathType Leaf) {
             Write-Host "Distribution    : $PSScriptRoot (running from within distribution)"
             $distributionRoot = $PSScriptRoot
         } else {
-            throw @"
+            # Priority 3: zero-config — clone canonical distribution automatically
+            $tempDistDir = Join-Path $env:TEMP "mxagile-install-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
+            Write-Host "Distribution    : $CanonicalDistributionUrl (canonical, ref: $DistributionRef)"
+            Write-Host "  -> Cloning to : $tempDistDir (temporary)"
 
-MxAgile distribution not found.
+            $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+            if (-not $gitCmd) {
+                throw "git is not available on PATH. It is required to acquire the MxAgile distribution."
+            }
 
-This script is not running from within a MxAgile distribution directory,
-and no -DistributionSource was provided.
+            git clone --depth 1 --branch $DistributionRef $CanonicalDistributionUrl $tempDistDir
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to acquire MxAgile distribution from canonical source: $CanonicalDistributionUrl"
+            }
 
-Usage examples:
-  .\install-mxagile.ps1 -DistributionSource "https://github.com/your-org/mxagile.git"
-  .\install-mxagile.ps1 -DistributionSource "C:\path\to\MxAi-Dev-System"
-"@
+            # Distribution root is MxAi-Dev-System/ within the repo; fall back to clone root if absent
+            $subDirPath = Join-Path $tempDistDir $CanonicalDistributionSubdir
+            $distributionRoot = if (Test-Path -LiteralPath (Join-Path $subDirPath "scripts\install-core.ps1") -PathType Leaf) {
+                $subDirPath
+            } else {
+                $tempDistDir
+            }
+            Write-Host "  -> Acquired: $distributionRoot"
         }
     } elseif (Test-Path -LiteralPath $DistributionSource -PathType Container) {
         # Local filesystem path
