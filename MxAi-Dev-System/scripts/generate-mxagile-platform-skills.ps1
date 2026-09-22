@@ -76,6 +76,7 @@ $agentDescriptions = @{
     'implementation-agent' = 'Implementation-Agent: arbeitet implementation-checklist.yaml ab, fuehrt MDL aus'
     'acceptance-agent'     = 'Acceptance-Agent: Modell-Inspektion + Playwright User Journeys fuer fachliche Pruefung'
     'maintainer'           = 'MxAgile-Maintainer: erkennt und migriert Legacy-DFC-Installationen; erzeugt niemals neue DFC-Ausgaben'
+    'migration-agent'      = 'DFC-AI -> MxAgile Migration Agent: inventories legacy DFC artifacts, preserves project knowledge, establishes MxAgile brownfield baseline'
 }
 
 $agentTools = @{
@@ -85,6 +86,7 @@ $agentTools = @{
     'implementation-agent' = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
     'acceptance-agent'     = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
     'maintainer'           = @('Read', 'Grep', 'Glob', 'Bash')
+    'migration-agent'      = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
 }
 
 # ============================================================

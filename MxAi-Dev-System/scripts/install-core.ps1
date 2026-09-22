@@ -16,17 +16,95 @@ Set-StrictMode -Version Latest
 
 try {
     # =========================================================================
+    # 0. Pre-flight: Legacy DFC-AI Detection
+    # =========================================================================
+
+    $ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
+    if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
+        throw "ProjectRoot directory not found: $ProjectRoot"
+    }
+
+    $detectScript = Join-Path $PSScriptRoot "detect-project-type.ps1"
+    if (-not (Test-Path -LiteralPath $detectScript)) {
+        throw "detect-project-type.ps1 not found in script directory."
+    }
+
+    Write-Host "Running project type detection..."
+    $detectionJson = & $detectScript -ProjectRoot $ProjectRoot
+    $detection = $detectionJson | ConvertFrom-Json
+
+    Write-Host "  Detected: $($detection.Classification)"
+
+    if ($detection.Classification -eq "LEGACY_DFC_PROJECT") {
+        Write-Host ""
+        Write-Host "========================================================"  -ForegroundColor Yellow
+        Write-Host "MxAgile Installation: MIGRATION REQUIRED"                   -ForegroundColor Yellow
+        Write-Host "========================================================"  -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "An existing DFC-AI installation was detected in:"           -ForegroundColor White
+        Write-Host "  $ProjectRoot"                                              -ForegroundColor White
+        Write-Host ""
+        Write-Host "Normal MxAgile initialization was NOT performed."           -ForegroundColor White
+        Write-Host "DFC-AI artifacts found:"                                    -ForegroundColor White
+        foreach ($ev in $detection.DfcEvidence) {
+            Write-Host "  - $ev"                                                -ForegroundColor DarkYellow
+        }
+        Write-Host ""
+
+        # Install minimal migration bootstrap
+        $bootstrapScript = Join-Path $PSScriptRoot "install-migration-bootstrap.ps1"
+        if (-not (Test-Path -LiteralPath $bootstrapScript)) {
+            throw "install-migration-bootstrap.ps1 not found in script directory."
+        }
+        Write-Host "Installing migration bootstrap..."
+        & $bootstrapScript -ProjectRoot $ProjectRoot
+        if ($LASTEXITCODE -ne 0) {
+            throw "Migration bootstrap installation failed with exit code $LASTEXITCODE."
+        }
+
+        Write-Host ""
+        Write-Host "========================================================"  -ForegroundColor Cyan
+        Write-Host "Start a NEW agent session in this project directory"       -ForegroundColor Cyan
+        Write-Host "and enter:"                                                  -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "    Migrate this existing DFC-AI project to MxAgile"       -ForegroundColor Yellow
+        Write-Host "    according to the migration instructions in"             -ForegroundColor Yellow
+        Write-Host "    .mxagile/migration/"                                    -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "The migration agent will safely inventory, preserve, and"  -ForegroundColor Cyan
+        Write-Host "migrate your existing project artifacts without loss of"    -ForegroundColor Cyan
+        Write-Host "project knowledge."                                          -ForegroundColor Cyan
+        Write-Host "========================================================"  -ForegroundColor Cyan
+        Write-Host ""
+        exit 2
+    }
+
+    if ($detection.Classification -eq "AMBIGUOUS") {
+        Write-Host ""
+        Write-Host "========================================================"  -ForegroundColor Red
+        Write-Host "MxAgile Installation: AMBIGUOUS PROJECT STATE"              -ForegroundColor Red
+        Write-Host "========================================================"  -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Both DFC-AI and MxAgile markers were found:"               -ForegroundColor White
+        Write-Host "  DFC-AI evidence:"                                         -ForegroundColor DarkYellow
+        foreach ($ev in $detection.DfcEvidence) { Write-Host "    - $ev" }
+        Write-Host "  MxAgile evidence:"                                        -ForegroundColor Cyan
+        foreach ($ev in $detection.MxAgileEvidence) { Write-Host "    - $ev" }
+        Write-Host ""
+        Write-Host "Manual review required. Resolve the conflict before"        -ForegroundColor White
+        Write-Host "retrying installation."                                      -ForegroundColor White
+        Write-Host "========================================================"  -ForegroundColor Red
+        Write-Host ""
+        exit 3
+    }
+
+    # =========================================================================
     # 1. Core Installation
     # =========================================================================
 
     Write-Host "---"
     Write-Host "Step 1: Core Installation" -ForegroundColor Cyan
     Write-Host "---"
-
-    $ProjectRoot = Resolve-Path -LiteralPath $ProjectRoot
-    if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
-        throw "ProjectRoot directory not found: $ProjectRoot"
-    }
 
     Write-Host "Project root: $ProjectRoot"
 

@@ -27,9 +27,10 @@
 # project-templates/
 # !project-templates/greenfield
 
-# brownfield_captrack is a live project snapshot (own .git, credentials,
-# session state) — not a committed template. Exclude to keep status clean.
+# brownfield_captrack / brownfield_migration_captrack are live project snapshots
+# (own .git, credentials, session state) — not committed templates.
 project-templates/brownfield_captrack/
+project-templates/brownfield_migration_captrack/
 
 # Company-specific layers (prototypes)
 # company-layers/
