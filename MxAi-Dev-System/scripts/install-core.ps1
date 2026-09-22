@@ -198,6 +198,31 @@ try {
     }
     Write-Host "[OK] Canonical MxAgile payload installed."
 
+    # Step 1d: Post-install migration state reconciliation
+    # For already-migrated projects that predate WP-10, artifact_canonicalization
+    # is absent from state.yaml — the field did not exist at migration time.
+    # Adding it as 'pending' here is the correct and safe default: the project's
+    # legacy artifacts exist and have not yet been through canonical conversion.
+    # This step is a no-op on fresh installations (no state.yaml present) and
+    # idempotent on projects that already have the field.
+    $migrationStateFile = Join-Path $ProjectRoot (Join-Path ".mxagile" (Join-Path "migration" "state.yaml"))
+    if (Test-Path -LiteralPath $migrationStateFile -PathType Leaf) {
+        $stateText = Get-Content -LiteralPath $migrationStateFile -Raw
+        if ($stateText -notmatch '(?m)^artifact_canonicalization:') {
+            # Append the field — preserve all existing content unchanged
+            $stateText = $stateText.TrimEnd("`r", "`n") + "`nartifact_canonicalization: pending`n"
+            [System.IO.File]::WriteAllText(
+                $migrationStateFile,
+                $stateText,
+                [System.Text.Encoding]::UTF8
+            )
+            Write-Host "[OK] Migration state reconciled: artifact_canonicalization: pending"
+            Write-Host "     (pre-WP-10 project - existing artifacts not yet canonicalized)"
+        } else {
+            Write-Host "[OK] Migration state: artifact_canonicalization already set - no reconciliation needed."
+        }
+    }
+
 
     # Distribute update-mxcli.ps1
     $sourceMxCliScript = Join-Path $PSScriptRoot "install-mxcli.ps1"
