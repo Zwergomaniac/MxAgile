@@ -23,9 +23,13 @@
 .testing-MxAi/
 .testing*/
  
-# Mendix project template directory (not part of the framework) 
+# Mendix project template directory (not part of the framework)
 # project-templates/
 # !project-templates/greenfield
+
+# brownfield_captrack is a live project snapshot (own .git, credentials,
+# session state) — not a committed template. Exclude to keep status clean.
+project-templates/brownfield_captrack/
 
 # Company-specific layers (prototypes)
 # company-layers/
