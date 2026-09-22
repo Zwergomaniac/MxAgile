@@ -1,5 +1,6 @@
 # scripts/reset-testing-instance.ps1
 # This script automates the creation of a clean testing environment.
+[CmdletBinding()]
 param (
 
     [string]$TemplateName = "greenfield"

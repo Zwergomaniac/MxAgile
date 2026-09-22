@@ -1,5 +1,6 @@
 # scripts/mxagile-tasks.ps1
 
+[CmdletBinding()]
 param (
     [Parameter(Mandatory=$true)]
     [string]$PlanFile
