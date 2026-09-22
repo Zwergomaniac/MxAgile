@@ -7,7 +7,7 @@
     then invokes the canonical installer (scripts/install-core.ps1) from that
     distribution against the target Mendix project.
 
-    This script may be placed anywhere — it does NOT need to live inside the
+    This script may be placed anywhere -- it does NOT need to live inside the
     MxAgile distribution directory.
 
     Path model:
@@ -31,35 +31,63 @@
     Git branch / tag / commit ref to use when -DistributionSource is a Git URL.
     Defaults to "main".
 
+.PARAMETER Wait
+    Pause for a keypress before exiting. Intended for interactive/direct-launch
+    scenarios (e.g. right-click "Run with PowerShell") where the window would
+    otherwise close before the developer can read the result.
+
+    Direct-launch is also detected automatically (parent process = explorer.exe).
+    Do NOT pass -Wait in automation, CI, or scripted invocations.
+
 .EXAMPLE
-    # Standalone use — acquire distribution from GitHub
+    # Standalone use -- acquire distribution from GitHub
     .\install-mxagile.ps1 -DistributionSource "https://github.com/your-org/mxagile.git"
 
 .EXAMPLE
-    # Standalone use — acquire distribution from a local directory
+    # Standalone use -- acquire distribution from a local directory
     .\install-mxagile.ps1 -DistributionSource "C:\tools\MxAi-Dev-System"
 
 .EXAMPLE
-    # Development use — run from within the MxAgile distribution tree
+    # Development use -- run from within the MxAgile distribution tree
     .\install-mxagile.ps1 -ProjectRoot "C:\projects\MyApp"
+
+.EXAMPLE
+    # Interactive/direct-launch use -- keep window open after completion
+    .\install-mxagile.ps1 -Wait
 #>
 
 [CmdletBinding()]
 param (
     [string]$ProjectRoot = (Get-Location).Path,
     [string]$DistributionSource = "",
-    [string]$DistributionRef = "main"
+    [string]$DistributionRef = "main",
+    [switch]$Wait
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-# Canonical MxAgile distribution — used automatically when -DistributionSource is not provided
+# Canonical MxAgile distribution -- used automatically when -DistributionSource is not provided
 # and the bootstrap is not running from inside an existing distribution tree.
 $CanonicalDistributionUrl    = "https://github.com/Zwergomaniac/MxAgile.git"
 $CanonicalDistributionSubdir = "MxAi-Dev-System"   # distribution root lives here within the repo
 
+# ---------------------------------------------------------------------------
+# Direct-launch detection
+# Detects when the script is launched via right-click "Run with PowerShell"
+# or similar (parent process = explorer.exe / OpenWith.exe). In that case the
+# console window belongs to this script and will close immediately on exit,
+# so we must pause to keep the result readable.
+# ---------------------------------------------------------------------------
+$isDirectLaunch = $false
+try {
+    $parentName    = (Get-Process -Id $PID -ErrorAction Stop).Parent.ProcessName
+    $isDirectLaunch = $parentName -in @('explorer', 'OpenWith')
+} catch { }
+$shouldWait = $Wait -or $isDirectLaunch
+
 $tempDistDir = $null
+$exitCode    = 0
 
 try {
     # =========================================================================
@@ -87,7 +115,7 @@ try {
     $provenanceCoreSubdir     = ""
 
     if ([string]::IsNullOrWhiteSpace($DistributionSource)) {
-        # Priority 2: dev mode — bootstrap is running from inside the distribution tree
+        # Priority 2: dev mode -- bootstrap is running from inside the distribution tree
         $devInstaller = Join-Path $PSScriptRoot "scripts\install-core.ps1"
         if (Test-Path -LiteralPath $devInstaller -PathType Leaf) {
             Write-Host "Distribution    : $PSScriptRoot (running from within distribution)"
@@ -97,7 +125,7 @@ try {
             $provenanceCoreRef        = ""
             $provenanceCoreSubdir     = ""
         } else {
-            # Priority 3: zero-config — clone canonical distribution automatically
+            # Priority 3: zero-config -- clone canonical distribution automatically
             $tempDistDir = Join-Path $env:TEMP "mxagile-install-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
             Write-Host "Distribution    : $CanonicalDistributionUrl (canonical, ref: $DistributionRef)"
             Write-Host "  -> Cloning to : $tempDistDir (temporary)"
@@ -137,7 +165,7 @@ try {
         $provenanceCoreRef            = ""
         $provenanceCoreSubdir         = ""
     } else {
-        # Treat as a Git URL — clone to a temporary directory
+        # Treat as a Git URL -- clone to a temporary directory
         $tempDistDir = Join-Path $env:TEMP "mxagile-install-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
         Write-Host "Distribution    : $DistributionSource"
         Write-Host "  -> Cloning to : $tempDistDir (temporary)"
@@ -191,13 +219,12 @@ try {
         -ProvenanceCoreRef        $provenanceCoreRef `
         -ProvenanceCoreSubdir     $provenanceCoreSubdir
     $exitCode = $LASTEXITCODE
-    exit $exitCode
 
 } catch {
     Write-Host ""
     Write-Host "Bootstrap failed!" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
-    exit 1
+    $exitCode = 1
 } finally {
     # Always clean up temporary distribution clone, regardless of outcome
     if ($null -ne $tempDistDir -and (Test-Path -LiteralPath $tempDistDir -PathType Container)) {
@@ -206,3 +233,17 @@ try {
         Remove-Item -LiteralPath $tempDistDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+# ---------------------------------------------------------------------------
+# Interactive/direct-launch pause
+# Only reached when NOT called via "exit" from a sub-call. Keeps the console
+# window open after direct-launch or when -Wait is explicitly passed.
+# Automation/terminal invocations: $shouldWait is false, no pause.
+# ---------------------------------------------------------------------------
+if ($shouldWait) {
+    Write-Host ""
+    Write-Host "Press any key to continue..." -ForegroundColor DarkGray
+    try { [void][System.Console]::ReadKey($true) } catch { }
+}
+
+exit $exitCode
