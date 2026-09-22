@@ -74,12 +74,22 @@ try {
     # =========================================================================
     $distributionRoot = $null
 
+    # Provenance variables - populated in each resolution branch below
+    $provenanceCoreSource     = ""
+    $provenanceCoreSourceType = ""
+    $provenanceCoreRef        = $DistributionRef
+    $provenanceCoreSubdir     = ""
+
     if ([string]::IsNullOrWhiteSpace($DistributionSource)) {
         # Priority 2: dev mode — bootstrap is running from inside the distribution tree
         $devInstaller = Join-Path $PSScriptRoot "scripts\install-core.ps1"
         if (Test-Path -LiteralPath $devInstaller -PathType Leaf) {
             Write-Host "Distribution    : $PSScriptRoot (running from within distribution)"
-            $distributionRoot = $PSScriptRoot
+            $distributionRoot         = $PSScriptRoot
+            $provenanceCoreSource     = $PSScriptRoot
+            $provenanceCoreSourceType = "local"
+            $provenanceCoreRef        = ""
+            $provenanceCoreSubdir     = ""
         } else {
             # Priority 3: zero-config — clone canonical distribution automatically
             $tempDistDir = Join-Path $env:TEMP "mxagile-install-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
@@ -104,11 +114,22 @@ try {
                 $tempDistDir
             }
             Write-Host "  -> Acquired: $distributionRoot"
+
+            $provenanceCoreSource     = $CanonicalDistributionUrl
+            $provenanceCoreSourceType = "git"
+            $provenanceCoreRef        = $DistributionRef
+            if ($null -ne $tempDistDir -and $distributionRoot -ne $tempDistDir) {
+                $provenanceCoreSubdir = $distributionRoot.Substring($tempDistDir.Length).TrimStart('\', '/')
+            }
         }
     } elseif (Test-Path -LiteralPath $DistributionSource -PathType Container) {
         # Local filesystem path
-        $distributionRoot = [System.IO.Path]::GetFullPath($DistributionSource)
+        $distributionRoot             = [System.IO.Path]::GetFullPath($DistributionSource)
         Write-Host "Distribution    : $distributionRoot (local path)"
+        $provenanceCoreSource         = $distributionRoot
+        $provenanceCoreSourceType     = "local"
+        $provenanceCoreRef            = ""
+        $provenanceCoreSubdir         = ""
     } else {
         # Treat as a Git URL — clone to a temporary directory
         $tempDistDir = Join-Path $env:TEMP "mxagile-install-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
@@ -124,8 +145,12 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "git clone failed with exit code $LASTEXITCODE. Check the URL and network access."
         }
-        $distributionRoot = $tempDistDir
+        $distributionRoot             = $tempDistDir
         Write-Host "  -> Cloned successfully."
+        $provenanceCoreSource         = $DistributionSource
+        $provenanceCoreSourceType     = "git"
+        $provenanceCoreRef            = $DistributionRef
+        $provenanceCoreSubdir         = ""
     }
 
     # =========================================================================
@@ -153,10 +178,15 @@ try {
     # 5. Invoke canonical installer against the target project
     # =========================================================================
     & $canonicalInstaller `
-        -ProjectRoot          $ProjectRoot `
-        -CompanyLayerSource   $MercedesGitUrl `
-        -CompanyLayerSourceType Git `
-        -CompanyLayerRef      $MercedesRef
+        -ProjectRoot              $ProjectRoot `
+        -CompanyLayerSource       $MercedesGitUrl `
+        -CompanyLayerSourceType   Git `
+        -CompanyLayerRef          $MercedesRef `
+        -ProvenanceFlavor         "mercedes" `
+        -ProvenanceCoreSource     $provenanceCoreSource `
+        -ProvenanceCoreSourceType $provenanceCoreSourceType `
+        -ProvenanceCoreRef        $provenanceCoreRef `
+        -ProvenanceCoreSubdir     $provenanceCoreSubdir
     $exitCode = $LASTEXITCODE
     exit $exitCode
 

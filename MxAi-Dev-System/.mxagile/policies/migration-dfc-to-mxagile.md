@@ -232,27 +232,82 @@ Update `state.yaml`: `last_completed_step: dfc_artifacts_removed`
 
 ---
 
-## 7. Phase 5 — MxAgile Installation
+## 7. Phase 5 -- MxAgile Installation
 
-Run the MxAgile canonical installer. **Do NOT call `setup-agent-system.ps1` directly**:
-`setup-agent-system.ps1` requires `.mxagile/skills/*.md` to already exist, but those skills
-are only present after `install-core.ps1` copies the canonical payload. Calling
-`install-core.ps1` is correct — it calls `setup-agent-system.ps1` internally after copying.
+**Do NOT call `setup-agent-system.ps1` directly.** It requires `.mxagile/skills/` to already exist.
+Call `install-core.ps1`, which copies the payload first and then calls `setup-agent-system.ps1` internally.
 
+### 7.1 Read and validate installation provenance
+
+Read `.mxagile/migration/provenance.yaml`.
+
+Required fields:
+- `installation.flavor`: must be `core` or `mercedes`
+- `installation.core.source`: must be non-empty
+- `installation.core.source_type`: must be `git` or `local`
+- For `source_type: git`: `installation.core.ref` must be non-empty
+- For `flavor: mercedes`: `installation.company_layer.source` and `installation.company_layer.source_type` must be non-empty
+
+**If any required field is absent, empty, or has an unsupported value: STOP.**
+
+Do NOT:
+- Guess repository URLs
+- Search neighboring directories
+- Use developer-local checkouts
+- Downgrade Mercedes to Core-only
+- Silently substitute latest/main
+
+Report the exact missing or invalid fields. Instruct the developer to re-run the appropriate
+bootstrap script (`install-mxagile.ps1` or `install-mxagile-mercedes.ps1`) to restore provenance.
+The project remains in `MIGRATION_IN_PROGRESS` safely.
+
+### 7.2 Acquire Core distribution
+
+Based on `installation.core.source_type`:
+
+**git** (most common):
 ```powershell
-# From the mxagile-dev-tree (or via the distribution bootstrapper):
-& "<mxagile-dev-tree>/scripts/install-core.ps1" -ProjectRoot $ProjectRoot
+$tempDir = Join-Path $env:TEMP "mxagile-resume-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+git clone --depth 1 --branch <installation.core.ref> <installation.core.source> $tempDir
 ```
 
-`install-core.ps1` will:
-1. Detect `MIGRATION_IN_PROGRESS` (via state.yaml) and proceed with installation
-2. Copy the canonical `.mxagile/` payload (lifecycle.yaml, orchestrator.md, skills, policies)
-3. Preserve `.mxagile/migration/` and `.mxagile/state/` (excluded from the copy step)
-4. Call `setup-agent-system.ps1` to generate platform projections and inject managed blocks
+Resolve distribution root:
+- If `installation.core.subdirectory` is non-empty: `$distRoot = Join-Path $tempDir <subdirectory>`
+- Otherwise: `$distRoot = $tempDir`
 
-The presence of `.mxagile/lifecycle.yaml` after this step signals migration complete.
+Verify `scripts\install-core.ps1` exists at `$distRoot\scripts\install-core.ps1`.
 
-Update `state.yaml`: `last_completed_step: mxagile_installed` after the installer returns.
+**local**:
+Verify the path exists. If it does not: **STOP** -- do not search for alternatives.
+
+### 7.3 Invoke install-core.ps1
+
+For `flavor: core`:
+```powershell
+& "$distRoot\scripts\install-core.ps1" -ProjectRoot $ProjectRoot
+```
+
+For `flavor: mercedes`:
+```powershell
+& "$distRoot\scripts\install-core.ps1" `
+    -ProjectRoot            $ProjectRoot `
+    -CompanyLayerSource     "<installation.company_layer.source>" `
+    -CompanyLayerSourceType "<installation.company_layer.source_type>" `
+    -CompanyLayerRef        "<installation.company_layer.ref>"
+```
+
+`install-core.ps1` detects `MIGRATION_IN_PROGRESS` (via `state.yaml`) and falls through to
+canonical installation without restarting the migration.
+
+### 7.4 Clean up
+
+Remove `$tempDir` after `install-core.ps1` completes (success or failure).
+
+### 7.5 Post-installation
+
+Update `state.yaml`: `last_completed_step: mxagile_installed`.
+
+The presence of `.mxagile/lifecycle.yaml` signals that Phase 5 succeeded.
 
 ---
 

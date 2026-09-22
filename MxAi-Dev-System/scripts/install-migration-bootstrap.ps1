@@ -32,7 +32,16 @@ param(
     [Parameter(Mandatory)]
     [string]$ProjectRoot,
 
-    [string]$CanonicalSource
+    [string]$CanonicalSource,
+
+    [string]$ProvenanceFlavor         = "",
+    [string]$ProvenanceCoreSource     = "",
+    [string]$ProvenanceCoreSourceType = "",
+    [string]$ProvenanceCoreRef        = "",
+    [string]$ProvenanceCoreSubdir     = "",
+    [string]$CompanyLayerSource       = "",
+    [string]$CompanyLayerSourceType   = "",
+    [string]$CompanyLayerRef          = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -137,6 +146,47 @@ $migrationAgentPath = Join-Path $claudeAgentsDir "mxagile-migration-agent.md"
     $Utf8WithoutBom
 )
 Write-Host "  Installed: .claude/agents/mxagile-migration-agent.md"
+
+# ---------------------------------------------------------------------------
+# 3. Write .mxagile/migration/provenance.yaml
+# ---------------------------------------------------------------------------
+$provFlavor     = if ([string]::IsNullOrWhiteSpace($ProvenanceFlavor))         { "core" }  else { $ProvenanceFlavor }
+$provSourceType = if ([string]::IsNullOrWhiteSpace($ProvenanceCoreSourceType)) { "local" } else { $ProvenanceCoreSourceType }
+$recordedAt     = [System.DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+$yamlLines = [System.Collections.Generic.List[string]]::new()
+$yamlLines.Add("# MxAgile installation provenance")
+$yamlLines.Add("# Written by the migration bootstrap. Read by the migration agent to reacquire")
+$yamlLines.Add("# the correct MxAgile distribution during Phase 5 (MxAgile installation).")
+$yamlLines.Add("# Do NOT edit manually.")
+$yamlLines.Add("")
+$yamlLines.Add("installation:")
+$yamlLines.Add("  flavor: " + $provFlavor)
+$yamlLines.Add("  recorded_at: `"" + $recordedAt + "`"")
+$yamlLines.Add("")
+$yamlLines.Add("  core:")
+$yamlLines.Add("    source: `"" + $ProvenanceCoreSource + "`"")
+$yamlLines.Add("    source_type: " + $provSourceType)
+if (-not [string]::IsNullOrWhiteSpace($ProvenanceCoreRef)) {
+    $yamlLines.Add("    ref: " + $ProvenanceCoreRef)
+}
+if (-not [string]::IsNullOrWhiteSpace($ProvenanceCoreSubdir)) {
+    $yamlLines.Add("    subdirectory: " + $ProvenanceCoreSubdir)
+}
+if ($provFlavor -eq "mercedes" -and -not [string]::IsNullOrWhiteSpace($CompanyLayerSource)) {
+    $yamlLines.Add("")
+    $yamlLines.Add("  company_layer:")
+    $yamlLines.Add("    source: `"" + $CompanyLayerSource + "`"")
+    $yamlLines.Add("    source_type: " + $CompanyLayerSourceType)
+    if (-not [string]::IsNullOrWhiteSpace($CompanyLayerRef)) {
+        $yamlLines.Add("    ref: " + $CompanyLayerRef)
+    }
+}
+
+$provenanceContent = ($yamlLines -join "`n") + "`n"
+$provenancePath = Join-Path $migrationDir "provenance.yaml"
+[System.IO.File]::WriteAllText($provenancePath, $provenanceContent, $Utf8WithoutBom)
+Write-Host "  Installed: .mxagile/migration/provenance.yaml"
 
 Write-Host ""
 Write-Host "Migration bootstrap installed."

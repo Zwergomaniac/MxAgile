@@ -8,7 +8,13 @@ param (
     [ValidateSet("Auto", "Git", "Local")]
     [string]$CompanyLayerSourceType = "Auto",
 
-    [string]$CompanyLayerRef = "main"
+    [string]$CompanyLayerRef = "main",
+
+    [string]$ProvenanceFlavor         = "",
+    [string]$ProvenanceCoreSource     = "",
+    [string]$ProvenanceCoreSourceType = "",
+    [string]$ProvenanceCoreRef        = "",
+    [string]$ProvenanceCoreSubdir     = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,7 +63,16 @@ try {
             throw "install-migration-bootstrap.ps1 not found in script directory."
         }
         Write-Host "Installing migration bootstrap..."
-        & $bootstrapScript -ProjectRoot $ProjectRoot
+        & $bootstrapScript `
+            -ProjectRoot              $ProjectRoot `
+            -ProvenanceFlavor         $ProvenanceFlavor `
+            -ProvenanceCoreSource     $ProvenanceCoreSource `
+            -ProvenanceCoreSourceType $ProvenanceCoreSourceType `
+            -ProvenanceCoreRef        $ProvenanceCoreRef `
+            -ProvenanceCoreSubdir     $ProvenanceCoreSubdir `
+            -CompanyLayerSource       $CompanyLayerSource `
+            -CompanyLayerSourceType   $CompanyLayerSourceType `
+            -CompanyLayerRef          $CompanyLayerRef
         if ($LASTEXITCODE -ne 0) {
             throw "Migration bootstrap installation failed with exit code $LASTEXITCODE."
         }

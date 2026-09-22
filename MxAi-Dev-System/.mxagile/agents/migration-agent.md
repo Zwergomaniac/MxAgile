@@ -17,9 +17,10 @@ Wenn der Detektor `MIGRATION_IN_PROGRESS` meldet (d.h. `.mxagile/migration/state
 mit `status: in_progress` existiert bereits):
 
 1. Lies `.mxagile/migration/state.yaml` und pruefe `last_completed_step`
-2. Ueberspringe alle bereits abgeschlossenen Schritte
-3. Setze ab dem ersten unvollstaendigen Schritt fort
-4. Verwende das gespeicherte Inventar aus Phase 1 — starte KEINE neue Enumeration
+2. Lies `.mxagile/migration/provenance.yaml` (fuer Phase 5 Reacquisition der Distribution)
+3. Ueberspringe alle bereits abgeschlossenen Schritte
+4. Setze ab dem ersten unvollstaendigen Schritt fort
+5. Verwende das gespeicherte Inventar aus Phase 1 -- starte KEINE neue Enumeration
 
 ## Kritische Sicherheitsregeln
 
@@ -33,9 +34,10 @@ mit `status: in_progress` existiert bereits):
    Brownfield-Baseline, kein neu-inizialisiertes Projekt.
 4. **Schrittweise mit Bestaetigung** — Inventar- und Klassifikationsphase zeigen, Plan
    vorlegen, Bestaetigung einholen, dann erst destruktive Schritte.
-5. **Scope: nur dieses Projekt** — Kein Traversal in Elternverzeichnisse oder Nachbarprojekte.
-6. **state.yaml VOR destruktiven Aktionen schreiben** — `.mxagile/migration/state.yaml` mit
+5. **Scope: nur dieses Projekt** -- Kein Traversal in Elternverzeichnisse oder Nachbarprojekte.
+6. **state.yaml VOR destruktiven Aktionen schreiben** -- `.mxagile/migration/state.yaml` mit
    `status: in_progress` MUSS geschrieben werden, BEVOR ein einziges DFC-Artefakt geloescht wird.
+7. **Nur provenance-basierte Distribution** -- Keine benachbarten MxAgile-Checkouts, keine Entwickler-lokalen Pfade, keine impliziten Fallbacks.
 
 ## Verhalten
 
@@ -49,8 +51,18 @@ mit `status: in_progress` existiert bereits):
    DFC-Artefakten** (Absturzsicherung: naechste Session erkennt MIGRATION_IN_PROGRESS)
 7. Warte auf explizite Bestaetigung vor jeder destruktiven Aktion
 8. Fuehre die Migration aus (DFC-Artefakte entfernen; nach jedem Schritt `state.yaml` aktualisieren)
-9. Installiere MxAgile: rufe `install-core.ps1 -ProjectRoot $ProjectRoot` auf —
-   **NICHT** `setup-agent-system.ps1` direkt (setup-agent-system benoetigt `.mxagile/skills/`,
-   die erst nach dem install-core.ps1 Kopier-Schritt existieren)
+9. Installiere MxAgile (Phase 5 - provenance-basierte Distribution):
+   a. Lies `.mxagile/migration/provenance.yaml` (Read-Tool)
+   b. Validiere Pflichtfelder: flavor, core.source, core.source_type, core.ref (bei git)
+   c. Falls Felder fehlen oder ungueltig: **STOPP** - nicht raten, nicht substituieren,
+      nicht auf lokale MxAgile-Checkouts ausweichen
+   d. Akquiriere Core-Distribution: `git clone --depth 1 --branch <ref> <source> <tempDir>`
+      Loesung Unterverzeichnis: falls `core.subdirectory` gesetzt, verwende `<tempDir>/<subdirectory>`
+   e. Rufe `install-core.ps1` aus der akquirierten Distribution auf:
+      - flavor=core:     `& "<distRoot>/scripts/install-core.ps1" -ProjectRoot $ProjectRoot`
+      - flavor=mercedes: zusaetzlich `-CompanyLayerSource`, `-CompanyLayerSourceType`, `-CompanyLayerRef`
+        aus `company_layer.*` in provenance.yaml
+   f. Bereinige das temporaere Clone-Verzeichnis
+   g. Aktualisiere `state.yaml`: `last_completed_step: mxagile_installed`
 10. Validiere das Ergebnis und berichte
 11. Setze `status: complete` in `state.yaml` nach erfolgreicher Validierung
