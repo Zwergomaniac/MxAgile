@@ -258,24 +258,70 @@ $ProjectInstructions = Get-Content -LiteralPath $SourcePath -Raw
 if ($null -eq $ProjectInstructions) { $ProjectInstructions = "" }
 
 # ---------------------------------------------------------------------
+# MxAgile startup routing block
+# Injected at the top of every managed block so that Lifecycle Re-Sync
+# is the first orientation step in an existing MxAgile project —
+# BEFORE Project Brain, Git history, or generic memory.
+# ---------------------------------------------------------------------
+$MxAgileStartupBlock = @'
+## MxAgile Startup — Lifecycle Re-Sync First
+
+**This is a MxAgile-managed Mendix project.**
+
+When starting, resuming, or picking up work, follow this order:
+
+1. **Lifecycle Re-Sync FIRST** — check for `.mxagile/` and `.concord/scratch/process-state.yaml`.
+   If present, read `.mxagile/policies/lifecycle-resync.md` and reconstruct the current
+   delivery position (wave, phase, completed/remaining checklist items) BEFORE anything else.
+   The Startup Re-Sync algorithm is in `policies/lifecycle-resync.md` step 0.
+
+2. **Project Brain after Re-Sync** — consult `./mxcli brain plan` or `docs/brain/` only
+   AFTER the lifecycle position is established. Brain is supplementary context, not lifecycle state.
+
+3. **Empty Brain does NOT require Git history** — if Brain has no slices, continue from
+   canonical project artifacts. Do NOT inspect parent Git history or sibling repositories.
+
+4. **Git history is not lifecycle state** — use `planning/checklists/` and `sprints/decisions.md`
+   as the authoritative resume evidence. Do not run `git log` to reconstruct delivery position.
+
+5. **Scope: this project root only** — do not traverse into parent directories, parent repositories,
+   sibling projects, or `project-templates/`. All lifecycle evidence is inside this project.
+
+Detailed policy: `.mxagile/policies/lifecycle-resync.md`
+'@
+
+# ---------------------------------------------------------------------
+# Compose managed block content
+# Each block = [MxAgile startup routing] + [project-specific instructions]
+# CLAUDE.md uses @AGENT.md reference (Claude-specific include syntax).
+# AGENTS.md and Copilot use the full AGENT.md content inline.
+# ---------------------------------------------------------------------
+$AgentsBlockContent  = if ([string]::IsNullOrWhiteSpace($ProjectInstructions)) {
+    $MxAgileStartupBlock
+} else {
+    $MxAgileStartupBlock + "`n`n" + $ProjectInstructions.Trim()
+}
+
+$ClaudeBlockContent  = $MxAgileStartupBlock + "`n`n@AGENT.md"
+
+$CopilotBlockContent = $AgentsBlockContent
+
+# ---------------------------------------------------------------------
 # Apply managed blocks
-# AGENTS.md  : full AGENT.md content
-# CLAUDE.md  : @AGENT.md reference (Claude-specific include syntax)
-# Copilot    : full AGENT.md content (no @-include support in Copilot)
 # ---------------------------------------------------------------------
 Apply-ManagedBlock `
     -FilePath        $AgentsPath `
-    -BlockContent    $ProjectInstructions `
+    -BlockContent    $AgentsBlockContent `
     -FileDescription "AGENTS.md"
 
 Apply-ManagedBlock `
     -FilePath        $ClaudePath `
-    -BlockContent    "@AGENT.md" `
+    -BlockContent    $ClaudeBlockContent `
     -FileDescription "CLAUDE.md"
 
 Apply-ManagedBlock `
     -FilePath        $CopilotPath `
-    -BlockContent    $ProjectInstructions `
+    -BlockContent    $CopilotBlockContent `
     -FileDescription ".github/copilot-instructions.md"
 
 # skillssource/AGENTS.md — project knowledge index/router for Maia and skillssource-aware tools.
@@ -283,6 +329,20 @@ Apply-ManagedBlock `
 # Existing user content (domain conventions, coding rules) is preserved outside the block.
 if (Test-Path -LiteralPath $SkillsSourceDir -PathType Container) {
     $skillsAgentsBlock = @'
+## MxAgile Startup — Lifecycle Re-Sync First
+
+**This is a MxAgile-managed Mendix project.**
+
+When starting, resuming, or picking up work:
+1. Check `.mxagile/` and `.concord/scratch/process-state.yaml` → Lifecycle Re-Sync FIRST.
+2. Reconstruct: process-state → checklist → decisions → story specs.
+3. Empty Brain → continue from project artifacts. Do NOT inspect Git history.
+4. Scope: this project root only. Do not traverse parent or sibling directories.
+
+Policy: `.mxagile/policies/lifecycle-resync.md`
+
+---
+
 ## MxAgile Project Knowledge Index
 
 This section routes to canonical project knowledge. Never duplicate content here.
