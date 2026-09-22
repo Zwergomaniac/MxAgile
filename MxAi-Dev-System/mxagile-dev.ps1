@@ -40,6 +40,7 @@ $ErrorActionPreference = 'Stop'
 # Marker validation confirms we are in the MxAgile dev repo, not a test workspace.
 
 $script:RepoRoot = $PSScriptRoot
+$script:CliPath  = $PSCommandPath
 
 foreach ($marker in @('tests\run-all-tests.ps1', 'scripts\detect-project-type.ps1')) {
     if (-not (Test-Path -LiteralPath (Join-Path $script:RepoRoot $marker) -PathType Leaf)) {
@@ -49,6 +50,26 @@ foreach ($marker in @('tests\run-all-tests.ps1', 'scripts\detect-project-type.ps
         exit 2
     }
 }
+
+# ---- Script catalog ----------------------------------------------------------
+#
+# Centralized metadata for maintainer-relevant scripts.
+# Safety classifications: READ_ONLY | TEST | MUTATING | INTERNAL
+
+$script:ScriptCatalog = @(
+    @{ Display = 'Detect Project Type';            Path = 'scripts\detect-project-type.ps1';              Category = 'Project';    Purpose = 'Classify a directory: CLEAN / MXAGILE / LEGACY / MIGRATION';        Safety = 'READ_ONLY' },
+    @{ Display = 'Create Test Workcopy';           Path = 'scripts\create-test-workcopy.ps1';             Category = 'Workspace';  Purpose = 'Create .testing-* workspace from a project template';               Safety = 'MUTATING'  },
+    @{ Display = 'Run All Tests';                  Path = 'tests\run-all-tests.ps1';                      Category = 'Testing';    Purpose = 'Run all unit test suites in sequence';                               Safety = 'TEST'      },
+    @{ Display = 'Run Installer Tests';            Path = 'tests\run-installer-tests.ps1';                Category = 'Testing';    Purpose = 'Run installer integration test suite';                               Safety = 'TEST'      },
+    @{ Display = 'Install mxcli';                  Path = 'scripts\install-mxcli.ps1';                    Category = 'Tooling';    Purpose = 'Install or update the mxcli Mendix engineering tool';                Safety = 'MUTATING'  },
+    @{ Display = 'Apply Agent Instructions';       Path = 'scripts\apply-project-agent-instructions.ps1'; Category = 'Framework';  Purpose = 'Inject AGENT.md managed block into platform projection files';       Safety = 'MUTATING'  },
+    @{ Display = 'Generate Platform Skills';       Path = 'scripts\generate-mxagile-platform-skills.ps1'; Category = 'Framework';  Purpose = 'Generate platform projections from canonical .mxagile/ sources';     Safety = 'MUTATING'  },
+    @{ Display = 'Setup Agent System';             Path = 'scripts\setup-agent-system.ps1';               Category = 'Framework';  Purpose = 'Set up agent tooling in a project directory';                        Safety = 'MUTATING'  },
+    @{ Display = 'Public Bootstrap (Core)';        Path = 'install-mxagile.ps1';                          Category = 'Install';    Purpose = 'Entry point: install MxAgile Core into a project';                   Safety = 'MUTATING'  },
+    @{ Display = 'Public Bootstrap (Mercedes)';    Path = 'install-mxagile-mercedes.ps1';                 Category = 'Install';    Purpose = 'Entry point: install MxAgile + Mercedes Company Layer';              Safety = 'MUTATING'  },
+    @{ Display = 'Install Core (internal)';        Path = 'scripts\install-core.ps1';                     Category = 'Install';    Purpose = 'Internal installation engine -- use public bootstrap instead';       Safety = 'INTERNAL'  },
+    @{ Display = 'Migration Bootstrap (internal)'; Path = 'scripts\install-migration-bootstrap.ps1';      Category = 'Migration';  Purpose = 'Internal migration bootstrap -- invoked by bootstrap automatically';  Safety = 'INTERNAL'  }
+)
 
 # ---- Exit-code contract -------------------------------------------------------
 #   0   Success
@@ -108,6 +129,434 @@ function Show-RootHelp {
     Write-Host "    mxagile-dev migration status .testing-brownfield_migration_captrack"
     Write-Host "    mxagile-dev install core /path/to/mendix-project"
     Write-Host ""
+}
+
+# ---- Interactive menu helpers ------------------------------------------------
+
+function Read-MenuChoice {
+    param([string] $Prompt = '  Choice')
+    $raw = $null
+    try { $raw = Read-Host $Prompt } catch { $raw = '' }
+    if ($null -eq $raw) { $raw = '' }
+    $raw = $raw.Trim()
+    if ($raw.ToUpper() -eq 'Q') {
+        Write-Host '  Goodbye.' -ForegroundColor DarkGray
+        exit 0
+    }
+    return $raw
+}
+
+function Wait-Continue {
+    Write-Host ''
+    try { $null = Read-Host '  Press Enter to continue' } catch { }
+}
+
+function Get-TestSuites {
+    $testsDir = Join-Path $script:RepoRoot 'tests'
+    $named = @(Get-ChildItem -LiteralPath $testsDir -Filter 'test-*.ps1' |
+        Sort-Object Name |
+        ForEach-Object { $_.BaseName -replace '^test-', '' })
+    return (@('smoke', 'installer') + $named)
+}
+
+function Get-TestWorkspaces {
+    @(Get-ChildItem -LiteralPath $script:RepoRoot -Filter '.testing-*' -Directory -ErrorAction SilentlyContinue)
+}
+
+function Select-FromList {
+    param([string] $Prompt, [string[]] $Items)
+    if ($Items.Count -eq 0) {
+        Write-Host '  (none available)' -ForegroundColor Yellow
+        return $null
+    }
+    Write-Host ''
+    for ($i = 0; $i -lt $Items.Count; $i++) {
+        Write-Host "  [$($i+1)] $($Items[$i])"
+    }
+    Write-Host ''
+    Write-Host '  [B] Cancel'
+    $choice = Read-MenuChoice -Prompt $Prompt
+    if ($choice.ToUpper() -eq 'B') { return $null }
+    $idx = 0
+    if ([int]::TryParse($choice, [ref]$idx) -and $idx -ge 1 -and $idx -le $Items.Count) {
+        return $Items[$idx - 1]
+    }
+    Write-Host "  Invalid selection '$choice'." -ForegroundColor Yellow
+    return $null
+}
+
+function Select-ProjectPath {
+    param([string] $Verb = 'target')
+    Write-Host ''
+    Write-Host "  Select $Verb" -ForegroundColor DarkCyan
+    Write-Host "  [C] Current directory  ($((Get-Location).Path))"
+    Write-Host '  [W] Pick from test workspaces'
+    Write-Host '  [E] Enter path manually'
+    Write-Host ''
+    Write-Host '  [B] Cancel'
+    $choice = Read-MenuChoice
+    switch ($choice.ToUpper()) {
+        'C' { return (Get-Location).Path }
+        'B' { return $null }
+        'W' {
+            $workspaces = @(Get-TestWorkspaces)
+            if ($workspaces.Count -eq 0) {
+                Write-Host '  No test workspaces found.' -ForegroundColor Yellow
+                return $null
+            }
+            $paths = @($workspaces | ForEach-Object { $_.FullName })
+            return (Select-FromList -Prompt '  Workspace number' -Items $paths)
+        }
+        'E' {
+            $path = $null
+            try { $path = (Read-Host '  Path').Trim() } catch { }
+            if ([string]::IsNullOrWhiteSpace($path)) { return $null }
+            return $path
+        }
+        default {
+            Write-Host "  Invalid selection '$choice'." -ForegroundColor Yellow
+            return $null
+        }
+    }
+}
+
+function Invoke-MenuOperation {
+    param([string[]] $CmdArgs)
+    Write-Host ''
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $env:MXAGILE_NONINTERACTIVE = '1'
+    # Capture output explicitly so it reliably flows through this process's
+    # stdout pipeline regardless of grandchild handle inheritance.
+    $cmdOutput = & powershell -NoProfile -File $script:CliPath @CmdArgs 2>&1
+    $ec = $LASTEXITCODE
+    Remove-Item Env:\MXAGILE_NONINTERACTIVE -ErrorAction SilentlyContinue
+    $ErrorActionPreference = $prevEAP
+    if ($null -ne $cmdOutput) {
+        foreach ($line in $cmdOutput) {
+            if ($line -is [System.Management.Automation.ErrorRecord]) {
+                Write-Host $line.ToString() -ForegroundColor Red
+            } else {
+                Write-Host $line
+            }
+        }
+    }
+    return $ec
+}
+
+# ---- Interactive menu screens ------------------------------------------------
+
+function Show-TestsMenu {
+    while ($true) {
+        Write-Host ''
+        Write-Host '  Tests' -ForegroundColor Cyan
+        Write-Host '  -----' -ForegroundColor DarkCyan
+        Write-Host ''
+        Write-Host '  [1] List test suites'
+        Write-Host '  [2] Run one test suite'
+        Write-Host '  [3] Run all tests'
+        Write-Host ''
+        Write-Host '  [B] Back  [Q] Quit'
+        $choice = Read-MenuChoice
+        switch ($choice.ToUpper()) {
+            '1' {
+                $null = Invoke-MenuOperation @('test', 'list')
+                Wait-Continue
+            }
+            '2' {
+                $suites = @(Get-TestSuites)
+                Write-Host ''
+                Write-Host '  Available test suites:' -ForegroundColor DarkCyan
+                $selected = Select-FromList -Prompt '  Suite number' -Items $suites
+                if ($null -ne $selected) {
+                    $null = Invoke-MenuOperation @('test', 'run', $selected)
+                    Wait-Continue
+                }
+            }
+            '3' {
+                $null = Invoke-MenuOperation @('test', 'all')
+                Wait-Continue
+            }
+            'B' { return }
+            default { Write-Host "  Unknown option '$choice'." -ForegroundColor Yellow }
+        }
+    }
+}
+
+function Show-WorkspacesMenu {
+    while ($true) {
+        Write-Host ''
+        Write-Host '  Test Workspaces' -ForegroundColor Cyan
+        Write-Host '  ---------------' -ForegroundColor DarkCyan
+        Write-Host ''
+        Write-Host '  [1] List workspaces'
+        Write-Host '  [2] Create workspace'
+        Write-Host '  [3] Reset workspace'
+        Write-Host '  [4] Remove workspace'
+        Write-Host ''
+        Write-Host '  [B] Back  [Q] Quit'
+        $choice = Read-MenuChoice
+        switch ($choice.ToUpper()) {
+            '1' {
+                $null = Invoke-MenuOperation @('workspace', 'list')
+                Wait-Continue
+            }
+            '2' {
+                $templates = @(Get-AvailableTemplates)
+                if ($templates.Count -eq 0) {
+                    Write-Host '  No templates found.' -ForegroundColor Yellow
+                    Wait-Continue
+                } else {
+                    Write-Host ''
+                    Write-Host '  Available templates:' -ForegroundColor DarkCyan
+                    $selected = Select-FromList -Prompt '  Template number' -Items $templates
+                    if ($null -ne $selected) {
+                        $null = Invoke-MenuOperation @('workspace', 'create', $selected)
+                        Wait-Continue
+                    }
+                }
+            }
+            '3' {
+                $workspaces = @(Get-TestWorkspaces)
+                if ($workspaces.Count -eq 0) {
+                    Write-Host '  No workspaces found.' -ForegroundColor Yellow
+                    Wait-Continue
+                } else {
+                    Write-Host ''
+                    Write-Host '  Existing workspaces:' -ForegroundColor DarkCyan
+                    $names = @($workspaces | ForEach-Object { $_.Name -replace '^\.testing-', '' })
+                    $selected = Select-FromList -Prompt '  Workspace number' -Items $names
+                    if ($null -ne $selected) {
+                        Write-Host ''
+                        Write-Host "  Reset .testing-$selected from template '$selected'?" -ForegroundColor Yellow
+                        Write-Host '  Confirm? [y/N] ' -NoNewline
+                        $confirm = $null
+                        try { $confirm = (Read-Host).Trim() } catch { $confirm = '' }
+                        if ($confirm -eq 'y' -or $confirm -eq 'Y') {
+                            $null = Invoke-MenuOperation @('workspace', 'reset', $selected)
+                        } else {
+                            Write-Host '  Cancelled.' -ForegroundColor DarkGray
+                        }
+                        Wait-Continue
+                    }
+                }
+            }
+            '4' {
+                $workspaces = @(Get-TestWorkspaces)
+                if ($workspaces.Count -eq 0) {
+                    Write-Host '  No workspaces found.' -ForegroundColor Yellow
+                    Wait-Continue
+                } else {
+                    Write-Host ''
+                    Write-Host '  Existing workspaces:' -ForegroundColor DarkCyan
+                    $names = @($workspaces | ForEach-Object { $_.Name -replace '^\.testing-', '' })
+                    $selected = Select-FromList -Prompt '  Workspace number' -Items $names
+                    if ($null -ne $selected) {
+                        $fullPath = Join-Path $script:RepoRoot ".testing-$selected"
+                        Write-Host ''
+                        Write-Host "  Remove: $fullPath" -ForegroundColor Yellow
+                        Write-Host '  Confirm? [y/N] ' -NoNewline
+                        $confirm = $null
+                        try { $confirm = (Read-Host).Trim() } catch { $confirm = '' }
+                        if ($confirm -eq 'y' -or $confirm -eq 'Y') {
+                            $null = Invoke-MenuOperation @('workspace', 'remove', $selected)
+                        } else {
+                            Write-Host '  Cancelled.' -ForegroundColor DarkGray
+                        }
+                        Wait-Continue
+                    }
+                }
+            }
+            'B' { return }
+            default { Write-Host "  Unknown option '$choice'." -ForegroundColor Yellow }
+        }
+    }
+}
+
+function Show-ProjectMenu {
+    while ($true) {
+        Write-Host ''
+        Write-Host '  Project Diagnostics' -ForegroundColor Cyan
+        Write-Host '  -------------------' -ForegroundColor DarkCyan
+        Write-Host ''
+        Write-Host '  [1] Detect project type'
+        Write-Host '  [2] Project status'
+        Write-Host ''
+        Write-Host '  [B] Back  [Q] Quit'
+        $choice = Read-MenuChoice
+        switch ($choice.ToUpper()) {
+            '1' {
+                $path = Select-ProjectPath -Verb 'project to detect'
+                if ($null -ne $path) {
+                    Write-Host "  Target: $path" -ForegroundColor DarkCyan
+                    $null = Invoke-MenuOperation @('project', 'detect', $path)
+                    Wait-Continue
+                }
+            }
+            '2' {
+                $path = Select-ProjectPath -Verb 'project for status'
+                if ($null -ne $path) {
+                    Write-Host "  Target: $path" -ForegroundColor DarkCyan
+                    $null = Invoke-MenuOperation @('project', 'status', $path)
+                    Wait-Continue
+                }
+            }
+            'B' { return }
+            default { Write-Host "  Unknown option '$choice'." -ForegroundColor Yellow }
+        }
+    }
+}
+
+function Show-InstallMenu {
+    while ($true) {
+        Write-Host ''
+        Write-Host '  Installation' -ForegroundColor Cyan
+        Write-Host '  ------------' -ForegroundColor DarkCyan
+        Write-Host ''
+        Write-Host '  [1] Core installer       (install-mxagile.ps1)'
+        Write-Host '  [2] Mercedes installer   (install-mxagile-mercedes.ps1)'
+        Write-Host ''
+        Write-Host '  [B] Back  [Q] Quit'
+        $choice = Read-MenuChoice
+        switch ($choice.ToUpper()) {
+            '1' {
+                $path = $null
+                try { $path = (Read-Host '  Target project path').Trim() } catch { }
+                if (-not [string]::IsNullOrWhiteSpace($path)) {
+                    $resolved = if ([System.IO.Path]::IsPathRooted($path)) { $path } else { Join-Path (Get-Location).Path $path }
+                    Write-Host ''
+                    Write-Host '  Install MxAgile Core to:' -ForegroundColor Yellow
+                    Write-Host "    $resolved" -ForegroundColor Yellow
+                    Write-Host '  Confirm? [y/N] ' -NoNewline
+                    $confirm = $null
+                    try { $confirm = (Read-Host).Trim() } catch { $confirm = '' }
+                    if ($confirm -eq 'y' -or $confirm -eq 'Y') {
+                        $null = Invoke-MenuOperation @('install', 'core', $resolved)
+                    } else {
+                        Write-Host '  Cancelled.' -ForegroundColor DarkGray
+                    }
+                    Wait-Continue
+                }
+            }
+            '2' {
+                $path = $null
+                try { $path = (Read-Host '  Target project path').Trim() } catch { }
+                if (-not [string]::IsNullOrWhiteSpace($path)) {
+                    $resolved = if ([System.IO.Path]::IsPathRooted($path)) { $path } else { Join-Path (Get-Location).Path $path }
+                    Write-Host ''
+                    Write-Host '  Install MxAgile (Mercedes) to:' -ForegroundColor Yellow
+                    Write-Host "    $resolved" -ForegroundColor Yellow
+                    Write-Host '  Confirm? [y/N] ' -NoNewline
+                    $confirm = $null
+                    try { $confirm = (Read-Host).Trim() } catch { $confirm = '' }
+                    if ($confirm -eq 'y' -or $confirm -eq 'Y') {
+                        $null = Invoke-MenuOperation @('install', 'mercedes', $resolved)
+                    } else {
+                        Write-Host '  Cancelled.' -ForegroundColor DarkGray
+                    }
+                    Wait-Continue
+                }
+            }
+            'B' { return }
+            default { Write-Host "  Unknown option '$choice'." -ForegroundColor Yellow }
+        }
+    }
+}
+
+function Show-MigrationMenu {
+    while ($true) {
+        Write-Host ''
+        Write-Host '  Migration' -ForegroundColor Cyan
+        Write-Host '  ---------' -ForegroundColor DarkCyan
+        Write-Host ''
+        Write-Host '  [1] Migration status'
+        Write-Host ''
+        Write-Host '  [B] Back  [Q] Quit'
+        $choice = Read-MenuChoice
+        switch ($choice.ToUpper()) {
+            '1' {
+                $path = Select-ProjectPath -Verb 'project for migration status'
+                if ($null -ne $path) {
+                    Write-Host "  Target: $path" -ForegroundColor DarkCyan
+                    $null = Invoke-MenuOperation @('migration', 'status', $path)
+                    Wait-Continue
+                }
+            }
+            'B' { return }
+            default { Write-Host "  Unknown option '$choice'." -ForegroundColor Yellow }
+        }
+    }
+}
+
+function Show-ScriptsMenu {
+    while ($true) {
+        Write-Host ''
+        Write-Host '  Developer Scripts' -ForegroundColor Cyan
+        Write-Host '  -----------------' -ForegroundColor DarkCyan
+        Write-Host ''
+        for ($i = 0; $i -lt $script:ScriptCatalog.Count; $i++) {
+            $entry = $script:ScriptCatalog[$i]
+            $safetyColor = switch ($entry.Safety) {
+                'READ_ONLY' { 'DarkGreen' }
+                'TEST'      { 'Cyan' }
+                'MUTATING'  { 'Yellow' }
+                'INTERNAL'  { 'DarkGray' }
+                default     { 'White' }
+            }
+            $num  = "[$($i+1)]".PadRight(5)
+            $name = $entry.Display.PadRight(38)
+            Write-Host "  $num $name" -NoNewline
+            Write-Host "[$($entry.Safety)]" -ForegroundColor $safetyColor
+        }
+        Write-Host ''
+        Write-Host '  [B] Back  [Q] Quit'
+        $choice = Read-MenuChoice
+        if ($choice.ToUpper() -eq 'B') { return }
+        $idx = 0
+        if ([int]::TryParse($choice, [ref]$idx) -and $idx -ge 1 -and $idx -le $script:ScriptCatalog.Count) {
+            $entry = $script:ScriptCatalog[$idx - 1]
+            Write-Host ''
+            Write-Host "  $($entry.Display)" -ForegroundColor Cyan
+            Write-Host "  Path    : $($entry.Path)" -ForegroundColor DarkGray
+            Write-Host "  Purpose : $($entry.Purpose)" -ForegroundColor DarkGray
+            Write-Host "  Safety  : $($entry.Safety)" -ForegroundColor DarkGray
+            Write-Host "  Category: $($entry.Category)" -ForegroundColor DarkGray
+            if ($entry.Safety -eq 'INTERNAL') {
+                Write-Host ''
+                Write-Host '  INTERNAL: run via a higher-level command instead.' -ForegroundColor Yellow
+            }
+            Wait-Continue
+        } else {
+            Write-Host "  Unknown option '$choice'." -ForegroundColor Yellow
+        }
+    }
+}
+
+function Start-InteractiveMenu {
+    while ($true) {
+        Write-Host ''
+        Write-Host '  MxAgile Developer Tools' -ForegroundColor Cyan
+        Write-Host '  =======================' -ForegroundColor DarkCyan
+        Write-Host ''
+        Write-Host '  [1] Tests'
+        Write-Host '  [2] Test Workspaces'
+        Write-Host '  [3] Project Diagnostics'
+        Write-Host '  [4] Installation'
+        Write-Host '  [5] Migration'
+        Write-Host '  [6] Scripts / Tools'
+        Write-Host ''
+        Write-Host '  [Q] Quit'
+        $choice = Read-MenuChoice
+        switch ($choice.ToUpper()) {
+            '1' { Show-TestsMenu }
+            '2' { Show-WorkspacesMenu }
+            '3' { Show-ProjectMenu }
+            '4' { Show-InstallMenu }
+            '5' { Show-MigrationMenu }
+            '6' { Show-ScriptsMenu }
+            default { Write-Host "  Unknown option '$choice'. Press Q to quit." -ForegroundColor Yellow }
+        }
+    }
 }
 
 # ---- test --------------------------------------------------------------------
@@ -492,8 +941,17 @@ function Invoke-MigrationCommand {
 
 # ---- Main dispatch -----------------------------------------------------------
 
-if ($Help -or [string]::IsNullOrWhiteSpace($Command)) {
+if ($Help) {
     Show-RootHelp
+    exit 0
+}
+
+if ([string]::IsNullOrWhiteSpace($Command)) {
+    if ($env:MXAGILE_NONINTERACTIVE -ne '1') {
+        Start-InteractiveMenu
+    } else {
+        Show-RootHelp
+    }
     exit 0
 }
 

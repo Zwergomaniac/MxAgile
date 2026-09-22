@@ -7,6 +7,46 @@ Wraps canonical scripts so you don't have to browse `scripts/` or remember paths
 
 ---
 
+## Modes of Operation
+
+### Interactive mode (no arguments)
+
+```powershell
+.\mxagile-dev.ps1
+```
+
+Starts a navigable menu. No command syntax to remember.
+
+```
+  MxAgile Developer Tools
+  =======================
+
+  [1] Tests
+  [2] Test Workspaces
+  [3] Project Diagnostics
+  [4] Installation
+  [5] Migration
+  [6] Scripts / Tools
+
+  [Q] Quit
+```
+
+Navigate with numbers, `B` to go back, `Q` to quit from anywhere.
+Mutating operations (workspace remove/reset, install) show the resolved target and ask `[y/N]` before proceeding.
+
+### Direct command mode (with arguments)
+
+```powershell
+.\mxagile-dev.ps1 test all
+.\mxagile-dev.ps1 workspace list
+.\mxagile-dev.ps1 project status .
+.\mxagile-dev.ps1 migration status .
+```
+
+Full command syntax for automation, CI, and power users. Both modes share the same underlying dispatch logic and canonical script delegation.
+
+---
+
 ## Quick Start
 
 ```powershell
@@ -98,6 +138,19 @@ Both commands delegate to the **public bootstrap scripts**, which handle distrib
 
 Shows: classification, `state.yaml` content, migration README, brownfield baseline, and `.dfc-ai/` presence.
 
+### Interactive-only: Scripts / Tools
+
+Accessible via the interactive menu (`[6]`). Displays a curated catalog of maintainer scripts with safety classifications:
+
+| Classification | Meaning |
+|---|---|
+| `READ_ONLY` | Reads project state; safe to run any time |
+| `TEST` | Runs test suites; no project mutation |
+| `MUTATING` | Modifies files or project state |
+| `INTERNAL` | Framework internals; listed for discoverability only |
+
+`INTERNAL` scripts are shown but flagged — use a higher-level command instead of invoking them directly.
+
 ---
 
 ## Exit Codes
@@ -139,10 +192,22 @@ for the framework repository.
 
 ## Adding a New Command (Future)
 
+### Direct command mode
+
 1. Identify the canonical script to delegate to.
 2. Add a function `Invoke-<Group>Command` or extend an existing switch block in `mxagile-dev.ps1`.
 3. Delegate: `& powershell -NoProfile -File $canonicalScript @args; exit $LASTEXITCODE`.
-4. Add tests to `tests/test-mxagile-dev-cli.ps1`.
+4. Add tests to `tests/test-mxagile-dev-cli.ps1` (Scenarios A–Q pattern).
 5. Update this reference.
 
 Do not copy script logic into the CLI. One-line delegation is always the correct pattern.
+
+### Interactive menu entry
+
+If the command should also appear in a menu:
+
+1. Add a `Show-<Group>Menu` function or extend an existing submenu's switch block.
+2. Call `Invoke-MenuOperation @('group', 'subcommand', ...)` — this self-invokes the CLI in direct mode and captures/re-emits output so tests can observe it.
+3. For mutating operations, show the resolved target and prompt `[y/N]` before calling `Invoke-MenuOperation`.
+4. Add `Scenario R` interactive tests using `Invoke-CLIInteractive` with a piped key sequence.
+5. Do **not** duplicate the command logic in the menu function — the menu only calls the direct-mode dispatch.

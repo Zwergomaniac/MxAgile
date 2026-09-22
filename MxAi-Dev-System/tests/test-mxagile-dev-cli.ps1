@@ -61,7 +61,30 @@ function Invoke-CLI {
     # does not throw a terminating error in this script (ErrorActionPreference = Stop).
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
+    # Set MXAGILE_NONINTERACTIVE so no-arg invocations show help, not the interactive menu.
+    $prevNI = $env:MXAGILE_NONINTERACTIVE
+    $env:MXAGILE_NONINTERACTIVE = '1'
     $rawOutput = & powershell -NoProfile -NonInteractive -File $script:CliPath @CliArgs 2>&1
+    $ec = $LASTEXITCODE
+    if ($null -eq $prevNI) {
+        Remove-Item Env:\MXAGILE_NONINTERACTIVE -ErrorAction SilentlyContinue
+    } else {
+        $env:MXAGILE_NONINTERACTIVE = $prevNI
+    }
+    $ErrorActionPreference = $prevEAP
+    return @{
+        Output   = ($rawOutput | Out-String)
+        ExitCode = $ec
+    }
+}
+
+function Invoke-CLIInteractive {
+    param([string] $InputSequence)
+    # Does NOT set MXAGILE_NONINTERACTIVE -- the CLI enters interactive mode.
+    # Pipes the input sequence as stdin so Read-Host calls consume it.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $rawOutput = ($InputSequence | & powershell -NoProfile -File $script:CliPath 2>&1)
     $ec = $LASTEXITCODE
     $ErrorActionPreference = $prevEAP
     return @{
@@ -259,9 +282,9 @@ $cliContent = Get-Content -LiteralPath $script:CliPath -Raw
 Assert-True 'N1: CLI references install-mxagile.ps1'  ($cliContent -match "install-mxagile\.ps1") 'install-mxagile.ps1 not referenced'
 Assert-True 'N2: CLI references install-mxagile-mercedes.ps1' `
     ($cliContent -match "install-mxagile-mercedes\.ps1") 'install-mxagile-mercedes.ps1 not referenced'
-# Must NOT directly call install-core.ps1 (that would bypass preflight)
-Assert-True 'N3: CLI does not call install-core.ps1 directly' `
-    ($cliContent -notmatch "install-core\.ps1") 'CLI references install-core.ps1 directly — bypasses public bootstrap'
+# Must NOT invoke install-core.ps1 directly (catalog may list it for discoverability; dispatch must not call it)
+Assert-True 'N3: CLI does not invoke install-core.ps1 directly' `
+    ($cliContent -notmatch '-File[^;`n]*install-core\.ps1') 'CLI invokes install-core.ps1 directly — bypasses public bootstrap'
 
 # ─── O. Repository root discovery uses marker files ──────────────────────────
 
@@ -309,6 +332,69 @@ Assert-True 'Q5: delegates to run-installer-tests.ps1'    ($cliContent -match "r
 Assert-True 'Q6: no robocopy invocation in CLI'           ($cliContent -notmatch '\brobocopy\b') 'CLI contains robocopy (workspace logic reimplemented)'
 Assert-True 'Q7: no mxagile-init logic in CLI'            ($cliContent -notmatch 'mxagile-init|pip install|requirements\.txt') 'CLI contains init logic'
 Assert-True 'Q8: no migration state-machine logic in CLI' ($cliContent -notmatch 'dfc_artifacts_removed|agent_md_migrated') 'CLI contains migration step logic'
+
+# ─── R. Interactive mode ──────────────────────────────────────────────────────
+
+Write-Host '  Scenario R: Interactive mode'
+
+# R1-R3: Basic startup — interactive mode shows main menu, Q quits cleanly
+$r = Invoke-CLIInteractive "Q`n"
+Assert-True 'R1: interactive exits 0 on Q'           ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R2: shows MxAgile Developer Tools'      ($r.Output -match 'MxAgile Developer Tools') 'no menu header'
+Assert-True 'R3: shows numbered main menu options'   ($r.Output -match '\[1\].*Tests')             'no main menu options'
+
+# R4-R5: Invalid selection handled gracefully
+$r = Invoke-CLIInteractive "xyz123`nQ`n"
+Assert-True 'R4: invalid selection exits 0'          ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R5: invalid selection shows warning'    ($r.Output -match 'Unknown option')           'no unknown-option warning'
+
+# R6-R7: Tests submenu accessible and shows expected items
+$r = Invoke-CLIInteractive "1`nB`nQ`n"
+Assert-True 'R6: tests submenu exits 0'              ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R7: tests submenu shows list-suites'    ($r.Output -match 'List test suites')        'tests submenu not shown'
+
+# R8-R9: B navigates back to main menu, which redisplays
+$r = Invoke-CLIInteractive "1`nB`n2`nB`nQ`n"
+Assert-True 'R8: back navigation exits 0'            ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R9: main menu redisplayed after back'   ($r.Output -match 'Test Workspaces')         'workspaces menu not reached via main'
+
+# R10-R11: Dynamic test suite list shown inside menu (tests -> list -> Enter -> B -> Q)
+$r = Invoke-CLIInteractive "1`n1`n`nB`nQ`n"
+Assert-True 'R10: list suites via menu exits 0'      ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R11: dynamic suite list includes smoke' ($r.Output -match '\bsmoke\b')               'smoke not in menu suite list'
+
+# R12-R13: Dynamic template discovery in workspace create (workspace -> create -> B -> B -> Q)
+$r = Invoke-CLIInteractive "2`n2`nB`nB`nQ`n"
+Assert-True 'R12: template discovery exits 0'        ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R13: templates or no-templates shown'   ($r.Output -match 'Available templates|brownfield|greenfield|No templates') 'template section missing'
+
+# R14-R15: Dynamic workspace discovery in workspace remove (workspace -> remove -> B -> B -> Q)
+$r = Invoke-CLIInteractive "2`n4`nB`nB`nQ`n"
+Assert-True 'R14: workspace remove menu exits 0'     ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R15: workspace list or no-ws shown'     ($r.Output -match 'Existing workspaces|No workspaces') 'workspace listing missing'
+
+# R16: Scripts/Tools menu accessible and shows catalog (scripts -> B -> Q)
+$r = Invoke-CLIInteractive "6`nB`nQ`n"
+Assert-True 'R16: scripts menu exits 0'              ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+Assert-True 'R17: catalog shows safety labels'       ($r.Output -match 'READ_ONLY|MUTATING|TEST|INTERNAL') 'safety labels missing from catalog'
+
+# R18-R20: Menu delegates to same dispatcher via Invoke-MenuOperation / MXAGILE_NONINTERACTIVE
+$cliContent = Get-Content -LiteralPath $script:CliPath -Raw
+Assert-True 'R18: CLI has MXAGILE_NONINTERACTIVE gate' ($cliContent -match 'MXAGILE_NONINTERACTIVE') 'no env-var detection in CLI'
+Assert-True 'R19: menu uses Invoke-MenuOperation'      ($cliContent -match 'Invoke-MenuOperation')   'Invoke-MenuOperation not present'
+Assert-True 'R20: menu self-invokes via script:CliPath' ($cliContent -match 'script:CliPath')         'self-invocation pattern missing'
+
+# R21: Destructive operations require explicit confirmation (structural check)
+Assert-True 'R21: workspace remove has y/N confirm'  ($cliContent -match '\[y/N\]')               'no y/N confirmation found'
+
+# R22: Install menu shows target before confirming (structural check)
+Assert-True 'R22: install menu shows target path'    ($cliContent -match 'Install MxAgile Core to:') 'install target display missing'
+
+# R23-R24: Direct command mode unchanged by interactive additions
+$r = Invoke-CLI @('test', 'list')
+Assert-True 'R23: direct test list still works'      ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
+$r = Invoke-CLI @('project', 'detect', $RepoRoot)
+Assert-True 'R24: direct project detect still works' ($r.ExitCode -eq 0)                          "exit $($r.ExitCode)"
 
 # ─── Summary ──────────────────────────────────────────────────────────────────
 
