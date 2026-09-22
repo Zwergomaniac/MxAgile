@@ -104,6 +104,39 @@ function Invoke-MigrationStateReconciliation {
     return "FIELD_ALREADY_PRESENT"
 }
 
+# Applies stale-file retirement logic from install-core.ps1 Step 1c.1.
+# Removes all non-protected items from $MxAgileDir; outputs retired item names to pipeline.
+function Invoke-StaleFileRetirement {
+    param([string]$MxAgileDir)
+    $protected = @("layers", "state", "migration")
+    if (-not (Test-Path -LiteralPath $MxAgileDir -PathType Container)) { return }
+    Get-ChildItem -LiteralPath $MxAgileDir | ForEach-Object {
+        if ($_.PSIsContainer) {
+            if ($protected -notcontains $_.Name) {
+                Remove-Item -LiteralPath $_.FullName -Recurse -Force
+                Write-Output $_.Name
+            }
+        } else {
+            Remove-Item -LiteralPath $_.FullName -Force
+            Write-Output $_.Name
+        }
+    }
+}
+
+# Mirrors the canonical copy loop from install-core.ps1 Step 1c (content-merge, no delete).
+function Invoke-CanonicalCopy {
+    param([string]$SourceDir, [string]$DestDir)
+    Get-ChildItem -LiteralPath $SourceDir -Exclude "layers", "state" | ForEach-Object {
+        if ($_.PSIsContainer) {
+            $dst = Join-Path $DestDir $_.Name
+            if (-not (Test-Path -LiteralPath $dst)) { New-Item -ItemType Directory -Path $dst -Force | Out-Null }
+            Copy-Item -Path "$($_.FullName)\*" -Destination $dst -Recurse -Force
+        } else {
+            Copy-Item -LiteralPath $_.FullName -Destination $DestDir -Force
+        }
+    }
+}
+
 $InstallCorePath = Join-Path $ScriptsDir "install-core.ps1"
 
 Write-Host ""
@@ -453,6 +486,96 @@ try {
         "Unexpected .yml files in requirements/"
 } finally {
     Remove-TempDir $tmpF
+}
+
+Write-Host ""
+
+# ===========================================================================
+# GROUP H: Stale framework-owned file retirement on Core update
+# ===========================================================================
+Write-Host "--- H: Stale framework-owned file retirement ---"
+
+# H1-H2: Static proof — retirement logic present in install-core.ps1
+Assert-Contains "H1: install-core.ps1 contains stale-file retirement block" `
+    $InstallCorePath 'protectedMxAgileDirs'
+Assert-Contains "H2: retirement protection list includes layers, state, migration" `
+    $InstallCorePath '"layers", "state", "migration"'
+
+# H3-H8: Functional proof — isolated retirement helper
+$tmpH = New-TempDir
+try {
+    $mxH = Join-Path $tmpH ".mxagile"
+    foreach ($d in @(
+        "skills", "agents", "policies",
+        "layers\mercedes-star", "state", "migration"
+    )) { New-Item -ItemType Directory -Path (Join-Path $mxH $d) -Force | Out-Null }
+
+    # Framework-owned content (version A surface)
+    "skill v1" | Set-Content -LiteralPath (Join-Path $mxH "skills\old-skill.md") -Encoding UTF8
+    "agent v1" | Set-Content -LiteralPath (Join-Path $mxH "agents\old-agent.md") -Encoding UTF8
+    "lifecycle v1" | Set-Content -LiteralPath (Join-Path $mxH "lifecycle.yaml") -Encoding UTF8
+
+    # Protected content (must survive retirement)
+    '{"id": "mercedes-star"}' | Set-Content -LiteralPath (Join-Path $mxH "layers\mercedes-star\layer.json") -Encoding UTF8
+    "state content" | Set-Content -LiteralPath (Join-Path $mxH "state\brownfield.yaml") -Encoding UTF8
+    (@('status: complete', 'last_step: done') -join "`n") | Set-Content -LiteralPath (Join-Path $mxH "migration\state.yaml") -Encoding UTF8
+
+    $retired = @(Invoke-StaleFileRetirement -MxAgileDir $mxH)
+
+    Assert-True "H3: framework file (lifecycle.yaml) retired" `
+        (-not (Test-Path -LiteralPath (Join-Path $mxH "lifecycle.yaml"))) "lifecycle.yaml still present"
+    Assert-True "H4: framework dir (skills/) retired" `
+        (-not (Test-Path -LiteralPath (Join-Path $mxH "skills"))) "skills/ still present"
+    Assert-True "H5: layers/ content preserved during retirement" `
+        (Test-Path -LiteralPath (Join-Path $mxH "layers\mercedes-star\layer.json")) "layer.json missing"
+    Assert-True "H6: state/ content preserved during retirement" `
+        (Test-Path -LiteralPath (Join-Path $mxH "state\brownfield.yaml")) "state content missing"
+    Assert-True "H7: migration/ content preserved during retirement" `
+        (Test-Path -LiteralPath (Join-Path $mxH "migration\state.yaml")) "migration state.yaml missing"
+    Assert-True "H8: retirement returns names of retired items" `
+        ($retired.Count -ge 3) "Expected >=3 retired items, got $($retired.Count)"
+} finally {
+    Remove-TempDir $tmpH
+}
+
+# H9-H13: End-to-end equivalence — version A -> retirement + canonical copy -> version B surface
+$tmpH2 = New-TempDir
+try {
+    $mxH2 = Join-Path $tmpH2 ".mxagile"
+    foreach ($d in @(
+        "skills", "agents",
+        "layers\mercedes-star", "migration"
+    )) { New-Item -ItemType Directory -Path (Join-Path $mxH2 $d) -Force | Out-Null }
+
+    # Version A surface: files that do NOT exist in the real canonical source
+    "old skill" | Set-Content -LiteralPath (Join-Path $mxH2 "skills\skill-a-only.md") -Encoding UTF8
+    "old agent" | Set-Content -LiteralPath (Join-Path $mxH2 "agents\agent-a-only.md") -Encoding UTF8
+
+    # Protected content
+    '{"id": "mercedes-star"}' | Set-Content -LiteralPath (Join-Path $mxH2 "layers\mercedes-star\layer.json") -Encoding UTF8
+    "status: complete" | Set-Content -LiteralPath (Join-Path $mxH2 "migration\state.yaml") -Encoding UTF8
+
+    # Simulate Core update: Step 1c.1 retirement + Step 1c canonical copy
+    Invoke-StaleFileRetirement -MxAgileDir $mxH2 | Out-Null
+    Invoke-CanonicalCopy -SourceDir $MxAgileDir -DestDir $mxH2
+
+    # Version-A-only files must be gone (retired, not re-introduced by canonical copy)
+    Assert-True "H9: version-A skill (skill-a-only.md) absent after canonical update" `
+        (-not (Test-Path -LiteralPath (Join-Path $mxH2 "skills\skill-a-only.md"))) "stale skill still present"
+    Assert-True "H10: version-A agent (agent-a-only.md) absent after canonical update" `
+        (-not (Test-Path -LiteralPath (Join-Path $mxH2 "agents\agent-a-only.md"))) "stale agent still present"
+
+    # Canonical files must be present
+    Assert-True "H11: canonical skills/ present after retirement + canonical copy" `
+        (Test-Path -LiteralPath (Join-Path $mxH2 "skills")) "skills/ missing after update"
+
+    # Protected content must survive the full cycle
+    Assert-True "H12: Company Layer preserved through full retirement+copy cycle" `
+        (Test-Path -LiteralPath (Join-Path $mxH2 "layers\mercedes-star\layer.json")) "Company Layer lost"
+    Assert-True "H13: migration state preserved through full retirement+copy cycle" `
+        (Test-Path -LiteralPath (Join-Path $mxH2 "migration\state.yaml")) "migration state.yaml lost"
+} finally {
+    Remove-TempDir $tmpH2
 }
 
 Write-Host ""

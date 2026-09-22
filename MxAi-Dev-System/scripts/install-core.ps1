@@ -175,7 +175,31 @@ try {
     # PS5.1 nesting-bug fix: when a same-named subdirectory already exists at the destination,
     # Copy-Item -LiteralPath places the SOURCE directory INSIDE the existing one instead of
     # merging contents (e.g. skills/skills/*.md instead of skills/*.md).
-    # Fix: use content-merge — pre-create each destination subdirectory, then copy with -Path "*".
+    # Fix: use content-merge - pre-create each destination subdirectory, then copy with -Path "*".
+    #
+    # Step 1c.1: Ownership-aware stale file retirement
+    # Content-merge (Copy-Item without Remove-Item) preserves files that were intentionally
+    # removed from the canonical source between Core versions. Left unchecked, the project's
+    # framework surface diverges from the intended version (updated-install != fresh-install).
+    # Fix: clear all framework-owned content from .mxagile/ before the canonical copy so the
+    # resulting surface always matches the canonical source exactly.
+    # Protected dirs are never touched: layers/ (Company Layer), state/ (runtime state),
+    # migration/ (project migration history - never in canonical source).
+    $protectedMxAgileDirs = @("layers", "state", "migration")
+    $retiredCount = 0
+    Get-ChildItem -LiteralPath $destMxAgile -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.PSIsContainer) {
+            if ($protectedMxAgileDirs -notcontains $_.Name) {
+                Remove-Item -LiteralPath $_.FullName -Recurse -Force
+                $retiredCount++
+            }
+        } else {
+            Remove-Item -LiteralPath $_.FullName -Force
+            $retiredCount++
+        }
+    }
+    Write-Host "[OK] Stale framework-owned content cleared ($retiredCount items) - canonical copy proceeds fresh."
+
     Get-ChildItem -LiteralPath $canonicalSource -Exclude "layers", "state" | ForEach-Object {
         if ($_.PSIsContainer) {
             # Content-merge: copy directory CONTENTS to the named subdirectory.
