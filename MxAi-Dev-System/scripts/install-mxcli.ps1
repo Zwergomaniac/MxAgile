@@ -1,51 +1,88 @@
+<#
+.SYNOPSIS
+    mxcli Stable Installer / Updater for Windows x64.
+
+.DESCRIPTION
+    Resolves the latest stable mxcli release from GitHub, checks whether
+    the project-local binary is already at an acceptable version, and
+    downloads + installs only when necessary.
+
+    Ownership: This script (and its project-distributed copy update-mxcli.ps1)
+    is the SOLE canonical path for acquiring or updating the project-local
+    mxcli.exe. No agent, migration script, or wrapper may copy an arbitrary
+    PATH/global/developer-local mxcli into the project as a substitute.
+
+.PARAMETER TargetDir
+    Directory where mxcli.exe will be installed. Defaults to $PSScriptRoot.
+
+.PARAMETER MinimumVersion
+    If specified, an existing local binary is accepted (without checking for
+    a newer remote version) as long as its version >= MinimumVersion.
+    Leave empty (default) to always check for the latest stable release.
+    Extension point for future dependency management -- do not use for
+    informal version pinning without explicit framework governance.
+
+.PARAMETER DownloadTimeoutSec
+    HTTP timeout in seconds for the binary download. Default: 300.
+
+.PARAMETER ApiTimeoutSec
+    HTTP timeout in seconds for GitHub API calls. Default: 30.
+
+.PARAMETER RetryCount
+    Number of download retry attempts after the first failure. Default: 2.
+#>
+
 [CmdletBinding()]
 param (
-    [string]$TargetDir = $PSScriptRoot
+    [string]$TargetDir          = $PSScriptRoot,
+    [string]$MinimumVersion     = "",
+    [int]$DownloadTimeoutSec    = 300,
+    [int]$ApiTimeoutSec         = 30,
+    [int]$RetryCount            = 2
 )
-
-# ============================================================
-# mxcli Stable Updater / Installer
-# - Sucht neuesten stabilen GitHub Release
-# - Ignoriert Nightly / Pre-Releases / Drafts
-# - Laedt Windows x64 (amd64)
-# - Zielordner kann ausgewaehlt werden
-# - Vorhandene mxcli.exe wird ersetzt
-# ============================================================
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "mendixlabs/mxcli"
+$Repo      = "mendixlabs/mxcli"
 $AssetName = "mxcli-windows-amd64.exe"
+
+function Format-Bytes {
+    param([long]$Bytes)
+    if ($Bytes -ge 1GB) { return "{0:F1} GB" -f ($Bytes / 1GB) }
+    if ($Bytes -ge 1MB) { return "{0:F1} MB" -f ($Bytes / 1MB) }
+    if ($Bytes -ge 1KB) { return "{0:F1} KB" -f ($Bytes / 1KB) }
+    return "$Bytes B"
+}
 
 Write-Host ""
 Write-Host "=== mxcli Stable Installer ===" -ForegroundColor Cyan
-Write-Host "Repository: $Repo"
+Write-Host "Repository : $Repo"
+Write-Host "Target     : $(Join-Path $TargetDir 'mxcli.exe')"
+if ($MinimumVersion) { Write-Host "Minimum    : $MinimumVersion" }
 Write-Host ""
 
 $TargetExe = Join-Path $TargetDir "mxcli.exe"
 
-Write-Host "Ziel: $TargetExe" -ForegroundColor Gray
-Write-Host ""
-
 # ------------------------------------------------------------
-# 1. GitHub Releases laden
+# 1. Resolve latest stable release via GitHub API
 # ------------------------------------------------------------
 
-Write-Host "Suche neuesten stabilen mxcli Release..." -ForegroundColor Cyan
+Write-Host "Resolving latest stable mxcli release..." -ForegroundColor Cyan
 
 $headers = @{
     "Accept"     = "application/vnd.github+json"
     "User-Agent" = "mxcli-powershell-installer"
 }
 
-$releases = Invoke-RestMethod `
-    -Uri "https://api.github.com/repos/$Repo/releases" `
-    -Headers $headers
+try {
+    $releases = Invoke-RestMethod `
+        -Uri         "https://api.github.com/repos/$Repo/releases" `
+        -Headers     $headers `
+        -TimeoutSec  $ApiTimeoutSec
+} catch {
+    throw "GitHub API call failed (timeout=${ApiTimeoutSec}s): $($_.Exception.Message)"
+}
 
-# Nur stabile Releases:
-# - kein Draft
-# - kein Pre-Release
-# - kein nightly Tag
 $release = $releases |
     Where-Object {
         -not $_.draft -and
@@ -55,112 +92,160 @@ $release = $releases |
     Select-Object -First 1
 
 if (-not $release) {
-    throw "Kein stabiler mxcli Release gefunden."
+    throw "No stable mxcli release found. Check network access and GitHub API availability."
 }
-
-Write-Host "Neuester Release: $($release.tag_name)" -ForegroundColor Green
-Write-Host "Release-Name:   $($release.name)"
-Write-Host ""
-
-# ------------------------------------------------------------
-# 2. Lokale Version prüfen und bei Bedarf abbrechen
-# ------------------------------------------------------------
-
-if (Test-Path $TargetExe) {
-    try {
-        $localVersionString = & $TargetExe --version 2>$null
-        $remoteVersionString = $release.tag_name
-
-        $localMatch = [regex]::Match($localVersionString, '(\d+\.\d+\.\d+)')
-        $remoteMatch = [regex]::Match($remoteVersionString, '(\d+\.\d+\.\d+)')
-
-        if ($localMatch.Success -and $remoteMatch.Success) {
-            $localSemVer = [System.Version]$localMatch.Groups[1].Value
-            $remoteSemVer = [System.Version]$remoteMatch.Groups[1].Value
-
-            if ($localSemVer -ge $remoteSemVer) {
-                Write-Host ""
-                Write-Output "mxcli is already up-to-date (version $localSemVer)."
-                exit 0
-            }
-            else {
-                Write-Host "Lokale Version $localSemVer ist aelter als Remote-Version $remoteSemVer. Update wird ausgefuehrt..." -ForegroundColor Yellow
-                Write-Host ""
-            }
-        }
-    }
-    catch {
-        Write-Warning "Version der vorhandenen mxcli.exe konnte nicht ermittelt werden. Update wird fortgesetzt."
-    }
-}
-
-# ------------------------------------------------------------
-# 3. Windows x64 Asset suchen
-# ------------------------------------------------------------
 
 $asset = $release.assets |
     Where-Object { $_.name -eq $AssetName } |
     Select-Object -First 1
 
 if (-not $asset) {
-    Write-Host "Verfuegbare Assets:" -ForegroundColor Yellow
-    $release.assets | ForEach-Object {
-        Write-Host "  - $($_.name)"
+    $available = ($release.assets | ForEach-Object { $_.name }) -join ", "
+    throw "Asset '$AssetName' not found in release $($release.tag_name). Available: $available"
+}
+
+$remoteVersionMatch = [regex]::Match($release.tag_name, '(\d+\.\d+\.\d+)')
+$remoteVersionStr   = if ($remoteVersionMatch.Success) { $remoteVersionMatch.Groups[1].Value } else { $release.tag_name }
+$assetSizeHuman     = Format-Bytes -Bytes $asset.size
+
+Write-Host "  Latest  : $($release.tag_name)  ($assetSizeHuman)" -ForegroundColor Green
+Write-Host ""
+
+# ------------------------------------------------------------
+# 2. Check local version
+# ------------------------------------------------------------
+
+Write-Host "Checking local version..." -ForegroundColor Cyan
+
+if (Test-Path -LiteralPath $TargetExe -PathType Leaf) {
+    $localVersionStr = ""
+    try {
+        $localVersionOutput = & $TargetExe --version 2>$null
+        $localMatch         = [regex]::Match($localVersionOutput, '(\d+\.\d+\.\d+)')
+        if ($localMatch.Success) { $localVersionStr = $localMatch.Groups[1].Value }
+    } catch {
+        Write-Warning "  Could not read local mxcli version -- will reinstall."
     }
 
-    throw "Asset '$AssetName' wurde im Release $($release.tag_name) nicht gefunden."
+    if ($localVersionStr) {
+        $localSemVer  = [System.Version]$localVersionStr
+        $remoteSemVer = if ($remoteVersionMatch.Success) { [System.Version]$remoteVersionStr } else { $null }
+
+        # MinimumVersion shortcut: if caller specified a floor and local >= floor, accept it
+        if ($MinimumVersion) {
+            $minSemVer = [System.Version]$MinimumVersion
+            if ($localSemVer -ge $minSemVer) {
+                Write-Host "  Local $localVersionStr >= minimum $MinimumVersion -- requirement satisfied." -ForegroundColor Green
+                Write-Host ""
+                Write-Host "[OK] mxcli $localVersionStr meets the minimum version requirement." -ForegroundColor Green
+                exit 0
+            }
+            Write-Host "  Local $localVersionStr < minimum $MinimumVersion -- upgrade required." -ForegroundColor Yellow
+        } elseif ($remoteSemVer -and $localSemVer -ge $remoteSemVer) {
+            Write-Host "  Local $localVersionStr >= remote $remoteVersionStr -- already up-to-date." -ForegroundColor Green
+            Write-Host ""
+            Write-Host "[OK] mxcli is already up-to-date (v$localVersionStr)." -ForegroundColor Green
+            exit 0
+        } else {
+            Write-Host "  Local $localVersionStr < remote $remoteVersionStr -- update required." -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  Local mxcli version unreadable -- reinstalling." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  No local mxcli.exe found -- fresh install." -ForegroundColor Yellow
 }
 
-Write-Host "Asset: $($asset.name)"
 Write-Host ""
 
 # ------------------------------------------------------------
-# 4. Download
+# 3. Download with retry
 # ------------------------------------------------------------
 
-$tempFile = Join-Path $env:TEMP "mxcli-$($release.tag_name)-windows-amd64.exe"
+$tempFile   = Join-Path $env:TEMP "mxcli-$($release.tag_name)-windows-amd64.exe"
+$maxAttempts = 1 + [Math]::Max(0, $RetryCount)
 
-Write-Host "Lade mxcli herunter..." -ForegroundColor Cyan
+for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    if ($attempt -gt 1) {
+        $delay = 5 * ($attempt - 1)
+        Write-Host "  Retrying (attempt $attempt/$maxAttempts, waiting ${delay}s)..." -ForegroundColor Yellow
+        Start-Sleep -Seconds $delay
+    }
 
-Invoke-WebRequest `
-    -Uri $asset.browser_download_url `
-    -OutFile $tempFile `
-    -UseBasicParsing
+    Write-Host "Downloading mxcli $($release.tag_name) ($assetSizeHuman)..." -ForegroundColor Cyan
+    Write-Host "  Timeout : ${DownloadTimeoutSec}s  |  Attempt $attempt/$maxAttempts"
 
-if (-not (Test-Path $tempFile)) {
-    throw "Download fehlgeschlagen."
+    $downloadOk = $false
+    try {
+        Invoke-WebRequest `
+            -Uri             $asset.browser_download_url `
+            -OutFile         $tempFile `
+            -UseBasicParsing `
+            -TimeoutSec      $DownloadTimeoutSec
+        $downloadOk = $true
+    } catch {
+        if ($attempt -lt $maxAttempts) {
+            Write-Warning "  Download attempt $attempt failed: $($_.Exception.Message)"
+            continue
+        }
+        throw "Download failed after $maxAttempts attempt(s): $($_.Exception.Message)"
+    }
+
+    if ($downloadOk) { break }
 }
 
 # ------------------------------------------------------------
-# 5. Installieren
-# ------------------------------------------------------------
-
-Copy-Item `
-    -Path $tempFile `
-    -Destination $TargetExe `
-    -Force
-
-Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-
-# ------------------------------------------------------------
-# 6. Installation pruefen
+# 4. Verify download
 # ------------------------------------------------------------
 
 Write-Host ""
-Write-Host "Installation abgeschlossen." -ForegroundColor Green
+Write-Host "Verifying download..." -ForegroundColor Cyan
+
+if (-not (Test-Path -LiteralPath $tempFile -PathType Leaf)) {
+    throw "Download verification failed: file not found at $tempFile"
+}
+
+$actualSize   = (Get-Item -LiteralPath $tempFile).Length
+$expectedSize = $asset.size
+$actualHuman  = Format-Bytes -Bytes $actualSize
+$expectedHuman = Format-Bytes -Bytes $expectedSize
+
+if ($actualSize -ne $expectedSize) {
+    Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+    throw "Download size mismatch: got $actualSize bytes ($actualHuman), expected $expectedSize bytes ($expectedHuman). The download may be truncated or corrupt."
+}
+
+Write-Host "  Size    : $actualHuman ($actualSize bytes) -- matches release asset" -ForegroundColor Green
 Write-Host ""
+
+# ------------------------------------------------------------
+# 5. Install
+# ------------------------------------------------------------
+
+Write-Host "Installing mxcli..." -ForegroundColor Cyan
+
+Copy-Item -Path $tempFile -Destination $TargetExe -Force
+Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+
+# ------------------------------------------------------------
+# 6. Post-install verification
+# ------------------------------------------------------------
+
+if (-not (Test-Path -LiteralPath $TargetExe -PathType Leaf)) {
+    throw "Post-install verification failed: mxcli.exe not found at $TargetExe"
+}
 
 try {
-    $installedVersion = & $TargetExe --version
-
-    Write-Host "Installierte Version:" -ForegroundColor Cyan
-    Write-Host "  $installedVersion"
+    $installedOutput  = & $TargetExe --version 2>$null
+    $installedMatch   = [regex]::Match($installedOutput, '(\d+\.\d+\.\d+)')
+    $installedVersion = if ($installedMatch.Success) { $installedMatch.Groups[1].Value } else { "(version unreadable)" }
+    Write-Host "  Installed : $TargetExe"
+    Write-Host "  Version   : $installedVersion"
+    Write-Host ""
+    Write-Host "[OK] mxcli $installedVersion installed successfully." -ForegroundColor Green
+} catch {
+    Write-Warning "mxcli.exe installed but could not be started: $($_.Exception.Message)"
+    Write-Host "[OK] mxcli installed (post-install version check failed -- binary may still be usable)." -ForegroundColor Yellow
 }
-catch {
-    Write-Warning "mxcli.exe wurde installiert, konnte aber nicht gestartet werden."
-}
 
-Write-Host ""
-Write-Host "Pfad:"
-Write-Host "  $TargetExe" -ForegroundColor Gray
 Write-Host ""

@@ -122,6 +122,36 @@ Bekannte `last_completed_step`-Werte und ihre Resume-Positionen:
 
 ---
 
+## Abhaengigkeits-Erwerbssicherheit (mxcli)
+
+Der Migration-Agent koordiniert den kanonischen Installer. Er implementiert KEIN eigenes
+Abhaengigkeitsmanagement.
+
+**Verbotene Agent-Aktionen waehrend mxcli-Erwerb:**
+
+- `mxcli.exe` aus PATH in das Projekt kopieren
+- Globale mxcli-Binaries aus `~/.local/bin/` o.ae. kopieren
+- Beliebige entwickler-lokale mxcli-Versionen verwenden
+- Zweiten `install-mxcli.ps1`-Aufruf starten, waehrend einer laeuft
+- Migrationsstatus-Meilensteine schreiben, wenn Erwerb fehlschlug
+
+**Tool-Timeout != Installer-Fehler:**
+
+Wenn das Agent-Tool-Timeout feuert, waehrend `install-core.ps1` laeuft:
+- Status: RUNNING (Prozess noch aktiv) -- KEIN konkurrierender Installer-Start
+- Status: SUCCEEDED (Exit 0, `lifecycle.yaml` vorhanden) -- `mxagile_installed` schreiben
+- Status: FAILED (Exit != 0, `lifecycle.yaml` fehlt) -- Fehler melden, State MIGRATION_IN_PROGRESS
+
+**Bei echtem Erwerbs-Fehler:**
+
+- `mxagile_installed` NICHT schreiben
+- `validation_passed` NICHT schreiben
+- `status: complete` NICHT setzen
+- State: `MIGRATION_IN_PROGRESS` mit `last_completed_step: dfc_artifacts_removed`
+- Entwickler mit exakter Fehlermeldung informieren
+
+---
+
 ## Kritische Sicherheitsregeln
 
 1. **Kein Verlust von Projektinhalten** -- Mendix-Modell, Requirements, Planning-Artefakte,

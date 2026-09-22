@@ -484,6 +484,54 @@ Update `state.yaml`: `last_completed_step: mxagile_installed`.
 
 The presence of `.mxagile/lifecycle.yaml` signals that Phase 5 succeeded.
 
+### 7.6 mxcli Dependency Acquisition Safety
+
+**The migration agent orchestrates the canonical installer. It does NOT manage dependencies.**
+
+`install-core.ps1` calls `mxagile-init.ps1` which calls `install-mxcli.ps1`. This is the ONLY
+canonical path for acquiring the project-local mxcli binary. The agent's role is to invoke
+`install-core.ps1` and wait for it to complete.
+
+**Prohibited agent actions during mxcli acquisition:**
+
+- Copying `mxcli.exe` from PATH into the project
+- Copying a global mxcli binary from `~/.local/bin/` or similar
+- Copying a developer-local mxcli from any arbitrary path
+- Starting a second `install-mxcli.ps1` invocation while one is still running
+- Advancing migration state (`mxagile_installed`, `validation_passed`) if acquisition fails
+
+**Tool timeout vs installer failure:**
+
+An agent tool execution timeout does NOT mean the installer process failed. Distinguish states:
+
+| State | Determination method |
+|---|---|
+| RUNNING | Process is still executing; no output/exit yet |
+| SUCCEEDED | Exit code 0 from `install-core.ps1`; `lifecycle.yaml` exists |
+| FAILED | Non-zero exit from `install-core.ps1`; `lifecycle.yaml` absent |
+
+If the agent tool timeout fires while `install-core.ps1` is still running:
+1. Do NOT start a competing installer
+2. Do NOT copy an alternative binary
+3. Do NOT advance migration state
+4. Wait for the process to complete naturally, or report the timeout to the developer
+
+**If acquisition genuinely fails** (non-zero exit from `install-core.ps1`):
+1. Do NOT write `mxagile_installed` to `state.yaml`
+2. Do NOT write `validation_passed`
+3. Do NOT set `status: complete`
+4. State remains `MIGRATION_IN_PROGRESS` with `last_completed_step: dfc_artifacts_removed`
+5. Report: exact error from installer; instruct developer to retry Phase 5
+
+**Existing project-local mxcli reuse:**
+
+`install-mxcli.ps1` already supports reuse of the project-local binary when its version
+meets the threshold. This reuse decision belongs to the installer, not to the agent.
+
+The agent must NOT implement its own reuse logic. If the installer accepts the local binary,
+it exits 0 with "already up-to-date." If it downloads a new version, it exits 0 after
+installation. The agent simply checks the exit code and proceeds.
+
 ---
 
 ## 8. Phase 6 -- Validation

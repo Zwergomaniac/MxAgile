@@ -78,8 +78,8 @@ if (-not (Test-Path -LiteralPath $MxcliPath -PathType Leaf)) {
 
     & $MxcliInstaller -TargetDir $ProjectRoot
 
-    if (-not $?) {
-        throw "mxcli installer failed."
+    if ($LASTEXITCODE -ne 0) {
+        throw "mxcli installer failed with exit code $LASTEXITCODE."
     }
 }
 
