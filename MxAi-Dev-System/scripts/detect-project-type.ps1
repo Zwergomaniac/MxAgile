@@ -4,16 +4,18 @@
 
 .DESCRIPTION
     Classifies the target project as one of:
-        CLEAN_PROJECT           - No AI framework installed
+        CLEAN_PROJECT            - No AI framework installed
         EXISTING_MXAGILE_PROJECT - MxAgile already installed
-        LEGACY_DFC_PROJECT      - DFC-AI installation detected
-        AMBIGUOUS               - Both DFC-AI and MxAgile markers found
+        LEGACY_DFC_PROJECT       - DFC-AI installation detected
+        MIGRATION_IN_PROGRESS    - Migration started (state.yaml written) but not yet complete
+        AMBIGUOUS                - Both DFC-AI and MxAgile markers found
 
     Primary detection markers:
-        MxAgile:  .mxagile/lifecycle.yaml
-        DFC-AI:   .dfc-ai/version.yaml  (primary)
-                  scripts/generate-dfc-platform-skills.ps1  (secondary)
-                  .claude/agents/dfc-*.md  (secondary)
+        MxAgile:             .mxagile/lifecycle.yaml
+        MigrationInProgress: .mxagile/migration/state.yaml (status: in_progress)
+        DFC-AI:              .dfc-ai/version.yaml  (primary)
+                             scripts/generate-dfc-platform-skills.ps1  (secondary)
+                             .claude/agents/dfc-*.md  (secondary)
 
     Outputs a JSON object with Classification and Evidence fields.
     Exit code: 0 = detection succeeded; 1 = ProjectRoot not found.
@@ -52,6 +54,18 @@ if (Test-Path -LiteralPath (Join-Path $ProjectRoot ".mxagile") -PathType Contain
         if ($mxagileAgents.Count -gt 0) {
             $mxAgileEvidence += ".claude/agents/mxagile-*.md ($($mxagileAgents.Count) files)"
         }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Migration-in-progress marker
+# ---------------------------------------------------------------------------
+$migrationStatePath = Join-Path $ProjectRoot ".mxagile\migration\state.yaml"
+$hasMigrationInProgress = $false
+if (Test-Path -LiteralPath $migrationStatePath -PathType Leaf) {
+    $stateContent = Get-Content -LiteralPath $migrationStatePath -Raw -ErrorAction SilentlyContinue
+    if ($stateContent -match 'status:\s*in_progress') {
+        $hasMigrationInProgress = $true
     }
 }
 
@@ -98,10 +112,19 @@ if (Test-Path -LiteralPath $agentsMdPath -PathType Leaf) {
 $hasMxAgile = $mxAgileEvidence.Count -gt 0 -and (@($mxAgileEvidence | Where-Object { $_ -match 'lifecycle\.yaml' })).Count -gt 0
 $hasDfc     = $dfcEvidence.Count -gt 0 -and (@($dfcEvidence | Where-Object { $_ -match '\.dfc-ai' })).Count -gt 0
 
+# Priority order:
+#   AMBIGUOUS            - both DFC primary AND MxAgile lifecycle.yaml coexist
+#   EXISTING_MXAGILE     - lifecycle.yaml present (migration complete)
+#   MIGRATION_IN_PROGRESS- state.yaml says in_progress (checked BEFORE bare DFC to handle
+#                          the window where DFC was removed but lifecycle.yaml not yet written)
+#   LEGACY_DFC_PROJECT   - .dfc-ai present but migration not started
+#   CLEAN_PROJECT        - no AI framework markers
 $classification = if ($hasMxAgile -and $hasDfc) {
     "AMBIGUOUS"
 } elseif ($hasMxAgile) {
     "EXISTING_MXAGILE_PROJECT"
+} elseif ($hasMigrationInProgress) {
+    "MIGRATION_IN_PROGRESS"
 } elseif ($hasDfc) {
     "LEGACY_DFC_PROJECT"
 } else {
@@ -111,11 +134,17 @@ $classification = if ($hasMxAgile -and $hasDfc) {
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
+$migrationEvidence = @()
+if ($hasMigrationInProgress) {
+    $migrationEvidence += ".mxagile/migration/state.yaml (status: in_progress)"
+}
+
 $result = [ordered]@{
-    Classification  = $classification
-    DfcEvidence     = $dfcEvidence
-    MxAgileEvidence = $mxAgileEvidence
-    ProjectRoot     = $ProjectRoot
+    Classification    = $classification
+    DfcEvidence       = $dfcEvidence
+    MxAgileEvidence   = $mxAgileEvidence
+    MigrationEvidence = $migrationEvidence
+    ProjectRoot       = $ProjectRoot
 }
 
 $result | ConvertTo-Json -Depth 4

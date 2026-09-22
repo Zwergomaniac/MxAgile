@@ -5,13 +5,40 @@ to MxAgile. The migration agent is the sole consumer of this document.
 
 ---
 
+## State Machine
+
+The detector (`detect-project-type.ps1`) tracks migration progress through these states:
+
+| State | Condition |
+|---|---|
+| `LEGACY_DFC_PROJECT` | `.dfc-ai/` present, no `state.yaml` |
+| `MIGRATION_IN_PROGRESS` | `.mxagile/migration/state.yaml` has `status: in_progress` |
+| `EXISTING_MXAGILE_PROJECT` | `.mxagile/lifecycle.yaml` present |
+
+**Invariant**: once `state.yaml` is written with `status: in_progress`, the project stays in
+`MIGRATION_IN_PROGRESS` until `install-core.ps1` completes and writes `lifecycle.yaml`.
+
+---
+
+## Resume Semantics
+
+If `detect-project-type.ps1` returns `MIGRATION_IN_PROGRESS` at the start of an agent session:
+
+1. Read `.mxagile/migration/state.yaml` to determine the last completed step
+2. Skip all completed steps
+3. Continue from the first incomplete step
+4. Never re-enumerate artifacts from scratch — use the stored inventory from Phase 1
+
+---
+
 ## 1. Pre-Conditions
 
 Before starting, verify:
 
-- `.dfc-ai/version.yaml` exists (confirms DFC-AI installation)
+- `.dfc-ai/version.yaml` exists (confirms DFC-AI installation)  
+  OR `.mxagile/migration/state.yaml` exists with `status: in_progress` (resuming)
 - `.mxagile/lifecycle.yaml` does NOT exist (migration not yet complete)
-- `.mxagile/migration/` exists (bootstrap was installed by `install-core.ps1`)
+- `.mxagile/migration/` exists (bootstrap was installed)
 - A Mendix `.mpr` file exists in the project root
 
 If any pre-condition fails, stop and report.
@@ -21,6 +48,10 @@ If any pre-condition fails, stop and report.
 ## 2. Phase 1 — Inventory (read-only)
 
 Enumerate all artifacts. Never write during this phase.
+
+**Record the results**: the exact list of stories and checklists enumerated in this phase
+MUST be used to compute `stories_count` and `checklists_count` in Phase 3. Do NOT
+re-enumerate in Phase 3 using different globs — use this phase's list.
 
 ### 2.1 DFC-AI Framework Artifacts (will be removed)
 
@@ -96,6 +127,10 @@ After inventory, present a plan to the developer:
 
 Write the brownfield baseline BEFORE removing any DFC artifacts.
 
+**Count consistency rule**: use the EXACT same file list from Phase 1 to compute
+`stories_count` and `checklists_count`. Do NOT re-run glob patterns; use the Phase 1
+enumeration. This guarantees counts are consistent even if files change between phases.
+
 ### 4.1 Write `.mxagile/state/brownfield-baseline.yaml`
 
 ```yaml
@@ -107,8 +142,8 @@ prior_framework:
   name: dfc-ai
   version: <value from .dfc-ai/version.yaml, or "unknown">
 preserved_artifacts:
-  stories_count: <count of planning/stories/REQ-*.md>
-  checklists_count: <count of planning/checklists/W*-implementation-checklist.yaml>
+  stories_count: <count from Phase 1 enumeration of planning/stories/REQ-*.md>
+  checklists_count: <count from Phase 1 enumeration of planning/checklists/W*-implementation-checklist.yaml>
   decisions_present: <true/false>
   ui_inventory_present: <true/false>
   requirements_present: <true/false>
@@ -122,18 +157,43 @@ under MxAgile. The brownfield baseline is the starting point.
 
 ---
 
-## 5. Phase 4 — Migration Execution (requires confirmation)
+## 5. Phase 0 — Write MIGRATION_IN_PROGRESS State (BEFORE destructive cleanup)
 
-Execute only after developer confirms the plan.
+**This phase must execute IMMEDIATELY before any destructive operation (step 5.3).**
 
-### 5.1 Migrate AGENT.md
+Write `.mxagile/migration/state.yaml`:
+
+```yaml
+status: in_progress
+started_at: <ISO 8601 timestamp>
+last_completed_step: baseline_written
+steps_completed:
+  - inventory
+  - plan_confirmed
+  - baseline_written
+```
+
+This file activates the `MIGRATION_IN_PROGRESS` detector state. If the session crashes after
+this point, the next session will resume from `last_completed_step` rather than restarting
+from scratch or misclassifying the project as `CLEAN_PROJECT`.
+
+Update `last_completed_step` and `steps_completed` after each subsequent step completes.
+
+---
+
+## 6. Phase 4 — Migration Execution (requires confirmation)
+
+Execute only after developer confirms the plan AND state.yaml has been written (Phase 0).
+
+### 6.1 Migrate AGENT.md
 
 1. Read `AGENT.md`
 2. Extract project-specific sections (keep)
 3. Remove the `## Verbindlicher DFC-AI-Workflow` block and all `.dfc-ai/` references
 4. Overwrite `AGENT.md` with the cleaned project-only content
+5. Update `state.yaml`: `last_completed_step: agent_md_migrated`
 
-### 5.2 Clean injection markers from AGENTS.md and copilot-instructions.md
+### 6.2 Clean injection markers from AGENTS.md and copilot-instructions.md
 
 Both files use OLD markers:
 ```
@@ -143,7 +203,9 @@ Both files use OLD markers:
 These will be replaced by the new MXAGILE:MANAGED markers during MxAgile setup.
 For now: remove the old-marker blocks entirely from both files.
 
-### 5.3 Remove DFC-AI framework artifacts
+Update `state.yaml`: `last_completed_step: markers_cleaned`
+
+### 6.3 Remove DFC-AI framework artifacts
 
 Remove (in order):
 
@@ -159,6 +221,8 @@ Remove (in order):
 10. `scripts/apply-project-agent-instructions.ps1`
 11. `scripts/reconcile-derived-artifacts.ps1`
 
+Update `state.yaml`: `last_completed_step: dfc_artifacts_removed`
+
 **Do not remove**:
 - mxcli-owned skills in `.claude/skills/` that do NOT have the `dfc-` prefix
 - `.ai-context/skills/` (mxcli-owned)
@@ -168,25 +232,31 @@ Remove (in order):
 
 ---
 
-## 6. Phase 5 — MxAgile Installation
+## 7. Phase 5 — MxAgile Installation
 
-Run the MxAgile setup using the canonical installer:
+Run the MxAgile canonical installer. **Do NOT call `setup-agent-system.ps1` directly**:
+`setup-agent-system.ps1` requires `.mxagile/skills/*.md` to already exist, but those skills
+are only present after `install-core.ps1` copies the canonical payload. Calling
+`install-core.ps1` is correct — it calls `setup-agent-system.ps1` internally after copying.
 
 ```powershell
-# From the project root (or equivalent mechanism):
-& "<mxagile-dev-tree>/scripts/setup-agent-system.ps1" -ProjectRoot $ProjectRoot
+# From the mxagile-dev-tree (or via the distribution bootstrapper):
+& "<mxagile-dev-tree>/scripts/install-core.ps1" -ProjectRoot $ProjectRoot
 ```
 
-This will:
-- Generate MxAgile platform skills and agents
-- Inject MxAgile managed blocks (MXAGILE:MANAGED markers) into AGENTS.md, CLAUDE.md, etc.
-- Install the canonical `.mxagile/` payload (lifecycle.yaml, orchestrator.md, skills, policies)
+`install-core.ps1` will:
+1. Detect `MIGRATION_IN_PROGRESS` (via state.yaml) and proceed with installation
+2. Copy the canonical `.mxagile/` payload (lifecycle.yaml, orchestrator.md, skills, policies)
+3. Preserve `.mxagile/migration/` and `.mxagile/state/` (excluded from the copy step)
+4. Call `setup-agent-system.ps1` to generate platform projections and inject managed blocks
 
 The presence of `.mxagile/lifecycle.yaml` after this step signals migration complete.
 
+Update `state.yaml`: `last_completed_step: mxagile_installed` after the installer returns.
+
 ---
 
-## 7. Phase 6 — Validation
+## 8. Phase 6 — Validation
 
 After setup completes, verify:
 
@@ -205,10 +275,11 @@ Report any validation failures before declaring migration complete.
 
 ---
 
-## 8. Migration Complete State
+## 9. Migration Complete State
 
 After successful validation:
 
+- Remove or update `state.yaml` to `status: complete`
 - Inform the developer that migration is complete
 - Confirm what was preserved
 - Suggest running the MxAgile system check:
@@ -222,7 +293,7 @@ After successful validation:
 
 ---
 
-## 9. Safety Rules (non-negotiable)
+## 10. Safety Rules (non-negotiable)
 
 These rules cannot be overridden by developer instruction:
 
@@ -230,16 +301,19 @@ These rules cannot be overridden by developer instruction:
 - Never modify files under `mprcontents/`, `modules/`, `javasource/`, `javascriptsource/`
 - Never delete `planning/stories/`, `sprints/decisions.md`, or `projekt.md`
 - Never delete `.concord/project-memory.md`
+- Always write `.mxagile/migration/state.yaml` with `status: in_progress` BEFORE any destructive removal
 - Always write brownfield baseline BEFORE removing DFC artifacts
-- Always show the plan and wait for confirmation before Phase 4
+- Always show the plan and wait for explicit confirmation before Phase 4
+- Always call `install-core.ps1`, NOT `setup-agent-system.ps1` directly, for MxAgile installation
 
 ---
 
-## 10. Aborted Migration
+## 11. Aborted Migration
 
 If migration is aborted mid-way:
 
 - The project may be in a partial state
+- `state.yaml` (if written) records the last completed step — use it for resume
 - Report clearly what was completed and what was not
 - Do not attempt to clean up automatically
 - Inform the developer to review and potentially restore from version control

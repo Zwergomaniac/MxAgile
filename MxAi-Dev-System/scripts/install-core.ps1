@@ -99,6 +99,13 @@ try {
         exit 3
     }
 
+    if ($detection.Classification -eq "MIGRATION_IN_PROGRESS") {
+        Write-Host ""
+        Write-Host "  Resuming migration: proceeding with canonical MxAgile installation."
+        Write-Host ""
+        # Fall through to normal installation below
+    }
+
     # =========================================================================
     # 1. Core Installation
     # =========================================================================
@@ -149,8 +156,24 @@ try {
     # Exclude 'state'   -  PROJECT/RUNTIME state; must never be distributed from the framework dev
     #                    repository. The empty state/ scaffold is created by mxagile-init.ps1.
     #                    Company Layer manifests exist only when that layer is actually installed.
+    #
+    # PS5.1 nesting-bug fix: when a same-named subdirectory already exists at the destination,
+    # Copy-Item -LiteralPath places the SOURCE directory INSIDE the existing one instead of
+    # merging contents (e.g. skills/skills/*.md instead of skills/*.md).
+    # Fix: use content-merge — pre-create each destination subdirectory, then copy with -Path "*".
     Get-ChildItem -LiteralPath $canonicalSource -Exclude "layers", "state" | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $destMxAgile -Recurse -Force
+        if ($_.PSIsContainer) {
+            # Content-merge: copy directory CONTENTS to the named subdirectory.
+            # This avoids the PS5.1 nesting bug AND preserves project-owned subdirs
+            # (e.g. .mxagile/migration/) that have no canonical counterpart.
+            $destSubDir = Join-Path $destMxAgile $_.Name
+            if (-not (Test-Path -LiteralPath $destSubDir -PathType Container)) {
+                New-Item -ItemType Directory -Path $destSubDir -Force | Out-Null
+            }
+            Copy-Item -Path "$($_.FullName)\*" -Destination $destSubDir -Recurse -Force
+        } else {
+            Copy-Item -LiteralPath $_.FullName -Destination $destMxAgile -Force
+        }
     }
     # Ensure state/ exists as an empty project-owned directory (mxagile-init.ps1 creates it
     # before this step, but guard here so the contract holds even if init order changes).
