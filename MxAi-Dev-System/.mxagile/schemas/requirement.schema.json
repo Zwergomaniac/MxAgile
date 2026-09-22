@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Requirement",
+  "description": "Canonical atomic traceable requirement. Canonical location: requirements/REQ-NNN.yml. Primary key: ID. Consumed by build_artifact_index.py for DERIVED_FROM edges (derivedFrom) and IMPLEMENTED_BY edges (spec references).",
+  "type": "object",
+  "required": ["ID", "title", "description"],
+  "additionalProperties": false,
+  "properties": {
+    "ID": {
+      "type": "string",
+      "pattern": "^REQ-[0-9]{3,}$",
+      "description": "Stable unique identifier. Primary key in the artifact index. Must match filename stem (REQ-001.yml -> ID: REQ-001)."
+    },
+    "title": {
+      "type": "string",
+      "description": "Short human-readable title (one line)."
+    },
+    "description": {
+      "type": "string",
+      "description": "Requirement text. User story format preferred: 'As a [role], I want [action], so that [value].' For system requirements, plain declarative form is acceptable."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "accepted", "deferred", "superseded"],
+      "default": "draft",
+      "description": "draft: authored but not reviewed. accepted: approved for implementation. deferred: postponed. superseded: replaced by another requirement."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["native", "legacy", "migrated"],
+      "description": "Provenance: native = authored directly in MxAgile canonical format, legacy = pre-MxAgile artifact preserved in place, migrated = converted from legacy planning/stories/*.md by the canonicalization lifecycle."
+    },
+    "derivedFrom": {
+      "type": "string",
+      "pattern": "^PAGE-",
+      "description": "Optional page ID this requirement originates from. Creates a DERIVED_FROM edge in the artifact index: Page -> Requirement."
+    },
+    "target_users": {
+      "type": "array",
+      "description": "User roles affected by or relevant to this requirement.",
+      "items": {
+        "type": "object",
+        "required": ["role"],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Role name (e.g., AppAdmin, Customer, ReadOnly)."
+          },
+          "description": {
+            "type": "string",
+            "description": "What this role can do in the context of this requirement."
+          }
+        }
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "description": "Testable acceptance criteria in Given/When/Then format.",
+      "items": {
+        "type": "object",
+        "required": ["id", "given", "when", "then"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier within this requirement, e.g., AC-001."
+          },
+          "given": { "type": "string" },
+          "when": { "type": "string" },
+          "then": { "type": "string" }
+        }
+      }
+    },
+    "business_rules": {
+      "type": "array",
+      "description": "Specific business rules, constraints, or validation logic relevant to this requirement.",
+      "items": {
+        "type": "object",
+        "required": ["id", "rule"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "rule": { "type": "string" },
+          "entity": {
+            "type": "string",
+            "description": "Mendix entity or concept this rule applies to."
+          }
+        }
+      }
+    },
+    "open_items": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Unresolved DECISION REQUIRED items. A requirement with open_items should not be marked accepted."
+    },
+    "business_context": {
+      "type": "string",
+      "description": "Optional: describes the business problem this requirement addresses (Fachliches Problem)."
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Explicit exclusions to prevent scope creep."
+    },
+    "migrated_from": {
+      "type": "string",
+      "description": "Source file path relative to project root, e.g., planning/stories/REQ-001.md. Set by the canonicalization lifecycle. Must be present when source = migrated."
+    },
+    "migration_date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "ISO date when this requirement was converted by the canonicalization lifecycle."
+    }
+  }
+}

@@ -1,22 +1,29 @@
-task_id: TASK-000
-spec_id: SPEC-000
-req: [REQ-000]
-type: entity # module | entity | microflow | page | etc.
-action: "[Short description of the task]"
+# Canonical MxAgile Task
+# Schema: .mxagile/schemas/task.schema.json
+# Location: planning/tasks/TASK-NNN.yml
+# ID must match filename stem exactly.
+# 'spec' field creates an IMPLEMENTED_BY edge: Spec -> Task in the artifact index.
+
+ID: TASK-001
+spec: SPEC-001
+req:
+  - REQ-001
+type: entity # entity | module | microflow | nanoflow | page | security | navigation | integration | other
+action: "[Short description of what this task builds or changes]"
 detail: >-
-  [Detailed description of what needs to be built and why.]
-depends_on: [] # List of other task_ids
+  [Detailed implementation notes: what to build, which module, which
+  existing artifacts to modify, relevant constraints.]
+depends_on: [] # list of TASK-ids that must complete first
 status: pending # pending | in_progress | done | failed | blocked | deferred
 
-# Acceptance criteria for this specific task
 test:
   role: AppAdmin
   steps:
     - open: Page_Name
     - click: Button_Name
-  expected: "[Expected outcome]"
+  expected: "[Expected outcome after completing this task]"
 
-# Optional model inspection criteria
-inspect:
-  microflow: Module.SUB_FlowName
-  expect: "[Expected model structure or logic]"
+# Optional: model inspection via mxcli
+# inspect:
+#   microflow: Module.SUB_FlowName
+#   expect: "[Expected model structure or logic]"

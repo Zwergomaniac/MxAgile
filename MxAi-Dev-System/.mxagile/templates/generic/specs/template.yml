@@ -1,0 +1,33 @@
+# Canonical MxAgile Feature Specification
+# Schema: .mxagile/schemas/spec.schema.json
+# Location: specs/SPEC-NNN.yml
+# ID must match filename stem exactly.
+#
+# A spec groups one or more requirements into a logical feature unit.
+# Every listed requirement creates an IMPLEMENTED_BY edge in the artifact index.
+# A spec with status: accepted signals that downstream tasks may begin.
+
+ID: SPEC-001
+title: "[Feature Title]"
+description: "[High-level description of the feature, its purpose, and value delivered.]"
+status: draft
+
+requirements:
+  - REQ-001
+  # Add all requirement IDs this spec addresses:
+  # - REQ-002
+
+behavior: >-
+  [Detailed behavior description consolidating the referenced requirements.
+  Describes what the system does, not how it is implemented.
+  Include flows, state transitions, role-specific behavior.]
+
+business_rules:
+  - "[Business rule 1]"
+  - "[Business rule 2]"
+
+out_of_scope:
+  - "[Explicitly excluded behavior 1]"
+
+open_items: []
+# - "DECISION REQUIRED: ..."

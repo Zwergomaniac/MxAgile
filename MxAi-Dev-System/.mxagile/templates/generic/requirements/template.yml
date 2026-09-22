@@ -1,0 +1,44 @@
+# Canonical MxAgile Requirement
+# Schema: .mxagile/schemas/requirement.schema.json
+# Location: requirements/REQ-NNN.yml
+# ID must match filename stem exactly.
+#
+# Completeness criteria for status: accepted
+#   1. title        - one-line description
+#   2. description  - user story or declarative requirement text
+#   3. target_users - at least one role identified
+#   4. acceptance_criteria - at least one AC with Given/When/Then
+#   5. open_items   - must be empty (no unresolved DECISION REQUIRED)
+
+ID: REQ-001
+title: "[Short requirement title]"
+description: "As a [role], I want [action], so that [value]."
+status: draft
+source: native
+
+# Optional: page ID this requirement originates from (creates DERIVED_FROM edge in artifact index)
+# derivedFrom: PAGE-001
+
+target_users:
+  - role: "[Role name]"
+    description: "[What this role does in this context]"
+
+acceptance_criteria:
+  - id: AC-001
+    given: "[System or precondition state]"
+    when: "[User action or event]"
+    then: "[Expected system response or outcome]"
+
+business_rules:
+  - id: BR-001
+    rule: "[Business rule text]"
+    entity: "[Affected Mendix entity or concept]"
+
+business_context: "[Optional: what problem does this requirement solve?]"
+
+out_of_scope:
+  - "[What this requirement explicitly does NOT cover]"
+
+open_items: []
+# Add DECISION REQUIRED items here as strings:
+# - "DECISION REQUIRED: clarify delete behavior for archived records"

@@ -803,39 +803,74 @@ Acceptance Criteria:
 WORK PACKAGE 10: REQUIREMENTS
 ======================================================================
 
+Status:
+    DONE
+
+Note:
+    Implemented 2026-09-22. Canonical artifact contract defined and all producers/consumers aligned.
+
 Objective:
 
 Ensure atomic requirements are stable, traceable and migration-friendly.
 
 TODO:
 
-- [ ] Define/verify Requirement schema.
-- [ ] Verify stable ID rules.
-- [ ] Verify provenance/reference fields.
-- [ ] Verify role representation.
-- [ ] Verify business-rule representation.
-- [ ] Verify validation intent.
-- [ ] Verify acceptance conditions.
-- [ ] Verify assumptions.
-- [ ] Verify status/state.
-- [ ] Verify stale/review state.
-- [ ] Verify external source references.
-- [ ] Add schema tests.
-- [ ] Add migration from legacy story format.
-- [ ] Preserve unsupported legacy content.
-- [ ] Ensure migration is idempotent.
-- [ ] Avoid fictional splitting when semantics are ambiguous.
-- [ ] Report decisions required.
+- [x] Define/verify Requirement schema.
+      -> .mxagile/schemas/requirement.schema.json (JSON Schema draft-07)
+      -> .mxagile/templates/generic/requirements/template.yml (canonical YAML template)
+- [x] Verify stable ID rules.
+      -> ID: REQ-NNN (min 3 digits), must match filename stem
+- [x] Verify provenance/reference fields.
+      -> source: native|legacy|migrated; migrated_from, migration_date
+- [x] Verify role representation.
+      -> target_users: [{role, description}]
+- [x] Verify business-rule representation.
+      -> business_rules: [{id, rule, entity}]
+- [x] Verify validation intent.
+      -> acceptance_criteria: [{id, given, when, then}]
+- [x] Verify acceptance conditions.
+      -> acceptance_criteria + status: accepted
+- [x] Verify assumptions.
+      -> open_items: [] for DECISION REQUIRED items
+- [x] Verify status/state.
+      -> status: draft|accepted|deferred|superseded
+- [x] Verify stale/review state.
+      -> status field; open_items prevent premature accepted status
+- [x] Verify external source references.
+      -> derivedFrom: PAGE-id for page traceability edge
+- [x] Add schema tests.
+      -> tests/test-wp10-artifact-schemas.ps1
+- [x] Add migration from legacy story format.
+      -> scripts/canonicalize_artifacts.py (semantic converter)
+      -> scripts/migrate-stories.ps1 (orchestrator, rewritten from Move-Item)
+      -> .mxagile/skills/migration.md (updated lifecycle process)
+- [x] Preserve unsupported legacy content.
+      -> open_items with PRESERVED: prefix for unmappable sections
+- [x] Ensure migration is idempotent.
+      -> canonicalize_artifacts.py skips already-converted files
+      -> canonicalization-state.yaml persists per-file status
+- [x] Avoid fictional splitting when semantics are ambiguous.
+      -> single description field; no auto-splitting of story content
+- [x] Report decisions required.
+      -> open_items field; "[SPEC-REQUIRED]" placeholder for unassigned tasks
+
+Also implemented as part of WP-10:
+- [x] Spec schema:   .mxagile/schemas/spec.schema.json + templates/generic/specs/template.yml
+- [x] Task schema:   .mxagile/schemas/task.schema.json + templates/generic/tasks/template.yaml (fixed field names)
+- [x] Indexer alignment: scripts/build_artifact_index.py updated (action field, broken ref warnings)
+- [x] Authoritative contract: docs/schemas.md updated as single source of truth
+- [x] Canonicalization state: .mxagile/migration/canonicalization-state.yaml
+- [x] Fully-native completion criteria: defined in migration policy section 8.3
 
 Acceptance Criteria:
 
-- Requirement IDs are stable.
-- Requirements are not derived solely from filenames.
-- Provenance is available.
-- Migration preserves meaningful content.
-- Unsupported content is reported.
-- Requirements can be traced to specs and evidence.
-- Manual changes survive rebuilds.
+- [x] Requirement IDs are stable.
+- [x] Requirements are not derived solely from filenames.
+- [x] Provenance is available.
+- [x] Migration preserves meaningful content.
+- [x] Unsupported content is reported.
+- [x] Requirements can be traced to specs and evidence.
+- [x] Manual changes survive rebuilds.
 
 
 ======================================================================

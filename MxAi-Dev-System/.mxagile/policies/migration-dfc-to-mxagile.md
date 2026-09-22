@@ -131,16 +131,89 @@ Framework migration is NOT artifact canonicalization.
 Rationale:
 - The canonical artifact index (`build_artifact_index.py`) scans `requirements/*.yml`,
   `specs/*.yml`, and `planning/tasks/*.yml`. Legacy `.md` stories relocated to `requirements/`
-  without format conversion would create an unindexable half-state.
-- WP-10 (requirement schema definition and format migration) is not yet complete.
+  without format conversion would create an unindexable half-state (IC-4, resolved by WP-10).
 - D-002 (HYBRID LIFECYCLE) explicitly approves legacy artifacts remaining readable during
   a controlled transition period.
 
-Artifact canonicalization (converting legacy `.md` stories and YAML checklists to canonical
-MxAgile schemas) is a **separate lifecycle**, performed AFTER framework migration is validated.
-Tools available for that lifecycle: `migrate-stories.ps1`, canonical requirement/spec/task templates.
+Artifact canonicalization is a **separate lifecycle**, performed AFTER framework migration is
+validated. The canonical schemas are defined in `.mxagile/schemas/` and documented in
+`docs/schemas.md`. The conversion tool is `scripts/migrate-stories.ps1` (orchestrator) +
+`scripts/canonicalize_artifacts.py` (semantic conversion engine).
+
+**WP-10 is complete.** Canonical schemas exist for Requirement, Spec, and Task.
+`migrate-stories.ps1` performs semantic conversion — not file relocation.
 
 **Do NOT move files, rewrite path references, or apply format conversion during framework migration.**
+
+### Canonical artifact contract (post-WP-10)
+
+| Artifact | Canonical location | Schema | Primary key |
+|---|---|---|---|
+| Requirement | `requirements/REQ-NNN.yml` | `.mxagile/schemas/requirement.schema.json` | `ID:` |
+| Spec | `specs/SPEC-NNN.yml` | `.mxagile/schemas/spec.schema.json` | `ID:` |
+| Task | `planning/tasks/TASK-NNN.yml` | `.mxagile/schemas/task.schema.json` | `ID:` |
+
+### Canonicalization lifecycle phases
+
+```
+1. INVENTORY
+   Enumerate planning/stories/*.md and planning/checklists/*.yaml
+   Record count in state: artifact_canonicalization: pending
+
+2. DRY-RUN PREVIEW
+   Run: .\scripts\migrate-stories.ps1 -DryRun
+   Review proposed conversions; get developer approval for ambiguous items
+
+3. SEMANTIC CONVERSION — Requirements
+   Run: .\scripts\migrate-stories.ps1 -Phase requirements
+   planning/stories/REQ-NNN.md -> requirements/REQ-NNN.yml
+   Source .md files preserved
+
+4. SEMANTIC CONVERSION — Tasks
+   Run: .\scripts\migrate-stories.ps1 -Phase tasks
+   planning/checklists/*.yaml -> planning/tasks/TASK-NNN.yml
+   Source files preserved
+
+5. VALIDATION
+   Automatic: all output .yml files validated against schemas
+   Run: .\scripts\migrate-stories.ps1 -ValidateOnly to recheck
+
+6. ARTIFACT INDEX REBUILD
+   Run: python scripts/build_artifact_index.py <project-root>
+   Verify expected nodes/edges exist
+
+7. STATE UPDATE
+   artifact_canonicalization: complete (set automatically on successful validation)
+
+8. SOURCE RETIREMENT (optional, after developer confirmation)
+   Run: .\scripts\migrate-stories.ps1 -RetireSource
+   Adds archived: true to source .md frontmatter; does NOT delete files
+```
+
+### Canonicalization state
+
+Persisted in `.mxagile/migration/canonicalization-state.yaml`:
+```yaml
+status: pending        # pending | in_progress | complete
+phase: requirements    # current phase
+items_processed: 0
+items_total: 0
+started_at: ""
+completed_at: ""
+items: {}              # per-file conversion status
+```
+
+The `state.yaml` brownfield baseline also tracks:
+```yaml
+artifact_canonicalization: pending  # pending | in_progress | complete
+```
+
+Both must show `complete` for canonicalization to be considered done.
+
+### Resumability
+
+The conversion engine skips files where `canonicalization-state.yaml` shows
+`status: validated` and the output `.yml` already exists. Re-running is safe.
 
 ---
 
@@ -652,7 +725,47 @@ After `validation_passed` is written:
   original locations and are readable in hybrid mode (D-002 HYBRID LIFECYCLE).
 - Brownfield artifact canonicalization (converting legacy stories to `requirements/*.yml`,
   legacy checklists to `planning/tasks/TASK-*.yml`) is a **separate subsequent lifecycle**,
-  not part of this migration. Use `migrate-stories.ps1` and the canonical templates when ready.
+  not part of this migration. Use `scripts/migrate-stories.ps1` (semantic conversion) and
+  the canonical templates when ready.
+
+---
+
+## 8.3 Fully-Native MxAgile Project — Completion Criteria
+
+A brownfield project is **not fully native** merely because framework migration has completed.
+
+A project reaches FULLY NATIVE status only when ALL of the following conditions are satisfied:
+
+| Criterion | Evidence |
+|---|---|
+| Framework migration complete | `state.yaml` has `status: complete` and `validation_passed` step |
+| `artifact_canonicalization: complete` | `state.yaml` field AND `canonicalization-state.yaml` status |
+| Canonical artifact schemas validate | `python scripts/migrate-stories.ps1 -ValidateOnly` exits 0 |
+| Artifact index builds cleanly | `python scripts/build_artifact_index.py <root>` exits 0, no WARN lines |
+| Semantic equivalence validated | All canonical `ID:` values resolve without filename-stem fallback |
+| Lifecycle/process state reconciled | `process-state.yaml` reflects only work performed under MxAgile; no fabricated historical gates |
+| Fresh session resumes correctly | New agent session reads `state.yaml`, reports EXISTING_MXAGILE_PROJECT, resumes pending canonical work |
+
+**What FULLY NATIVE enables:**
+- All lifecycle artifacts are indexed and traceable end-to-end (Requirement → Spec → Task)
+- `build_artifact_index.py` produces a graph with no broken references from canonical artifacts
+- Agents operate using the canonical schema; no fallback to legacy `planning/stories/` paths
+- Normal MxAgile waves, refinement, and convergence can proceed against indexed artifacts
+
+**What FULLY NATIVE does NOT require:**
+- Deletion of legacy source files (preserved as audit trail)
+- Backward compatibility for legacy `.md` story format in new work
+- Migration of specs that do not yet exist (only existing legacy artifacts are canonicalized)
+
+**Session reporting for hybrid mode:**
+
+If `artifact_canonicalization: pending` or `in_progress` in `state.yaml`, a fresh agent session
+MUST report at startup:
+
+> "This project is operating in hybrid mode. Framework migration is complete.
+> Artifact canonicalization is [pending/in_progress]. Legacy project artifacts at
+> planning/stories/ and planning/checklists/ are readable but not yet indexed.
+> Run migrate-stories.ps1 to begin canonicalization."
 
 ---
 
