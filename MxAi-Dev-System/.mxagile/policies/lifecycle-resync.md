@@ -41,11 +41,136 @@ rekonstruieren koennen.
 
 ---
 
+## Projektroot-Bestimmung
+
+**Lifecycle Re-Sync operiert ausschliesslich vom aktuellen MxAgile-Projektroot.**
+
+Die erste Aufgabe der Re-Sync ist die Bestimmung dieses Roots.
+Danach wird der Lifecycle-Zustand NUR aus Artefakten innerhalb dieses Roots rekonstruiert.
+
+### Marker-Erkennung
+
+Ein Verzeichnis ist der MxAgile-Projektroot wenn es mindestens eines der folgenden
+kanonischen Marker enthaelt:
+
+| Marker | Bedeutung |
+|---|---|
+| `mxagile-project.yaml` | Explizite MxAgile-Projektkonfiguration |
+| `.mxagile/` | Installiertes MxAgile-Framework |
+| `.concord/` | Laufzeit-/Artefakt-Verzeichnis von MxAgile |
+| `planning/checklists/` | Vorhandene Implementierungspflichten |
+| `*.mpr` | Mendix-Projektdatei |
+
+### Bestimmungsalgorithmus
+
+1. Aktuelles Arbeitsverzeichnis (CWD) pruefen — Marker vorhanden? → Das ist der Projektroot.
+2. Falls CWD keinen Marker hat: ein Verzeichnis nach oben gehen, erneut pruefen.
+3. Sobald ein Marker gefunden: Projektroot festgelegt — weiteres Traversieren stoppen.
+4. Falls eine `.git`-Grenze ueberschritten wird ohne Marker: Traversieren sofort stoppen.
+   Das CWD oder das naechste Verzeichnis mit Markern ist der Root.
+
+Maximal 1-2 Verzeichnisebenen nach oben traversieren. Kein Suchen ueber das ganze Dateisystem.
+
+### Eindeutigkeit
+
+Sobald der Projektroot bestimmt ist, gilt er fuer die gesamte Session.
+Re-Sync liest KEINE Artefakte ausserhalb dieses Roots.
+
+---
+
+## Scope-Grenzen (Boundary Rules)
+
+Waehrend normaler Lifecycle Re-Sync gilt:
+
+**NICHT traversieren:**
+- Eltern-Repositories (z.B. framework dev-tree ausserhalb des Projektroot)
+- Geschwister-Projekte oder Geschwister-Testprojekte
+- `project-templates/` Verzeichnisse ausserhalb des Projektroot
+- Verschachtelte Repositories die kein MxAgile-Marker des aktuellen Projekts enthalten
+- Unverwandte `.git`-Verzeichnisse
+
+**NICHT modifizieren:**
+- Eltern-Repositories
+- Geschwister-Projekte
+- Framework-Repositories ausserhalb des Projektroot
+- `.gitignore` von Eltern- oder Geschwister-Repos
+
+**Boundary-Beispiel (Reality-Test-Regression):**
+
+    CWD = MxAi-Dev-System/.testing-greenfield-rt4/
+
+    Korrekt:
+      Projektroot = .testing-greenfield-rt4/
+      Re-Sync liest: .testing-greenfield-rt4/.mxagile/lifecycle.yaml
+      Re-Sync liest: .testing-greenfield-rt4/.concord/scratch/process-state.yaml
+      Re-Sync liest: .testing-greenfield-rt4/planning/checklists/W01-implementation-checklist.yaml
+
+    Falsch (verboten):
+      Traversieren in MxAi-Dev-System/ (Eltern-Framework)
+      Lesen von MxAi-Dev-System/.mxagile/ als Lifecycle-Quelle
+      Lesen von MxAi-Dev-System/project-templates/ oder Geschwister-Testprojekten
+      Aendern von MxAi-Dev-System/.gitignore
+      Erstellen eines Commits im Eltern-Repository
+
+---
+
+## Git-History
+
+Git-History ist KEIN kanonischer Lifecycle-Zustand.
+
+**Normaler Startup Re-Sync darf Git-History NICHT verwenden**, wenn die kanonischen
+Projekt-Artefakte die benoetigte Evidenz liefern:
+
+    Primaere Evidenz:
+    lifecycle.yaml -> process-state.yaml -> implementation-checklist
+        -> decisions.md -> story specs -> input-resources
+
+Git-History darf NUR inspiziert werden wenn:
+- Der Benutzer eine explizite Repository-History-Aufgabe stellt, ODER
+- Die kanonischen Projekt-Artefakte fehlen UND der Benutzer ausdruecklich genehmigt
+
+Das Fehlen von `process-state.yaml` bedeutet: Lifecycle-Phase aus vorhandenen
+Artefakten ableiten (Checkliste, Story-Specs, Gate-Artefakte) — NICHT: Git-Log lesen.
+
+---
+
+## Git-Mutationen verboten waehrend Orientation/Re-Sync
+
+Orientierung und Lifecycle Re-Sync sind KEINE Erlaubnis fuer:
+
+- `git add`
+- `git commit`
+- `git push`
+- Aendern von `.gitignore` (in keinem Repository)
+- Bereinigen oder Reparieren von Eltern-/Geschwister-Repositories
+
+Solche Aktionen sind nur erlaubt wenn sie:
+1. Teil der aktuellen Liefer-Aufgabe sind, ODER
+2. Ausdruecklich vom Benutzer in derselben Session angefordert wurden
+
+Das Finden eines `.git`-Verzeichnisses ausserhalb des Projektroot ist kein Anlass fuer
+Reparatur, Cleanup oder Commit-Erstellung.
+
+---
+
+## Verschachtelte Repositories
+
+Das Auffinden eines weiteren `.git`-Verzeichnisses ausserhalb des aktuellen Projektroot
+ist kein Re-Sync-Problem.
+
+- Nicht untersuchen, nur weil es existiert.
+- Nicht reparieren, nur weil es unaufgeraeumt aussieht.
+- Nicht in die Lifecycle-Zustandsrekonstruktion einbeziehen.
+
+---
+
 ## Startup Re-Sync Algorithmus
 
 Beim Uebernehmen eines bestehenden Projekts oder nach einer Session-Pause:
 
-1. `.mxagile/lifecycle.yaml` lesen — gueltige Phasen und Gate-Definitionen
+0. **Projektroot bestimmen** — Marker-Erkennung (siehe oben). Alle nachfolgenden
+   Pfade sind relativ zu diesem Root. Nicht ausserhalb suchen.
+1. `<projektroot>/.mxagile/lifecycle.yaml` lesen — gueltige Phasen und Gate-Definitionen
 2. `.concord/scratch/process-state.yaml` lesen — Wave, Phase, Gate-Ergebnisse
 3. Process-State validieren (siehe Zustandsvalidierung unten)
 4. `planning/checklists/W*-implementation-checklist.yaml` lesen — abgeschlossene vs. verbleibende Items
@@ -255,18 +380,22 @@ Diese Invarianten gelten unabhaengig vom Runtime-Zustand waehrend Implementing:
 
 ---
 
-## Regression-Referenzfall (Reality Test)
+## Regression-Referenzfall (Reality Test — Scope-Grenzen)
 
-Beobachteter Zustand: wave=W01, phase=implementing, gate_to_refinement=passed, gate_to_ready=passed.
-Implementiert: W01-01 (Security Roles), W01-02 (Domain Model).
-Verbleibend: W01-03 (Microflows), W01-04 (Pages), W01-05 (Security Pass).
-Unterbrechungen: Startbarer Stand hergestellt; App gestartet.
-Verifikation: NICHT gestartet.
+**Szenario:** Agent gestartet mit CWD = `MxAi-Dev-System/.testing-greenfield-rt4/`
 
-Rekonstruierte Wahrheit:
-- Aktuelle Phase: `implementing`
-- Implementierung unvollstaendig (W01-03 bis W01-05 pending)
+Korrekte Rekonstruktion:
+- Projektroot = `.testing-greenfield-rt4/` (`.mxagile/` und `.concord/` vorhanden)
+- wave=W01, phase=implementing, gate_to_refinement=passed, gate_to_ready=passed
+- Implementiert: W01-01 (Security Roles), W01-02 (Domain Model)
+- Verbleibend: W01-03 (Microflows), W01-04 (Pages), W01-05 (Security Pass)
 - App-Start ist OBSERVATION — aendert Phase nicht
 - Runtime-Start ≠ Verifikation
-- Abgeschlossene Arbeit (W01-01, W01-02) bleibt valide
 - Resume: naechstes Checklisten-Item nach W01-02
+
+Verbotenes Verhalten:
+- Eltern-Repository `MxAi-Dev-System/` inspizieren
+- `MxAi-Dev-System/project-templates/` oder Geschwister-Testprojekte oeffnen
+- `MxAi-Dev-System/.gitignore` aendern
+- Commit im Eltern-Repository erstellen
+- Git-History des Eltern-Repos als Lifecycle-Evidenz verwenden

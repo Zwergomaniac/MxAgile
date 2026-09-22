@@ -20,6 +20,12 @@
     K. UI-driven contract remains intact
     L. Warm-local-loop contract remains intact
     M. Existing lifecycle canon tests remain consistent
+    N. Re-Sync anchors to current MxAgile project root
+    O. Parent repository is outside normal Re-Sync scope
+    P. Sibling projects/templates are outside normal Re-Sync scope
+    Q. Git history is not required for normal state reconstruction
+    R. Re-Sync performs no unrelated Git mutations
+    S. Existing re-sync capabilities are preserved
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -421,6 +427,159 @@ Assert-FileContains "lifecycle-resync.md references process-state.schema.json" `
 
 Assert-FileContains "process-state.schema.json references lifecycle-resync.md" `
     $processSchemaPath 'lifecycle-resync.md'
+
+Write-Host ""
+
+# =========================================================================
+# N. Re-Sync anchors to current MxAgile project root
+# =========================================================================
+
+Write-Host "--- N: Re-Sync anchors to current MxAgile project root ---"
+
+Assert-FileContains "lifecycle-resync.md: project root determination section present" `
+    $resyncPolicyPath 'Projektroot-Bestimmung|Project Root Determination'
+
+Assert-FileContains "lifecycle-resync.md: marker-based root detection defined" `
+    $resyncPolicyPath 'mxagile-project\.yaml.*Marker|Marker.*mxagile-project|Marker-Erkennung'
+
+Assert-FileContains "lifecycle-resync.md: .mxagile/ is a root marker" `
+    $resyncPolicyPath '\.mxagile/'
+
+Assert-FileContains "lifecycle-resync.md: .concord/ is a root marker" `
+    $resyncPolicyPath '\.concord/'
+
+Assert-FileContains "lifecycle-resync.md: .mpr file is a root marker" `
+    $resyncPolicyPath '\*\.mpr|\.mpr'
+
+Assert-FileContains "lifecycle-resync.md: startup algorithm step 0 determines root" `
+    $resyncPolicyPath '0\.\s.*Projektroot|step 0.*root|Projektroot bestimmen'
+
+Assert-FileContains "lifecycle-resync.md: all subsequent paths are relative to project root" `
+    $resyncPolicyPath 'relativ zu diesem Root|relative.*project root|Nicht ausserhalb suchen'
+
+Write-Host ""
+
+# =========================================================================
+# O. Parent repository is outside normal Re-Sync scope
+# =========================================================================
+
+Write-Host "--- O: Parent repository is outside normal Re-Sync scope ---"
+
+Assert-FileContains "lifecycle-resync.md: scope boundary section present" `
+    $resyncPolicyPath 'Scope-Grenzen|Boundary Rules'
+
+Assert-FileContains "lifecycle-resync.md: parent repository traversal forbidden" `
+    $resyncPolicyPath 'Eltern-Repositories.*NICHT|NICHT.*Eltern-Repo|parent.*forbidden|Eltern-Framework'
+
+Assert-FileContains "lifecycle-resync.md: parent .gitignore modification forbidden" `
+    $resyncPolicyPath '\.gitignore.*Eltern|Eltern.*\.gitignore|parent.*gitignore'
+
+Assert-FileContains "lifecycle-resync.md: parent repository commit forbidden" `
+    $resyncPolicyPath 'Commit.*Eltern-Repository|Eltern-Repository.*commit|parent.*repository.*commit'
+
+Assert-FileContains "lifecycle-resync.md: boundary example names the reality-test scenario" `
+    $resyncPolicyPath 'testing-greenfield-rt4|MxAi-Dev-System.*testing|testing.*MxAi-Dev-System'
+
+Write-Host ""
+
+# =========================================================================
+# P. Sibling projects/templates are outside normal Re-Sync scope
+# =========================================================================
+
+Write-Host "--- P: Sibling projects/templates are outside normal Re-Sync scope ---"
+
+Assert-FileContains "lifecycle-resync.md: sibling project traversal forbidden" `
+    $resyncPolicyPath 'Geschwister-Projekte|sibling.*project|sibling.*test'
+
+Assert-FileContains "lifecycle-resync.md: project-templates/ traversal forbidden" `
+    $resyncPolicyPath 'project-templates'
+
+Assert-FileContains "lifecycle-resync.md: nested repo traversal forbidden" `
+    $resyncPolicyPath 'verschachtelte.*Repositories|unverwandte.*\.git|nested.*repositor'
+
+Write-Host ""
+
+# =========================================================================
+# Q. Git history is not required for normal state reconstruction
+# =========================================================================
+
+Write-Host "--- Q: Git history is not required for normal state reconstruction ---"
+
+Assert-FileContains "lifecycle-resync.md: git history is not canonical lifecycle state" `
+    $resyncPolicyPath 'Git-History.*KEIN.*Lifecycle|Git-History ist KEIN|git.*history.*not.*canonical'
+
+Assert-FileContains "lifecycle-resync.md: normal re-sync must not use git history" `
+    $resyncPolicyPath 'Startup Re-Sync.*Git-History NICHT|NICHT.*Git-History.*kanonischen|git.*history.*not.*required'
+
+Assert-FileContains "lifecycle-resync.md: primary evidence listed without git history" `
+    $resyncPolicyPath 'lifecycle\.yaml.*process-state|process-state.*lifecycle\.yaml'
+
+Assert-FileContains "lifecycle-resync.md: missing process-state -> derive from checklist not git" `
+    $resyncPolicyPath 'Checkliste.*NICHT.*Git-Log|NICHT.*Git-Log.*lesen|git.*log.*not'
+
+Write-Host ""
+
+# =========================================================================
+# R. Re-Sync itself performs no unrelated Git mutations
+# =========================================================================
+
+Write-Host "--- R: Re-Sync performs no unrelated Git mutations ---"
+
+Assert-FileContains "lifecycle-resync.md: git mutations forbidden during orientation" `
+    $resyncPolicyPath 'Git-Mutationen verboten|git.*mutation.*forbidden|verboten waehrend Orientation'
+
+Assert-FileContains "lifecycle-resync.md: git add forbidden during re-sync" `
+    $resyncPolicyPath 'git add'
+
+Assert-FileContains "lifecycle-resync.md: git commit forbidden during re-sync" `
+    $resyncPolicyPath 'git commit'
+
+Assert-FileContains "lifecycle-resync.md: git push forbidden during re-sync" `
+    $resyncPolicyPath 'git push'
+
+Assert-FileContains "lifecycle-resync.md: .gitignore mutation forbidden" `
+    $resyncPolicyPath '\.gitignore.*keinem Repository|\.gitignore.*no.*reposit'
+
+Assert-FileContains "lifecycle-resync.md: finding .git outside root is not a repair trigger" `
+    $resyncPolicyPath '\.git.*ausserhalb.*kein|kein.*Anlass.*Reparatur|finding.*\.git.*not.*repair'
+
+Write-Host ""
+
+# =========================================================================
+# S. Existing tests remain green (structural consistency check)
+# =========================================================================
+
+Write-Host "--- S: Existing re-sync capabilities are preserved ---"
+
+Assert-FileContains "lifecycle-resync.md: OBSERVATION class still present" `
+    $resyncPolicyPath '### OBSERVATION'
+
+Assert-FileContains "lifecycle-resync.md: CLARIFICATION class still present" `
+    $resyncPolicyPath '### CLARIFICATION'
+
+Assert-FileContains "lifecycle-resync.md: CHANGE class still present" `
+    $resyncPolicyPath '### CHANGE'
+
+Assert-FileContains "lifecycle-resync.md: PAUSE class still present" `
+    $resyncPolicyPath '### PAUSE'
+
+Assert-FileContains "lifecycle-resync.md: Impact-Aware Re-Entry still present" `
+    $resyncPolicyPath 'Impact-Aware Re-Entry'
+
+Assert-FileContains "lifecycle-resync.md: process-state canonical update rule still present" `
+    $resyncPolicyPath 'Kanonische Aktualisierung|GESAMTEN Wave-Block'
+
+Assert-FileContains "lifecycle-resync.md: state validation table still present" `
+    $resyncPolicyPath 'Zustandsvalidierung|State Validation'
+
+Assert-FileContains "lifecycle-resync.md: runtime transient rule still present" `
+    $resyncPolicyPath 'Runtime-Zustand ist Transient'
+
+Assert-FileContains "lifecycle-resync.md: regression case still present" `
+    $resyncPolicyPath 'Regression-Referenzfall|Reality Test'
+
+Assert-FileContains "lifecycle-resync.md: boundary example in regression case" `
+    $resyncPolicyPath 'Verbotenes Verhalten|Falsch.*verboten|forbidden.*behavior'
 
 Write-Host ""
 
