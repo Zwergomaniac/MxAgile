@@ -12,7 +12,10 @@ param (
     # Robocopy thread count. 8 is a safe default on most developer machines.
     # Increase only if I/O is the bottleneck and the machine has fast storage.
     [ValidateRange(1, 128)]
-    [int]$Threads = 8
+    [int]$Threads = 8,
+
+    # Show full Robocopy file/directory listings instead of the compact summary.
+    [switch]$VerboseCopy
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +27,17 @@ if ([string]::IsNullOrEmpty($TestDirName)) {
 $WorkspaceRoot = Split-Path -Parent $PSScriptRoot
 $SourcePath    = Join-Path $WorkspaceRoot "project-templates\$TemplateName"
 $DestPath      = Join-Path $WorkspaceRoot ".testing-$TestDirName"
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+function Format-Bytes {
+    param([long]$Bytes)
+    if ($Bytes -ge 1GB) { return "{0:F1} GB" -f ($Bytes / 1GB) }
+    if ($Bytes -ge 1MB) { return "{0:F1} MB" -f ($Bytes / 1MB) }
+    if ($Bytes -ge 1KB) { return "{0:F1} KB" -f ($Bytes / 1KB) }
+    return "$Bytes B"
+}
 
 # ---------------------------------------------------------------------------
 # Source validation
@@ -89,7 +103,7 @@ if (Test-Path -LiteralPath $policyFile -PathType Leaf) {
 }
 
 # ---------------------------------------------------------------------------
-# Credential notice
+# Credential notice (high-visibility — always shown regardless of other flags)
 # ---------------------------------------------------------------------------
 $envFile = Join-Path $SourcePath '.docker\.env'
 if (Test-Path -LiteralPath $envFile -PathType Leaf) {
@@ -119,7 +133,13 @@ if (Test-Path -LiteralPath $DestPath) {
     }
 
     if ($PSCmdlet.ShouldProcess($DestPath, 'Remove existing directory')) {
-        Remove-Item -LiteralPath $DestPath -Recurse -Force
+        try {
+            Remove-Item -LiteralPath $DestPath -Recurse -Force
+        } catch [System.IO.IOException] {
+            Write-Host ""
+            Write-Error "Workspace may still be in use by another terminal, agent, or application and could not be reset.`nPath: $DestPath`nClose all processes accessing this path, then retry."
+            exit 1
+        }
     }
 }
 
@@ -160,7 +180,7 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
     $robocopyArgs.Add('/R:2')         # 2 retries on file-copy failure
     $robocopyArgs.Add('/W:1')         # 1 second between retries
     $robocopyArgs.Add('/NP')          # suppress per-file progress percentage
-    $robocopyArgs.Add('/BYTES')       # report sizes in bytes
+    $robocopyArgs.Add('/BYTES')       # byte-precision summary (enables parsing below)
 
     foreach ($name in $ExcludeByName) {
         $robocopyArgs.Add('/XD')
@@ -171,9 +191,23 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
         $robocopyArgs.Add($path)
     }
 
+    if (-not $VerboseCopy) {
+        $robocopyArgs.Add('/NFL')   # suppress per-file listing
+        $robocopyArgs.Add('/NDL')   # suppress per-directory listing
+    }
+
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & robocopy @robocopyArgs
-    $robocopyExitCode = $LASTEXITCODE
+
+    if ($VerboseCopy) {
+        & robocopy @robocopyArgs
+        $robocopyExitCode = $LASTEXITCODE
+        $roboCaptured     = $null
+    } else {
+        Write-Host "  Copying..." -NoNewline
+        $roboCaptured     = @(& robocopy @robocopyArgs 2>&1 | ForEach-Object { "$_" })
+        $robocopyExitCode = $LASTEXITCODE
+    }
+
     $stopwatch.Stop()
 
     # Robocopy exit codes:
@@ -188,27 +222,58 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
     #   8+  At least one failure (file/dir could not be copied).
     #  16   Fatal error.
     if ($robocopyExitCode -ge 8) {
+        Write-Host ""   # end the "Copying..." line on failure
+        if ($null -ne $roboCaptured) {
+            $roboCaptured | Where-Object { $_ -match 'ERROR|FAILED' } | ForEach-Object {
+                Write-Host "  $_" -ForegroundColor Red
+            }
+        }
         Write-Host ""
-        Write-Host "[FAILED] Robocopy exited with code $robocopyExitCode - destination may be incomplete." -ForegroundColor Red
+        Write-Host "  [FAILED] Robocopy exited with code $robocopyExitCode - destination may be incomplete." -ForegroundColor Red
         exit 1
     }
 
-    Write-Host ""
-    Write-Host "  Elapsed : $($stopwatch.Elapsed.ToString('mm\:ss\.fff'))" -ForegroundColor Green
+    if (-not $VerboseCopy) {
+        Write-Host " done." -ForegroundColor Green
+    }
+
+    # Parse Robocopy summary from captured output (locale-agnostic, Total column).
+    # Strategy: collect lines whose tokens after the first colon are all pure integers
+    # and number exactly 6 (the Dirs/Files/Bytes summary rows). The Times row is excluded
+    # because its tokens contain colons (0:00:11 format).
+    # Row order is always Dirs, Files, Bytes regardless of locale.
+    $rbFiles = 0L
+    $rbDirs  = 0L
+    $rbBytes = 0L
+    if ($null -ne $roboCaptured) {
+        $summaryDataRows = [System.Collections.Generic.List[string]]::new()
+        foreach ($line in $roboCaptured) {
+            $colonIdx = $line.IndexOf(':')
+            if ($colonIdx -lt 0) { continue }
+            $afterColon = $line.Substring($colonIdx + 1).Trim()
+            $tokens = @($afterColon -split '\s+' | Where-Object { $_ -ne '' })
+            if ($tokens.Count -eq 6 -and
+                -not @($tokens | Where-Object { $_ -notmatch '^\d+$' })) {
+                $summaryDataRows.Add($line)
+            }
+        }
+        if ($summaryDataRows.Count -ge 3) {
+            if ($summaryDataRows[0] -match ':\s*(\d+)') { $rbDirs  = [long]$Matches[1] }
+            if ($summaryDataRows[1] -match ':\s*(\d+)') { $rbFiles = [long]$Matches[1] }
+            if ($summaryDataRows[2] -match ':\s*(\d+)') { $rbBytes = [long]$Matches[1] }
+        }
+    }
 
     # ---------------------------------------------------------------------------
     # Fixture fidelity validation
     # ---------------------------------------------------------------------------
-    Write-Host "  Validating fixture fidelity..."
     $fidelityErrors = [System.Collections.Generic.List[string]]::new()
 
-    # .mpr must survive
     $destMpr = @(Get-ChildItem -LiteralPath $DestPath -Filter '*.mpr' -File -ErrorAction SilentlyContinue)
     if ($destMpr.Count -eq 0) {
         $fidelityErrors.Add("No .mpr file found in destination")
     }
 
-    # .dfc-ai must survive (brownfield migration marker)
     $srcDfc = Join-Path $SourcePath '.dfc-ai'
     $dstDfc = Join-Path $DestPath '.dfc-ai'
     if ((Test-Path -LiteralPath $srcDfc -PathType Container) -and
@@ -216,7 +281,6 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
         $fidelityErrors.Add(".dfc-ai/ missing in destination (required for brownfield migration tests)")
     }
 
-    # planning/ must survive
     $srcPlan = Join-Path $SourcePath 'planning'
     $dstPlan = Join-Path $DestPath 'planning'
     if ((Test-Path -LiteralPath $srcPlan -PathType Container) -and
@@ -224,7 +288,6 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
         $fidelityErrors.Add("planning/ missing in destination")
     }
 
-    # mprcontents/ must survive
     $srcMprc = Join-Path $SourcePath 'mprcontents'
     $dstMprc = Join-Path $DestPath 'mprcontents'
     if ((Test-Path -LiteralPath $srcMprc -PathType Container) -and
@@ -232,7 +295,6 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
         $fidelityErrors.Add("mprcontents/ missing in destination")
     }
 
-    # No .mxagile/lifecycle.yaml introduced if source did not have one
     $srcLifecycle = Join-Path $SourcePath '.mxagile\lifecycle.yaml'
     $dstLifecycle = Join-Path $DestPath '.mxagile\lifecycle.yaml'
     if (-not (Test-Path -LiteralPath $srcLifecycle -PathType Leaf) -and
@@ -246,12 +308,10 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
         foreach ($err in $fidelityErrors) { Write-Host "    - $err" -ForegroundColor Red }
         exit 1
     }
-    Write-Host "  Fidelity: OK" -ForegroundColor Green
 
     # ---------------------------------------------------------------------------
     # Source immutability check
     # ---------------------------------------------------------------------------
-    Write-Host "  Checking source immutability..."
     $mutated = @()
     foreach ($path in $preCopyHashes.Keys) {
         if (Test-Path -LiteralPath $path -PathType Leaf) {
@@ -267,8 +327,26 @@ if ($PSCmdlet.ShouldProcess($DestPath, "Create test workcopy from '$TemplateName
         foreach ($f in $mutated) { Write-Host "    $f" -ForegroundColor Red }
         exit 1
     }
-    Write-Host "  Source immutability: OK" -ForegroundColor Green
+
+    # ---------------------------------------------------------------------------
+    # Compact completion summary
+    # ---------------------------------------------------------------------------
+    $elapsed   = $stopwatch.Elapsed.ToString('mm\:ss\.fff')
+    $resultStr = if ($robocopyExitCode -eq 0) { "OK (exit 0 - source and dest identical)" }
+                 else { "OK (exit $robocopyExitCode)" }
 
     Write-Host ""
     Write-Host "[OK] Test workcopy created: $DestPath" -ForegroundColor Green
+
+    if (-not $VerboseCopy -and ($rbFiles -gt 0 -or $rbDirs -gt 0)) {
+        $humanBytes = Format-Bytes -Bytes $rbBytes
+        Write-Host ""
+        Write-Host ("  Files    : {0:N0}" -f $rbFiles)
+        Write-Host ("  Dirs     : {0:N0}" -f $rbDirs)
+        Write-Host ("  Bytes    : {0:N0} ({1})" -f $rbBytes, $humanBytes)
+    }
+    Write-Host "  Elapsed  : $elapsed"
+    Write-Host "  Result   : $resultStr"
+    Write-Host "  Fidelity : OK" -ForegroundColor Green
+    Write-Host "  Immutable: OK" -ForegroundColor Green
 }
