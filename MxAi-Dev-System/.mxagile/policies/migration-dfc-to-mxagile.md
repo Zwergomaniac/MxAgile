@@ -532,6 +532,80 @@ The agent must NOT implement its own reuse logic. If the installer accepts the l
 it exits 0 with "already up-to-date." If it downloads a new version, it exits 0 after
 installation. The agent simply checks the exit code and proceeds.
 
+### 7.7 Canonical Installer Failure — No Manual Reconstruction
+
+When `install-core.ps1` fails for any reason (including runtime compatibility failures,
+network errors, or unexpected project state), the migration agent MUST NOT manually
+reproduce the remaining Phase 5 steps.
+
+**Prohibited agent actions after `install-core.ps1` failure:**
+
+| Action | Status |
+|---|---|
+| Manually copying `.mxagile/` payload from the reacquired distribution | PROHIBITED |
+| Manually running Company Layer installation | PROHIBITED |
+| Hand-reimplementing any part of `install-core.ps1` | PROHIBITED |
+| Writing `mxagile_installed` after partial manual reconstruction | PROHIBITED |
+| Inferring Phase 5 complete from `mxcli.exe` presence alone | PROHIBITED |
+| Inferring Phase 5 complete from generated tool projections | PROHIBITED |
+| Inferring Phase 5 complete from `mxagile-init.ps1` scaffold existence | PROHIBITED |
+
+**Required behavior on `install-core.ps1` failure:**
+
+1. Do NOT write `mxagile_installed`
+2. Do NOT write `validation_passed`
+3. Do NOT set `status: complete`
+4. State remains `MIGRATION_IN_PROGRESS` with `last_completed_step: dfc_artifacts_removed`
+5. Report the exact error from `install-core.ps1` to the developer
+6. Instruct the developer to fix the canonical installer and retry Phase 5
+
+**Phase 5 retry is safe (idempotent):**
+
+`install-core.ps1` is designed for idempotent execution. A retry after a partial Phase 5
+failure safely handles already-completed work without requiring manual cleanup:
+
+| Already completed before failure | Retry behavior |
+|---|---|
+| `mxagile-init.ps1` scaffold (directories) | Already exist — created idempotently, skipped |
+| `mxcli.exe` installed at current version | `install-mxcli.ps1` exits 0 "already up-to-date" |
+| `mxcli init --all-tools` ran | Re-runs and refreshes projections (harmless) |
+| Canonical `.mxagile` payload partially copied | Overwritten with `-Force` — safe |
+| `update-mxcli.ps1` distributed | Overwritten with `-Force` — safe |
+| Company Layer not yet installed | Installed on retry |
+
+**False-completion guards:**
+
+The durable migration milestone remains `dfc_artifacts_removed` until the COMPLETE canonical
+Phase 5 succeeds. None of the following constitutes Phase 5 completion:
+
+- `mxcli.exe` is present in the project
+- Generated tool projections (AGENTS.md, CLAUDE.md, etc.) exist
+- `mxagile-init.ps1` scaffold directories exist
+- The reacquired distribution is intact in its temp directory
+
+Phase 5 is complete ONLY when `install-core.ps1` exits 0 AND `.mxagile/lifecycle.yaml` exists.
+
+### 7.8 PowerShell Runtime Contract
+
+MxAgile production scripts target **Windows PowerShell 5.1** as the minimum supported runtime.
+
+All scripts in `scripts/` that participate in the installation, migration, and initialization
+chain must execute correctly under `powershell.exe` (Windows PowerShell 5.1.x), not only
+under `pwsh.exe` (PowerShell 6/7).
+
+**Known PS5.1 incompatibilities to avoid:**
+
+| Construct | PS5.1 | PS 6/7 | Canonical alternative |
+|---|---|---|---|
+| `Join-Path $a $b $c` (3+ positional args) | FAILS | Works | `Join-Path (Join-Path $a $b) $c` |
+| `Join-Path -AdditionalChildPath` parameter | FAILS | Works | Nested `Join-Path` calls |
+| Ternary operator `$x ? $a : $b` | FAILS | Works | `if`/`else` assignment |
+| Null coalescing `$x ?? $y` | FAILS | Works | `if ($null -eq $x) { ... }` |
+| Pipeline chain `&&` / `\|\|` | FAILS | Works | Separate statements with `$LASTEXITCODE` |
+
+Tests that execute production scripts must invoke them under `powershell.exe` (PS5.1),
+not `pwsh.exe`, unless the test is explicitly scoped to PS6+ scenarios.
+
 ---
 
 ## 8. Phase 6 -- Validation
@@ -597,6 +671,9 @@ These rules cannot be overridden by developer instruction:
 - Always call `install-core.ps1`, NOT `setup-agent-system.ps1` directly, for MxAgile installation
 - Never report "Migration complete" before `validation_passed` is written to `state.yaml`
 - MIGRATION_IN_PROGRESS blocks normal requirement/wave/task implementation without exception
+- Never manually copy `.mxagile/` payload or run Company Layer installation after `install-core.ps1` failure
+- Never infer Phase 5 complete from `mxcli.exe` presence, tool projections, or scaffold directories alone
+- `install-core.ps1` failure → MIGRATION_IN_PROGRESS → fix canonical installer → retry Phase 5
 
 ---
 

@@ -25,7 +25,7 @@ function Test-GenericInstallation {
         New-Item -ItemType File -Path (Join-Path $projectRoot "project.mpr") | Out-Null
 
         # 2. Execute scripts/install-core.ps1
-        $installerPath = Join-Path $PSScriptRoot ".." "scripts" "install-core.ps1"
+        $installerPath = Join-Path (Join-Path (Join-Path $PSScriptRoot "..") "scripts") "install-core.ps1"
         pwsh -File $installerPath -ProjectRoot $projectRoot
 
         # 3. Assert that the script exits with code 0.
@@ -74,14 +74,14 @@ function Test-LocalLayerInstallation {
         New-Item -ItemType Directory -Path (Join-Path $layerSource ".git") | Out-Null
 
         # 3. Execute install-core.ps1 with -CompanyLayerSource
-        $installerPath = Join-Path $PSScriptRoot ".." "scripts" "install-core.ps1"
+        $installerPath = Join-Path (Join-Path (Join-Path $PSScriptRoot "..") "scripts") "install-core.ps1"
         pwsh -File $installerPath -ProjectRoot $projectRoot -CompanyLayerSource $layerSource
 
         # 4. Assert exit code 0
         Assert-Condition ($LASTEXITCODE -eq 0) "Installer should exit with code 0."
 
         # 5. Assert that the layer was installed
-        $installedLayerPath = Join-Path $projectRoot ".mxagile" "layers" "test-layer"
+        $installedLayerPath = Join-Path (Join-Path (Join-Path $projectRoot ".mxagile") "layers") "test-layer"
         Assert-Condition (Test-Path $installedLayerPath -PathType Container) "Layer should be installed at .mxagile/layers/test-layer."
 
         # 6. Assert that test-file.txt exists

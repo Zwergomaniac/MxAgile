@@ -152,6 +152,38 @@ Wenn das Agent-Tool-Timeout feuert, waehrend `install-core.ps1` laeuft:
 
 ---
 
+## Kanonische Installer-Fehler — Keine manuelle Rekonstruktion
+
+Wenn `install-core.ps1` fehlschlaegt (aus beliebigem Grund), implementiert der Agent
+**KEINE** manuellen Ersatzschritte.
+
+**Verbotene Aktionen nach `install-core.ps1`-Fehler:**
+
+- `.mxagile/` Payload manuell aus der reakquirierten Distribution kopieren
+- Company Layer manuell installieren
+- Teile von `install-core.ps1` hand-reimplementieren
+- `mxagile_installed` nach partieller manueller Rekonstruktion schreiben
+- Phase 5 als abgeschlossen werten, weil `mxcli.exe` vorhanden ist
+- Phase 5 als abgeschlossen werten, weil Tool-Projektionen existieren
+- Phase 5 als abgeschlossen werten, weil `mxagile-init.ps1`-Verzeichnisse existieren
+
+**Pflichtverhalten nach `install-core.ps1`-Fehler:**
+
+1. `mxagile_installed` NICHT schreiben
+2. `validation_passed` NICHT schreiben
+3. `status: complete` NICHT setzen
+4. State: `MIGRATION_IN_PROGRESS` mit `last_completed_step: dfc_artifacts_removed`
+5. Exakte Fehlermeldung aus `install-core.ps1` an den Entwickler melden
+6. Entwickler anweisen: Installer beheben und Phase 5 wiederholen
+
+**Phase-5-Wiederholung ist sicher (idempotent):**
+
+`install-core.ps1` wurde fuer idempotente Ausfuehrung entwickelt. Eine Wiederholung nach
+einem partiellen Phase-5-Fehler erfordert KEINE manuelle Bereinigung der bereits
+erfolgreich abgeschlossenen Schritte.
+
+---
+
 ## Kritische Sicherheitsregeln
 
 1. **Kein Verlust von Projektinhalten** -- Mendix-Modell, Requirements, Planning-Artefakte,

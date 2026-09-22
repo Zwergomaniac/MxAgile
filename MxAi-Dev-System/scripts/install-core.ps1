@@ -161,7 +161,7 @@ try {
 
     # Step 1c: Copy canonical .mxagile/ payload (skills, agents, policies, lifecycle.yaml, etc.)
     # The canonical source is at $PSScriptRoot/../.mxagile/ (the framework dev tree).
-    $canonicalSource = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".." ".mxagile"))
+    $canonicalSource = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $PSScriptRoot "..") ".mxagile"))
     if (-not (Test-Path -LiteralPath $canonicalSource -PathType Container)) {
         throw "Canonical .mxagile/ source not found at: $canonicalSource"
     }
