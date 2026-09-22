@@ -43,7 +43,7 @@ Both scripts will:
 .\scripts\generate-mxagile-platform-skills.ps1
 ```
 
-### Step 4: Initial Git Commit (Recommended)
+### Step 3: Initial Git Commit (Recommended)
 
 After the initialization is complete, it is highly recommended to initialize your own Git history:
 
@@ -56,6 +56,45 @@ git init
 git add .
 git commit -m "Initial commit: Set up MxAgile project structure"
 ```
+
+---
+
+## Core Update / Synchronization (existing MxAgile installations)
+
+`install-core.ps1` is the canonical entry point for **both** fresh installation and existing-project Core synchronization. You do not need a separate update command.
+
+To update an already-installed MxAgile project to a newer Core version, re-run the same installer from the new distribution:
+
+```powershell
+# Generic Core update
+.\scripts\install-core.ps1 -ProjectRoot <path-to-your-project>
+
+# Mercedes environment update (also refreshes Company Layer)
+.\scripts\install-core.ps1 -ProjectRoot <path-to-your-project> `
+    -CompanyLayerSource <layer-git-url> `
+    -CompanyLayerSourceType git `
+    -CompanyLayerRef main
+```
+
+### What the update preserves
+
+| Protected | Synchronized |
+|---|---|
+| `.mxagile/layers/` (Company Layer) | All other `.mxagile/` content (skills, agents, policies, schemas, templates) |
+| `.mxagile/state/` (runtime state, brownfield baseline) | Generated platform projections (`.claude/`, `.github/`, `.agents/` skill dirs) |
+| `.mxagile/migration/` (migration history, canonicalization state) | `mxcli.exe` (updated via `update-mxcli.ps1`) |
+| `requirements/`, `specs/`, `planning/`, `*.mpr` (project artifacts) | |
+
+Stale framework-owned files that were removed from the new Core version are retired before the new payload is copied, so the resulting installation is always equivalent to a fresh install of the same Core version.
+
+### Safety contract
+
+- The installer does NOT restart or reset migration history.
+- A project with `status: complete` in `state.yaml` retains that status after an update.
+- `artifact_canonicalization` state is preserved and not reset.
+- Agents must NOT manually copy framework files or reconstruct an installation — only `install-core.ps1` is authoritative.
+
+---
 
 ## Next Steps
 

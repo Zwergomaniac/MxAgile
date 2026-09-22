@@ -131,23 +131,54 @@ MxAgile skills implement individual phases. The installer provides the foundatio
 
 ---
 
-## Section 4: Current vs Target Gaps
+## Section 4: Implemented Architectural Features
 
-| Area | Current | Target | Status |
-|------|---------|--------|--------|
-| Managed block markers | `<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->` | `<!-- MXAGILE:MANAGED:START -->` | MIGRATION IMPLEMENTED — `apply-project-agent-instructions.ps1` detects and migrates old markers |
-| Skill directory naming (Codex/Grok/etc.) | `dfc/` | `mxagile/` | FIXED — `generate-mxagile-platform-skills.ps1` now uses `mxagile/` |
-| Managed block position | Block inserted at TOP (before user content) | Block inserted at END (user content first) | FIXED — new `Apply-ManagedBlock` function appends at end on first insert |
-| Malformed/duplicate block detection | Silent overwrite | Fail with diagnostic | FIXED — `Apply-ManagedBlock` fails with clear error on DUPLICATE or MALFORMED |
-| Mercedes layer `.git/` in dev repo | Present (staged for deletion) | Absent (stripped on install) | `fetch-layer.ps1` and `install-core.ps1` strip `.git/` on install; dev repo had it temporarily |
-| System Check skill | Absent | `.mxagile/skills/system-check.md` | CREATED |
-| Injection Contract document | Absent | `docs/injection-contract.md` | CREATED |
-| Post-install validation prompt | Absent | Shown after successful install | ADDED to `install-core.ps1` |
-| Agent behavioral validation | Not systematic | System Check skill (section H) | CREATED |
-| Script canonical name (generator) | `generate-dfc-platform-skills.ps1` | `generate-mxagile-platform-skills.ps1` | RENAMED |
-| Canonical lifecycle source | Narrative only in `orchestrator.md`; wrong phase names in architecture.md (Requirements, Planning, Convergence) | `lifecycle.yaml` (machine-readable) + corrected diagrams | CREATED |
-| Architecture lifecycle diagram | CURRENT/TARGET split with non-canonical phase names | Canonical phases + feedback-loop diagram + change-propagation diagram | FIXED |
-| System Check lifecycle validation | Hardcoded phase string referencing `orchestrator.md` | Reads `lifecycle.yaml` to validate canonical source exists | FIXED |
+### 4a: Infrastructure and Tooling (Completed)
+
+| Area | Resolution |
+|------|---------|
+| Managed block markers | `apply-project-agent-instructions.ps1` detects and auto-migrates old `<!-- BEGIN PROJECT AGENT INSTRUCTIONS -->` → `<!-- MXAGILE:MANAGED:START/END -->` |
+| Skill directory naming | `generate-mxagile-platform-skills.ps1` uses `mxagile/` prefix (was `dfc/`) |
+| Managed block position | Block appended at END of user content on first insert; replaced in-place on re-runs |
+| Malformed/duplicate block detection | `Apply-ManagedBlock` fails with diagnostic on DUPLICATE or MALFORMED |
+| Company Layer `.git/` stripping | `fetch-layer.ps1` and `install-core.ps1` strip nested `.git/` on install |
+| System Check skill | `.mxagile/skills/system-check.md` (read-only diagnostic) |
+| Injection Contract | `docs/injection-contract.md` (authoritative artifact ownership contract) |
+| Post-install validation | Shown after successful `install-core.ps1` |
+| Canonical lifecycle source | `lifecycle.yaml` (machine-readable) + narrative `orchestrator.md` |
+
+### 4b: Canonical Artifact Contract (WP-10)
+
+| Area | Resolution |
+|------|---------|
+| Canonical schemas | `requirement.schema.json`, `spec.schema.json`, `task.schema.json` in `.mxagile/schemas/` |
+| Canonical field names | `ID:` (not `req_id:`/`spec_id:`/`task_id:`); `action:` for tasks; `.yml` extension |
+| Canonical templates | `requirements/template.yml`, `specs/template.yml`, `planning/tasks/template.yaml` |
+| Artifact index | `scripts/build_artifact_index.py` reads canonical fields; emits WARN for broken references |
+| Semantic conversion engine | `scripts/canonicalize_artifacts.py` + `scripts/migrate-stories.ps1` |
+| Authoritative contract | `docs/schemas.md` (producer/consumer alignment table) |
+
+### 4c: Brownfield Artifact Canonicalization Lifecycle
+
+| Area | Resolution |
+|------|---------|
+| Lifecycle distinction | Framework migration (`status: complete` in `state.yaml`) ≠ artifact canonicalization |
+| Canonicalization state | `artifact_canonicalization: pending/in_progress/complete` in `state.yaml` |
+| Hybrid mode | Valid project state: migration complete + canonicalization pending |
+| Canonicalization skill | `.mxagile/skills/migration.md` |
+| Policy | Covered in `.mxagile/policies/migration-dfc-to-mxagile.md` Section "Brownfield Artifact Canonicalization" |
+| Resumability | `canonicalization-state.yaml` tracks per-artifact progress; re-running is safe |
+
+### 4d: Existing-Project Core Update Contract
+
+| Area | Resolution |
+|------|---------|
+| Update entry point | `install-core.ps1` — same script for fresh install AND existing-project Core sync |
+| Stale artifact retirement | Step 1c.1: clears framework-owned `.mxagile/` content before canonical copy |
+| Fresh-install equivalence | Updated install surface = fresh install of same Core version |
+| Protected directories | `layers/`, `state/`, `migration/` — never touched by update |
+| `artifact_canonicalization` reconciliation | Step 1d: adds `artifact_canonicalization: pending` to pre-WP-10 `state.yaml` if field absent |
+| Regression coverage | `tests/test-existing-project-update.ps1` (75 assertions) |
 
 ---
 
@@ -157,6 +188,9 @@ MxAgile skills implement individual phases. The installer provides the foundatio
 |-----------------|----------|----------|
 | `.mxagile/skills/*.md` | MxAgile Framework Developer | Edit canonical source; regenerate projections |
 | `.mxagile/agents/*.md` | MxAgile Framework Developer | Edit canonical source; regenerate projections |
+| `.mxagile/policies/*.md` | MxAgile Framework Developer | Edit canonical source |
+| `.mxagile/schemas/*.json` | MxAgile Framework Developer | Edit canonical source |
+| `.mxagile/templates/` | MxAgile Framework Developer | Edit canonical source |
 | `.claude/skills/mxagile-*/` | MxAgile (generated) | Do NOT edit — rerun generator |
 | `.github/skills/mxagile-*/` | MxAgile (generated) | Do NOT edit — rerun generator |
 | `.claude/agents/mxagile-*.md` | MxAgile (generated) | Do NOT edit — rerun generator |
@@ -165,5 +199,8 @@ MxAgile skills implement individual phases. The installer provides the foundatio
 | `AGENTS.md` | Shared (user + MxAgile block) | Edit user sections freely; managed block auto-replaced |
 | `CLAUDE.md` | Shared (user + MxAgile block) | Edit user sections freely; managed block auto-replaced |
 | `.github/copilot-instructions.md` | Shared (user + MxAgile block) | Edit user sections freely; managed block auto-replaced |
-| `requirements/`, `specs/`, `planning/` | Project / User | Edit freely; never overwritten |
+| `requirements/`, `specs/`, `planning/` | Project / User | Edit freely; never overwritten by Core update |
+| `.mxagile/layers/` | Company Layer / User | Managed by layer installer; never touched by Core update |
+| `.mxagile/state/` | Project Runtime | Never overwritten; preserved on Core update |
+| `.mxagile/migration/` | Project Migration History | Never overwritten; preserved on Core update |
 | `*.mpr` | Mendix Studio Pro | Never touched by MxAgile |

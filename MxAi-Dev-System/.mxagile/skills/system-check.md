@@ -85,6 +85,16 @@ Check existence (YES/NO) of each:
 - `planning/tasks/` directory
 - `.mxagile/state/` directory
 
+Also check migration and canonicalization state:
+- `.mxagile/migration/` directory exists?
+- `.mxagile/migration/state.yaml` — if present, read and report the `status` and `artifact_canonicalization` fields verbatim.
+  Classify the project lifecycle state:
+  - `status: complete` + `artifact_canonicalization: pending` → **HYBRID** (migration complete, canonicalization pending)
+  - `status: complete` + `artifact_canonicalization: complete` → **FULLY_NATIVE**
+  - `status: complete` + `artifact_canonicalization` field absent → **HYBRID_PRE_WP10** (pre-WP-10 install, field not yet reconciled)
+  - `status: in_progress` → **MIGRATION_IN_PROGRESS** (active DFC-AI migration — normal project work blocked)
+  - state.yaml absent → **NO_MIGRATION_STATE** (fresh install or DFC migration not started)
+
 ---
 
 ## G. Company Layer
@@ -123,6 +133,18 @@ Answer each question from your available instructions (loaded CLAUDE.md, AGENTS.
 
 5. **Ownership model**: How should ownership of AGENTS.md / CLAUDE.md be understood?
    - Expected: Shared — MxAgile owns only the managed block; user owns all content outside the block
+   - Your answer: [answer] — PASS / FAIL / UNKNOWN
+
+6. **Canonical artifact format**: What is the canonical format and location for Requirements, Specs, and Tasks?
+   - Expected: `requirements/REQ-NNN.yml` (ID: field), `specs/SPEC-NNN.yml`, `planning/tasks/TASK-NNN.yml`; schemas in `.mxagile/schemas/`; contract in `docs/schemas.md`
+   - Your answer: [answer] — PASS / FAIL / UNKNOWN
+
+7. **Core update mechanism**: How is an existing MxAgile installation updated to a new Core version?
+   - Expected: Run `install-core.ps1` from the new distribution — stale framework-owned artifacts are retired (Step 1c.1) before the canonical payload is copied; protected directories (layers/, state/, migration/) are preserved; no manual file copying
+   - Your answer: [answer] — PASS / FAIL / UNKNOWN
+
+8. **Framework migration vs artifact canonicalization**: Are these the same lifecycle?
+   - Expected: NO — framework migration installs MxAgile Core over a DFC-AI project; artifact canonicalization is a separate subsequent lifecycle that converts legacy `.md` stories to `.yml` canonical artifacts; a project with `status: complete` + `artifact_canonicalization: pending` is in HYBRID mode (valid, not an error)
    - Your answer: [answer] — PASS / FAIL / UNKNOWN
 
 ---
@@ -173,6 +195,10 @@ Overall: PASS | PASS_WITH_WARNINGS | FAIL
 - requirements/: YES | NO
 - planning/tasks/: YES | NO
 - .mxagile/state/: YES | NO
+- .mxagile/migration/: YES | NO
+- migration state: [status value or NOT_FOUND]
+- artifact_canonicalization: [value or NOT_FOUND]
+- project lifecycle state: HYBRID | FULLY_NATIVE | HYBRID_PRE_WP10 | MIGRATION_IN_PROGRESS | NO_MIGRATION_STATE
 
 ## G. Company Layer
 - Layers found: [list of IDs or NONE]
@@ -184,6 +210,9 @@ Overall: PASS | PASS_WITH_WARNINGS | FAIL
 - Lifecycle order: [PASS|FAIL|UNKNOWN]
 - Generated files: [PASS|FAIL|UNKNOWN]
 - Ownership model: [PASS|FAIL|UNKNOWN]
+- Artifact format: [PASS|FAIL|UNKNOWN]
+- Core update mechanism: [PASS|FAIL|UNKNOWN]
+- Migration vs canonicalization: [PASS|FAIL|UNKNOWN]
 
 ## Machine-Readable Diagnostic
 
@@ -231,6 +260,10 @@ mxagile_system_check:
     specs: true | false
     requirements: true | false
     planning_tasks: true | false
+    migration_dir: true | false
+    migration_status: complete | in_progress | NOT_FOUND
+    artifact_canonicalization: pending | in_progress | complete | NOT_FOUND
+    project_lifecycle_state: HYBRID | FULLY_NATIVE | HYBRID_PRE_WP10 | MIGRATION_IN_PROGRESS | NO_MIGRATION_STATE
   company_layers:
     status: PASS | PASS_WITH_WARNINGS | FAIL | NOT_APPLICABLE
     detected: [list of layer IDs]
@@ -243,6 +276,9 @@ mxagile_system_check:
       mendix_tooling: PASS | FAIL | UNKNOWN
       lifecycle: PASS | FAIL | UNKNOWN
       ownership: PASS | FAIL | UNKNOWN
+      artifact_format: PASS | FAIL | UNKNOWN
+      core_update_mechanism: PASS | FAIL | UNKNOWN
+      migration_vs_canonicalization: PASS | FAIL | UNKNOWN
   warnings: []
   failures: []
 ```

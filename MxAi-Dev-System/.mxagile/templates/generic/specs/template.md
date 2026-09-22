@@ -1,3 +1,12 @@
+<!--
+  LEGACY DISCOVERY FORMAT — DFC-AI / pre-canonicalization MxAgile workflow.
+  This template is for spec documents in the pre-canonical format (spec_id: field).
+  It is the INPUT to the Artifact Canonicalization lifecycle, not the canonical output.
+
+  For canonical MxAgile artifacts use: .mxagile/templates/generic/specs/template.yml
+  Canonical location: specs/SPEC-NNN.yml  (ID: field, not spec_id:)
+  Schema: .mxagile/schemas/spec.schema.json
+-->
 ---
 spec_id: SPEC-000
 title: "[Feature Title]"

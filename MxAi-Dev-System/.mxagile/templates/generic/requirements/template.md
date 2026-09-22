@@ -1,3 +1,13 @@
+<!--
+  LEGACY DISCOVERY FORMAT — DFC-AI / pre-canonicalization MxAgile workflow.
+  This template produces files in planning/stories/ (Discovery phase output).
+  These files are the INPUT to the Artifact Canonicalization lifecycle.
+  They are NOT canonical MxAgile artifacts and are NOT indexed by build_artifact_index.py.
+
+  For canonical MxAgile artifacts use: .mxagile/templates/generic/requirements/template.yml
+  Canonical location: requirements/REQ-NNN.yml  (ID: field, not req_id:)
+  Schema: .mxagile/schemas/requirement.schema.json
+-->
 ---
 req_id: REQ-000
 ---

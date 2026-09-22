@@ -17,6 +17,10 @@ Both delegate actual installation to:
 
 - scripts/install-core.ps1
 
+`install-core.ps1` is also the canonical entry point for existing-project Core synchronization.
+It retires stale framework-owned artifacts and re-installs the current Core payload while
+preserving project-owned state, migration history, and Company Layers.
+
 Do not duplicate installation behavior in the public bootstrap scripts.
 
 ## Source of Truth
@@ -69,10 +73,24 @@ flowchart LR
 Generated platform projections must not be manually maintained.
 Canonical source changes flow through the generator.
 
+## Brownfield Artifact Canonicalization
+
+Framework migration (DFC-AI → MxAgile) and artifact canonicalization are distinct lifecycles.
+
+A project with `status: complete` in `.mxagile/migration/state.yaml` AND
+`artifact_canonicalization: pending` is in valid HYBRID mode — migration complete,
+canonicalization not yet started. Normal MxAgile project work can proceed in hybrid mode.
+
+Canonicalization converts legacy `.md` stories to canonical `.yml` artifacts
+(`requirements/REQ-NNN.yml`, `specs/SPEC-NNN.yml`, `planning/tasks/TASK-NNN.yml`).
+See `.mxagile/skills/migration.md` and `docs/schemas.md`.
+
 ## Reference Documentation
 
 - [docs/injection-contract.md](MxAi-Dev-System/docs/injection-contract.md) — authoritative artifact ownership contract
 - [docs/architecture.md](MxAi-Dev-System/docs/architecture.md) — detailed architecture diagrams
+- [docs/schemas.md](MxAi-Dev-System/docs/schemas.md) — canonical artifact schema contract (Requirement/Spec/Task)
+- [docs/installation.md](MxAi-Dev-System/docs/installation.md) — installation and Core update guide
 
 ## mxcli
 
