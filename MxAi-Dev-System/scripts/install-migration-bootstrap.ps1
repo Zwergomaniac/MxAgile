@@ -44,7 +44,7 @@ if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
 }
 
 if (-not $CanonicalSource) {
-    $CanonicalSource = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".." ".mxagile"))
+    $CanonicalSource = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.mxagile"))
 }
 
 if (-not (Test-Path -LiteralPath $CanonicalSource -PathType Container)) {

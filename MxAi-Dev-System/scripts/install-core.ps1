@@ -76,6 +76,7 @@ try {
         Write-Host "project knowledge."                                          -ForegroundColor Cyan
         Write-Host "========================================================"  -ForegroundColor Cyan
         Write-Host ""
+        Write-Output "MIGRATION_REQUIRED"
         exit 2
     }
 
@@ -113,28 +114,28 @@ try {
     if ($mprFiles.Count -ne 1) {
         throw "Expected exactly one .mpr file in the project root, but found $($mprFiles.Count). Please specify a valid Mendix project directory."
     }
-    Write-Host "✔️ Project preflight check passed (found $($mprFiles.Name))"
+    Write-Host "[OK] Project preflight check passed (found $($mprFiles.Name))"
 
-    # Step 1a: MxAgile directory scaffold — also installs mxcli.exe
+    # Step 1a: MxAgile directory scaffold  -  also installs mxcli.exe
     $initScript = Join-Path $PSScriptRoot "mxagile-init.ps1"
     if (-not (Test-Path -LiteralPath $initScript)) {
         throw "mxagile-init.ps1 not found in script directory."
     }
     Write-Host "Calling mxagile-init.ps1..."
     & $initScript -ProjectRoot $ProjectRoot
-    Write-Host "✔️ mxagile-init.ps1 executed."
+    Write-Host "[OK] mxagile-init.ps1 executed."
 
     # Step 1b: mxcli init --all-tools
     # Must run AFTER mxcli.exe is installed (by mxagile-init.ps1 above) and
     # BEFORE MxAgile managed-block injection, because mxcli init overwrites CLAUDE.md and AGENTS.md.
     $mxcliExe = Join-Path $ProjectRoot "mxcli.exe"
     if (-not (Test-Path -LiteralPath $mxcliExe -PathType Leaf)) {
-        throw "mxcli.exe not found after mxagile-init.ps1 — mxcli installation may have failed."
+        throw "mxcli.exe not found after mxagile-init.ps1  -  mxcli installation may have failed."
     }
     Write-Host "Running mxcli init --all-tools..."
     & $mxcliExe init --all-tools $ProjectRoot
     if ($LASTEXITCODE -ne 0) { throw "mxcli init --all-tools failed with exit code $LASTEXITCODE." }
-    Write-Host "✔️ mxcli init --all-tools completed."
+    Write-Host "[OK] mxcli init --all-tools completed."
 
     # Step 1c: Copy canonical .mxagile/ payload (skills, agents, policies, lifecycle.yaml, etc.)
     # The canonical source is at $PSScriptRoot/../.mxagile/ (the framework dev tree).
@@ -144,8 +145,8 @@ try {
     }
     Write-Host "Installing canonical MxAgile payload from: $canonicalSource"
     $destMxAgile = Join-Path $ProjectRoot ".mxagile"
-    # Exclude 'layers' — dev-tree or project-specific Company Layer content; installed separately.
-    # Exclude 'state'  — PROJECT/RUNTIME state; must never be distributed from the framework dev
+    # Exclude 'layers'  -  dev-tree or project-specific Company Layer content; installed separately.
+    # Exclude 'state'   -  PROJECT/RUNTIME state; must never be distributed from the framework dev
     #                    repository. The empty state/ scaffold is created by mxagile-init.ps1.
     #                    Company Layer manifests exist only when that layer is actually installed.
     Get-ChildItem -LiteralPath $canonicalSource -Exclude "layers", "state" | ForEach-Object {
@@ -157,7 +158,7 @@ try {
     if (-not (Test-Path -LiteralPath $destState -PathType Container)) {
         New-Item -ItemType Directory -Path $destState -Force | Out-Null
     }
-    Write-Host "✔️ Canonical MxAgile payload installed."
+    Write-Host "[OK] Canonical MxAgile payload installed."
 
 
     # Distribute update-mxcli.ps1
@@ -166,7 +167,7 @@ try {
 
     if (Test-Path -LiteralPath $sourceMxCliScript) {
         Copy-Item -LiteralPath $sourceMxCliScript -Destination $destMxCliScript -Force
-        Write-Host "✔️ Distributed update-mxcli.ps1 to project."
+        Write-Host "[OK] Distributed update-mxcli.ps1 to project."
     } else {
         Write-Warning "install-mxcli.ps1 not found, cannot distribute updater script."
     }
@@ -179,7 +180,7 @@ try {
     }
     Write-Host "Calling setup-agent-system.ps1..."
     & $setupScript -ProjectRoot $ProjectRoot
-    Write-Host "✔️ setup-agent-system.ps1 executed."
+    Write-Host "[OK] setup-agent-system.ps1 executed."
 
 
     # =========================================================================
@@ -213,7 +214,7 @@ try {
             }
             Write-Host "Calling fetch-layer.ps1..."
             & $fetchScript -RepositoryUrl $CompanyLayerSource -Ref $CompanyLayerRef -ProjectRoot $ProjectRoot
-            Write-Host "✔️ fetch-layer.ps1 executed."
+            Write-Host "[OK] fetch-layer.ps1 executed."
 
             # For validation, we need to read the layer.json from the temp dir, which fetch-layer doesn't expose
             # We will rely on the output of fetch-layer.ps1 for success and find the layer afterwards for validation
@@ -273,13 +274,13 @@ try {
                 source = $sourcePath
             }
             $provenance | ConvertTo-Json | Set-Content -LiteralPath $provenancePath -Encoding UTF8
-            Write-Host "✔️ Provenance file created."
+            Write-Host "[OK] Provenance file created."
 
             # 7. Validation
             if (Test-Path -LiteralPath (Join-Path $destinationDir ".git")) {
                 throw "Validation failed: .git directory was found in the installed layer."
             }
-            Write-Host "✔️ Installation integrity verified (no .git directory)."
+            Write-Host "[OK] Installation integrity verified (no .git directory)."
         }
 
         # --- Final Validation ---
@@ -293,14 +294,14 @@ try {
         if (-not (Test-Path -LiteralPath $provenanceFile -PathType Leaf)) {
             throw "Final validation failed: Provenance file '$provenanceFile' does not exist."
         }
-        Write-Host "✔️ Final validation passed for layer '$layerId'."
+        Write-Host "[OK] Final validation passed for layer '$layerId'."
     }
 
     Write-Host ""
-    Write-Host "✅ Core installation complete." -ForegroundColor Green
+    Write-Host "[OK] Core installation complete." -ForegroundColor Green
 
     Write-Host ""
-    Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "MxAgile Recommended Validation:" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Start a NEW agent session in this project and enter:" -ForegroundColor White
@@ -309,13 +310,13 @@ try {
     Write-Host ""
     Write-Host "  (New session required: the check must verify discovery from the" -ForegroundColor DarkGray
     Write-Host "   installed repository, not from this installation session.)" -ForegroundColor DarkGray
-    Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
 
     exit 0
 
 } catch {
     Write-Host ""
-    Write-Host "❌ Installation failed!" -ForegroundColor Red
+    Write-Host "[FAILED] Installation failed!" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
 }
