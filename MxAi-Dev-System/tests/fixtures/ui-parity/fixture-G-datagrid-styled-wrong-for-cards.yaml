@@ -1,0 +1,49 @@
+# Fixture G: Data Grid visually styled but structurally wrong for intended card layout
+# Expected: visual=PARTIAL (styled but not card-like), structure=FAIL, overall=FAIL
+fixture_id: FIXTURE-G
+description: "Data Grid 2 was selected and styled with custom CSS to approximate cards. But the mockup requires a card layout with images and variable row heights. The grid forces equal-height rows and column structure."
+page_id: PAGE-EMPLOYEE-GALLERY
+dimensions:
+  visual:
+    result: PARTIAL
+    required: true
+    deviations:
+      - concern: card_appearance
+        description: "Cells have card-like border/shadow styling but are constrained by grid columns; mockup shows free-flowing card composition"
+        severity: minor
+        dimension: visual
+  content:
+    result: PASS
+    required: true
+  structure:
+    result: FAIL
+    required: true
+    deviations:
+      - concern: composition_pattern
+        description: "Data Grid 2 enforces tabular column alignment; mockup ui_pattern=card_collection requires gallery/masonry layout with variable row heights"
+        severity: material
+        dimension: structure
+      - concern: widget_selection
+        description: "widget_candidate=DataGrid2 with candidate_confidence=preliminary was never validated against card_collection pattern requirements; should have been List View or gallery"
+        severity: material
+        dimension: structure
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: FAIL
+    required: true
+    deviations:
+      - concern: responsive_reflow
+        description: "Grid column layout on phone-375 produces horizontal overflow; card layout should reflow to single column"
+        severity: material
+        dimension: responsive
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: FAIL
+# Widget decision must be reopened: Data Grid 2 fails the card_collection parity contract.
+# See policies/ui-element-selection.md - Implementation Reconsideration

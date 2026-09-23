@@ -1,0 +1,46 @@
+# Fixture P: Equivalent decomposed focused scenarios complete and retain traceability
+# Demonstrates: decomposed alternatives to the omnibus scenario in fixture-O
+fixture_id: FIXTURE-P
+description: "The omnibus scenario from fixture-O is replaced by 6 focused scenarios covering the same material scope. Each completes reliably within its bounded responsibility."
+replaces: FIXTURE-O
+focused_scenarios:
+  - scenario_id: SCN-OVERVIEW-ADMIN-DESKTOP-POPULATED
+    bounded_responsibility: "Admin role, Overview page, desktop, populated data"
+    dimensions: [visual, content, structure, state, interaction]
+    status: completed
+    parity_result: PASS
+
+  - scenario_id: SCN-OVERVIEW-VIEWER-DESKTOP-POPULATED
+    bounded_responsibility: "Viewer role, Overview page, desktop — verifies role differences from Admin"
+    dimensions: [role]
+    status: completed
+    parity_result: PASS
+
+  - scenario_id: SCN-OVERVIEW-ADMIN-PHONE-POPULATED
+    bounded_responsibility: "Admin role, Overview page, phone-375 — verifies responsive transformation"
+    dimensions: [responsive]
+    status: completed
+    parity_result: FAIL  # found responsive issue
+
+  - scenario_id: SCN-DETAIL-ADMIN-DESKTOP-POPULATED
+    bounded_responsibility: "Admin role, Detail page, desktop"
+    dimensions: [visual, content, structure, state, interaction, role]
+    status: completed
+    parity_result: PASS
+
+  - scenario_id: SCN-EDIT-MANAGER-DESKTOP-POPULATED
+    bounded_responsibility: "Manager role, Edit page, desktop — verifies edit permissions"
+    dimensions: [visual, content, structure, state, interaction, role]
+    status: completed
+    parity_result: PASS
+
+  - scenario_id: SCN-EDIT-VIEWER-DESKTOP-POPULATED
+    bounded_responsibility: "Viewer role, Edit page — verifies read-only presentation for viewer"
+    dimensions: [role, state]
+    status: completed
+    parity_result: PASS
+
+traceability:
+  requirements: [REQ-001, REQ-005, REQ-012, REQ-042, REQ-055]
+  note: "All acceptance clauses covered by 6 focused scenarios with clear individual traceability"
+# Result: same coverage as fixture-O, each scenario completes reliably, failures are isolatable

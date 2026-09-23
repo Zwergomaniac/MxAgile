@@ -1,0 +1,39 @@
+# Fixture B: Correct colors + wrong hierarchy
+# Expected: visual=PASS (colors OK), structure=FAIL (hierarchy wrong), overall=FAIL
+fixture_id: FIXTURE-B
+description: "Page colors, fonts, and spacing match the target. But the information hierarchy is wrong: related fields are scattered across sections instead of grouped."
+page_id: PAGE-CUSTOMER-DETAIL
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    deviations: []
+  content:
+    result: PASS
+    required: true
+    deviations: []
+  structure:
+    result: FAIL
+    required: true
+    deviations:
+      - concern: field_grouping
+        description: "Contact information fields (Name, Email, Phone) are in three separate sections; mockup shows them in one 'Contact' section"
+        severity: material
+        dimension: structure
+      - concern: section_order
+        description: "Financial section appears before Contact section; mockup shows Contact first"
+        severity: material
+        dimension: structure
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: FAIL

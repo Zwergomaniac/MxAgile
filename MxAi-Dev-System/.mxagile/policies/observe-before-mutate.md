@@ -87,6 +87,58 @@ Record the current Observe-Before-Mutate lifecycle state in `process-state.yaml`
 | `complete` | Post-mutation re-verification passed |
 | `violation_detected` | A lifecycle violation was detected; requires manual resolution |
 
+## Mutation Eligibility Gate
+
+Mutation eligibility is a non-secret lifecycle state that must be tracked and enforced.
+
+An implementation agent MAY apply UI mutations (SCSS, widget changes, content changes) only when
+`prerequisite_state.observe_before_mutate_stage` has reached `mutation_allowed`.
+
+If mutation is attempted while the stage is below `mutation_allowed`:
+1. Classify the violation (`MUTATE_BEFORE_OBSERVE`, `MUTATE_BEFORE_ANALYSE`, or `MUTATE_BEFORE_REFINEMENT`)
+2. Set `prerequisite_state.observe_before_mutate_stage: violation_detected`
+3. Set `prerequisite_state.blocked_operation` to a non-secret description of the attempted mutation
+4. Do NOT silently proceed with the mutation
+5. Surface the violation to the developer and await resolution
+
+This is not merely advisory — it is a LIFECYCLE GATE.
+
+## Evidence Enablement Exception
+
+A technical change strictly required to OBTAIN valid evidence is not product implementation.
+
+Classify such changes separately as `EVIDENCE_ENABLEMENT`.
+
+An evidence enablement change:
+- Is limited to the minimum technical change needed to make evidence collection possible
+- Must NOT alter the UI behavior being measured
+- Must NOT introduce styling or content changes that pre-judge Refinement
+- Must be documented in `prerequisite_state.blocked_operation` as `EVIDENCE_ENABLEMENT: <reason>`
+- Does NOT require Refinement gate to have passed
+
+Examples of evidence enablement:
+- Configuring the test identity credential so Playwright can log in
+- Enabling a feature flag required for the page to render (if flag is already decided)
+- Resolving a runtime prerequisite that blocked page loading
+
+Examples that are NOT evidence enablement and require Refinement gate:
+- Changing SCSS to make the sidebar look more like the mockup
+- Replacing a Text Box with Dynamic Text to fix read-only presentation
+- Adding navigation items to match the mockup grouping
+
+## Checkpoints / Git Boundaries
+
+The invariant is:
+- Baseline preserved before mutation
+- Accepted Refinement preserved before implementation
+- Final implementation/evidence traceable
+
+If project convention requires Git commits at parity, Refinement, and implementation boundaries,
+these are enforced as per the project's Implementation Control policy.
+
+MxAgile does NOT prescribe a specific Git commit sequence as universal — the invariant is
+the lifecycle order, not a specific branching strategy.
+
 ## REAL CapTrack Finding
 
 In the REAL acceptance run, SCSS was modified before the parity analysis was complete and

@@ -1,0 +1,48 @@
+# Fixture C: Correct desktop + wrong mobile transformation
+# Expected: visual/structure PASS (desktop), responsive=FAIL, overall=FAIL
+fixture_id: FIXTURE-C
+description: "Desktop layout is correct. Mobile viewport shows horizontal overflow and navigation does not collapse to mobile menu as required."
+page_id: PAGE-PLANNING-OVERVIEW
+scenario_id: SCN-PLANNING-MANAGER-RESPONSIVE
+role: Manager
+data_state: populated
+viewport: phone-375
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    note: "Desktop screenshot verified separately in SCN-PLANNING-MANAGER-DESKTOP"
+  content:
+    result: PASS
+    required: true
+  structure:
+    result: PASS
+    required: true
+    note: "Desktop structure verified separately"
+  state:
+    result: NOT_VERIFIED
+    required: false
+  interaction:
+    result: NOT_VERIFIED
+    required: false
+  responsive:
+    result: FAIL
+    required: true
+    evidence:
+      - type: viewport_screenshot
+        path: planning/evidence/screenshots/SCN-PLANNING-MANAGER-RESPONSIVE/responsive_phone_375.png
+        description: "Horizontal scrollbar visible at 375px; navigation not collapsed"
+        passed: false
+    deviations:
+      - concern: horizontal_overflow
+        description: "Table grid causes horizontal overflow at phone-375px; mockup requires card-based list"
+        severity: material
+        dimension: responsive
+      - concern: navigation_collapse
+        description: "Navigation sidebar remains visible at phone width; mockup requires hamburger collapse"
+        severity: material
+        dimension: responsive
+  role:
+    result: NOT_VERIFIED
+    required: false
+overall_result: FAIL

@@ -1,0 +1,49 @@
+# Fixture W: Completed implementation with new verification gap
+# Demonstrates: implementation-complete may coexist with verification-pending
+fixture_id: FIXTURE-W
+description: "The Customer Edit page was fully implemented and passed parity under the old single-dimension contract in Sprint 3. The new 7-dimension contract introduces role and responsive dimensions. Implementation is complete but new-contract verification is pending."
+page_id: PAGE-CUSTOMER-EDIT
+task_reference: TASK-042
+task_status: implementation_complete
+task_implementation_complete: true
+task_new_contract_verification: pending
+note: "Task TASK-042 is implementation-complete. It does NOT need to return to implementation TODO. Only targeted re-verification for missing dimensions is needed."
+evidence_upgrade:
+  schema_upgraded: true
+  reconstructed_dimensions: [visual, content, structure, state, interaction]
+  gaps: [responsive, role]
+  targeted_reverification_required: true
+  remaining_scenarios: [SCN-CUSTOMER-EDIT-ADMIN-PHONE, SCN-CUSTOMER-EDIT-VIEWER-DESKTOP]
+  reverification_completed: false
+dimensions:
+  visual:
+    result: LEGACY_EVIDENCE
+    required: true
+    legacy_provenance: "PASS under single-dimension contract Sprint 3. Screenshot promoted."
+  content:
+    result: LEGACY_EVIDENCE
+    required: true
+    legacy_provenance: "Field labels verified in Sprint 3 comparison report. DOM assertions not available."
+  structure:
+    result: LEGACY_EVIDENCE
+    required: true
+    legacy_provenance: "Structural comparison present in planning/ui-inventory/Customer_NewEdit_comparison.yaml (Sprint 3)"
+  state:
+    result: LEGACY_EVIDENCE
+    required: true
+    legacy_provenance: "Validation states verified in Sprint 3 acceptance run."
+  interaction:
+    result: LEGACY_EVIDENCE
+    required: true
+    legacy_provenance: "Navigation flows verified in Sprint 3 acceptance run."
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+    note: "Responsive dimension not in Sprint 3 contract. Targeted re-verification needed."
+  role:
+    result: NOT_VERIFIED
+    required: true
+    note: "Role dimension not in Sprint 3 contract. Two new scenarios needed."
+overall_result: NOT_VERIFIED
+# Resolution: run SCN-CUSTOMER-EDIT-ADMIN-PHONE and SCN-CUSTOMER-EDIT-VIEWER-DESKTOP
+# Task TASK-042 stays implementation_complete throughout

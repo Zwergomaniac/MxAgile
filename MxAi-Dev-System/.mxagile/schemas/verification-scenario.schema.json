@@ -1,0 +1,159 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Verification Scenario",
+  "description": "A material UI verification scenario derived from Requirement behavior, role differences, data scope, editability, screen differences, responsive behavior, and known risks. NOT a blind Cartesian product. See policies/verification-scenario.md for the derivation contract. File location: planning/scenarios/<scenario-id>.yaml",
+  "type": "object",
+  "required": ["scenario_id", "screen_id", "role", "data_state", "verification_dimensions"],
+  "additionalProperties": false,
+  "properties": {
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^SCN-[A-Z0-9_-]+$",
+      "description": "Stable identifier for this scenario, e.g. SCN-CUSTOMER-ADMIN-POPULATED."
+    },
+    "screen_id": {
+      "type": "string",
+      "description": "The page_id from the UI inventory this scenario verifies."
+    },
+    "role": {
+      "type": "string",
+      "description": "The Mendix role active during this scenario."
+    },
+    "data_state": {
+      "type": "string",
+      "enum": ["empty", "populated", "partial", "error", "any"],
+      "description": "Required application data state. populated=representative mock data must be loaded. empty=no entity instances needed. partial=some but not full data. error=error/validation state triggered. any=data state is not material for this scenario."
+    },
+    "viewport": {
+      "type": "string",
+      "description": "Target viewport for this scenario, e.g. desktop-1440, phone-375, tablet-768. 'all' means all configured project viewports must pass.",
+      "default": "desktop-1440"
+    },
+    "verification_dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["visual", "content", "structure", "state", "interaction", "responsive", "role"]
+      },
+      "minItems": 1,
+      "description": "Which parity dimensions this scenario covers. A scenario need not cover all 7 dimensions."
+    },
+    "traceability": {
+      "type": "object",
+      "description": "Links to the Requirements, Specs, and role behaviors this scenario verifies.",
+      "additionalProperties": false,
+      "properties": {
+        "requirements": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Requirement IDs (REQ-NNN) this scenario validates."
+        },
+        "specs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Spec IDs (SPEC-NNN) this scenario validates."
+        },
+        "acceptance_clauses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Specific acceptance criteria clauses from Requirements/Specs."
+        }
+      }
+    },
+    "prerequisites": {
+      "type": "object",
+      "description": "Required state before this scenario can execute.",
+      "additionalProperties": false,
+      "properties": {
+        "mock_data_required": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, representative mock data must be loaded before this scenario."
+        },
+        "mock_data_seed_identity": {
+          "type": "string",
+          "description": "Non-secret identity key (from .env.mendix via env_key reference) used to seed mock data. May differ from the scenario verification identity. e.g. DEVELOPER_SEED_IDENTITY."
+        },
+        "mock_data_script": {
+          "type": "string",
+          "description": "Path to mock data seed script, relative to project root."
+        },
+        "requires_authenticated_session": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, a valid authenticated session for the declared role must be established before the scenario begins."
+        },
+        "depends_on_scenarios": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Scenario IDs that must complete successfully before this scenario can run (e.g., data setup scenario)."
+        }
+      }
+    },
+    "decomposition": {
+      "type": "object",
+      "description": "Scenario size and parallelism safety contract.",
+      "additionalProperties": false,
+      "properties": {
+        "bounded_responsibility": {
+          "type": "string",
+          "description": "Human-readable statement of what this scenario is responsible for (one page/flow, one role, one data state)."
+        },
+        "parallelism_safe": {
+          "type": "boolean",
+          "description": "True only when this scenario does not share mutable resources (session, database, test data, planning records) with other concurrently running scenarios. Default: false — assume serial unless explicitly proven safe.",
+          "default": false
+        },
+        "parallelism_rationale": {
+          "type": "string",
+          "description": "Required when parallelism_safe=true. Explains why this scenario is isolated from concurrent mutation."
+        }
+      }
+    },
+    "timeout_policy": {
+      "type": "object",
+      "description": "Scenario-specific timeout overrides. See policies/verification-scenario.md — Timeout Policy.",
+      "additionalProperties": false,
+      "properties": {
+        "assertion_timeout_ms": {
+          "type": "integer",
+          "description": "Timeout for individual DOM assertions. Default from project config."
+        },
+        "navigation_timeout_ms": {
+          "type": "integer",
+          "description": "Timeout for page navigation/readiness transitions."
+        },
+        "scenario_timeout_ms": {
+          "type": "integer",
+          "description": "Maximum time for the entire scenario to complete."
+        },
+        "timeout_rationale": {
+          "type": "string",
+          "description": "Required when any timeout exceeds the project default. Must not compensate for poor decomposition."
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["required", "completed", "partial", "blocked", "not_applicable", "superseded"],
+      "description": "required=must be executed for Full UI Acceptance PASS. completed=executed and evidence recorded. partial=some dimensions done. blocked=cannot run (prerequisite missing). not_applicable=coverage not needed. superseded=replaced by another scenario."
+    },
+    "blocking_reason": {
+      "type": "string",
+      "description": "When status=blocked: non-secret description of what is preventing execution."
+    },
+    "evidence_manifest_id": {
+      "type": "string",
+      "description": "ID of the evidence manifest entry that records the artifacts produced by this scenario."
+    },
+    "last_executed": {
+      "type": "string",
+      "description": "ISO date (YYYY-MM-DD) of last execution."
+    },
+    "parity_result": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE"],
+      "description": "Aggregated parity result for this scenario after last execution. STALE=was PASS but target/runtime has changed and re-verification is required."
+    }
+  }
+}

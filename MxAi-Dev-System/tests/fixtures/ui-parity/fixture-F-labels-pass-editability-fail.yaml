@@ -1,0 +1,44 @@
+# Fixture F: Correct labels + wrong editable/read-only state
+# Expected: content=PASS (labels correct), state=FAIL (wrong editability), overall=FAIL
+fixture_id: FIXTURE-F
+description: "Field labels are correct. But the Status field is editable for the ReadOnly role — it should show as display-only text."
+page_id: PAGE-CONTRACT-DETAIL
+dimensions:
+  visual:
+    result: PASS
+    required: true
+  content:
+    result: PASS
+    required: true
+    note: "All labels match including Status field label"
+  structure:
+    result: PASS
+    required: true
+  state:
+    result: FAIL
+    required: true
+    evidence:
+      - type: dom_selector
+        selector: ".mx-name-dropdownStatus select"
+        description: "Dropdown input present for Status field — ReadOnly role should see text display only"
+        passed: false
+    deviations:
+      - concern: editability_semantics
+        description: "Status field rendered as editable dropdown for ReadOnly role; mockup and REQ-018 require display-only text component"
+        severity: material
+        dimension: state
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: FAIL
+    required: true
+    deviations:
+      - concern: role_editability
+        description: "ReadOnly role can interact with Status dropdown; should be display-only per role contract"
+        severity: material
+        dimension: role
+overall_result: FAIL

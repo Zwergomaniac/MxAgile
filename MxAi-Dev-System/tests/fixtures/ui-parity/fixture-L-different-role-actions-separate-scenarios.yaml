@@ -1,0 +1,41 @@
+# Fixture L: Two roles with materially different actions — separate scenarios required
+# Demonstrates: when role differences mandate separate coverage
+fixture_id: FIXTURE-L
+description: "Admin and Viewer roles on the Resource Management page have different action sets. Admin sees Create/Edit/Delete; Viewer sees only view actions. Separate scenarios required."
+page_id: PAGE-RESOURCE-MANAGEMENT
+# Scenario 1: Admin role
+scenario_L1:
+  scenario_id: SCN-RESOURCE-ADMIN-POPULATED
+  role: Admin
+  data_state: populated
+  role_dimension:
+    result: PASS
+    evidence:
+      - type: dom_selector
+        selector: ".mx-name-btnCreate"
+        description: "Create button visible for Admin"
+        passed: true
+      - type: dom_selector
+        selector: ".mx-name-btnDelete"
+        description: "Delete button visible for Admin"
+        passed: true
+
+# Scenario 2: Viewer role — SEPARATE scenario required
+scenario_L2:
+  scenario_id: SCN-RESOURCE-VIEWER-POPULATED
+  role: Viewer
+  data_state: populated
+  role_dimension:
+    result: PASS
+    evidence:
+      - type: dom_selector
+        selector: ".mx-name-btnCreate"
+        description: "Create button hidden for Viewer"
+        passed: false  # passed=false means the assertion confirmed absence (correct)
+      - type: dom_selector
+        selector: ".mx-name-btnDelete"
+        description: "Delete button hidden for Viewer"
+        passed: false  # correct absence confirmed
+
+# Why separate: roles have different action sets, navigation scope, and editability
+# One scenario cannot verify both because the DOM states are different per session

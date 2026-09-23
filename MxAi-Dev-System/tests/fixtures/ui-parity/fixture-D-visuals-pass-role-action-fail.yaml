@@ -1,0 +1,39 @@
+# Fixture D: Correct visuals + wrong role-visible action
+# Expected: visual=PASS, role=FAIL, overall=FAIL
+fixture_id: FIXTURE-D
+description: "Page looks correct visually. But the 'Delete' button is visible for the Viewer role, which should be Admin-only."
+page_id: PAGE-RESOURCE-DETAIL
+dimensions:
+  visual:
+    result: PASS
+    required: true
+  content:
+    result: PASS
+    required: true
+  structure:
+    result: PASS
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: false
+  interaction:
+    result: NOT_VERIFIED
+    required: false
+  responsive:
+    result: NOT_APPLICABLE
+    required: false
+    not_applicable_rationale: "Desktop-only project configuration, responsive not required for this page"
+  role:
+    result: FAIL
+    required: true
+    evidence:
+      - type: dom_selector
+        selector: ".mx-name-btnDelete"
+        description: "Delete button found for Viewer role — should be hidden"
+        passed: false
+    deviations:
+      - concern: role_restricted_action
+        description: "Delete button visible for Viewer role; requirement REQ-042 states Delete is Admin-only"
+        severity: material
+        dimension: role
+overall_result: FAIL

@@ -1,0 +1,42 @@
+# Fixture Q: Source mockup deterministically superseded by Company Layer requirement
+# Demonstrates: autonomous target refinement when source priority is unambiguous
+fixture_id: FIXTURE-Q
+description: "Customer mockup shows a custom date picker. The Mercedes Company Layer mandates use of the MBUI DatePicker component. Source priority = Company Layer for UI component decisions. Target may be refined autonomously."
+page_id: PAGE-DELIVERY-SCHEDULE
+source_mockup: input-resources/ui-ux/delivery-schedule.html
+source_mockup_shows: "Custom date range picker with company-specific design"
+company_layer_constraint: "MBUI specification mandates use of MBUI.DatePicker for all date inputs"
+source_priority_resolution:
+  concern: ui_visual
+  winner: requirements  # Company Layer mandate = Requirements category
+  rationale: "Company Layer UI component mandate is authoritative over customer mockup for widget selection. Source priority policy resolves this deterministically."
+  autonomous: true  # No DECISION REQUIRED — priority is unambiguous
+target_mockup: planning/target-mockups/Delivery_Schedule_v2.html
+target_mockup_version: "2026-09-15"
+target_mockup_reason: "Refined to use MBUI.DatePicker per Company Layer mandate (MBUI-REQ-041). Source mockup preserved as historical evidence."
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    note: "Verified against refined target (MBUI DatePicker), not original source mockup"
+  content:
+    result: PASS
+    required: true
+  structure:
+    result: PASS
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+# Source mockup preserved at input-resources/ui-ux/delivery-schedule.html (immutable)
+# Refined target at planning/target-mockups/Delivery_Schedule_v2.html

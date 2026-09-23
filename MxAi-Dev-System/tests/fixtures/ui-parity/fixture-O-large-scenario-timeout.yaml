@@ -1,0 +1,38 @@
+# Fixture O: One huge multi-role browser scenario that times out
+# Demonstrates: why large multi-role scripts are wrong and should be decomposed
+fixture_id: FIXTURE-O
+description: "Single Playwright script that attempts to verify all 5 roles x 3 pages x 2 viewports = 30 combinations in one run. Scenario_timeout_ms set to 600000ms. Consistently times out. Evidence is incomplete."
+scenario_id: SCN-ALL-ROLES-ALL-PAGES-OMNIBUS
+status: blocked
+blocking_reason: "Scenario timeout exceeded. Multi-role omnibus scripts are fragile and produce ambiguous evidence."
+decomposition:
+  bounded_responsibility: "WRONG: attempts all roles, all pages, all viewports in one script. Should be decomposed into focused scenarios."
+  parallelism_safe: false
+timeout_policy:
+  scenario_timeout_ms: 600000
+  timeout_rationale: "ANTI-PATTERN: timeout was increased to compensate for script size, not a genuine long operation"
+dimensions:
+  visual:
+    result: NOT_VERIFIED
+    required: true
+  content:
+    result: NOT_VERIFIED
+    required: true
+  structure:
+    result: NOT_VERIFIED
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+# Correct approach: see fixture-P-decomposed-focused-scenarios.yaml
+# See policies/verification-scenario.md - Browser Scenario Decomposition

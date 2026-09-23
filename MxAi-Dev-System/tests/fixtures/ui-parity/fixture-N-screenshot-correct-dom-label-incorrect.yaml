@@ -1,0 +1,46 @@
+# Fixture N: Screenshot looks correct but DOM label is incorrect
+# Demonstrates: screenshot alone cannot detect content mismatch
+fixture_id: FIXTURE-N
+description: "The page screenshot shows a label that appears to read 'Projektname'. But DOM inspection reveals the actual text is 'ProjectName' — same visual font rendering, different string. Screenshot-only evidence would miss this."
+page_id: PAGE-PROJECT-EDIT
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    evidence:
+      - type: screenshot
+        path: planning/evidence/screenshots/SCN-PROJECT-EDIT-ADMIN/visual_desktop_default.png
+        description: "Label area appears correct in screenshot — font rendering makes strings visually similar"
+        passed: true
+  content:
+    result: FAIL
+    required: true
+    evidence:
+      - type: dom_text_assertion
+        selector: ".mx-name-labelProjectName .mx-label"
+        expected: "Projektname"
+        actual: "ProjectName"
+        passed: false
+    deviations:
+      - concern: field_label_localization
+        description: "Field label reads 'ProjectName' (English) instead of 'Projektname' (German). Not detectable from screenshot due to similar font rendering."
+        severity: material
+        dimension: content
+  structure:
+    result: PASS
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: FAIL
+# Key lesson: DOM text assertions are required for content parity.
+# A screenshot that "looks right" is not sufficient content evidence.

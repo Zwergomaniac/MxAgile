@@ -1,0 +1,41 @@
+# Fixture K: Two roles with identical applicable UI contract — duplicate scenario unnecessary
+# Demonstrates: material scenario matrix avoids redundant coverage
+fixture_id: FIXTURE-K
+description: "Manager and SeniorManager have identical UI contracts for the Reports overview page. Same navigation, same actions, same data scope. One scenario covers both."
+scenario_id: SCN-REPORTS-MANAGER-POPULATED
+page_id: PAGE-REPORTS-OVERVIEW
+role: Manager
+data_state: populated
+decomposition:
+  bounded_responsibility: "Verifies Reports overview for Manager role. SeniorManager has identical UI contract for this page — no separate scenario required."
+  parallelism_safe: false
+# Role coverage rationale: SeniorManager role covered by this scenario
+# Evidence: ui-inventory shows identical roles[] contract for both roles
+# Requirement REQ-067 applies identically to both roles
+# Decision recorded in planning/decisions/DEC-012.md
+dimensions:
+  visual:
+    result: PASS
+    required: true
+  content:
+    result: PASS
+    required: true
+  structure:
+    result: PASS
+    required: true
+  state:
+    result: PASS
+    required: true
+  interaction:
+    result: PASS
+    required: true
+  responsive:
+    result: NOT_APPLICABLE
+    required: false
+    not_applicable_rationale: "Reports page is admin-desktop tool, responsive not required per project configuration"
+  role:
+    result: PASS
+    required: true
+    note: "Verified for Manager role. SeniorManager UI contract is demonstrably identical — see DEC-012."
+overall_result: PASS
+status: completed

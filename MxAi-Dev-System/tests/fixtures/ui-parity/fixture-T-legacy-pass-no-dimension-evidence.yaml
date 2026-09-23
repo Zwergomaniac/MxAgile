@@ -1,0 +1,47 @@
+# Fixture T: Legacy parity PASS with no dimension evidence
+# Demonstrates: correct upgrade — MUST NOT become 7x PASS automatically
+fixture_id: FIXTURE-T
+description: "Historical parity:PASS from 2026-08-01 under old single-dimension contract. No dimensional evidence exists. After schema upgrade, dimensions must NOT be set to PASS."
+page_id: PAGE-CUSTOMER-OVERVIEW
+# BEFORE UPGRADE (old format):
+historical_result:
+  parity: PASS
+  date: "2026-08-01"
+  note: "Verified against original mockup. Screenshot at .concord/screenshots/app/Customer_Overview_2026-08-01.png (no longer accessible — gitignored)"
+# AFTER UPGRADE (correct):
+evidence_upgrade:
+  schema_upgraded: true
+  reconstructed_dimensions: []  # Nothing can be reconstructed — screenshot is in gitignored location
+  gaps: [visual, content, structure, state, interaction, responsive, role]
+  targeted_reverification_required: true
+  reverification_completed: false
+schema_version: 1
+dimensions:
+  visual:
+    result: LEGACY_EVIDENCE
+    required: true
+    legacy_provenance: "parity:PASS under single-dimension contract 2026-08-01. Screenshot was in .concord/screenshots/app/ (gitignored) and is no longer accessible from fresh clone."
+  content:
+    result: NOT_VERIFIED
+    required: true
+    note: "Content dimension did not exist in legacy contract. No historical evidence."
+  structure:
+    result: NOT_VERIFIED
+    required: true
+    note: "Structure dimension did not exist in legacy contract."
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_APPLICABLE
+    required: false
+    not_applicable_rationale: "Desktop-only project at time of original verification"
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+# WRONG would be: setting all dimensions to PASS based on old single-dimension result
+# See policies/ui-parity.md - Legacy Evidence Upgrade

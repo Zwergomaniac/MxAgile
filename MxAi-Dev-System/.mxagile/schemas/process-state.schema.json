@@ -125,6 +125,41 @@
               ],
               "description": "Current stage in the Observe-Before-Mutate lifecycle. See policies/observe-before-mutate.md. violation_detected=agent performed mutation before completing observation; requires manual resolution."
             },
+            "mutation_eligibility": {
+              "type": "string",
+              "enum": ["blocked", "allowed", "violation_detected"],
+              "description": "Whether implementation mutation (SCSS, widget, content changes) is currently allowed. blocked=Refinement gate not yet passed. allowed=Refinement accepted, mutation may proceed. violation_detected=mutation was attempted before eligibility was established; requires developer resolution. See policies/observe-before-mutate.md."
+            },
+            "coverage_matrix_state": {
+              "type": "object",
+              "description": "Non-secret coverage matrix progress. Tracks which material scenarios are required, completed, and which acceptance clauses remain unverified.",
+              "additionalProperties": false,
+              "properties": {
+                "scenarios_required": {
+                  "type": "integer",
+                  "description": "Total number of required material scenarios for this wave."
+                },
+                "scenarios_completed": {
+                  "type": "integer",
+                  "description": "Number of required scenarios with status=completed and parity_result=PASS."
+                },
+                "scenarios_blocked": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "SCN-... IDs currently blocked (prerequisite missing)."
+                },
+                "uncovered_clauses": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Acceptance clause identifiers not yet covered by any completed scenario."
+                },
+                "stale_scenarios": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "SCN-... IDs that were PASS but have become STALE due to target/requirement changes."
+                }
+              }
+            },
             "parity_reconciliation": {
               "type": "object",
               "description": "Non-secret progress of multi-dimensional parity reconciliation. For resumable evidence upgrade across sessions. See policies/ui-parity.md.",

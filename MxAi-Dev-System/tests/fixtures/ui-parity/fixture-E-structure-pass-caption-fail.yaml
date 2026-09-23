@@ -1,0 +1,39 @@
+# Fixture E: Correct structure + wrong button caption
+# Expected: structure=PASS, content=FAIL, overall=FAIL
+fixture_id: FIXTURE-E
+description: "Page structure matches mockup. Save button is in the correct position. But caption reads 'Save' instead of required 'Speichern'."
+page_id: PAGE-ORDER-EDIT
+dimensions:
+  visual:
+    result: PASS
+    required: true
+  content:
+    result: FAIL
+    required: true
+    evidence:
+      - type: dom_text_assertion
+        selector: ".mx-name-btnSave .mx-button-label"
+        expected: "Speichern"
+        actual: "Save"
+        passed: false
+    deviations:
+      - concern: button_caption
+        description: "Primary save action reads 'Save'; target mockup and localization requirement specify 'Speichern'"
+        severity: material
+        dimension: content
+  structure:
+    result: PASS
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: FAIL

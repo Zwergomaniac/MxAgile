@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Evidence Manifest",
+  "description": "Canonical index mapping verification scenarios to their promoted evidence artifacts. Enables traceability from Requirement/acceptance clause through scenario to screenshot/DOM assertion/result. File location: planning/evidence/manifests/<wave-id>-evidence-manifest.yaml. Git tracked. See policies/evidence-contract.md.",
+  "type": "object",
+  "required": ["manifest_id", "wave_id", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "manifest_id": {
+      "type": "string",
+      "description": "Stable identifier for this manifest, e.g. MFT-W01."
+    },
+    "wave_id": {
+      "type": "string",
+      "description": "Wave this manifest covers, e.g. W01."
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO date (YYYY-MM-DD) when this manifest was first created."
+    },
+    "reconciliation_run": {
+      "type": "string",
+      "enum": ["lazy", "full"],
+      "description": "Whether this manifest was produced by a lazy (gap-only) or full reconciliation run."
+    },
+    "entries": {
+      "type": "array",
+      "description": "Evidence entries, one per verification scenario or sub-scenario.",
+      "items": {
+        "$ref": "#/definitions/evidence_entry"
+      }
+    }
+  },
+  "definitions": {
+    "evidence_entry": {
+      "type": "object",
+      "required": ["entry_id", "scenario_id", "screen_id", "role", "data_state", "parity_result"],
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string",
+          "description": "Stable identifier for this evidence entry, e.g. EVD-SCN-CUSTOMER-ADMIN-POPULATED."
+        },
+        "scenario_id": {
+          "type": "string",
+          "description": "The SCN-... identifier from the verification scenario."
+        },
+        "screen_id": {
+          "type": "string",
+          "description": "PAGE-... identifier from the UI inventory."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role active during verification."
+        },
+        "data_state": {
+          "type": "string",
+          "description": "Data state during verification."
+        },
+        "viewport": {
+          "type": "string",
+          "description": "Viewport used."
+        },
+        "verified_at": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) of verification."
+        },
+        "parity_result": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "LEGACY_EVIDENCE"],
+          "description": "Overall scenario result."
+        },
+        "target_mockup": {
+          "type": "string",
+          "description": "Active acceptance target used for comparison."
+        },
+        "parity_report_path": {
+          "type": "string",
+          "description": "Path to the parity-verification YAML that details dimension results."
+        },
+        "traceability": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requirements": { "type": "array", "items": { "type": "string" } },
+            "specs": { "type": "array", "items": { "type": "string" } },
+            "acceptance_clauses": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "description": "Canonical promoted evidence artifacts for this entry.",
+          "items": {
+            "type": "object",
+            "required": ["artifact_id", "type", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "artifact_id": {
+                "type": "string",
+                "description": "Stable identifier for this artifact."
+              },
+              "type": {
+                "type": "string",
+                "enum": ["screenshot", "dom_text_assertion", "navigation_trace", "interaction_record", "viewport_screenshot", "role_comparison"],
+                "description": "Type of evidence artifact."
+              },
+              "path": {
+                "type": "string",
+                "description": "Git-tracked canonical path to the artifact, relative to project root. Must be under planning/evidence/screenshots/ or equivalent. NOT under .concord/ (which is gitignored)."
+              },
+              "dimension": {
+                "type": "string",
+                "enum": ["visual", "content", "structure", "state", "interaction", "responsive", "role"],
+                "description": "Which parity dimension this artifact supports."
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of what this artifact shows."
+              },
+              "provenance": {
+                "type": "string",
+                "description": "Original temporary source path before promotion, for audit trail."
+              },
+              "promoted_at": {
+                "type": "string",
+                "description": "ISO date when this artifact was promoted from temporary to canonical."
+              },
+              "passed": {
+                "type": "boolean",
+                "description": "Whether this artifact evidence supports a PASS or FAIL finding."
+              }
+            }
+          }
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional narrative about this evidence entry."
+        }
+      }
+    }
+  }
+}

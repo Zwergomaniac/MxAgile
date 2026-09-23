@@ -234,6 +234,9 @@ Write-Host "TEST P: Responsive parity requires viewport-specific evidence" -Fore
 Assert-FileContains "P.1 policy requires viewport-specific screenshot for responsive" $ParityPol 'viewport-specific screenshot'
 Assert-FileContains "P.2 ui-agent.md runs multiple viewports for responsive dimension" $UiAgent 'Viewport'
 Assert-FileContains "P.3 parity schema has viewport field" $ParitySchema '"viewport"'
+Assert-FileContains "P.4 policy derives required viewports from requirements, not unconditionally" $ParityPol 'Required viewports are derived'
+Assert-FileContains "P.5 policy does NOT mandate desktop+phone unconditionally" $ParityPol 'Do NOT require desktop'
+Assert-FileContains "P.6 policy states responsive NOT_APPLICABLE when no responsive requirement" $ParityPol 'responsive.*NOT_APPLICABLE|NOT_APPLICABLE.*for those screens'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

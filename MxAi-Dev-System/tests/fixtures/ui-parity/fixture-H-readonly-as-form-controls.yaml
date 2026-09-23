@@ -1,0 +1,52 @@
+# Fixture H: Read-only values incorrectly presented as form controls
+# Expected: state=FAIL, role=FAIL, overall=FAIL
+# Demonstrates: disabled TextBox anti-pattern for display_mode=display components
+fixture_id: FIXTURE-H
+description: "Detail view for a completed record. All fields are displayed as disabled TextBox inputs. The mockup shows a read-only detail panel with label/value text pairs."
+page_id: PAGE-ORDER-READONLY-DETAIL
+dimensions:
+  visual:
+    result: PARTIAL
+    required: true
+    deviations:
+      - concern: form_chrome
+        description: "Disabled input borders and backgrounds add visual noise not present in mockup label/value layout"
+        severity: minor
+        dimension: visual
+  content:
+    result: PASS
+    required: true
+    note: "Values are correct, but presented via wrong widget type"
+  structure:
+    result: FAIL
+    required: true
+    deviations:
+      - concern: display_mode_mismatch
+        description: "display_mode=display but all components use Text Box with enabled=false; mockup requires Text/Dynamic Text label-value composition"
+        severity: material
+        dimension: structure
+  state:
+    result: FAIL
+    required: true
+    deviations:
+      - concern: disabled_input_anti_pattern
+        description: "Disabled TextBox controls communicate false editability; accessibility tools may announce these as editable but inactive"
+        severity: material
+        dimension: state
+  interaction:
+    result: PASS
+    required: true
+    note: "No interaction required on this read-only page"
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: FAIL
+    required: true
+    deviations:
+      - concern: read_only_role_presentation
+        description: "ReadOnly role receives same disabled-input presentation as editable roles; should receive display component"
+        severity: material
+        dimension: role
+overall_result: FAIL
+# See policies/ui-element-selection.md - Read-Only Display Must Not Default to Input Controls

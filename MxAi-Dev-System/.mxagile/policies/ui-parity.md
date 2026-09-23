@@ -14,6 +14,11 @@ evidence requirements, and the mandatory regression scenario.
 
 Full schema: `.mxagile/schemas/parity-verification.schema.json`
 
+Related policies:
+- `policies/verification-scenario.md` — material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy
+- `policies/evidence-contract.md` — screenshot lifecycle, temporary vs. canonical evidence, evidence manifest, promotion contract
+- `policies/observe-before-mutate.md` — enforced lifecycle order: observe → parity → reconcile → refine → implement
+
 ---
 
 ## The Seven Parity Dimensions
@@ -43,6 +48,7 @@ Each dimension is evaluated independently and recorded separately.
 | `CONFLICT` | Evidence contradicts requirements — requires developer resolution |
 | `NOT_APPLICABLE` | Dimension is not relevant for this page or component |
 | `LEGACY_EVIDENCE` | Migrated from a pre-dimensional parity record; provenance preserved, not re-verified |
+| `STALE` | Was PASS but the active target mockup or requirement has changed since `verified_at` — re-verification required before claiming PASS |
 
 ---
 
@@ -64,11 +70,14 @@ overall_result = NOT_VERIFIED
     (all required dimensions are NOT_VERIFIED or LEGACY_EVIDENCE)
 ```
 
-A required dimension that is `FAILED`, `PARTIAL`, `NOT_VERIFIED`, or `CONFLICT`
+A required dimension that is `FAILED`, `PARTIAL`, `NOT_VERIFIED`, `CONFLICT`, or `STALE`
 **MUST prevent overall PASS**.
 
 `LEGACY_EVIDENCE` dimensions do not prevent overall PASS if the remaining required dimensions
 all PASS — but the overall result must note the partial evidence coverage.
+
+`NOT_APPLICABLE` requires a `not_applicable_rationale` in the dimension record. Without rationale,
+it is treated as `NOT_VERIFIED`.
 
 ---
 
@@ -187,11 +196,18 @@ All `navigation` entries from the UI inventory must be exercised:
 ### responsive
 Evidence required: viewport-specific screenshot + overflow/reflow check.
 
-Declared viewports from `mxagile-project.yaml` or Playwright config must be tested.
-At minimum: desktop and phone viewport.
+Required viewports are derived from — not assumed:
+- Requirement or Spec declaring responsive behavior
+- Active target mockup showing responsive layout
+- Declared Company Layer responsive constraints
+- Project-declared Playwright config viewport profiles
+- Known UI risk areas (e.g., complex grids, dense tables)
 
-Key concerns: no horizontal overflow on phone, column collapse/reflow, navigation
-collapse to mobile menu, touch target sizes.
+Do NOT require desktop + phone unconditionally. A project that has no responsive
+requirement has `responsive: NOT_APPLICABLE` for those screens (with rationale).
+
+Key concerns when responsive IS required: no horizontal overflow, column collapse/reflow,
+navigation collapse to mobile menu, card layout transformation, touch target sizes.
 
 ### role
 Evidence required: separate Playwright session per role + DOM comparison.
@@ -290,6 +306,39 @@ Then populate new dimensions only where EXISTING authoritative evidence proves t
 
 ---
 
+## Parity and the Verification Scenario Matrix
+
+Parity verification is executed through the material scenario matrix, not independently per page.
+
+Each `parity-verification.schema.json` file is produced by a specific verification scenario
+(`scenario_id` field). The scenario defines which role, data state, viewport, and dimensions
+are in scope. Full scenario contract: `policies/verification-scenario.md`.
+
+A parity record becomes `STALE` when:
+- The active target mockup version changes
+- The Requirement acceptance clause changes
+- The widget/component selection changes materially
+
+STALE required dimensions prevent Full Parity PASS. Targeted re-verification is sufficient.
+
+### Coverage Traceability
+
+Every mandatory UI acceptance clause must map to at least one completed scenario.
+Coverage gaps must be visible in `process-state.yaml` under `coverage_matrix_state.uncovered_clauses`.
+
+## Evidence Contract Integration
+
+Parity verification produces evidence artifacts that must be promoted from `.concord/screenshots/`
+(temporary, gitignored) to `planning/evidence/screenshots/` (canonical, git-tracked).
+A parity PASS without promoted evidence is `NOT_VERIFIED` for collaboration purposes.
+
+The evidence manifest (`planning/evidence/manifests/`) provides the traceability chain:
+`Requirement -> scenario_id -> role/data/viewport -> dimensions -> promoted evidence -> result`.
+
+Full evidence contract: `policies/evidence-contract.md`.
+
+---
+
 ## Targeted Re-Verification vs. Full Reconciliation
 
 ### Lazy Reconciliation
@@ -311,14 +360,42 @@ Use lazy reconciliation when:
 
 ### Full Reconciliation
 
-Re-verify all dimensions for all pages regardless of existing evidence.
+Full reconciliation means **full scope accounting**, not blind re-execution of everything.
+
+```
+FULL RECONCILIATION
+    = FULL SCOPE ACCOUNTING
+    + CONSERVATIVE EVIDENCE REUSE
+    + TARGETED RE-VERIFICATION
+```
+
+For each existing evidence item, classify it first:
+
+| Classification | Meaning | Action |
+|---|---|---|
+| `REUSABLE` | Current, authoritative, valid under new contract | Preserve and reference |
+| `RECONSTRUCTABLE` | Can be derived from existing artifacts with provenance | Migrate with provenance |
+| `LEGACY_INSUFFICIENT` | Exists but does not satisfy the new dimension contract | Targeted re-verification |
+| `STALE` | Was valid but target/requirement has changed since `verified_at` | Targeted re-verification |
+| `CONFLICTING` | Evidence contradicts requirements or other evidence | Refinement / resolution |
+| `MISSING` | No evidence exists for this dimension | Targeted verification |
 
 ```
 For each page:
-  1. Re-run all 7 dimensions
-  2. Overwrite all previous dimension results
-  3. Record new verified_at date
+  1. Load existing parity-verification file (if any)
+  2. Classify each dimension's existing evidence
+  3. Preserve REUSABLE dimensions — do NOT re-run them
+  4. Reconstruct RECONSTRUCTABLE dimensions with provenance
+  5. Run Playwright only for LEGACY_INSUFFICIENT, STALE, and MISSING dimensions
+  6. Resolve CONFLICTING dimensions through Refinement
+  7. Record new verified_at only for re-verified dimensions
 ```
+
+Full scope accounting means every required parity dimension and every material scenario
+is accounted for — either with valid evidence or with an explicit gap that has been addressed.
+
+It does NOT mean discarding authoritative, current, valid evidence and re-running it
+unconditionally.
 
 Use full reconciliation when:
 - Significant application changes were made

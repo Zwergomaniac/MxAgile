@@ -1,0 +1,48 @@
+# Fixture R: Ambiguous target change requiring Decision Required
+# Demonstrates: when source priority does not resolve conflict autonomously
+fixture_id: FIXTURE-R
+description: "Customer mockup shows a dashboard with KPI tiles. A new business requirement says 'show trend charts instead of tiles'. Both are valid business interpretations. No authoritative constraint resolves which is correct. DECISION REQUIRED."
+page_id: PAGE-EXECUTIVE-DASHBOARD
+source_mockup: input-resources/ui-ux/executive-dashboard.html
+conflict:
+  source_mockup_says: "KPI tiles with current period values"
+  requirement_REQ_089_says: "Show trend information for executive visibility"
+  interpretation_A: "KPI tiles with trend sparklines added"
+  interpretation_B: "Full trend charts replacing KPI tiles"
+  company_layer_guidance: "MBUI supports both patterns — no mandate"
+source_priority_resolution:
+  concern: ui_visual
+  winner: decision_required
+  rationale: "Multiple materially different valid target behaviors remain. No authoritative constraint resolves them. Product/design intent is ambiguous."
+  autonomous: false
+open_items:
+  - id: OPEN-DASHBOARD-CHART-VS-TILE
+    type: DECISION_REQUIRED
+    description: "Executive Dashboard: KPI tiles with sparklines vs. full trend charts? Both satisfy REQ-089. Product owner must decide."
+dimensions:
+  visual:
+    result: CONFLICT
+    required: true
+    note: "Cannot verify visual parity until target is decided"
+  content:
+    result: NOT_VERIFIED
+    required: true
+  structure:
+    result: CONFLICT
+    required: true
+    note: "KPI tiles vs. trend charts = fundamentally different structural patterns"
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+status: blocked
+blocking_reason: "DECISION REQUIRED: target UI contract ambiguous. Awaiting product owner decision on KPI tiles vs. trend charts."

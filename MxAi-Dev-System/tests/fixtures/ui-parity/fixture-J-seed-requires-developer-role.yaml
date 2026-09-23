@@ -1,0 +1,46 @@
+# Fixture J: Mock-data seeding requires Developer role; target verification uses another role
+# Demonstrates: explicit dependency chain in verification prerequisites
+fixture_id: FIXTURE-J
+description: "CapTrack mock data must be loaded by a Developer-role session before the Planning Manager role can be verified. The bootstrap admin cannot access the Developer seed tool."
+scenario_id: SCN-CAPTRACK-PLANNING-MANAGER-POPULATED
+page_id: PAGE-PLANNING-OVERVIEW
+role: PlanningManager
+data_state: populated
+prerequisites:
+  mock_data_required: true
+  mock_data_seed_identity: DEVELOPER_SEED_IDENTITY
+  mock_data_script: scripts/seed-captrack-planning-data.ps1
+  depends_on_scenarios: [SCN-CAPTRACK-SEED-DEVELOPER]
+  requires_authenticated_session: true
+# The dependency chain is:
+#   1. MENDIX_APP_ADMIN_USER enables Developer identity (via admin panel)
+#   2. DEVELOPER_SEED_IDENTITY runs seed script
+#   3. Session switches to PlanningManager
+#   4. Verification scenario executes
+# Do NOT assume bootstrap admin can access Developer seed tool directly
+dimensions:
+  visual:
+    result: NOT_VERIFIED
+    required: true
+    note: "Requires seed scenario to complete first"
+  content:
+    result: NOT_VERIFIED
+    required: true
+  structure:
+    result: NOT_VERIFIED
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+status: blocked
+blocking_reason: "Depends on SCN-CAPTRACK-SEED-DEVELOPER which has not completed"

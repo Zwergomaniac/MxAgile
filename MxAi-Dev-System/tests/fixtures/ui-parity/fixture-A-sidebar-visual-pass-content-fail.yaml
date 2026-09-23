@@ -1,0 +1,65 @@
+# Fixture A: Correct sidebar visuals + wrong grouping labels
+# Expected: visual=PASS, content=FAIL, structure may also FAIL, overall=FAIL
+fixture_id: FIXTURE-A
+description: "Sidebar colors and styling are correct. Navigation group labels are wrong (German expected, English implemented)."
+page_id: PAGE-NAVIGATION-SIDEBAR
+scenario_id: SCN-SIDEBAR-ADMIN-POPULATED
+role: Admin
+data_state: populated
+viewport: desktop-1440
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    evidence:
+      - type: screenshot
+        description: "Sidebar background, icon colors, hover states match target mockup"
+        passed: true
+  content:
+    result: FAIL
+    required: true
+    evidence:
+      - type: dom_text_assertion
+        selector: ".mx-name-navigationTree1 .mx-group-header:first-child"
+        expected: "Stammdaten"
+        actual: "Master Data"
+        passed: false
+      - type: dom_text_assertion
+        selector: ".mx-name-navigationTree1 .mx-group-header:nth-child(2)"
+        expected: "Planung"
+        actual: "Planning"
+        passed: false
+    deviations:
+      - concern: navigation_group_labels
+        description: "All navigation group labels are in English; target mockup requires German labels"
+        severity: material
+        dimension: content
+  structure:
+    result: FAIL
+    required: true
+    evidence:
+      - type: dom_selector
+        description: "Navigation group 'Stammdaten' not found"
+        selector: "[data-group-label='Stammdaten']"
+        passed: false
+    deviations:
+      - concern: navigation_grouping
+        description: "Navigation groups exist but have wrong labels, making structural match indeterminate"
+        severity: material
+        dimension: structure
+  state:
+    result: NOT_VERIFIED
+    required: false
+  interaction:
+    result: NOT_VERIFIED
+    required: false
+  responsive:
+    result: NOT_APPLICABLE
+    required: false
+    not_applicable_rationale: "This scenario is desktop-only per project configuration"
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: FAIL
+# Regression proof: visual PASS + content FAIL = overall FAIL
+# Even though visual looks correct, wrong labels make this a FAIL

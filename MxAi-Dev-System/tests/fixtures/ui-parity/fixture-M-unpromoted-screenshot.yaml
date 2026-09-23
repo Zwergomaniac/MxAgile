@@ -1,0 +1,38 @@
+# Fixture M: Temporary screenshot exists but was not promoted to canonical evidence
+# Demonstrates: unpromoted evidence provides no collaboration value
+fixture_id: FIXTURE-M
+description: "A screenshot was captured during verification and is in .concord/screenshots/app/ (gitignored). It was never promoted to planning/evidence/screenshots/. For a fresh clone, no evidence exists."
+page_id: PAGE-DASHBOARD
+scenario_id: SCN-DASHBOARD-ADMIN-POPULATED
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    evidence:
+      # WRONG: references temporary gitignored location
+      - type: screenshot
+        path: ".concord/screenshots/app/Dashboard_default_1727100234.png"
+        description: "Timestamped temporary screenshot — NOT in canonical evidence location"
+        passed: true
+    note: "COLLABORATION FAILURE: This screenshot is in a gitignored directory. A fresh clone has no evidence. This parity PASS is not verifiable from the repository."
+  content:
+    result: NOT_VERIFIED
+    required: true
+  structure:
+    result: NOT_VERIFIED
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+# Correct behavior: promote screenshot to planning/evidence/screenshots/SCN-DASHBOARD-ADMIN-POPULATED/
+# Record in evidence manifest. Then result becomes reliable.

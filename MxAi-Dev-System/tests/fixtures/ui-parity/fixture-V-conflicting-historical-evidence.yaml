@@ -1,0 +1,47 @@
+# Fixture V: Conflicting historical evidence
+# Demonstrates: CONFLICT status, explicit resolution required
+fixture_id: FIXTURE-V
+description: "Two historical sources provide conflicting information about the Order List page. The original discovery says 'no pagination required'. A later implementation task says 'added server-side paging'. The parity report cannot be reconstructed without resolving the conflict."
+page_id: PAGE-ORDER-LIST
+conflict:
+  source_1:
+    type: Discovery
+    date: "2026-07-01"
+    claim: "List shows all orders in one view — no pagination per REQ-033"
+  source_2:
+    type: Task
+    id: TASK-088
+    date: "2026-09-10"
+    claim: "Implemented server-side paging with 50 items per page — performance requirement added post-discovery"
+  resolution_status: unresolved
+  note: "REQ-033 may have been updated or superseded. Cannot reconstruct which behavior is current target without resolving."
+dimensions:
+  visual:
+    result: NOT_VERIFIED
+    required: true
+  content:
+    result: NOT_VERIFIED
+    required: true
+  structure:
+    result: CONFLICT
+    required: true
+    note: "Cannot determine correct structural parity: no pagination vs. server-side paging are materially different"
+  state:
+    result: CONFLICT
+    required: true
+    note: "Empty state and populated state differ significantly between paginated and non-paginated layouts"
+  interaction:
+    result: CONFLICT
+    required: true
+    note: "Pagination interaction exists or not — cannot verify without resolving conflict"
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+open_items:
+  - id: OPEN-ORDER-LIST-PAGINATION
+    type: DECISION_REQUIRED
+    description: "Order List pagination: REQ-033 (no pagination) vs. TASK-088 implementation (server-side paging). Require product owner to confirm which is the current accepted behavior."

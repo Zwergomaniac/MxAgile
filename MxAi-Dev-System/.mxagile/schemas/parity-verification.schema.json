@@ -10,9 +10,17 @@
       "type": "string",
       "description": "Matches the page_id from the UI inventory (PAGE-...)."
     },
+    "scenario_id": {
+      "type": "string",
+      "description": "Optional: the SCN-... identifier of the verification scenario that produced this parity record. Links to planning/scenarios/<scenario-id>.yaml. See schemas/verification-scenario.schema.json."
+    },
     "verified_at": {
       "type": "string",
       "description": "ISO date (YYYY-MM-DD) when this verification was performed."
+    },
+    "target_changed_at": {
+      "type": "string",
+      "description": "ISO date (YYYY-MM-DD) when the active acceptance target last changed. When this is more recent than verified_at, the record is STALE and requires re-verification."
     },
     "evidence_level": {
       "type": "string",
@@ -56,8 +64,8 @@
     },
     "overall_result": {
       "type": "string",
-      "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED"],
-      "description": "Aggregated result across all required dimensions. PASS: all required dimensions are PASS. FAIL: one or more required dimensions are FAILED. PARTIAL: one or more required dimensions are PARTIAL or CONFLICT and none are FAILED. NOT_VERIFIED: no browser verification has been performed."
+      "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE"],
+      "description": "Aggregated result across all required dimensions. PASS: all required dimensions are PASS. FAIL: one or more required dimensions are FAILED. PARTIAL: one or more required dimensions are PARTIAL or CONFLICT and none are FAILED. NOT_VERIFIED: no browser verification has been performed. STALE: was PASS but active target has changed since verified_at — must re-verify before claiming PASS."
     },
     "regression_scenario": {
       "type": "object",
@@ -91,8 +99,12 @@
       "properties": {
         "result": {
           "type": "string",
-          "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE", "LEGACY_EVIDENCE"],
-          "description": "PASS: dimension satisfies the contract. FAIL: concrete deviation found. PARTIAL: some aspects pass, others have minor issues. NOT_VERIFIED: not yet checked. CONFLICT: evidence contradicts requirements. NOT_APPLICABLE: dimension not relevant for this page/component. LEGACY_EVIDENCE: migrated from a pre-dimensional record; provenance preserved but not re-verified."
+          "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE", "LEGACY_EVIDENCE", "STALE"],
+          "description": "PASS: dimension satisfies the contract. FAIL: concrete deviation found. PARTIAL: some aspects pass, others have minor issues. NOT_VERIFIED: not yet checked. CONFLICT: evidence contradicts requirements. NOT_APPLICABLE: dimension not relevant (rationale required). LEGACY_EVIDENCE: migrated from pre-dimensional record; provenance preserved but not re-verified. STALE: was PASS but active target has changed since verification — re-verify before claiming PASS."
+        },
+        "not_applicable_rationale": {
+          "type": "string",
+          "description": "Required when result=NOT_APPLICABLE. Explains why this dimension is genuinely not applicable for this screen/component."
         },
         "required": {
           "type": "boolean",

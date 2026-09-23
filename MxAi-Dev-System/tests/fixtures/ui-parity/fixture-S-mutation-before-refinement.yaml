@@ -1,0 +1,42 @@
+# Fixture S: Implementation mutation attempted before Refinement
+# Demonstrates: OBSERVE-BEFORE-MUTATE violation classification
+fixture_id: FIXTURE-S
+description: "Agent modified SCSS to change sidebar background color before parity analysis was complete and before Refinement had accepted the change. The parity baseline was not yet established."
+observe_before_mutate_violation:
+  violation_type: MUTATE_BEFORE_ANALYSE
+  description: "SCSS modification to sidebar background occurred while observe_before_mutate_stage=baseline_captured. Analysis was not complete. Refinement gate had not passed."
+  mutation_attempted: "Changed .mx-sidebar background-color from #2D3748 to #1A202C"
+  stage_at_mutation: baseline_captured
+  required_stage_for_mutation: mutation_allowed
+  lifecycle_impact: "Parity baseline is now contaminated. Cannot determine whether visual deviation found is pre-existing or introduced by the unauthorized mutation."
+page_id: PAGE-NAVIGATION-SIDEBAR
+process_state_record:
+  observe_before_mutate_stage: violation_detected
+  mutation_eligibility: violation_detected
+  blocked_operation: "MUTATION_BEFORE_ANALYSE: SCSS sidebar-background modified before dimensional analysis completed"
+dimensions:
+  visual:
+    result: CONFLICT
+    required: true
+    note: "Cannot determine pre-mutation visual state. Baseline contaminated by unauthorized SCSS change."
+  content:
+    result: NOT_VERIFIED
+    required: true
+  structure:
+    result: NOT_VERIFIED
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+# Required resolution: revert the SCSS change, complete parity analysis against original baseline,
+# proceed through Refinement gate, then apply authorized mutation.

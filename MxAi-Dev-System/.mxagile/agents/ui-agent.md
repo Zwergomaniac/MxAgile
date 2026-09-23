@@ -19,8 +19,11 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/ui-element-selection.md` — Intent-driven widget selection: pattern before widget, Data Grid 2 fit check, read-only display contract, escalation ladder
 - `.mxagile/policies/ui-parity.md` — Multi-dimensional parity contract (7 dimensions, statuses, aggregation, legacy evidence upgrade)
-- `.mxagile/policies/observe-before-mutate.md` — Enforceable lifecycle: observe and analyse BEFORE any mutation
+- `.mxagile/policies/observe-before-mutate.md` — Enforceable lifecycle: observe and analyse BEFORE any mutation; mutation eligibility gate; evidence enablement exception
 - `.mxagile/policies/mockup-lifecycle.md` — Source mockup vs. active target mockup, provenance, version history
+- `.mxagile/policies/verification-scenario.md` — Material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy, parallelism safety
+- `.mxagile/policies/evidence-contract.md` — Temporary vs. canonical evidence, screenshot promotion contract, evidence manifest
+- `.mxagile/policies/project-knowledge.md` — Canonical artifact map, Git-tracked locations, gitignore contract, fresh clone test
 - Company Layer UI documentation (if installed): `.mxagile/layers/*/modules/` fuer UI-Komponenten-Referenzen
 
 ## Evidence Level
@@ -469,9 +472,23 @@ Nicht material (ignorieren bei PASS-Bewertung der jeweiligen Dimension):
 - `.concord/screenshots/app/{PageName}_{State}.png`
 - `.concord/screenshots/app/{PageName}_{Viewport}.png` (Responsive-Evidence)
 
+**Evidence Promotion (PFLICHT):**
+Nach Abschluss des Verify-Modus fuer jede Seite:
+1. Relevante Screenshots aus `.concord/screenshots/app/` in
+   `planning/evidence/screenshots/<scenario-id>/` kopieren (semantisch benennen)
+2. Evidence-Manifest-Eintrag in `planning/evidence/manifests/<wave-id>-evidence-manifest.yaml` anlegen
+3. Parity-Report (`planning/parity/<PageName>_parity.yaml`) referenziert den Manifest-Eintrag
+
+Temporaere `.concord/`-Artefakte sind gitignored und kein Collaboration-Nachweis.
+Vollstaendiger Evidence-Vertrag: `policies/evidence-contract.md`.
+
 **Observe-Before-Mutate:** Nach Abschluss des Verify-Modus:
 `prerequisite_state.observe_before_mutate_stage: analysis_complete` setzen.
 Erst dann darf die Implementierung Aenderungen vornehmen.
+
+**Mutation Eligibility:** Erst nach `refinement_accepted` ist
+`prerequisite_state.mutation_eligibility: allowed` erlaubt. Jeder frueherer Mutationsversuch
+ist ein LIFECYCLE VIOLATION. Vollstaendiger Vertrag: `policies/observe-before-mutate.md`.
 
 ## Einschraenkungen
 

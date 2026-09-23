@@ -1,0 +1,38 @@
+# Fixture I: Populated-state check attempted without mock data
+# Expected: scenario blocked, NOT_VERIFIED, cannot claim PASS for populated content
+fixture_id: FIXTURE-I
+description: "Scenario requires populated data state. Mock data has not been seeded. The page shows empty state. Content/structure/role parity for populated state cannot be verified."
+scenario_id: SCN-CUSTOMER-LIST-ADMIN-POPULATED
+status: blocked
+blocking_reason: "Representative mock data not seeded. prerequisite_state.mock_data=unavailable. Cannot verify populated-state content, structure, or role dimensions."
+page_id: PAGE-CUSTOMER-LIST
+dimensions:
+  visual:
+    result: PARTIAL
+    required: true
+    note: "Empty-state styling verified. Populated-state visual cannot be verified without data."
+  content:
+    result: NOT_VERIFIED
+    required: true
+    note: "Empty screen cannot prove populated-state content parity"
+  structure:
+    result: PARTIAL
+    required: true
+    note: "Navigation and headers verified. Row content structure requires populated data."
+  state:
+    result: NOT_VERIFIED
+    required: true
+    note: "Populated state requires mock data. Blocked by missing prerequisite."
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+# Lesson: An empty screen cannot prove populated-state parity.
+# Mock data is a PREREQUISITE, not a screenshot detail.
+# See policies/verification-scenario.md - Representative Data as Prerequisite

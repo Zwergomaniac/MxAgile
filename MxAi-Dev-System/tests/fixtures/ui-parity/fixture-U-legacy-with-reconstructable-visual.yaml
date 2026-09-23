@@ -1,0 +1,48 @@
+# Fixture U: Legacy evidence with only reconstructable visual evidence
+# Demonstrates: partial reconstruction — visual can be LEGACY_EVIDENCE, others NOT_VERIFIED
+fixture_id: FIXTURE-U
+description: "Historical parity:PASS from 2026-08-15. A promoted screenshot exists in planning/evidence/screenshots/legacy/. Visual dimension can be reconstructed as LEGACY_EVIDENCE. All other dimensions have no historical evidence."
+page_id: PAGE-PROJECT-LIST
+historical_result:
+  parity: PASS
+  date: "2026-08-15"
+  screenshot_promoted: "planning/evidence/screenshots/legacy/Project_List_2026-08-15_default.png"
+evidence_upgrade:
+  schema_upgraded: true
+  reconstructed_dimensions: [visual]
+  gaps: [content, structure, state, interaction, responsive, role]
+  targeted_reverification_required: true
+  reverification_completed: false
+schema_version: 1
+dimensions:
+  visual:
+    result: LEGACY_EVIDENCE
+    required: true
+    legacy_provenance: "parity:PASS 2026-08-15. Screenshot promoted to planning/evidence/screenshots/legacy/. Evidence present but from legacy contract — may not satisfy current 7-dimension visual evidence standards."
+    evidence:
+      - type: screenshot
+        path: planning/evidence/screenshots/legacy/Project_List_2026-08-15_default.png
+        description: "Legacy promoted screenshot"
+        passed: true
+  content:
+    result: NOT_VERIFIED
+    required: true
+    note: "No historical DOM text assertions. Content dimension did not exist in legacy contract."
+  structure:
+    result: NOT_VERIFIED
+    required: true
+  state:
+    result: NOT_VERIFIED
+    required: true
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+  responsive:
+    result: NOT_VERIFIED
+    required: true
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: NOT_VERIFIED
+# visual can be LEGACY_EVIDENCE (evidence exists), others are NOT_VERIFIED (no evidence)
+# This is the correct conservative upgrade — do not infer PASS for unprovable dimensions
