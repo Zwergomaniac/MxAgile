@@ -45,6 +45,10 @@
 .PARAMETER MercedesRef
     Git branch / tag / commit ref for the Company Layer. Defaults to "main".
 
+.PARAMETER NonInteractive
+    Skip the pre-mutation confirmation prompt. Use in CI, scripted invocations,
+    and automated regression tests.
+
 .PARAMETER Wait
     Pause for a keypress before exiting. Intended for interactive/direct-launch
     scenarios (e.g. right-click "Run with PowerShell") where the window would
@@ -65,6 +69,7 @@ param (
     [string]$DistributionRef = "main",
     [string]$MercedesGitUrl = "https://mercedes-benz.ghe.com/DFC-Applikationsentwicklung/MxAgile-CompanyLayer.git",
     [string]$MercedesRef = "main",
+    [switch]$NonInteractive,
     [switch]$Wait
 )
 
@@ -129,17 +134,48 @@ try {
     $layerOperation = if ($layerInstalled) { "UPDATE" } else { "INSTALL" }
 
     Write-Host ""
-    Write-Host "  MxAgile Core state     : $coreState"
-    Write-Host "  Mercedes Layer state   : $layerState"
+    Write-Host "  MxAgile Core       : $coreState -> $coreOperation" -ForegroundColor $(if ($coreInstalled) { "Yellow" } else { "Green" })
+    Write-Host "  Mercedes Layer     : $layerState -> $layerOperation" -ForegroundColor $(if ($layerInstalled) { "Yellow" } else { "Green" })
     Write-Host ""
-    Write-Host "  Core action            : $coreOperation" -ForegroundColor $(if ($coreInstalled) { "Yellow" } else { "Green" })
-    Write-Host "  Company Layer action   : $layerOperation" -ForegroundColor $(if ($layerInstalled) { "Yellow" } else { "Green" })
+
+    # =========================================================================
+    # Interactive pre-mutation summary (before ANY changes are made)
+    # =========================================================================
+    $isInteractive = (-not $NonInteractive) -and ($shouldWait -or $isDirectLaunch)
+
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host "This setup will:" -ForegroundColor White
+    if ($coreInstalled) {
+        Write-Host "  - update MxAgile Core" -ForegroundColor White
+    } else {
+        Write-Host "  - install MxAgile Core" -ForegroundColor White
+    }
+    if ($layerInstalled) {
+        Write-Host "  - update the Mercedes-Benz Company Layer" -ForegroundColor White
+    } else {
+        Write-Host "  - install the Mercedes-Benz Company Layer" -ForegroundColor White
+    }
+    Write-Host "  - update required MxAgile agent integrations" -ForegroundColor White
+    Write-Host "  - preserve project-owned knowledge and lifecycle state" -ForegroundColor White
     Write-Host ""
-    Write-Host "  Protected project state (never overwritten):"
-    Write-Host "    .mxagile/layers/     Company Layer content (update-in-place only)"
-    Write-Host "    .mxagile/state/      Runtime state"
-    Write-Host "    .mxagile/migration/  Migration history"
+    Write-Host "  The Mendix application itself will not intentionally be modified by setup." -ForegroundColor DarkGray
     Write-Host ""
+    Write-Host "  Protected (never overwritten by setup):" -ForegroundColor DarkGray
+    Write-Host "    .mxagile/layers/                   Company Layer content" -ForegroundColor DarkGray
+    Write-Host "    .mxagile/migration/                Migration history" -ForegroundColor DarkGray
+    Write-Host "    planning/lifecycle/process-state.yaml  Durable project lifecycle state" -ForegroundColor DarkGray
+    Write-Host "    requirements/ specs/ planning/     Project Requirements, Specs, Tasks" -ForegroundColor DarkGray
+    Write-Host "    input-resources/                   Source mockups and input artifacts" -ForegroundColor DarkGray
+    Write-Host "    .env.mendix                        Local secrets (never touched)" -ForegroundColor DarkGray
+    Write-Host "    .mxagile/state/                    Framework-internal state" -ForegroundColor DarkGray
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($isInteractive) {
+        Write-Host "Press any key to continue, or close this window to cancel." -ForegroundColor Yellow
+        try { [void][System.Console]::ReadKey($true) } catch { }
+        Write-Host ""
+    }
 
     # =========================================================================
     # 3. Acquire MxAgile distribution
@@ -248,6 +284,7 @@ try {
         -CompanyLayerSource       $MercedesGitUrl `
         -CompanyLayerSourceType   Git `
         -CompanyLayerRef          $MercedesRef `
+        -IsUpdate                 $coreInstalled `
         -ProvenanceFlavor         "mercedes" `
         -ProvenanceCoreSource     $provenanceCoreSource `
         -ProvenanceCoreSourceType $provenanceCoreSourceType `

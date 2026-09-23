@@ -38,12 +38,15 @@ Consumers of this contract include:
 
 ## Artifact Table
 
+**Install vs Update semantics:** `mxcli init --all-tools` is skipped on UPDATE when its output files (CLAUDE.md, AGENTS.md, AGENT.md) already exist. Rows marked `FIRST_INSTALL_ONLY` are only generated when these files are absent. See `scripts/install-core.ps1` — Step 1b.
+
 | Path | Category | Source | Producer | Ownership | Update Behavior | Rerun Behavior |
 |------|----------|--------|----------|-----------|-----------------|----------------|
 | `.mxagile/` | COPY | `MxAi-Dev-System/.mxagile/` | `mxagile-init.ps1` creates dirs; framework NOT copied by installer | MxAgile Framework | Recreated if missing | Idempotent (dirs only, no content overwrite) |
-| `AGENT.md` | CREATE | Empty placeholder | `mxagile-init.ps1` | Project / User | Preserve existing | Skip if exists |
+| `AGENT.md` | CREATE (FIRST_INSTALL_ONLY) | mxcli generated | `mxcli init --all-tools` | mxcli / Project | Preserved if exists; only generated when missing | Skip on UPDATE if exists |
 | `AGENTS.md` | MANAGED_BLOCK | `AGENT.md` content (full) | `apply-project-agent-instructions.ps1` | Shared: user owns file, MxAgile owns managed block | Replace block content | Replace block, preserve surrounding user content |
-| `CLAUDE.md` | MANAGED_BLOCK | `@AGENT.md` reference | `apply-project-agent-instructions.ps1` | Shared: user owns file, MxAgile owns managed block | Replace block content | Replace block, preserve surrounding user content |
+| `CLAUDE.md` | MANAGED_BLOCK | mxcli base + MxAgile block | `mxcli init` base + `apply-project-agent-instructions.ps1` block | Shared: mxcli base, MxAgile managed block, user content | Replace MxAgile block; mxcli base skipped on UPDATE | Replace block, preserve surrounding |
+| `.devcontainer/` | CREATE (FIRST_INSTALL_ONLY) | mxcli generated | `mxcli init --all-tools` | mxcli | Only generated on NEW INSTALL; not regenerated on UPDATE when already present | Skip on UPDATE |
 | `.github/copilot-instructions.md` | MANAGED_BLOCK | `AGENT.md` content (full) | `apply-project-agent-instructions.ps1` | Shared: user owns file, MxAgile owns managed block | Replace block content | Replace block, preserve surrounding user content |
 | `.claude/skills/mxagile-*/SKILL.md` | GENERATE | `.mxagile/skills/*.md` | `generate-mxagile-platform-skills.ps1` | MxAgile (generated — do not edit) | Overwrite on rerun | Always regenerated |
 | `.github/skills/mxagile-*/SKILL.md` | GENERATE | `.mxagile/skills/*.md` | `generate-mxagile-platform-skills.ps1` | MxAgile (generated — do not edit) | Overwrite on rerun | Always regenerated |

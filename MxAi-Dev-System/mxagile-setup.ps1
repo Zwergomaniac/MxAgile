@@ -42,6 +42,11 @@
     Git branch / tag / commit ref to use when -DistributionSource is a Git URL.
     Defaults to "main".
 
+.PARAMETER NonInteractive
+    Skip the pre-mutation confirmation prompt. Use in CI, scripted invocations,
+    and automated regression tests. Interactive direct-launch mode shows a summary
+    and waits for keypress before making any changes.
+
 .PARAMETER Wait
     Pause for a keypress before exiting. Intended for interactive/direct-launch
     scenarios (e.g. right-click "Run with PowerShell") where the window would
@@ -72,6 +77,7 @@ param (
     [string]$ProjectRoot = (Get-Location).Path,
     [string]$DistributionSource = "",
     [string]$DistributionRef = "main",
+    [switch]$NonInteractive,
     [switch]$Wait
 )
 
@@ -123,20 +129,45 @@ try {
     $coreOperation = if ($coreInstalled) { "UPDATE" } else { "INSTALL" }
 
     Write-Host ""
-    Write-Host "  Detected project state : $coreState"
-    Write-Host "  Selected operation     : $coreOperation" -ForegroundColor $(if ($coreInstalled) { "Yellow" } else { "Green" })
+    Write-Host "  MxAgile Core       : $coreState -> $coreOperation" -ForegroundColor $(if ($coreInstalled) { "Yellow" } else { "Green" })
     Write-Host ""
+
+    # =========================================================================
+    # Interactive pre-mutation summary (before ANY changes are made)
+    # =========================================================================
+    $isInteractive = (-not $NonInteractive) -and ($shouldWait -or $isDirectLaunch)
+
+    Write-Host "=======================================" -ForegroundColor Cyan
     if ($coreInstalled) {
-        Write-Host "  Core action            : UPDATE (Core already installed; synchronizing)" -ForegroundColor Yellow
+        Write-Host "This setup will:" -ForegroundColor White
+        Write-Host "  - synchronize MxAgile Core framework files" -ForegroundColor White
+        Write-Host "  - regenerate required MxAgile agent integrations" -ForegroundColor White
+        Write-Host "  - preserve all project-owned knowledge and lifecycle state" -ForegroundColor White
     } else {
-        Write-Host "  Core action            : INSTALL (fresh MxAgile installation)" -ForegroundColor Green
+        Write-Host "This setup will:" -ForegroundColor White
+        Write-Host "  - install MxAgile Core framework" -ForegroundColor White
+        Write-Host "  - initialize mxcli tool integration" -ForegroundColor White
+        Write-Host "  - generate required MxAgile agent integrations" -ForegroundColor White
     }
     Write-Host ""
-    Write-Host "  Protected project state (never overwritten):"
-    Write-Host "    .mxagile/layers/     Company Layers"
-    Write-Host "    .mxagile/state/      Runtime state"
-    Write-Host "    .mxagile/migration/  Migration history"
+    Write-Host "  The Mendix application itself will not intentionally be modified by setup." -ForegroundColor DarkGray
     Write-Host ""
+    Write-Host "  Protected (never overwritten by setup):" -ForegroundColor DarkGray
+    Write-Host "    .mxagile/layers/                   Company Layers" -ForegroundColor DarkGray
+    Write-Host "    .mxagile/migration/                Migration history" -ForegroundColor DarkGray
+    Write-Host "    planning/lifecycle/process-state.yaml  Durable project lifecycle state" -ForegroundColor DarkGray
+    Write-Host "    requirements/ specs/ planning/     Project Requirements, Specs, Tasks" -ForegroundColor DarkGray
+    Write-Host "    input-resources/                   Source mockups and input artifacts" -ForegroundColor DarkGray
+    Write-Host "    .env.mendix                        Local secrets (never touched)" -ForegroundColor DarkGray
+    Write-Host "    .mxagile/state/                    Framework-internal state" -ForegroundColor DarkGray
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($isInteractive) {
+        Write-Host "Press any key to continue, or close this window to cancel." -ForegroundColor Yellow
+        try { [void][System.Console]::ReadKey($true) } catch { }
+        Write-Host ""
+    }
 
     # =========================================================================
     # 3. Acquire MxAgile distribution
@@ -246,7 +277,8 @@ try {
         -ProvenanceCoreSource     $provenanceCoreSource `
         -ProvenanceCoreSourceType $provenanceCoreSourceType `
         -ProvenanceCoreRef        $provenanceCoreRef `
-        -ProvenanceCoreSubdir     $provenanceCoreSubdir
+        -ProvenanceCoreSubdir     $provenanceCoreSubdir `
+        -IsUpdate                 $coreInstalled
     $exitCode = $LASTEXITCODE
 
 } catch {

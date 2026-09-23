@@ -10,6 +10,10 @@ param (
 
     [string]$CompanyLayerRef = "main",
 
+    # When $true, the caller has already detected an existing MxAgile installation.
+    # install-core.ps1 uses this to skip first-install-only initialization where safe.
+    [bool]$IsUpdate = $false,
+
     [string]$ProvenanceFlavor         = "",
     [string]$ProvenanceCoreSource     = "",
     [string]$ProvenanceCoreSourceType = "",
@@ -148,16 +152,37 @@ try {
     Write-Host "[OK] mxagile-init.ps1 executed."
 
     # Step 1b: mxcli init --all-tools
-    # Must run AFTER mxcli.exe is installed (by mxagile-init.ps1 above) and
-    # BEFORE MxAgile managed-block injection, because mxcli init overwrites CLAUDE.md and AGENTS.md.
+    # ORDERING CONSTRAINT: must run AFTER mxcli.exe is installed (Step 1a) and
+    # BEFORE MxAgile managed-block injection (Step 2), because mxcli init overwrites
+    # CLAUDE.md and AGENTS.md — MxAgile then re-injects its managed block.
+    #
+    # INSTALL vs UPDATE behavior:
+    #   NEW INSTALL : always run — generates CLAUDE.md, AGENTS.md, AGENT.md, devcontainer, etc.
+    #   UPDATE      : skip if key mxcli-generated files already exist and are not stale.
+    #                 MxAgile managed-block injection is idempotent on existing files.
+    #                 Re-running mxcli init on every UPDATE generates devcontainer/tool noise
+    #                 unrelated to the framework change.
+    #
+    # Files that prove mxcli init has run at least once (minimum required presence check):
+    $mxcliInitMarkers = @("CLAUDE.md", "AGENTS.md", "AGENT.md")
+    $mxcliAlreadyInitialized = $IsUpdate -and ($mxcliInitMarkers | ForEach-Object {
+        Test-Path -LiteralPath (Join-Path $ProjectRoot $_) -PathType Leaf
+    } | Where-Object { $_ -eq $false } | Measure-Object).Count -eq 0
+
     $mxcliExe = Join-Path $ProjectRoot "mxcli.exe"
     if (-not (Test-Path -LiteralPath $mxcliExe -PathType Leaf)) {
         throw "mxcli.exe not found after mxagile-init.ps1  -  mxcli installation may have failed."
     }
-    Write-Host "Running mxcli init --all-tools..."
-    & $mxcliExe init --all-tools $ProjectRoot
-    if ($LASTEXITCODE -ne 0) { throw "mxcli init --all-tools failed with exit code $LASTEXITCODE." }
-    Write-Host "[OK] mxcli init --all-tools completed."
+
+    if ($mxcliAlreadyInitialized) {
+        Write-Host "[SKIP] mxcli init --all-tools: UPDATE and mxcli integration files already present."
+        Write-Host "       (Re-run with a fresh project or delete CLAUDE.md/AGENTS.md to force re-init.)"
+    } else {
+        Write-Host "Running mxcli init --all-tools ($(if ($IsUpdate) { 'UPDATE: missing files' } else { 'NEW INSTALL' }))..."
+        & $mxcliExe init --all-tools $ProjectRoot
+        if ($LASTEXITCODE -ne 0) { throw "mxcli init --all-tools failed with exit code $LASTEXITCODE." }
+        Write-Host "[OK] mxcli init --all-tools completed."
+    }
 
     # Step 1c: Copy canonical .mxagile/ payload (skills, agents, policies, lifecycle.yaml, etc.)
     # The canonical source is at $PSScriptRoot/../.mxagile/ (the framework dev tree).
@@ -167,10 +192,12 @@ try {
     }
     Write-Host "Installing canonical MxAgile payload from: $canonicalSource"
     $destMxAgile = Join-Path $ProjectRoot ".mxagile"
-    # Exclude 'layers'  -  dev-tree or project-specific Company Layer content; installed separately.
-    # Exclude 'state'   -  PROJECT/RUNTIME state; must never be distributed from the framework dev
-    #                    repository. The empty state/ scaffold is created by mxagile-init.ps1.
-    #                    Company Layer manifests exist only when that layer is actually installed.
+    # Exclude 'layers'  -  Company Layer content; installed through its own mechanism.
+    # Exclude 'state'   -  Framework-internal state (trace indexes, tool caches). Must never be
+    #                    distributed from the framework dev repository.
+    #                    NOTE: durable project lifecycle state is in planning/lifecycle/ (Git-tracked),
+    #                    not in .mxagile/state/ — see policies/project-knowledge.md.
+    #                    The empty state/ scaffold is created by mxagile-init.ps1.
     #
     # PS5.1 nesting-bug fix: when a same-named subdirectory already exists at the destination,
     # Copy-Item -LiteralPath places the SOURCE directory INSIDE the existing one instead of
@@ -269,6 +296,41 @@ try {
     & $setupScript -ProjectRoot $ProjectRoot
     Write-Host "[OK] setup-agent-system.ps1 executed."
 
+    # =========================================================================
+    # Reconciliation detection (informational only — setup does NOT perform
+    # semantic Discovery/Refinement/Evidence reconciliation)
+    # =========================================================================
+    if ($IsUpdate) {
+        $legacyArtifactLocations = @()
+
+        # Detect legacy process-state location (pre-canonical-lifecycle-state-move)
+        $scratchState = Join-Path $ProjectRoot ".concord\scratch\process-state.yaml"
+        $canonicalState = Join-Path $ProjectRoot "planning\lifecycle\process-state.yaml"
+        if ((Test-Path -LiteralPath $scratchState) -and (-not (Test-Path -LiteralPath $canonicalState))) {
+            $legacyArtifactLocations += ".concord/scratch/process-state.yaml (migrate to planning/lifecycle/)"
+        }
+
+        # Detect legacy story location
+        $storiesDir = Join-Path $ProjectRoot "planning\stories"
+        if (Test-Path -LiteralPath $storiesDir -PathType Container) {
+            $legacyArtifactLocations += "planning/stories/ (legacy format; canonical: requirements/REQ-NNN.yml)"
+        }
+
+        Write-Host ""
+        if ($legacyArtifactLocations.Count -gt 0) {
+            Write-Host "--- Reconciliation Notice ---" -ForegroundColor Yellow
+            Write-Host "The following legacy artifact locations were detected:" -ForegroundColor Yellow
+            foreach ($loc in $legacyArtifactLocations) {
+                Write-Host "  * $loc" -ForegroundColor DarkYellow
+            }
+            Write-Host ""
+            Write-Host "Reconciliation is NOT performed by setup." -ForegroundColor DarkGray
+            Write-Host "Start a new agent session and invoke: Run MxAgile system check" -ForegroundColor DarkGray
+            Write-Host "The reconciliation agent will inventory, preserve and migrate durable knowledge." -ForegroundColor DarkGray
+        } else {
+            Write-Host "  Reconciliation    : not required" -ForegroundColor DarkGray
+        }
+    }
 
     # =========================================================================
     # 2. Company Layer Installation (Optional)
