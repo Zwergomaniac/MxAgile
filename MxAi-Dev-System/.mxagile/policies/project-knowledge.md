@@ -51,7 +51,8 @@ Not in:
 | Evidence manifests | `planning/evidence/manifests/` | YES | EVOLVING | Verifying |
 | Execution waves | `planning/execution-waves.md` | YES | EVOLVING | Planning |
 | Migration state | `.mxagile/migration/state.yaml` | YES | EVOLVING | Migration |
-| Process state | `.concord/scratch/process-state.yaml` | NO | Ephemeral | All phases |
+| Lifecycle/wave state (canonical) | `planning/lifecycle/process-state.yaml` | YES | EVOLVING | All phases |
+| Local session state cache | `.concord/scratch/process-state.yaml` | NO | Ephemeral | All phases |
 | Temp screenshots | `.concord/screenshots/` | NO | Ephemeral | Verifying |
 | Agent scratch | `.concord/scratch/` | NO | Ephemeral | All phases |
 | Platform projections | `.claude/`, `.github/`, `.agents/` etc. | YES (GENERATED) | Reproducible | Generator |
@@ -115,9 +116,11 @@ The `.gitignore` MUST exclude:
 ### Verification
 
 The canonical `.gitignore` must be tested (see `tests/test-project-knowledge.ps1`) to confirm:
+- `planning/lifecycle/process-state.yaml` is NOT ignored (canonical durable lifecycle state)
 - `planning/evidence/screenshots/` is NOT ignored
 - `planning/parity/` is NOT ignored
 - `.concord/screenshots/` IS ignored
+- `.concord/scratch/process-state.yaml` IS ignored (local session cache only)
 - `.env.mendix` IS ignored
 
 ---
@@ -182,6 +185,24 @@ Refinement produces:
 A Refinement conclusion that exists only in agent scratch is NOT accepted Refinement.
 
 ---
+
+## Legacy Artifact Classification
+
+Before moving, removing or replacing any legacy artifact, classify it:
+
+| Classification | Meaning |
+|---|---|
+| `DURABLE_PROJECT_KNOWLEDGE` | Unique knowledge still needed — migrate to canonical location |
+| `HISTORICAL_EVIDENCE` | Supports existing parity/Discovery/Refinement claim — preserve with traceability |
+| `DUPLICATE` | Identical canonical copy exists — prove equivalence before removing |
+| `OBSOLETE_GENERATED` | Old generated artifact — regenerate from current source, remove old |
+| `TEMPORARY` | Ephemeral scratch or tool output — remove when no longer required |
+| `SECRET_LOCAL` | Local credential file — do not migrate, preserve gitignored behavior |
+| `UNKNOWN` | Unclear — preserve and classify before cleanup |
+
+**Do NOT delete `UNKNOWN` artifacts automatically.**
+
+Full classification and cleanup contract: `policies/reconciliation.md — Legacy Artifact Classification`
 
 ## Legacy Evidence Migration
 

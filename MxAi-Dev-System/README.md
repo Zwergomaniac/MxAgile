@@ -1,102 +1,177 @@
 # MxAgile Framework
 
-Welcome to MxAgile, a framework for specification-driven, Mendix-native application development powered by AI agents.
+MxAgile is a specification-driven, Mendix-native development framework powered by AI agents.
+It governs the full lifecycle from Discovery through Refinement, Implementation, and Verification,
+with a structured evidence contract that supports team collaboration and safe Core updates.
 
-## Core Engineering Tools
+---
 
-MxAgile uses `mxcli` as its core engineering layer. 
+## What Is MxAgile?
 
-*Note: The current `mxcli.exe` binary in the root will be migrated to a fully reproducible download/bootstrap process in a future development phase.*
+MxAgile provides:
+- **Agents** that understand Mendix: Discovery, Refinement, Implementation, Acceptance
+- **Lifecycle contracts** for traceability from mockup through runtime parity
+- **Intent-driven Mendix element selection** (pattern before widget, not data-shape defaults)
+- **Multidimensional UI parity** (visual, content, structure, state, interaction, responsive, role)
+- **Canonical project knowledge** stored in Git-tracked project files — not in agent scratch
 
-## Core Concepts
+## Core, Company Layer, and Project Knowledge
 
-MxAgile is built on a few key principles to ensure a traceable, verifiable, and maintainable development lifecycle:
+| Layer | Description |
+|---|---|
+| **Core** | Framework policies, agent instructions, schemas — installed/updated via `mxagile-setup.ps1` |
+| **Company Layer** | Extensions for a specific company (UI library, conventions, credentials) — installed alongside Core |
+| **Project Knowledge** | Requirements, Specs, Tasks, Decisions, mockups, parity evidence — owned by the project |
 
-*   **Mockup-Driven:** Development starts with simple HTML mockups that define the UI and user interaction.
-*   **Living Specifications:** Requirements are captured in "living" specification documents that evolve with the project but serve as a stable contract for implementation.
-*   **Refinement Engine:** Changes to mockups or requirements trigger a refinement process that analyzes the impact of the change, preventing uncontrolled, breaking changes downstream.
-*   **Script-Driven Orchestration:** The workflow is orchestrated by a series of PowerShell scripts (`mxagile-*.ps1`) that prepare and manage tasks for AI agents.
-*   **Mendix-Native:** The framework is built for Mendix and uses `mxcli` and MDL as its core engineering layer.
+Project Knowledge survives Core updates unchanged. Core updates add new capabilities; they do not
+discard existing Requirements, Specs, Decisions, or accepted Discovery/Refinement.
 
-For a deep dive into the architecture, see the [MxAgile Major Evolution document](./majorchange.md).
+---
 
-## Getting Started
+## Installation and Update
 
-Setting up a project with MxAgile is designed to be simple.
+Run from the project root in PowerShell:
 
-### Agent Environment Synchronization
+```powershell
+# Generic MxAgile (detects fresh install vs. update automatically)
+.\mxagile-setup.ps1
 
-**IMPORTANT:** Whenever changes are made within the `.mxagile/` directory, you MUST run the generator script to synchronize your agent environment:
+# Mercedes-Benz environment (installs/updates Core and Mercedes Company Layer)
+.\mxagile-setup-mercedes.ps1
+```
+
+> `install-mxagile.ps1` and `install-mxagile-mercedes.ps1` are **deprecated** compatibility
+> wrappers. They delegate to the setup scripts above.
+
+After changing canonical `.mxagile/` sources, regenerate platform projections:
 
 ```powershell
 .\scripts\generate-mxagile-platform-skills.ps1
 ```
 
-This ensures that agent configurations (`.claude/`, `.github/`, `.agents/`, etc.) stay in sync with the core platform definitions.
+---
 
-### Prerequisites
+## What Happens After a Core UPDATE?
 
-*   Python 3.8+ (with Pip)
-*   Git
+A Core UPDATE **preserves all existing project knowledge**. It does NOT restart Discovery or Refinement.
 
-### Installation
+Post-update flow:
+1. `mxagile-setup.ps1` → Core UPDATE (preserves `.mxagile/layers/`, project-owned files)
+2. **Lifecycle re-sync** — agent reads current `process-state.yaml` and resumes from current position
+3. **Project structure inventory** — map existing artifacts to canonical locations
+4. **Reconciliation** — classify existing Discovery/Refinement/evidence, preserve what is valid
+5. **Gap identification** — identify only what is missing or stale
+6. **Continue lifecycle** — reopen only affected scope
 
-1.  Clone this repository to your local machine.
-2.  Open a PowerShell terminal in the project root directory.
-3.  Run the appropriate setup script:
+Full policy: `.mxagile/policies/reconciliation.md`
 
-    *   **Generic MxAgile:**
-        ```powershell
-        .\mxagile-setup.ps1
-        ```
+---
 
-    *   **Mercedes-Benz Environment:**
-        ```powershell
-        .\mxagile-setup-mercedes.ps1
-        ```
+## Lifecycle Re-Sync
 
-    The setup scripts detect project state automatically (fresh install or update) — you do not
-    need to choose between install and update scripts.
+If an agent session is interrupted or a fresh agent starts, it reconstructs lifecycle state from:
 
-    The scripts use the canonical Core URL (`https://github.com/Zwergomaniac/MxAgile.git`) by default.
+1. `planning/lifecycle/process-state.yaml` — canonical durable lifecycle state (Git-tracked)
+2. `planning/` — implementation checklist, scenarios, parity reports
+3. `requirements/`, `specs/` — current Requirements and Specs
+4. `planning/decisions/` — accepted decisions
 
-    > **Note:** `install-mxagile.ps1` and `install-mxagile-mercedes.ps1` remain available as
-    > deprecated compatibility wrappers. They delegate to the setup scripts above.
+`.concord/scratch/process-state.yaml` is a local session cache (gitignored). Deleting it
+must not destroy canonical lifecycle knowledge.
 
-## Basic Workflow
+A fresh agent detects existing Discovery/Refinement and **reconciles** rather than restarts.
 
-The high-level workflow in MxAgile follows these steps:
+Full policy: `.mxagile/policies/lifecycle-resync.md`
 
-1.  **`init`**: Initialize the project structure.
-2.  **Create Mockups**: Add HTML mockups to `input-resources/ui-ux/`.
-3.  **`refine`**: Run the refinement engine to analyze mockup changes and their impact.
-4.  **Create Specs**: Group requirements into feature specifications in the `specs/` directory.
-5.  **`plan` & `tasks`**: Use the planning scripts to generate an implementation plan and decompose it into actionable tasks for an AI agent.
-6.  **Implement**: Use an AI agent, guided by the prepared tasks, to write Mendix MDL scripts.
-7.  **Validate & Converge**: Use the framework's validation and convergence scripts to ensure the implementation meets the specification.
+---
 
-## Key Scripts
+## Discovery Reconciliation
 
-The core workflow is driven by PowerShell scripts located in the `/scripts` directory. The most important ones are:
+**Existing Discovery does NOT restart after a Core update.**
 
-*   `mxagile-init.ps1`: Sets up a new project.
-*   `mxagile-refine.ps1`: Analyzes changes in mockups.
-*   `mxagile-check-quality.ps1`: Runs quality checks against a specification file.
-*   `mxagile-plan.ps1`: Generates an implementation plan for a spec.
-*   `mxagile-trace.ps1`: Traces the relationships between different artifacts (e.g., requirements, specs, tasks).
+Discovery Reconciliation classifies each existing finding as: REUSABLE, RECONSTRUCTABLE,
+INCOMPLETE, STALE, CONFLICTING, or MISSING — then supplements or reopens only affected scope.
 
-## Directory Structure
+Full policy: `.mxagile/policies/reconciliation.md — Discovery Reconciliation Contract`
 
-*   `.mxagile/`: Contains the core framework configuration, state, and company layers.
-*   `input-resources/`: Your source materials, including HTML mockups in `ui-ux/`.
-*   `requirements/`: Contains atomic, testable requirement files.
-*   `specs/`: Contains "living specification" files that group requirements into features.
-*   `planning/`: Contains generated plans and tasks.
-*   `scripts/`: Contains all the PowerShell and Python scripts that drive the framework.
+---
 
-## Further Reading
+## Refinement Reconciliation
 
-*   **Installation Guide:** [./docs/installation.md](./docs/installation.md)
-*   **Company Layers Guide:** [./docs/company-layers.md](./docs/company-layers.md)
-*   **Planning with Waves:** [./docs/waves.md](./docs/waves.md)
+**Existing accepted Refinement decisions do NOT restart after a Core update.**
 
+Accepted product/design decisions, widget selections, and UI intent are preserved.
+Only the decisions actually invalidated by new evidence are reopened.
+
+Full policy: `.mxagile/policies/reconciliation.md — Refinement Reconciliation Contract`
+
+---
+
+## Evidence Reconciliation
+
+When parity contracts become richer (new dimensions added), existing parity results are
+conservatively upgraded:
+- `REUSABLE` evidence → preserved with reference
+- `LEGACY_EVIDENCE` → migrated with provenance
+- Missing dimensions → `NOT_VERIFIED`, requiring targeted re-verification only
+
+**Full Reconciliation** = full scope accounting + conservative evidence reuse + targeted re-verification.
+It does NOT mean re-running all browser tests.
+
+Full policy: `.mxagile/policies/ui-parity.md — Full Reconciliation`
+
+---
+
+## Canonical Project Locations
+
+| Artifact | Location | Git tracked |
+|---|---|---|
+| Source mockups (immutable) | `input-resources/ui-ux/` | YES |
+| Refined target mockups | `planning/target-mockups/` | YES |
+| Requirements | `requirements/REQ-NNN.yml` | YES |
+| Specs | `specs/SPEC-NNN.yml` | YES |
+| Tasks | `planning/tasks/TASK-NNN.yml` | YES |
+| Decisions | `planning/decisions/` | YES |
+| UI inventories | `planning/ui-inventory/` | YES |
+| Verification scenarios | `planning/scenarios/` | YES |
+| Parity reports | `planning/parity/` | YES |
+| Promoted screenshots | `planning/evidence/screenshots/` | YES |
+| Evidence manifests | `planning/evidence/manifests/` | YES |
+| Lifecycle/wave state | `planning/lifecycle/process-state.yaml` | YES |
+
+Full canonical artifact map: `.mxagile/policies/project-knowledge.md`
+
+---
+
+## What Is Temporary?
+
+The `.concord/` directory is **gitignored** — it holds ephemeral runtime and tool output:
+- `.concord/scratch/process-state.yaml` — session lifecycle state (reconstruct each session)
+- `.concord/screenshots/` — temporary browser screenshots before promotion
+
+Accepted findings and promoted screenshots must be in `planning/` to survive a fresh clone.
+
+---
+
+## What Must Never Be Committed?
+
+- `.env.mendix` — local credentials (database passwords, test user passwords)
+- Any file containing secret values
+
+Full policy: `.mxagile/policies/project-knowledge.md — GitIgnore Contract`
+
+---
+
+## Reference Documentation
+
+| Topic | Location |
+|---|---|
+| Installation and Core update | [`docs/installation.md`](docs/installation.md) |
+| Architecture overview | [`docs/architecture.md`](docs/architecture.md) |
+| Canonical schemas | [`docs/schemas.md`](docs/schemas.md) |
+| Company Layers | [`docs/company-layers.md`](docs/company-layers.md) |
+| Lifecycle policies | [`.mxagile/policies/`](.mxagile/policies/) |
+| Reconciliation | [`.mxagile/policies/reconciliation.md`](.mxagile/policies/reconciliation.md) |
+| UI parity contract | [`.mxagile/policies/ui-parity.md`](.mxagile/policies/ui-parity.md) |
+| Project knowledge / Git tracking | [`.mxagile/policies/project-knowledge.md`](.mxagile/policies/project-knowledge.md) |
+| Injection contract | [`docs/injection-contract.md`](docs/injection-contract.md) |

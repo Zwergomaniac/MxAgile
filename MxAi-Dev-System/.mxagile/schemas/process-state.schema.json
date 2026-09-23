@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MxAgile Process State",
-  "description": "Per-wave runtime lifecycle state. File: .concord/scratch/process-state.yaml (gitignored). CANONICAL UPDATE RULE: always write the COMPLETE wave block — never append individual keys into an existing block. Appending creates duplicate YAML keys. See .mxagile/policies/lifecycle-resync.md.",
+  "description": "Per-wave durable lifecycle state. CANONICAL FILE: planning/lifecycle/process-state.yaml (Git-tracked). `.concord/scratch/process-state.yaml` is an optional local working cache — it is NOT the authoritative source. Agents MUST read and write the canonical file in planning/lifecycle/. The local cache may be used for session-local convenience but deleting it must not destroy canonical lifecycle knowledge. CANONICAL UPDATE RULE: always write the COMPLETE wave block — never append individual keys into an existing block. Appending creates duplicate YAML keys. See .mxagile/policies/lifecycle-resync.md.",
   "type": "object",
   "required": ["waves"],
   "additionalProperties": false,

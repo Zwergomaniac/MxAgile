@@ -117,7 +117,7 @@ Stale framework-owned files that were removed from the new Core version are reti
 
 Your project is now fully set up and ready to use the MxAgile workflow. You can start by:
 
-*   Adding HTML mockups to the `input-resources/ui-ux/` directory and running `scripts/mxagile-refine.ps1`.
+*   Adding HTML mockups to the `input-resources/ui-ux/` directory and invoking the Discovery Agent (UI-Agent Analyze mode).
 *   Defining your features by creating requirement and specification files in the `requirements/` and `specs/` directories.
 
 

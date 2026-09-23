@@ -32,12 +32,15 @@ oder Lifecycle-Evidenz faelschlicherweise als valide erscheinen lassen wuerde.
 Bei Widerspruechen zwischen Quellen gilt:
 
 1. Repository-Artefakte (Checklist, Story-Specs, Decisions, Input-Resources) — autoritativ
-2. `.concord/scratch/process-state.yaml` — aktueller Wave-Laufzustand
-3. `.mxagile/lifecycle.yaml` — kanonische Phasen- und Gate-Definitionen
-4. Konversationsspeicher — ergaenzend; NICHT ausreichend als alleinige Grundlage
+2. `planning/lifecycle/process-state.yaml` — **kanonischer** Wave-Laufzustand (Git-tracked, durable)
+3. `.concord/scratch/process-state.yaml` — lokaler Session-Cache; nur ergaenzend wenn
+   `planning/lifecycle/process-state.yaml` fehlt oder juenger ist. NICHT die autoritative Quelle.
+4. `.mxagile/lifecycle.yaml` — kanonische Phasen- und Gate-Definitionen
+5. Konversationsspeicher — ergaenzend; NICHT ausreichend als alleinige Grundlage
 
-Ein frischer Agent ohne Konversationsgeschichte MUSS den Zustand aus (1)-(3) allein
-rekonstruieren koennen.
+Ein frischer Agent ohne Konversationsgeschichte MUSS den Zustand aus (1)-(2) und (4) allein
+rekonstruieren koennen. Das Loeschen von `.concord/scratch/` darf keine kanonische
+Lifecycle-Information zerstoeren.
 
 ---
 
@@ -171,7 +174,9 @@ Beim Uebernehmen eines bestehenden Projekts oder nach einer Session-Pause:
 0. **Projektroot bestimmen** — Marker-Erkennung (siehe oben). Alle nachfolgenden
    Pfade sind relativ zu diesem Root. Nicht ausserhalb suchen.
 1. `<projektroot>/.mxagile/lifecycle.yaml` lesen — gueltige Phasen und Gate-Definitionen
-2. `.concord/scratch/process-state.yaml` lesen — Wave, Phase, Gate-Ergebnisse
+2. `planning/lifecycle/process-state.yaml` lesen — Wave, Phase, Gate-Ergebnisse (kanonisch, Git-tracked)
+   Fallback: `.concord/scratch/process-state.yaml` wenn `planning/lifecycle/` nicht existiert
+   (Legacy-Projekt oder erste Session nach Core-Update ohne Migration)
 3. Process-State validieren (siehe Zustandsvalidierung unten)
 4. `planning/checklists/W*-implementation-checklist.yaml` lesen — abgeschlossene vs. verbleibende Items
 5. `sprints/decisions.md` lesen — offene Entscheidungen und Blocker
