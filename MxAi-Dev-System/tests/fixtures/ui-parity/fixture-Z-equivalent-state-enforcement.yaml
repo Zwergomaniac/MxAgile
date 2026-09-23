@@ -1,0 +1,41 @@
+# Fixtures D+E: Target role A and actual role A compared; target A must NOT be compared to actual B
+fixture_id: FIXTURE-Z
+fixture_requirements: [D, E]
+description: "Parity scenario demonstrating that role must match on both target and actual sides. Comparing Admin mockup state against Viewer application session produces invalid parity."
+page_id: PAGE-NAVIGATION-SIDEBAR
+
+# CORRECT SCENARIO: Admin target vs Admin actual
+correct_scenario:
+  scenario_id: SCN-SIDEBAR-ADMIN-ADMIN
+  target_role: Admin
+  actual_role: Admin
+  valid: true
+  dimensions:
+    content:
+      result: FAIL
+      evidence:
+        target_evidence:
+          - type: dom_text_assertion
+            source: mockup
+            selector: ".nav-group-header:first-child"
+            expected: "Stammdaten"
+        actual_evidence:
+          - type: dom_text_assertion
+            source: application
+            selector: ".mx-name-navigationTree1 .mx-group-header"
+            actual: "Master Data"
+      deviations:
+        - concern: navigation_group_label
+          description: "Admin expected 'Stammdaten', Admin got 'Master Data'"
+          severity: material
+          dimension: content
+  overall_result: FAIL
+
+# INVALID SCENARIO: Admin target vs Viewer actual (cross-role mismatch)
+invalid_scenario:
+  scenario_id: SCN-SIDEBAR-ADMIN-TARGET-VIEWER-ACTUAL
+  target_role: Admin
+  actual_role: Viewer
+  valid: false
+  invalidity_reason: "Cannot compare Admin mockup state (shows Administration group) against Viewer application session (correctly hides Administration group). This would produce a false FAIL."
+  classification: SCENARIO_DEFINITION_ERROR

@@ -1,0 +1,33 @@
+# Fixtures H+I: Existing valid target evidence reused; stale only for affected scenario
+fixture_id: FIXTURE-AB
+fixture_requirements: [H, I]
+description: "Sidebar Admin target evidence was captured 2 weeks ago. Source mockup has not changed. Existing target evidence is REUSABLE — no regeneration needed. A separate mockup change (Viewer role grouping updated) makes only the Viewer target evidence STALE."
+page_id: PAGE-NAVIGATION-SIDEBAR
+
+target_evidence_inventory:
+  - scenario_id: SCN-SIDEBAR-TARGET-ADMIN
+    captured_at: "2026-09-01"
+    source_changed_since: false
+    classification: REUSABLE
+    action: preserve_and_reference
+    note: "Admin mockup state unchanged since capture. Reuse without regeneration."
+
+  - scenario_id: SCN-SIDEBAR-TARGET-VIEWER
+    captured_at: "2026-09-01"
+    source_changed_since: true
+    change_description: "JavaScript updated: Viewer now shows 'Berichte' group renamed to 'Auswertungen'"
+    classification: STALE
+    action: regenerate_only_viewer_scenario
+    note: "Only Viewer target evidence is stale. Admin evidence remains valid."
+
+  - scenario_id: SCN-SIDEBAR-TARGET-MANAGER
+    captured_at: "2026-09-01"
+    source_changed_since: false
+    classification: REUSABLE
+    action: preserve_and_reference
+
+regeneration_plan:
+  scenarios_to_regenerate: [SCN-SIDEBAR-TARGET-VIEWER]
+  scenarios_preserved: [SCN-SIDEBAR-TARGET-ADMIN, SCN-SIDEBAR-TARGET-MANAGER]
+  total_scenarios: 3
+  regeneration_rate: "1/3 (33%) — conservative evidence reuse applied"

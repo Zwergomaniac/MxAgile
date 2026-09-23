@@ -1,0 +1,38 @@
+# Fixture M: Legacy CapTrack-specific paths are not required by Core
+fixture_id: FIXTURE-AF
+fixture_requirement: M
+description: "Demonstrates that Core framework does not require planning/stories/, sprints/decisions.md, or .concord/screenshots/mockup/ as canonical MxAgile locations. These are legacy/project-specific paths resolved through the canonical artifact map."
+classification: DOCUMENTATION_FIXTURE
+
+legacy_captrack_paths:
+  - path: "planning/stories/"
+    canonical_status: LEGACY
+    canonical_equivalent: "Legacy story format. Current MxAgile uses requirements/REQ-NNN.yml and specs/SPEC-NNN.yml."
+    core_requires: false
+
+  - path: "sprints/decisions.md"
+    canonical_status: LEGACY
+    canonical_equivalent: "planning/decisions/ (canonical location per project-knowledge.md)"
+    core_requires: false
+
+  - path: ".concord/screenshots/mockup/"
+    canonical_status: LEGACY_EVIDENCE_SOURCE
+    canonical_equivalent: "planning/evidence/screenshots/target/ (after promotion per evidence-contract.md)"
+    core_requires: false
+    note: "Legacy source to inventory and classify during reconciliation, not a Core requirement."
+
+core_canonical_paths:
+  - "planning/lifecycle/process-state.yaml"
+  - "planning/ui-inventory/"
+  - "planning/parity/"
+  - "planning/scenarios/"
+  - "planning/evidence/screenshots/target/"
+  - "planning/evidence/screenshots/actual/"
+  - "planning/evidence/manifests/"
+  - "planning/target-mockups/"
+  - "planning/decisions/"
+  - "requirements/"
+  - "specs/"
+  - "input-resources/ui-ux/"
+
+all_resolved_through: "policies/project-knowledge.md — Canonical Project Artifact Map"

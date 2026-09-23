@@ -1,0 +1,31 @@
+# Fixture K: Canonical Requirement/Decision resolves apparent mockup-vs-app discrepancy
+fixture_id: FIXTURE-AD
+fixture_requirement: K
+description: "App shows 'Auswertungen' where mockup shows 'Berichte'. This looks like a content FAIL. But Decision DEC-015 established that the German synonym was approved by the customer. The difference is not a defect."
+page_id: PAGE-NAVIGATION-SIDEBAR
+
+apparent_discrepancy:
+  target_evidence:
+    - type: dom_text_assertion
+      source: mockup
+      expected: "Berichte"
+  actual_evidence:
+    - type: dom_text_assertion
+      source: application
+      actual: "Auswertungen"
+
+authoritative_context_check:
+  requirement: REQ-021
+  requirement_says: "Navigation group for reporting section"
+  decision: DEC-015
+  decision_says: "Customer approved 'Auswertungen' as preferred German term over 'Berichte' in Sprint 2. Both are valid synonyms. Implementation uses 'Auswertungen'."
+  source_priority_winner: accepted_decision
+  resolution: NOT_A_DEFECT
+
+dimensions:
+  content:
+    result: PASS
+    required: true
+    note: "Apparent discrepancy resolved by DEC-015. 'Auswertungen' is the accepted term per customer decision. Deviation is documented and intentional, not a parity FAIL."
+overall_result: PASS
+# Key lesson: Always resolve authoritative context before calling something a FAIL.

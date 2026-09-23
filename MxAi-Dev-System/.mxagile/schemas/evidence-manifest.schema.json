@@ -32,6 +32,38 @@
     }
   },
   "definitions": {
+    "evidence_artifact": {
+      "type": "object",
+      "required": ["artifact_id", "type", "path"],
+      "additionalProperties": false,
+      "description": "A single promoted evidence artifact. The 'source' field distinguishes target (mockup-side) from actual (application-side) evidence. See policies/mockup-materialization.md — Target vs Actual Evidence Separation.",
+      "properties": {
+        "artifact_id": { "type": "string", "description": "Stable identifier." },
+        "type": {
+          "type": "string",
+          "enum": ["screenshot", "dom_text_assertion", "navigation_trace", "interaction_record", "viewport_screenshot", "role_comparison"],
+          "description": "Type of evidence artifact."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["mockup", "application", "unknown"],
+          "default": "unknown",
+          "description": "mockup=collected from the HTML mockup rendered in Playwright (expected/target). application=collected from the running Mendix application (actual). unknown=legacy artifact without classification."
+        },
+        "path": {
+          "type": "string",
+          "description": "Git-tracked canonical path relative to project root. Under planning/evidence/screenshots/target/ (mockup) or planning/evidence/screenshots/actual/ (application). NOT under .concord/ (gitignored)."
+        },
+        "dimension": {
+          "type": "string",
+          "enum": ["visual", "content", "structure", "state", "interaction", "responsive", "role"]
+        },
+        "description": { "type": "string" },
+        "provenance": { "type": "string", "description": "Original temporary source path before promotion, for audit trail." },
+        "promoted_at": { "type": "string", "description": "ISO date when promoted from temporary to canonical." },
+        "passed": { "type": "boolean", "description": "Whether this evidence supports a PASS finding." }
+      }
+    },
     "evidence_entry": {
       "type": "object",
       "required": ["entry_id", "scenario_id", "screen_id", "role", "data_state", "parity_result"],
@@ -87,9 +119,19 @@
             "acceptance_clauses": { "type": "array", "items": { "type": "string" } }
           }
         },
+        "target_evidence": {
+          "type": "array",
+          "description": "Evidence collected from the MOCKUP / active target (expected state). Establishes what the target UI is expected to look like/behave. Collected during mockup materialization. Evidence source is the mockup rendered in Playwright. See policies/mockup-materialization.md — Target vs Actual Evidence Separation.",
+          "items": { "$ref": "#/definitions/evidence_artifact" }
+        },
+        "actual_evidence": {
+          "type": "array",
+          "description": "Evidence collected from the RUNNING APPLICATION (observed state). Establishes what the application actually produces for this scenario. Evidence source is the application running in Playwright. Compared against target_evidence to produce parity_result.",
+          "items": { "$ref": "#/definitions/evidence_artifact" }
+        },
         "artifacts": {
           "type": "array",
-          "description": "Canonical promoted evidence artifacts for this entry.",
+          "description": "LEGACY: use target_evidence and actual_evidence for new entries. Canonical promoted evidence artifacts for this entry when the target/actual distinction is not yet classified.",
           "items": {
             "type": "object",
             "required": ["artifact_id", "type", "path"],

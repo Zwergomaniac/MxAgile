@@ -12,6 +12,12 @@
             "type": "string",
             "description": "Relative path to the original (immutable) source HTML mockup file. Never modified after acceptance. See policies/mockup-lifecycle.md."
         },
+        "mockup_type": {
+            "type": "string",
+            "enum": ["static", "executable", "unknown"],
+            "default": "unknown",
+            "description": "Classification of the source mockup. static=pure HTML/CSS, no JavaScript materially changes visible content/layout/structure — one browser render per viewport is sufficient. executable=JavaScript drives role-dependent content, dynamic states, or data-dependent layout — each materially distinct scenario requires separate browser execution. unknown=cannot determine from source alone; treat as executable. See policies/mockup-materialization.md."
+        },
         "target_mockup": {
             "type": "string",
             "description": "Relative path to the ACTIVE acceptance target mockup used for implementation and verification. When absent, source_mockup is also the target. Set when a refined target differs from the original source. See policies/mockup-lifecycle.md."

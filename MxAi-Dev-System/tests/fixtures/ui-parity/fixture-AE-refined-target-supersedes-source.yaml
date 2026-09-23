@@ -1,0 +1,30 @@
+# Fixture L: Accepted refined target supersedes original source for parity
+fixture_id: FIXTURE-AE
+fixture_requirement: L
+description: "Original source mockup used English navigation labels. Refinement produced a German target. Parity must compare against the German refined target, not the English source."
+page_id: PAGE-NAVIGATION-SIDEBAR
+source_mockup: input-resources/ui-ux/sidebar-navigation-v1-english.html
+target_mockup: planning/target-mockups/Sidebar_Navigation_german.html
+target_mockup_version: "2026-08-25"
+target_mockup_reason: "Refined to German labels per customer requirement REQ-021 and DEC-015"
+
+parity_comparison_target: planning/target-mockups/Sidebar_Navigation_german.html
+parity_comparison_is_NOT: input-resources/ui-ux/sidebar-navigation-v1-english.html
+
+dimensions:
+  content:
+    result: PASS
+    required: true
+    evidence:
+      target_evidence:
+        - type: dom_text_assertion
+          source: mockup
+          path: "planning/evidence/screenshots/target/SCN-SIDEBAR-ADMIN-GERMAN/content_nav_groups.png"
+          description: "German labels from refined target: 'Stammdaten', 'Berichte'"
+      actual_evidence:
+        - type: dom_text_assertion
+          source: application
+          description: "Application shows German labels matching refined target"
+    note: "Compared against refined German target — not the obsolete English source."
+overall_result: PASS
+# Key lesson: active refined target is authoritative, not the original source.

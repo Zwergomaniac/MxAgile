@@ -1,0 +1,47 @@
+# Fixtures F+G: Below-the-fold content discoverable via DOM; screenshot alone cannot prove absence
+fixture_id: FIXTURE-AA
+fixture_requirements: [F, G]
+description: "Sidebar has 8 navigation groups. At 768px viewport height, only 5 are visible in the screenshot. DOM query returns all 8. Screenshot alone cannot prove the other 3 are absent — they are simply below the fold."
+page_id: PAGE-NAVIGATION-SIDEBAR
+
+# WRONG approach: screenshot-only evidence for content dimension
+wrong_approach:
+  evidence_type: screenshot_only
+  viewport: desktop-1440
+  viewport_height: 768
+  visible_groups: 5
+  conclusion_from_screenshot: "Only 5 navigation groups exist"
+  verdict: WRONG
+  reason: "Screenshot captures only visible viewport. 3 groups exist below the fold. Screenshot-only evidence produced false content evidence."
+
+# CORRECT approach: DOM query for content
+correct_approach:
+  evidence_type: dom_text_assertion
+  selector: ".mx-name-navigationTree1 .mx-group-header"
+  result: "Returns all 8 group headers regardless of scroll position"
+  all_groups_found: ["Stammdaten", "Planung", "Berichte", "Administration", "Konfiguration", "Benutzer", "Archiv", "Hilfe"]
+  verdict: CORRECT
+
+dimensions:
+  content:
+    result: FAIL
+    required: true
+    evidence:
+      target_evidence:
+        - type: dom_text_assertion
+          source: mockup
+          description: "Full sidebar DOM — all 8 groups captured via CSS selector"
+          expected: "8 navigation groups including 'Planung' at position 2"
+      actual_evidence:
+        - type: dom_text_assertion
+          source: application
+          description: "Application sidebar DOM — only 5 groups returned"
+          actual: "5 navigation groups; 'Planung', 'Archiv', 'Hilfe' missing"
+    deviations:
+      - concern: missing_navigation_groups
+        description: "3 navigation groups present in mockup are absent from application DOM"
+        severity: material
+        dimension: content
+overall_result: FAIL
+# Key lesson: DOM queries cover the full document. Screenshots do not.
+# NOT VISIBLE IN SCREENSHOT ≠ DOES NOT EXIST

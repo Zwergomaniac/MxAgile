@@ -21,6 +21,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/ui-parity.md` — Multi-dimensional parity contract (7 dimensions, statuses, aggregation, legacy evidence upgrade)
 - `.mxagile/policies/observe-before-mutate.md` — Enforceable lifecycle: observe and analyse BEFORE any mutation; mutation eligibility gate; evidence enablement exception
 - `.mxagile/policies/mockup-lifecycle.md` — Source mockup vs. active target mockup, provenance, version history
+- `.mxagile/policies/mockup-materialization.md` — Mockup type classification (static/executable), below-the-fold evidence, target evidence bundle, target vs actual separation, equivalent state enforcement
 - `.mxagile/policies/verification-scenario.md` — Material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy, parallelism safety
 - `.mxagile/policies/evidence-contract.md` — Temporary vs. canonical evidence, screenshot promotion contract, evidence manifest
 - `.mxagile/policies/project-knowledge.md` — Canonical artifact map, Git-tracked locations, gitignore contract, fresh clone test

@@ -1,0 +1,28 @@
+# Fixture A: Static HTML mockup — no dynamic behavior, no scenario explosion needed
+# (Named X to avoid collision with existing A–W fixtures)
+fixture_id: FIXTURE-X
+fixture_requirement: A  # Requirement A from task
+description: "Static HTML mockup with no JavaScript that materially changes content. No role-specific rendering. One materialization sufficient — no scenario matrix expansion required."
+page_id: PAGE-STATIC-DOCS
+source_mockup: input-resources/ui-ux/documentation-page.html
+mockup_type: static
+materialization_required: false
+materialization_rationale: "Pure HTML/CSS. No JavaScript. Navigation and content are identical regardless of role. One Playwright render per viewport is sufficient."
+target_evidence_bundle:
+  - type: screenshot
+    source: mockup
+    dimension: visual
+    path: planning/evidence/screenshots/target/SCN-DOCS-DESKTOP/visual_desktop.png
+  - type: dom_text_assertion
+    source: mockup
+    dimension: content
+    description: "Page headings verified via DOM — same for all roles"
+dimensions:
+  visual: { result: PASS, required: true }
+  content: { result: PASS, required: true }
+  structure: { result: PASS, required: true }
+  state: { result: NOT_APPLICABLE, required: false, not_applicable_rationale: "No dynamic states in static mockup" }
+  interaction: { result: NOT_APPLICABLE, required: false, not_applicable_rationale: "No interactions in static page" }
+  responsive: { result: PASS, required: true }
+  role: { result: NOT_APPLICABLE, required: false, not_applicable_rationale: "Content identical across roles — no role-specific rendering" }
+overall_result: PASS

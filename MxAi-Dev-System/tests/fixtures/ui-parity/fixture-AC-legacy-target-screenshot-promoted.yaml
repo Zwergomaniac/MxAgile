@@ -1,0 +1,26 @@
+# Fixture J: Legacy target screenshot promoted with provenance when useful
+fixture_id: FIXTURE-AC
+fixture_requirement: J
+description: "A screenshot of the Admin sidebar found in .concord/screenshots/mockup/ (legacy gitignored location). Still matches the current source mockup. Promoted as HISTORICAL_EVIDENCE with provenance."
+page_id: PAGE-NAVIGATION-SIDEBAR
+
+legacy_screenshot:
+  found_at: ".concord/screenshots/mockup/Sidebar_Admin_default_2026-08-20.png"
+  legacy_location: true
+  gitignored: true
+
+classification: HISTORICAL_EVIDENCE
+classification_rationale: "Screenshot shows Admin sidebar navigation groups. Source mockup has not changed since this date. This evidence supports the existing LEGACY_EVIDENCE visual dimension entry."
+
+promotion:
+  destination: "planning/evidence/screenshots/target/SCN-SIDEBAR-TARGET-ADMIN/visual_legacy_2026-08-20.png"
+  evidence_manifest_entry:
+    artifact_id: EVD-LEGACY-SIDEBAR-ADMIN-VISUAL
+    type: screenshot
+    source: mockup
+    dimension: visual
+    path: "planning/evidence/screenshots/target/SCN-SIDEBAR-TARGET-ADMIN/visual_legacy_2026-08-20.png"
+    provenance: ".concord/screenshots/mockup/Sidebar_Admin_default_2026-08-20.png"
+    promoted_at: "2026-09-23"
+    description: "Legacy Admin sidebar visual from original Discovery run. Source mockup unchanged — valid for LEGACY_EVIDENCE reconstruction."
+    passed: true

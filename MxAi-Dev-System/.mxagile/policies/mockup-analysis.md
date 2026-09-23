@@ -35,6 +35,18 @@ Fuer HTML-Mockups unter `input-resources/ui-ux/`:
    fuer die Mendix-Implementierung verwenden
 9. Unklare oder widerspruechliche Ablaeufe als `DECISION REQUIRED` markieren
 10. Das Mockup nicht veraendern, sofern dies nicht ausdruecklich beauftragt wurde
+11. **Typ klassifizieren:** Das Mockup als `static`, `executable` oder `unknown` klassifizieren
+    und in der page YAML als `mockup_type` eintragen (siehe `policies/mockup-materialization.md`)
+12. **Below-the-Fold:** Inhalte unterhalb des sichtbaren Viewport-Bereichs sind NICHT abwesend
+    nur weil der Screenshot sie nicht zeigt. Fuer Navigation, Sidebar-Gruppen und scrollbare
+    Bereiche: DOM-Queries (`innerText()`, Selektoren) verwenden die das gesamte Dokument abdecken,
+    nicht nur den sichtbaren Bereich. Relevante Inhalte unterhalb des Viewports explizit erfassen.
+    **NICHT SICHTBAR IM SCREENSHOT ≠ EXISTIERT NICHT.**
+
+## Mockup-Materialisierung fuer ausfuehrbare Mockups
+
+Wenn `mockup_type = executable`: vor der Parity-Auswertung gemaess
+`policies/mockup-materialization.md` materialisieren. Quellcode-Inspektion allein reicht nicht.
 
 ## Nach der Mendix-Umsetzung
 

@@ -1,0 +1,38 @@
+# Fixture B+C: JavaScript mockup changes sidebar labels by role
+# + source-code inspection alone cannot satisfy rendered-target evidence for B
+fixture_id: FIXTURE-Y
+fixture_requirements: [B, C]
+description: "Executable HTML mockup. JavaScript changes sidebar navigation group labels based on the active role. Source-code inspection shows only the default state. Role-specific execution required."
+page_id: PAGE-NAVIGATION-SIDEBAR
+source_mockup: input-resources/ui-ux/sidebar-navigation.html
+mockup_type: executable
+materialization_required: true
+materialization_rationale: "JavaScript sets navigation group labels from a role-config object. Reading HTML source shows only the default (Admin) labels. Other roles get different groupings. Source inspection alone does not establish target state for non-Admin roles."
+material_target_scenarios:
+  - scenario_id: SCN-SIDEBAR-TARGET-ADMIN
+    role: Admin
+    produces_different_ui: true
+    navigation_groups: ["Stammdaten", "Berichte", "Administration"]
+  - scenario_id: SCN-SIDEBAR-TARGET-VIEWER
+    role: Viewer
+    produces_different_ui: true
+    navigation_groups: ["Stammdaten", "Berichte"]
+    difference_from_admin: "Administration group hidden for Viewer"
+  - scenario_id: SCN-SIDEBAR-TARGET-MANAGER
+    role: Manager
+    produces_different_ui: false
+    note: "Manager and Admin produce identical navigation groups — duplicate materialization unnecessary"
+target_evidence_bundle:
+  - type: dom_text_assertion
+    source: mockup
+    dimension: content
+    description: "Admin role: navigation group DOM text captured via Playwright execution"
+    expected: "Stammdaten"
+  - type: dom_text_assertion
+    source: mockup
+    dimension: content
+    description: "Viewer role: separate execution confirms 'Administration' group absent"
+  - type: screenshot
+    source: mockup
+    dimension: visual
+    description: "Admin role sidebar screenshot after JS execution"
