@@ -78,6 +78,89 @@
       },
       "additionalProperties": false
     },
+    "local_runtime": {
+      "type": "object",
+      "description": "Project-declared local runtime profile. Non-secret configuration only. Secret references (env_key fields) point to keys in the canonical credential file — they are NOT the values. See policies/local-runtime-profile.md for the full contract and configuration precedence.",
+      "properties": {
+        "db_type": {
+          "type": "string",
+          "enum": ["hsqldb", "postgresql", "sqlserver"],
+          "description": "Database type for local runtime. Overrides the mxcli default. Required when the project uses a db type that differs from the mxcli-derived default."
+        },
+        "db_name": {
+          "type": "string",
+          "description": "Database name for local runtime. Overrides the name mxcli derives from the .mpr filename. Use when the Studio Pro local database was created with a different name than the .mpr file implies."
+        },
+        "db_host": {
+          "type": "string",
+          "default": "localhost",
+          "description": "Database host. Non-secret. Omit to use the mxcli default (localhost)."
+        },
+        "db_port": {
+          "type": "integer",
+          "description": "Database port. Non-secret. Omit to use the mxcli / database default."
+        },
+        "db_user_env_key": {
+          "type": "string",
+          "description": "Name of the credential-file key (e.g., MENDIX_DB_USER) holding the database username. Secret reference only — never the value itself."
+        },
+        "db_password_env_key": {
+          "type": "string",
+          "description": "Name of the credential-file key (e.g., MENDIX_DB_PASSWORD) holding the database password. Secret reference only — never the value itself."
+        },
+        "constant_overrides": {
+          "type": "array",
+          "description": "Runtime constant overrides applied for local development and test. Non-secret values inline; sensitive values via env_key reference. Applied via mxcli --constant flags. See policies/local-runtime-profile.md — Local Runtime Constant Overrides.",
+          "items": {
+            "type": "object",
+            "required": ["name", "purpose"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Fully-qualified Mendix constant name, e.g., MyModule.MyConstant. Do not hard-code MxAgile-specific constant names here — use project or Company Layer declarations."
+              },
+              "value": {
+                "type": "string",
+                "description": "Non-secret constant value. Use only for non-sensitive overrides. Omit when env_key is used."
+              },
+              "env_key": {
+                "type": "string",
+                "description": "Name of the credential-file key supplying a sensitive constant value. Use instead of 'value' when the value is a secret."
+              },
+              "purpose": {
+                "type": "string",
+                "description": "Human-readable rationale for this local override (e.g., 'Enables local admin login bypassed by production default')."
+              }
+            }
+          }
+        },
+        "app_url": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "Local application URL. Non-secret. Used by Playwright and readiness checks."
+        },
+        "app_port": {
+          "type": "integer",
+          "default": 8080,
+          "description": "Local application port. Non-secret. Overrides the mxcli default when specified."
+        },
+        "startup_timeout_seconds": {
+          "type": "integer",
+          "default": 120,
+          "description": "Maximum seconds to wait for APPLICATION_REACHABLE stage before declaring startup failed. Build success alone does not count as reached."
+        },
+        "admin_username_env_key": {
+          "type": "string",
+          "description": "Name of the credential-file key for the bootstrap administrator username. Secret reference only. Used for the bootstrap login contract (see policies/local-runtime-profile.md)."
+        },
+        "admin_password_env_key": {
+          "type": "string",
+          "description": "Name of the credential-file key for the bootstrap administrator password. Secret reference only."
+        }
+      },
+      "additionalProperties": false
+    },
     "prerequisites": {
       "type": "object",
       "description": "Project-level prerequisite and credential bootstrap configuration. MxAgile Core uses this to know which credential categories are required, which canonical source provides them, and how to validate readiness. Company Layers may extend this via .mxagile/layers/<id>/credentials.yml. See policies/credential-discovery.md for the full contract.",

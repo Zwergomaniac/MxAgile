@@ -70,6 +70,22 @@
               "enum": ["not_checked", "discovered", "incomplete", "user_input_required", "configured", "validation_failed", "ready"],
               "description": "Credential/config discovery status. discovered=source found but not all keys present; incomplete=source missing; user_input_required=bootstrap prepared, awaiting developer input; configured=all keys present; ready=validated successfully."
             },
+            "runtime_pipeline_stage": {
+              "type": "string",
+              "enum": [
+                "not_started",
+                "prerequisite_discovery",
+                "dependency_sync",
+                "build_in_progress",
+                "build_succeeded",
+                "runtime_started",
+                "application_reachable",
+                "browser_rendered",
+                "authenticated_session_ready",
+                "failed"
+              ],
+              "description": "Current or last-achieved local runtime startup stage. See policies/local-runtime-profile.md — Runtime Pipeline State Model. build_succeeded MUST NOT be treated as application_reachable. Agents must not start Playwright until browser_rendered; must not execute role scenarios until authenticated_session_ready."
+            },
             "database": {
               "type": "string",
               "enum": ["not_checked", "reachable", "unreachable", "auth_failed", "ready"],
@@ -93,6 +109,55 @@
             "blocked_operation": {
               "type": "string",
               "description": "Non-secret description of the operation that was blocked, for auto-resume. e.g. 'UI Discovery browser comparison for page Customer_NewEdit'"
+            },
+            "observe_before_mutate_stage": {
+              "type": "string",
+              "enum": [
+                "not_started",
+                "baseline_captured",
+                "analysis_complete",
+                "reconciliation_complete",
+                "refinement_accepted",
+                "mutation_allowed",
+                "post_mutation_pending",
+                "complete",
+                "violation_detected"
+              ],
+              "description": "Current stage in the Observe-Before-Mutate lifecycle. See policies/observe-before-mutate.md. violation_detected=agent performed mutation before completing observation; requires manual resolution."
+            },
+            "parity_reconciliation": {
+              "type": "object",
+              "description": "Non-secret progress of multi-dimensional parity reconciliation. For resumable evidence upgrade across sessions. See policies/ui-parity.md.",
+              "additionalProperties": false,
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["lazy", "full"],
+                  "description": "lazy=only verify dimensions with NOT_VERIFIED or LEGACY_EVIDENCE status. full=re-verify all dimensions for all pages."
+                },
+                "pages_total": {
+                  "type": "integer",
+                  "description": "Total number of pages to reconcile."
+                },
+                "pages_completed": {
+                  "type": "integer",
+                  "description": "Pages for which all required dimensions have been verified."
+                },
+                "pages_remaining": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Non-secret page IDs not yet reconciled."
+                },
+                "schema_upgraded": {
+                  "type": "boolean",
+                  "description": "True when all parity records have been structurally migrated to the dimensional schema."
+                },
+                "overall_result": {
+                  "type": "string",
+                  "enum": ["not_started", "in_progress", "complete", "failed"],
+                  "description": "Aggregated reconciliation status across all pages."
+                }
+              }
             }
           },
           "additionalProperties": false

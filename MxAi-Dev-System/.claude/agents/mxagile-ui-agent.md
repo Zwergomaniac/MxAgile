@@ -32,6 +32,10 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/evidence-levels.md` — Evidenz-Klassifikation (STATIC/MODEL/RUNTIME/BROWSER)
 - `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/policies/ui-element-selection.md` — Intent-driven widget selection: pattern before widget, Data Grid 2 fit check, read-only display contract, escalation ladder
+- `.mxagile/policies/ui-parity.md` — Multi-dimensional parity contract (7 dimensions, statuses, aggregation, legacy evidence upgrade)
+- `.mxagile/policies/observe-before-mutate.md` — Enforceable lifecycle: observe and analyse BEFORE any mutation
+- `.mxagile/policies/mockup-lifecycle.md` — Source mockup vs. active target mockup, provenance, version history
 - Company Layer UI documentation (if installed): `.mxagile/layers/*/modules/` fuer UI-Komponenten-Referenzen
 
 ## Evidence Level
@@ -150,7 +154,22 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
     (alle `*.html` inkl. `index.html`; `_archive/` ignorieren).
 3.  **Seiten-Struktur erfassen:** Gehe alle Seiten und sichtbaren Zustaende systematisch durch.
     Identifiziere logische Bereiche (Sections) und UI-Gruppen (Components wie Forms, Tables).
-4.  **Pro Seite ein Page YAML erzeugen:** Erzeuge fuer jede Seite eine `.yaml`-Datei unter
+4.  **UI-Pattern und Display-Mode bestimmen (PFLICHT vor Widget-Benennung):**
+    Bestimme fuer jede Component das `ui_pattern` und `display_mode` BEVOR ein Mendix-Widget
+    genannt wird. Lies `policies/ui-element-selection.md` fuer die vollstaendige Pattern-Liste
+    und das Auswahlprinzip.
+    *   **`ui_pattern`:** z.B. `responsive_record_list`, `dense_analytical_table`, `form`,
+        `read_only_detail_panel`, `card_collection`, `kpi_tile_group`.
+        NICHT: ein Mendix-Widget-Name. Ein Pattern ist noch kein Widget.
+    *   **`display_mode`:** `display` (Information zeigen) / `input` (Aenderung einladen) / `mixed`.
+        Eine Entitaet-Attribute impliziert KEIN Eingabe-Widget wenn `display_mode: display`.
+    *   **`widget_candidate` + `candidate_confidence: preliminary`:** Erst NACH Pattern-Bestimmung.
+        Verwende den Company Layer (`.mxagile/layers/*/modules/`) zuerst, dann Standard-Widgets.
+        Data Grid 2 ist KEIN Standardfall fuer Kollektionen — pruefe die 10 Fit-Fragen aus
+        `policies/ui-element-selection.md` bevor es als Kandidat eingetragen wird.
+    *   **`fit_rationale`:** Im Analyze-Modus nicht erforderlich (confidence ist `preliminary`).
+        Wird in der Refinement-Phase befuellt.
+5.  **Pro Seite ein Page YAML erzeugen:** Erzeuge fuer jede Seite eine `.yaml`-Datei unter
     `planning/ui-inventory/`. Das Format MUSS dem `page.schema.json` entsprechen.
     *   **IDs generieren:** Erzeuge stabile, lesbare IDs fuer alle Elemente
         (z.B. `PAGE-CUSTOMER-EDIT`, `FIELD-CUSTOMER-NAME`, `ACT-CUSTOMER-SAVE`).
@@ -158,8 +177,9 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
         `components`, `fields` und `actions` aus der visuellen Analyse.
     *   **`visual_priority` fuer Aktionen:** Primaere Aktionen (z.B. Speichern-Schaltflaeche)
         als `primary`, sekundaere (Abbrechen) als `secondary` markieren.
-    *   **Best-Effort-Typisierung:** `suggested_mendix_type` ist weiterhin ein Best-Effort-Versuch.
-5.  **Typisierte Navigation erfassen:** Fuer jede identifizierte Seiten-Navigation einen
+    *   **Best-Effort-Typisierung:** `suggested_mendix_type` ist weiterhin ein Best-Effort-Versuch
+        fuer Datentypen (String, DateTime usw.) — nicht fuer Widget-Typen.
+6.  **Typisierte Navigation erfassen:** Fuer jede identifizierte Seiten-Navigation einen
     Eintrag im `navigation` Array des Page YAML erstellen:
     ```yaml
     navigation:
@@ -172,7 +192,7 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
     ```
     Nur direkt beobachtbare Navigation aufnehmen. Bedingungen als `condition` notieren
     wenn erkennbar. Nicht spekulative Navigationspfade erfinden.
-6.  **Interaction-States erfassen:** Relevante UI-Zustaende dokumentieren:
+7.  **Interaction-States erfassen:** Relevante UI-Zustaende dokumentieren:
     ```yaml
     interaction_states:
       - state_id: STATE-CUSTOMER-EMPTY
@@ -185,14 +205,14 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
         screenshot: .concord/screenshots/mockup/Customer_NewEdit_validation.png
     ```
     Alle fachlich relevanten Varianten (Tabs, Rollen, Filter, Dialogzustaende) aktiv ausloesen.
-7.  **Reference Screenshot:** Hauptzustand jeder Seite als `layout_reference` Screenshot
+8.  **Reference Screenshot:** Hauptzustand jeder Seite als `layout_reference` Screenshot
     unter `.concord/screenshots/mockup/{PageName}_default.png` speichern.
     Diesen Pfad im Page YAML als `layout_reference` eintragen.
-8.  **Screenshots erstellen:** Alle relevanten Zustaende unter `.concord/screenshots/mockup/`
+9.  **Screenshots erstellen:** Alle relevanten Zustaende unter `.concord/screenshots/mockup/`
     ablegen (Format: `{PageName}_{State}.png`).
-9.  **Company Layer UI-Mapping:** Bei Layout-Elementen pruefen ob ein Aequivalent aus der
+10. **Company Layer UI-Mapping:** Bei Layout-Elementen pruefen ob ein Aequivalent aus der
     installierten Company Layer UI-Bibliothek existiert (`.mxagile/layers/*/modules/` falls Layer vorhanden).
-10. **Luecken dokumentieren:** Unklare oder widerspruechliche Elemente als `DECISION REQUIRED`
+11. **Luecken dokumentieren:** Unklare oder widerspruechliche Elemente als `DECISION REQUIRED`
     markieren. Das Mockup selbst wird NICHT veraendert.
 
 ### Output Example (`planning/ui-inventory/Customer_NewEdit.yaml`)
@@ -211,6 +231,10 @@ sections:
     components:
       - id: COMP-CUSTOMER-FORM
         type: form
+        ui_pattern: form
+        display_mode: input
+        widget_candidate: DataViewForm
+        candidate_confidence: preliminary
         fields:
           - id: FIELD-CUSTOMER-NAME
             label: "Name"
@@ -283,106 +307,186 @@ Vor dem Start Playwright/Browser:
    pruefen und ausfuehren; fehlende Daten als `MOCK_DATA_UNAVAILABLE` klassifizieren
 3. **Test-Rollen:** Fuer Role-spezifische Szenarien: Login als korrekte Demo-/Test-Rolle
 
+### Observe-Before-Mutate Vorbedingung
+
+BEVOR irgendwelche Implementierungsaenderungen (SCSS, Widgets, Seitenstruktur, Inhalte)
+vorgenommen werden: ZUERST den Verifying-Modus abschliessen.
+
+Lies `policies/observe-before-mutate.md`. Eine Verletzung dieser Reihenfolge ist ein
+LIFECYCLE VIOLATION. Setze `prerequisite_state.observe_before_mutate_stage: baseline_captured`
+BEVOR Aenderungen vorgenommen werden.
+
+### Aktives Target-Mockup bestimmen
+
+Lies aus `planning/ui-inventory/{PageName}.yaml` das Feld `target_mockup`.
+- Falls `target_mockup` gesetzt: verwende dieses als Referenz fuer die Verifizierung.
+- Falls `target_mockup` fehlt: verwende `source_mockup` als Target.
+- Nie gegen ein veraltetes `source_mockup` verifizieren wenn ein aktuelles `target_mockup` existiert.
+
+Vollstaendiger Vertrag: `policies/mockup-lifecycle.md`.
+
 ### Ablauf
 
 1. `mxagile-project.yaml` lesen (falls vorhanden): `ui.fidelity` ermitteln.
    Standard: `fidelity: standard`.
 2. `implementation-checklist.yaml` laden.
-3. Playwright gegen die laufende App-URL starten.
-4. Fuer jede Seite im UI-Inventar:
-   a. Seite oeffnen
-   b. **Strukturelle Pruefung** (immer, unabhaengig von fidelity):
+3. Playwright gegen die laufende App-URL starten (`authenticated_session_ready` erforderlich).
+4. Fuer jede Seite im UI-Inventar — **7 Dimensionen unabhaengig pruefen:**
+
+   **a. VISUAL dimension** — Screenshot-Vergleich gegen `target_mockup`:
+      - App-Screenshot unter `.concord/screenshots/app/{PageName}_visual.png`
+      - Vergleich Layout, Farben, Spacing, visuelle Hierarchie
+      - Abweichungen in `deviations` mit `dimension: visual`
+
+   **b. CONTENT dimension** — DOM-Text-Extraktion (PFLICHT — Screenshot allein reicht nicht):**
+      - Navigationsgruppenbezeichnungen via CSS-Selector extrahieren
+      - Seitenheadings, Abschnittstitel, Feldlabels pruefen
+      - Button-Beschriftungen, Spaltenueberschriften, Platzhaltextexte pruefen
+      - Status-/Badge-Texte pruefen
+      - Lokalisierung pruefen (korrekte Sprache aktiv?)
+      - Jeden gefundenen DOM-Text-Wert als `dom_text`-Evidenz dokumentieren
+
+   **c. STRUCTURE dimension** — DOM-Selektor-Pruefungen:
       - Jedes Feld per `.mx-name-*` Selector pruefen (Fallback: Label-Text)
       - Jeden Button pruefen
-      - App-Screenshot unter `.concord/screenshots/app/{PageName}_default.png` speichern
-   c. **Navigations-Pruefung** (immer, wenn `navigation` im Inventar vorhanden):
-      - Jede typisierte Navigation aus dem Inventar ausfuehren:
-        action ausloesen → pruefen ob erwartete Zielseite geladen wird
-   d. **Interaction-State-Pruefung** (immer, wenn `interaction_states` im Inventar vorhanden):
-      - Jeden dokumentierten State ausloesen und pruefen ob er eintritt
-      - Screenshot unter `.concord/screenshots/app/{PageName}_{State}.png`
-   e. **Semantische Fidelity-Pruefung** (nur wenn `ui.fidelity = high`):
-      Ausfuehrlicher Vergleich gegen `layout_reference` und `ui-inventory`:
+      - Section-Anzahl und -Reihenfolge pruefen
+      - Gruppen-Treue (Felder in gleicher Section?)
+      - Komponenten-Typen: Wird der im Inventar angegebene `widget_candidate` verwendet?
+        (z.B. Dropdown erwartet per Inventar, TextBox implementiert — STRUCTURE deviation)
 
-      1. **Seitenstruktur:** Stimmt die Section-Anzahl und -Reihenfolge ueberein?
-      2. **Gruppen-Treue:** Sind zusammengehoerige Felder (gleiche Section im Inventar)
-         noch zusammen, oder auf verschiedene Bereiche verteilt?
-      3. **Element-Reihenfolge:** Stimmt die Feld- und Button-Reihenfolge innerhalb
-         von Sections ueberein?
-      4. **Komponenten-Typen:** Werden vergleichbare Mendix-Kontrolltypen verwendet?
-         (z.B. Dropdown erwartet per Inventar, TextBox implementiert — ist eine Deviation)
-      5. **Visuelle Hierarchie:** Ist eine als `visual_priority: primary` markierte Aktion
-         noch visuell prominenter als sekundaere Aktionen?
+   **d. STATE dimension** — Interaction-State-Ausloesung:
+      - Alle `interaction_states` aus dem UI-Inventar ausloesen
+      - Pro State: Screenshot unter `.concord/screenshots/app/{PageName}_{State}.png`
+      - Pruefen ob der State wie im Inventar beschrieben eintritt
 
-      Nur faktisch beobachtbare Unterschiede dokumentieren — keine Pixel-Arithmetik.
-      Signifikante Abweichungen in `deviations` eintragen.
+   **e. INTERACTION dimension** — Navigation und Aktionen:
+      - Alle `navigation`-Eintraege aus dem Inventar ausfuehren
+      - Action ausloesen → pruefen ob erwartete Zielseite geladen wird
+      - Formular-Submission, Cancel, Zurueck-Navigation pruefen
 
-5. Soll-Ist-Tabelle erzeugen und `ui_fidelity` Block befuellen:
+   **f. RESPONSIVE dimension** — Viewport-spezifische Pruefung:
+      - Mind. Desktop und Phone-Viewport testen
+      - Kein horizontaler Overflow auf Phone
+      - Navigation-Collapse, Column-Reflow pruefen
+      - Screenshot pro Viewport unter `.concord/screenshots/app/{PageName}_{Viewport}.png`
+
+   **g. ROLE dimension** — Rollenspezifische Darstellung:
+      - Separaten Playwright-Login fuer jede deklarierte Rolle
+      - Pruefen: korrekte Felder/Buttons sichtbar/versteckt
+      - Pruefen: Edit-Controls vs. Display-Components rollenrichtig
+      - Pruefen: Rollenspezifische Navigation-Items fehlen wo erwartet
+
+5. Dimensionalen Parity-Report erzeugen gemaess Schema
+   `.mxagile/schemas/parity-verification.schema.json`:
 
 ```yaml
-page: Customer_NewEdit
-comparison:
-  - field: Name
-    expected: "TEXTBOX, required"
-    actual: "TEXTBOX txtName found, NOT NULL constraint present"
-    status: ok
-  - field: Email
-    expected: "TEXTBOX, required"
-    actual: "not found"
-    status: missing
-navigation:
-  - action_id: ACT-CUSTOMER-SAVE
-    leads_to_page: Customer_Overview
-    status: ok
-  - action_id: ACT-CUSTOMER-CANCEL
-    leads_to_page: Customer_Overview
-    status: ok
-interaction_states:
-  - state_id: STATE-CUSTOMER-VALIDATION
-    status: ok
-ui_fidelity:
-  configured: high
-  result: FAIL
-  reference: .concord/screenshots/mockup/Customer_NewEdit_default.png
-  evidence: .concord/screenshots/app/Customer_NewEdit_default.png
-  deviations:
-    - concern: section_grouping
-      description: "Name und Email-Felder in getrennten Sections implementiert; Mockup zeigt sie in einer Section"
-      severity: material
-    - concern: action_ordering
-      description: "Abbrechen-Button links von Speichern; Mockup zeigt Speichern links"
-      severity: minor
+page_id: PAGE-CUSTOMER-NEWEDIT
+verified_at: "2026-09-23"
+evidence_level: browser
+source_mockup: input-resources/ui-ux/customer-newedit.html
+target_mockup: input-resources/ui-ux/customer-newedit.html
+app_url: "http://localhost:8080"
+role: Sales
+viewport: desktop-1440
+schema_version: 1
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    evidence:
+      - type: screenshot
+        path: ".concord/screenshots/app/Customer_NewEdit_visual.png"
+        description: "Layout, Farben und Spacing stimmen mit Target-Mockup ueberein"
+        passed: true
+  content:
+    result: FAIL
+    required: true
+    evidence:
+      - type: dom_text
+        selector: ".mx-name-labelName .mx-label"
+        expected: "Name"
+        actual: "Kundenname"
+        passed: false
+    deviations:
+      - concern: field_label_name
+        description: "Feldlabel 'Name' implementiert als 'Kundenname' — weicht von Mockup und Inventar ab"
+        severity: material
+        dimension: content
+  structure:
+    result: PASS
+    required: true
+    evidence:
+      - type: dom_selector
+        selector: ".mx-name-txtName"
+        description: "Namensfeld vorhanden"
+        passed: true
+  state:
+    result: PASS
+    required: true
+    evidence:
+      - type: screenshot
+        path: ".concord/screenshots/app/Customer_NewEdit_STATE-CUSTOMER-VALIDATION.png"
+        description: "Validierungsfehler-State ausgeloest und korrekt dargestellt"
+        passed: true
+  interaction:
+    result: PASS
+    required: true
+    evidence:
+      - type: navigation_flow
+        description: "Speichern-Button navigiert zu Customer_Overview"
+        passed: true
+  responsive:
+    result: NOT_VERIFIED
+    required: false
+    note: "Responsive-Pruefung noch ausstehend"
+  role:
+    result: NOT_VERIFIED
+    required: true
+    note: "Admin-Rolle noch nicht geprueft"
+overall_result: FAIL
 ```
 
-`ui_fidelity.result`:
-- `PASS` — keine materiellen Abweichungen (minor-only Deviations sind erlaubt)
-- `WARNING` — geringe material deviations, keine funktionalen Auswirkungen
-- `FAIL` — materielle Abweichungen die das UI-Konzept verletzt
+`overall_result` Aggregation (gemaess `policies/ui-parity.md`):
+- `PASS`: alle required-Dimensionen sind PASS
+- `FAIL`: mindestens eine required-Dimension ist FAIL
+- `PARTIAL`: keine FAIL, aber mind. eine PARTIAL oder CONFLICT
+- `NOT_VERIFIED`: keine Browser-Verifizierung erfolgt
 
-6. Bei `failed` oder `missing` (strukturell) oder `ui_fidelity.result: FAIL` (fidelity):
-   Betroffenes Item in `implementation-checklist.yaml` auf `status: failed` setzen.
-7. App-Screenshots unter `.concord/screenshots/app/` ablegen.
+6. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
+   auf `status: failed` setzen.
+7. Parity-Report unter `planning/parity/{PageName}_parity.yaml` ablegen.
+8. Rueckwaertskompatibilitaet: bestehende `{PageName}_comparison.yaml` bleibt als
+   Legacy-Artefakt erhalten. Neue Dimensionsergebnisse ersetzen es NICHT retroaktiv.
 
 ### Wann ist eine Abweichung "material"?
 
-Material (resultiert in WARNING oder FAIL):
-- Erwartetes zwei-Spalten-Layout implementiert als ein-spaltig
-- Erwartete Tabs implementiert als ungeordnete flache Sections
-- Primaere Aktion (primary) nicht visuell hervorgehoben
-- Navigationsfluss weicht vom Inventar ab
-- Wichtige Interaction-State fehlt komplett
-- Felder-Gruppierung grundlegend anders als im Inventar
+Material (resultiert in FAIL der betroffenen Dimension):
+- Erwartetes zwei-Spalten-Layout implementiert als ein-spaltig (structure)
+- Erwartete Tabs implementiert als ungeordnete flache Sections (structure)
+- Primaere Aktion (primary) nicht visuell hervorgehoben (visual)
+- Navigationsfluss weicht vom Inventar ab (interaction)
+- Wichtige Interaction-State fehlt komplett (state)
+- Felder-Gruppierung grundlegend anders als im Inventar (structure)
+- Feldlabel-Text weicht vom Mockup ab (content)
+- Navigationsgruppenname weicht vom Mockup ab (content)
+- Spaltenueberschrift weicht vom Inventar ab (content)
 
-Nicht material (ignorieren bei PASS-Bewertung):
-- Geringfuegig andere Abstands- oder Proportionsunterschiede
-- Gleichwertige Mendix-Standard-Widgets mit aehnlicher UX
+Nicht material (ignorieren bei PASS-Bewertung der jeweiligen Dimension):
+- Geringfuegig andere Abstands- oder Proportionsunterschiede (visual)
+- Gleichwertige Mendix-Standard-Widgets mit aehnlicher UX (structure)
 - Reihenfolge von optionalen Metadaten-Feldern
 
 ### Output
 
-- Soll-Ist-Report unter `planning/ui-inventory/{PageName}_comparison.yaml`
+- Dimensionaler Parity-Report unter `planning/parity/{PageName}_parity.yaml`
+- Legacy Soll-Ist-Report unter `planning/ui-inventory/{PageName}_comparison.yaml` (bestehendes Artefakt bleibt erhalten)
 - Aktualisierte `implementation-checklist.yaml` (failed-Items)
 - `.concord/screenshots/app/{PageName}_{State}.png`
+- `.concord/screenshots/app/{PageName}_{Viewport}.png` (Responsive-Evidence)
+
+**Observe-Before-Mutate:** Nach Abschluss des Verify-Modus:
+`prerequisite_state.observe_before_mutate_stage: analysis_complete` setzen.
+Erst dann darf die Implementierung Aenderungen vornehmen.
 
 ## Einschraenkungen
 

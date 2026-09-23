@@ -12,6 +12,14 @@ bevor die Implementierung freigegeben wird.
 - [ ] Wave-Planung in `planning/execution-waves.md` aktualisiert
 - [ ] Marketplace-Widgets identifiziert fuer `standard_widget: false` Items (D49)
 - [ ] Company Layer Platform-Constraints beruecksichtigt: falls Layer installiert (.mxagile/layers/) → Layer-spezifische Modul- und UI-Vorgaben eingehalten; falls keine Layer → NOT_APPLICABLE
+- [ ] **UI Element Selection Gate:** Fuer jede Component im UI-Inventar mit `widget_candidate` gilt:
+  - `candidate_confidence` ist `assessed` oder `validated` — NICHT `preliminary`
+  - `fit_rationale` ist dokumentiert wenn `candidate_confidence: assessed` oder `validated`
+  - Data Grid 2-Kandidaten haben die 10-Punkte-Fit-Pruefung abgeschlossen
+    (siehe `policies/ui-element-selection.md — Data Grid 2 Fit Check`)
+  - `display_mode: display` Components verwenden kein Eingabe-Widget ohne explizite Begruendung
+  - Company Layer Komponenten wurden als erste Option geprueft
+  - `preliminary` confidence ist ein Blocker fuer gate-to-ready wenn das Inventar UI-Driven ist
 - [ ] Keine offenen Blocker
 - [ ] **Wenn `development.ui_driven = true`:** Fuer jede Seite im UI-Inventar sind
       `source_mockup`, `ui_inventory` und `layout_reference` verfuegbar und werden
@@ -56,6 +64,17 @@ items:
     spec: "String(200), NOT NULL, Pflichtfeld"
     suggested_mendix_type: "String(200) NOT NULL"
     standard_widget: true
+    status: pending
+
+  - id: COMP-CUSTOMER-LIST
+    type: page_component
+    req: [{STORYPREFIX}-001]
+    source: ui-inventory
+    ui_pattern: responsive_record_list
+    display_mode: display
+    widget_candidate: ListView
+    candidate_confidence: assessed
+    fit_rationale: "Mockup shows card-like rows without column headers; responsive mobile layout required; no sorting/filtering requirements; List View with custom content satisfies all visual and responsive contract requirements."
     status: pending
     test:
       steps:

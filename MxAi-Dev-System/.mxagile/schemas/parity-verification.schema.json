@@ -1,0 +1,200 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile UI Parity Verification",
+  "description": "Multi-dimensional parity verification result for a UI page or component. Produced by UI-Agent Verify mode. See .mxagile/policies/ui-parity.md for the full contract. AGGREGATION RULE: overall_result=PASS only when all REQUIRED dimensions are PASS. Any FAILED, PARTIAL, or NOT_VERIFIED required dimension causes overall_result=FAIL.",
+  "type": "object",
+  "required": ["page_id", "verified_at", "evidence_level", "dimensions", "overall_result"],
+  "additionalProperties": false,
+  "properties": {
+    "page_id": {
+      "type": "string",
+      "description": "Matches the page_id from the UI inventory (PAGE-...)."
+    },
+    "verified_at": {
+      "type": "string",
+      "description": "ISO date (YYYY-MM-DD) when this verification was performed."
+    },
+    "evidence_level": {
+      "type": "string",
+      "enum": ["browser", "model", "static", "legacy"],
+      "description": "Evidence level of this verification. browser=Playwright against running app (authoritative); model=mxcli inspect only; static=document analysis; legacy=migrated from a pre-dimensional parity record."
+    },
+    "target_mockup": {
+      "type": "string",
+      "description": "Path to the ACTIVE acceptance target mockup used for this verification. May differ from the original source_mockup if the target was refined. See policies/mockup-lifecycle.md."
+    },
+    "source_mockup": {
+      "type": "string",
+      "description": "Path to the original (immutable) source mockup as provided by the project/customer. Never modified."
+    },
+    "app_url": {
+      "type": "string",
+      "description": "Application URL used during Playwright verification."
+    },
+    "role": {
+      "type": "string",
+      "description": "Role used for this verification session (e.g., Admin, SalesUser)."
+    },
+    "viewport": {
+      "type": "string",
+      "description": "Viewport used (e.g., desktop-1440, tablet-768, phone-375)."
+    },
+    "dimensions": {
+      "type": "object",
+      "description": "Independently recorded parity dimensions. Each dimension is evaluated separately. See ui-parity.md for evidence requirements per dimension.",
+      "required": ["visual", "content", "structure", "state", "interaction", "responsive", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "visual": { "$ref": "#/definitions/parity_dimension" },
+        "content": { "$ref": "#/definitions/parity_dimension" },
+        "structure": { "$ref": "#/definitions/parity_dimension" },
+        "state": { "$ref": "#/definitions/parity_dimension" },
+        "interaction": { "$ref": "#/definitions/parity_dimension" },
+        "responsive": { "$ref": "#/definitions/parity_dimension" },
+        "role": { "$ref": "#/definitions/parity_dimension" }
+      }
+    },
+    "overall_result": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED"],
+      "description": "Aggregated result across all required dimensions. PASS: all required dimensions are PASS. FAIL: one or more required dimensions are FAILED. PARTIAL: one or more required dimensions are PARTIAL or CONFLICT and none are FAILED. NOT_VERIFIED: no browser verification has been performed."
+    },
+    "regression_scenario": {
+      "type": "object",
+      "description": "Optional: used to record the expected outcome of a known regression scenario to prove that false-positive prevention works.",
+      "properties": {
+        "description": { "type": "string" },
+        "expected_dimension_results": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT"]
+          }
+        },
+        "expected_overall": { "type": "string" }
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "description": "Version of this parity schema. Increment when the dimension set changes. Used for evidence upgrade detection."
+    },
+    "evidence_upgrade": {
+      "$ref": "#/definitions/evidence_upgrade_state"
+    }
+  },
+  "definitions": {
+    "parity_dimension": {
+      "type": "object",
+      "required": ["result"],
+      "additionalProperties": false,
+      "description": "Result for one parity dimension. required=true dimensions that are FAILED, PARTIAL, or NOT_VERIFIED prevent overall PASS.",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE", "LEGACY_EVIDENCE"],
+          "description": "PASS: dimension satisfies the contract. FAIL: concrete deviation found. PARTIAL: some aspects pass, others have minor issues. NOT_VERIFIED: not yet checked. CONFLICT: evidence contradicts requirements. NOT_APPLICABLE: dimension not relevant for this page/component. LEGACY_EVIDENCE: migrated from a pre-dimensional record; provenance preserved but not re-verified."
+        },
+        "required": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true: FAIL, PARTIAL, or NOT_VERIFIED in this dimension blocks overall PASS."
+        },
+        "evidence": {
+          "type": "array",
+          "description": "Specific evidence items supporting this dimension result.",
+          "items": { "$ref": "#/definitions/evidence_item" }
+        },
+        "deviations": {
+          "type": "array",
+          "description": "Recorded deviations for FAIL or PARTIAL results.",
+          "items": { "$ref": "#/definitions/deviation" }
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional human-readable note about this dimension result."
+        },
+        "legacy_provenance": {
+          "type": "string",
+          "description": "When result=LEGACY_EVIDENCE: describes the original contract semantics and what was verified under the old schema."
+        }
+      }
+    },
+    "evidence_item": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["screenshot", "dom_text", "dom_selector", "mxcli_inspect", "navigation_flow", "interaction_test", "viewport_test", "role_test", "accessibility_check"],
+          "description": "Type of evidence. dom_text=browser DOM text extraction; dom_selector=element found/not found; navigation_flow=verified page transition."
+        },
+        "description": { "type": "string" },
+        "path": { "type": "string", "description": "Path to screenshot or artifact, if applicable." },
+        "selector": { "type": "string" },
+        "expected": { "type": "string" },
+        "actual": { "type": "string" },
+        "passed": { "type": "boolean" }
+      }
+    },
+    "deviation": {
+      "type": "object",
+      "required": ["concern", "description", "severity"],
+      "additionalProperties": false,
+      "properties": {
+        "concern": {
+          "type": "string",
+          "description": "Short identifier for the concern area (e.g., sidebar_label_grouping, button_caption, column_header)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the deviation."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["material", "minor"],
+          "description": "material=affects the UI contract (blocks PASS). minor=acceptable variation."
+        },
+        "dimension": {
+          "type": "string",
+          "enum": ["visual", "content", "structure", "state", "interaction", "responsive", "role"],
+          "description": "The dimension this deviation belongs to."
+        }
+      }
+    },
+    "evidence_upgrade_state": {
+      "type": "object",
+      "description": "Tracks upgrade progress when an existing parity record is being migrated to the dimensional schema. Used for resumable evidence upgrade per policies/ui-parity.md.",
+      "additionalProperties": false,
+      "properties": {
+        "schema_upgraded": {
+          "type": "boolean",
+          "description": "True when the record has been structurally migrated to the dimensional schema."
+        },
+        "reconstructed_dimensions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Dimensions populated from existing authoritative evidence (no re-verification needed)."
+        },
+        "gaps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Dimensions that require re-verification because existing evidence does not cover them."
+        },
+        "targeted_reverification_required": {
+          "type": "boolean",
+          "description": "True when one or more dimensions in 'gaps' require a targeted browser verification run."
+        },
+        "reverification_completed": {
+          "type": "boolean",
+          "description": "True when all targeted re-verification scenarios have been executed."
+        },
+        "remaining_scenarios": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Non-secret identifiers of verification scenarios not yet executed."
+        }
+      }
+    }
+  }
+}

@@ -99,6 +99,32 @@ A local runtime failure during Implementing MUST NOT automatically:
 
 Preserve completed valid implementation work regardless of runtime state.
 
+## Project-Declared Local Runtime Profile
+
+Before starting the local runtime, read the `local_runtime` section from `mxagile-project.yaml`
+(if present). This section declares project-specific configuration that overrides mxcli defaults.
+
+Key fields: `db_type`, `db_name`, `db_host`, `app_port`, `constant_overrides`,
+`admin_username_env_key`, `admin_password_env_key`.
+
+**Full contract:** `policies/local-runtime-profile.md`
+
+## Configuration Precedence
+
+Apply runtime configuration in this explicit order (highest wins):
+
+```
+1. Explicit CLI argument (session-scoped)
+2. mxagile-project.yaml  local_runtime section
+3. Company Layer runtime defaults
+4. mxcli-derived defaults (e.g., db_name from .mpr filename)
+5. MxAgile Core fallback defaults
+```
+
+An mxcli-derived database name (level 4) MUST NOT override an explicit `local_runtime.db_name`
+declaration (level 2). If the project declares `db_name: default`, use `default`. Do NOT
+silently let mxcli re-derive a different name from the `.mpr` filename.
+
 ## Credential and Configuration Discovery Before Runtime Start
 
 Before attempting to start the local runtime, automatically discover project credential
@@ -106,10 +132,11 @@ and configuration sources.
 
 Required pre-start discovery (in order):
 
-1. **Inspect `.env.mendix`** — project-local credential file; check required keys
-2. **Inspect other local config** — `.env*`, mxcli configuration, project settings
-3. **Classify each required credential** — PRESENT / MISSING / EMPTY / INVALID
-4. **Use discovered credentials** — do NOT fall back to assumed defaults when a project
+1. **Read `mxagile-project.yaml`** — apply `local_runtime` profile per precedence above
+2. **Inspect `.env.mendix`** — project-local credential file; check required keys
+3. **Inspect other local config** — `.env*`, mxcli configuration, project settings
+4. **Classify each required credential** — PRESENT / MISSING / EMPTY / INVALID
+5. **Use discovered credentials** — do NOT fall back to assumed defaults when a project
    source exists
 
 If required credentials are MISSING or EMPTY after full discovery:
@@ -128,13 +155,13 @@ Complete credential discovery contract: `policies/credential-discovery.md`
 Local runtime may have database prerequisites. MxAgile does not prescribe a universal
 database type.
 
-Preference order:
+Apply in this order:
 
-1. Existing project or runtime configuration (if present, e.g. `.env.mendix`)
-2. Normal `mxcli run --local` behavior (mxcli defaults)
-3. Supported provisioning options (`--ensure-db` where environment supports it)
-4. Supported fallback options (`--db-type` alternatives)
-5. Explicit developer decision only when genuinely required
+1. **`local_runtime.db_type` / `db_name` in `mxagile-project.yaml`** — authoritative when present
+2. **Normal `mxcli run --local` behavior** — mxcli-derived database name from `.mpr` filename
+3. **Supported provisioning options** — `--ensure-db` where the environment supports it
+4. **Supported fallback options** — `--db-type` alternatives
+5. **Explicit developer decision** — only when genuinely required
 
 Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environments
 (native Windows, devcontainer, CI) have different database availability.
@@ -144,11 +171,79 @@ If runtime startup fails with a database error: first perform credential discove
 diagnostics and options. A DB-AUTH failure after correct credential discovery is a
 diagnostic matter — not authorization for credential mutation.
 
+When no `local_runtime.db_name` is declared and startup fails with a database-not-found error,
+consider whether the Studio Pro local database was created with a different name than mxcli
+derives from the `.mpr` filename. Inspect available non-secret metadata before prompting the
+developer. Full contract: `policies/local-runtime-profile.md — Studio Pro Local Database Compatibility`.
+
+## Runtime Pipeline State Model
+
+The local runtime startup has distinct stages. Agents MUST distinguish them.
+
+| Stage | Meaning |
+|---|---|
+| `PREREQUISITE_DISCOVERY` | Credential and config discovery in progress |
+| `DEPENDENCY_SYNC` | mxcli/Gradle dependency sync in progress |
+| `BUILD_IN_PROGRESS` | mxbuild compilation underway |
+| `BUILD_SUCCEEDED` | Compilation complete — NOT yet reachable |
+| `RUNTIME_STARTED` | Mendix runtime process launched — NOT yet HTTP-reachable |
+| `APPLICATION_REACHABLE` | HTTP endpoint responds (login page loads) |
+| `BROWSER_RENDERED` | Playwright browser has loaded the application |
+| `AUTHENTICATED_SESSION_READY` | Bootstrap login complete, role confirmed |
+
+Record the achieved stage in `prerequisite_state.runtime_pipeline_stage` in process-state.
+
+**Critical distinctions:**
+- `BUILD_SUCCEEDED` ≠ `APPLICATION_REACHABLE`
+- `RUNTIME_STARTED` ≠ `BROWSER_RENDERED`
+- `APPLICATION_REACHABLE` ≠ `AUTHENTICATED_SESSION_READY`
+
+Full contract: `policies/local-runtime-profile.md — Runtime Pipeline State Model`
+
+## Watch-Mode Startup Semantics
+
+`mxcli run --local --watch` manages the full cold-start → readiness → watch loop in one
+invocation. Do NOT add extra restart layers unless mxcli provides evidence that they are needed.
+
+Agents MUST NOT begin Playwright interaction until `BROWSER_RENDERED` is confirmed.
+Agents MUST NOT begin role/scenario execution until `AUTHENTICATED_SESSION_READY` is confirmed.
+
+Full contract: `policies/local-runtime-profile.md — Watch-Mode Startup Semantics`
+
+## Readiness Detection
+
+Prefer authoritative signals over fragile process-tree assumptions:
+
+1. **mxcli machine-readable output** — structured readiness event or log entry
+2. **HTTP response from `app_url`** — login page or application root
+3. **Runtime log output** — documented Mendix runtime readiness messages
+4. **Port listener check** — `app_port` accepting connections
+
+Do NOT use Windows `wmic` process-tree queries as the PRIMARY readiness signal.
+
+Full contract: `policies/local-runtime-profile.md — Readiness Detection Preference Order`
+
+## Gradle Lock / Dependency-Sync Handling
+
+If dependency sync appears stalled, classify it precisely before taking any action.
+
+MxAgile responsibility: detect the stage, detect abnormal lack of progress, produce a precise
+diagnosis. MxAgile MUST NOT automatically kill arbitrary Java/Gradle processes.
+
+If a Gradle daemon appears to hold a dependency lock:
+- Report the lock file path and which daemon may hold it
+- Recommend `gradle --stop` (stops user's daemons) if supported
+- Escalate to developer if action requires confirmation
+
+Full contract: `policies/local-runtime-profile.md — Gradle Lock / Dependency-Sync Handling`
+
 ## Verification Invariants
 
 These hold at all times:
 
 - Application starts successfully ≠ Verification started
+- `BUILD_SUCCEEDED` ≠ Application reachable
+- `APPLICATION_REACHABLE` ≠ Verification started
 - Runtime inspection during Implementing ≠ UI-Agent Verify
 - Visually checking work while implementing ≠ Acceptance passed
 - `mxcli run --local` succeeds ≠ Wave verified

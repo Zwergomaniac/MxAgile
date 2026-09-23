@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Bootstrap Rename and State Detection Tests
 
@@ -462,6 +462,7 @@ Write-Host ""
 # =========================================================================
 # Summary
 # =========================================================================
+$total = $PassCount + $FailCount
 Write-Host "=== Setup Detection Test Results ==="
 Write-Host "  PASS: $PassCount" -ForegroundColor Green
 if ($FailCount -gt 0) {
@@ -470,10 +471,12 @@ if ($FailCount -gt 0) {
         Write-Host "    $detail" -ForegroundColor Red
     }
     Write-Host ""
-    Write-Host "TEST FAILED: Bootstrap rename or state detection contract violated." -ForegroundColor Red
+    $failMsg = "TEST FAILED: Bootstrap rename or state detection contract violated."
+    Write-Host $failMsg -ForegroundColor Red
     exit 1
 } else {
     Write-Host ""
-    Write-Host "TEST PASSED: Bootstrap rename, state detection, and compatibility wrappers are correct." -ForegroundColor Green
+    $passMsg = "TEST PASSED: Bootstrap rename, state detection, and compatibility wrappers are correct."
+    Write-Host $passMsg -ForegroundColor Green
     exit 0
 }

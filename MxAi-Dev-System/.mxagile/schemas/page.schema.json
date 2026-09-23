@@ -10,7 +10,19 @@
         },
         "source_mockup": {
             "type": "string",
-            "description": "Relative path to the source HTML mockup file."
+            "description": "Relative path to the original (immutable) source HTML mockup file. Never modified after acceptance. See policies/mockup-lifecycle.md."
+        },
+        "target_mockup": {
+            "type": "string",
+            "description": "Relative path to the ACTIVE acceptance target mockup used for implementation and verification. When absent, source_mockup is also the target. Set when a refined target differs from the original source. See policies/mockup-lifecycle.md."
+        },
+        "target_mockup_version": {
+            "type": "string",
+            "description": "ISO date (YYYY-MM-DD) of the last accepted change to the target mockup."
+        },
+        "target_mockup_reason": {
+            "type": "string",
+            "description": "Human-readable reason for the last target mockup change. e.g. 'Refined after round-1 parity findings — content labels corrected'."
         },
         "layout_reference": {
             "type": "string",
@@ -37,6 +49,28 @@
                             "properties": {
                                 "id": { "type": "string" },
                                 "type": { "type": "string", "description": "e.g., form, table, listview" },
+                "ui_pattern": {
+                    "type": "string",
+                    "description": "Identified UI pattern BEFORE any Mendix widget is named. A UI pattern is not yet a Mendix widget. e.g., dense_analytical_table, responsive_record_list, card_collection, read_only_detail_panel, form, kpi_tile_group, label_value_summary. See policies/ui-element-selection.md — UI Pattern Examples."
+                },
+                "display_mode": {
+                    "type": "string",
+                    "enum": ["display", "input", "mixed"],
+                    "description": "Semantic mode of this component. display=presents information only; input=invites user to change values; mixed=contains both display and input elements. Drives widget selection: display components must not default to input controls."
+                },
+                "widget_candidate": {
+                    "type": "string",
+                    "description": "Proposed Mendix widget or component for this component. A HYPOTHESIS at preliminary confidence — not a decided implementation. e.g., DataGrid2, ListView, Container, custom:CompanyCardWidget. Must be advanced to assessed confidence before gate-to-ready."
+                },
+                "candidate_confidence": {
+                    "type": "string",
+                    "enum": ["preliminary", "assessed", "validated"],
+                    "description": "Confidence level of the widget_candidate. preliminary=initial guess from pattern, not yet checked against fit criteria; assessed=fit criteria evaluated and rationale documented; validated=confirmed in running browser with representative data and correct role."
+                },
+                "fit_rationale": {
+                    "type": "string",
+                    "description": "Required when candidate_confidence is assessed or validated. Summarizes the fit criteria evaluation: why this widget/component satisfies the visual, interaction, responsive, and role contract for this component. For Data Grid 2 candidates must reference the 10-point fit check. See policies/ui-element-selection.md."
+                },
                                 "fields": {
                                     "type": "array",
                                     "items": {

@@ -1,54 +1,40 @@
 <#
 .SYNOPSIS
-    DEPRECATED — use mxagile-setup-mercedes.ps1 instead.
+    DEPRECATED compatibility wrapper. Use mxagile-setup-mercedes.ps1 instead.
 
 .DESCRIPTION
-    Compatibility wrapper. Delegates to mxagile-setup-mercedes.ps1.
+    This script is DEPRECATED. The canonical public entry point was renamed to
+    mxagile-setup-mercedes.ps1 in the MxAgile bootstrap-rename release.
 
-    This script is retained for backward compatibility with existing automation,
-    documentation links, and developer muscle memory.
+    This wrapper delegates to mxagile-setup-mercedes.ps1 to preserve backward compatibility
+    for existing CI/CD pipelines or documentation that still references
+    install-mxagile-mercedes.ps1.
 
-    The canonical public entry point is now:
-
-        mxagile-setup-mercedes.ps1
-
-    Semantics: SETUP = stable entry point that independently detects the state of
-    MxAgile Core and the Mercedes Company Layer, and performs the correct operation
-    for each (INSTALL or UPDATE) without requiring the user to decide.
-
-    No installation logic lives here. There is exactly one canonical implementation
-    path: mxagile-setup-mercedes.ps1 -> scripts/install-core.ps1.
+    Update your scripts to call mxagile-setup-mercedes.ps1 directly.
 #>
 
-[CmdletBinding()]
-param (
-    [string]$ProjectRoot = (Get-Location).Path,
+param(
+    [string]$ProjectRoot        = "",
     [string]$DistributionSource = "",
-    [string]$DistributionRef = "main",
-    [string]$MercedesGitUrl = "https://mercedes-benz.ghe.com/DFC-Applikationsentwicklung/MxAgile-CompanyLayer.git",
-    [string]$MercedesRef = "main",
-    [switch]$Wait
+    [string]$MercedesGitUrl     = "",
+    [switch]$Force
 )
 
-Write-Host ""
-Write-Host "NOTE: install-mxagile-mercedes.ps1 is deprecated." -ForegroundColor Yellow
-Write-Host "      Use mxagile-setup-mercedes.ps1 for all new and existing project setup." -ForegroundColor Yellow
-Write-Host "      This wrapper delegates to mxagile-setup-mercedes.ps1." -ForegroundColor DarkGray
-Write-Host ""
+Write-Warning "DEPRECATED: install-mxagile-mercedes.ps1 is deprecated. Use mxagile-setup-mercedes.ps1 instead."
+Write-Host "Delegating to mxagile-setup-mercedes.ps1 ..." -ForegroundColor Yellow
 
 $setupScript = Join-Path $PSScriptRoot "mxagile-setup-mercedes.ps1"
 
-if (-not (Test-Path -LiteralPath $setupScript -PathType Leaf)) {
-    Write-Host "ERROR: mxagile-setup-mercedes.ps1 not found at: $setupScript" -ForegroundColor Red
+if (-not (Test-Path -LiteralPath $setupScript)) {
+    Write-Error "mxagile-setup-mercedes.ps1 not found at: $setupScript"
     exit 1
 }
 
-& $setupScript `
-    -ProjectRoot        $ProjectRoot `
-    -DistributionSource $DistributionSource `
-    -DistributionRef    $DistributionRef `
-    -MercedesGitUrl     $MercedesGitUrl `
-    -MercedesRef        $MercedesRef `
-    -Wait:$Wait
+$passArgs = @{}
+if ($ProjectRoot)        { $passArgs['ProjectRoot']        = $ProjectRoot }
+if ($DistributionSource) { $passArgs['DistributionSource'] = $DistributionSource }
+if ($MercedesGitUrl)     { $passArgs['MercedesGitUrl']     = $MercedesGitUrl }
+if ($Force)              { $passArgs['Force']              = $true }
 
+& $setupScript @passArgs
 exit $LASTEXITCODE
