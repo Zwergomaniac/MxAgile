@@ -272,48 +272,250 @@ If mxcli starts watch mode in a single invocation and manages the full cold-star
 
 ---
 
-## Gradle Lock / Dependency-Sync Handling
+## Gradle Dependency-Sync Stall Diagnosis and Safe Recovery
 
-The REAL acceptance run identified that an idle Gradle daemon can retain a lock file
-(`~/.gradle/caches/modules-2/modules-2.lock`) and cause subsequent dependency sync to appear stalled.
+### Root Failure Mode
+
+```
+mxcli run --local
+    ->
+managed Java dependency resolution (Gradle Tooling API)
+    ->
+Tooling API waits on ~/.gradle/caches/modules-2/modules-2.lock
+    ->
+lock is owned by a Gradle daemon from a previous completed or interrupted run
+    ->
+that daemon is alive but performing no build work
+    ->
+new run makes no progress indefinitely
+```
+
+The failure is silent: no error is emitted; the process simply does not advance past DEPENDENCY_SYNC.
+
+---
 
 ### Ownership
 
 | Responsibility | Owner |
 |---|---|
 | Detect DEPENDENCY_SYNC stage | MxAgile |
-| Detect abnormal lack of progress (stage stuck beyond configured timeout) | MxAgile |
-| Produce precise dependency-sync/lock diagnosis (not generic BLOCKED) | MxAgile |
+| Detect lack of progress within the stage | MxAgile |
+| Classify stall precisely (not generic BLOCKED) | MxAgile |
+| Identify lock-owner PID where technically possible | MxAgile |
+| Classify owner as ACTIVE vs STALE | MxAgile |
 | Own dependency-sync process lifecycle | mxcli |
-| Clean up daemon/processes where appropriate | mxcli |
-| Expose PID/state/readiness | mxcli |
-| Avoid stale lock behavior where technically possible | mxcli |
+| Expose PID of Gradle processes it starts | mxcli (upstream finding) |
+| Emit sync-in-progress vs sync-stalled signal | mxcli (upstream finding) |
+| Avoid holding lock after build completion | mxcli (upstream finding) |
 
-### MxAgile Safe Fallback
+---
 
-If dependency sync appears stalled beyond a reasonable threshold:
+### Detection Contract
 
-1. **Classify precisely** — report the specific symptom (sync appears stuck, possible Gradle lock)
-2. **Report non-destructively** — identify the lock file path and whether any Gradle daemon holds it
-3. **MxAgile MUST NOT automatically kill arbitrary Java/Gradle processes** — `wmic` process
-   termination without PID tracing is NOT canonical MxAgile behavior
-4. **Recommend supported remediation** — e.g., `gradle --stop` (stops all Gradle daemons owned by
-   the current user), or re-run with `--no-daemon` if mxcli supports that option
-5. **Escalate to developer** if the recommended action requires confirmation
+Track `dependency_sync_state` in `prerequisite_state` (see `process-state.schema.json`).
+
+| State | Meaning | Trigger |
+|---|---|---|
+| `not_started` | DEPENDENCY_SYNC stage not yet reached | Before mxcli starts dependency sync |
+| `active` | Sync is progressing (Gradle output seen, files changing) | Observable forward progress within progress window |
+| `long_running` | Sync has taken longer than expected but progress is still observable | Age > normal_threshold AND progress still visible |
+| `stalled` | No observable progress within the stall detection window | Age > stall_threshold AND no forward progress signals |
+| `lock_contended` | Lock file exists AND a live non-build process holds it | Stalled AND lock file detected AND owner PID identified |
+| `unknown` | Cannot determine state (mxcli provides no signal) | Fallback when no mxcli-readable output is available |
+
+**Critical distinction:** A `long_running` sync must NOT be classified as `stalled` merely because
+it exceeds a fixed time threshold. `stalled` requires absence of forward progress signals, not just
+elapsed time.
+
+**Forward progress signals:**
+- Gradle output lines advancing
+- Files under `~/.gradle/caches/` being modified
+- mxcli log output showing download/resolution activity
+- Gradle daemon log entries (`~/.gradle/daemon/`) showing recent activity
+
+A sync that is slow but still producing output is `long_running`, not `stalled`.
+
+---
+
+### Stall Detection Window
+
+Apply a two-tier threshold:
+
+1. `normal_threshold` — elapsed time within which no progress check is triggered (default: 120s)
+2. `stall_threshold` — elapsed time without progress signals after which `stalled` is declared (default: 60s of silence after `normal_threshold`)
+
+Both thresholds may be overridden in `local_runtime.startup_timeout_seconds`.
+
+---
+
+### Lock-Owner Classification
+
+When `dependency_sync_state = stalled`, inspect the lock:
+
+```
+1. Locate lock file: ~/.gradle/caches/modules-2/modules-2.lock
+2. If lock file does not exist: stall is NOT lock-contention; classify as unknown_stall
+3. If lock file exists:
+   a. Identify owning process PID using OS-supported locking info (not wmic guessing)
+   b. If PID identified: classify owner using the table below
+   c. If PID not identifiable: classify as lock_contended (unidentified owner)
+```
+
+| Classification | Evidence | Action |
+|---|---|---|
+| `NO_OWNER` | Lock file exists but no live process holds it | Lock is stale/orphaned; may be deleted safely after confirming no writes in progress |
+| `ACTIVE_BUILD` | Owner PID is actively running a Gradle build (output progressing) | Do NOT terminate; report contention; wait or escalate to developer |
+| `STALE_LEFTOVER` | Owner PID exists but belongs to a daemon from a previous completed or interrupted lifecycle, no build work active | May be eligible for safe recovery (see Safe Recovery Ladder) |
+| `UNIDENTIFIED` | Lock held by unknown process; PID not determinable | Do NOT terminate; escalate to developer with diagnostic info |
+| `OWN_LIFECYCLE` | Owner PID was spawned by the current mxcli run | Not a stall — monitor for progress |
+
+---
+
+### Safe Recovery Ladder
+
+Apply recovery in order. Stop at the first step that resolves the stall.
+
+```
+STEP 1: REPORT AND WAIT (always first)
+    Record dependency_sync_state: lock_contended
+    Report: lock file path, owner classification, PID if known
+    Wait up to developer_wait_window (default: 30s) for organic resolution
+
+STEP 2: RECOMMEND SUPPORTED COMMAND (when owner = STALE_LEFTOVER)
+    Recommend: gradle --stop (stops all daemons for the current user)
+    This is a supported Gradle command — not arbitrary process termination
+    Await developer confirmation before executing unless in autonomous mode with explicit permission
+
+STEP 3: EXECUTE gradle --stop (with permission)
+    Only when:
+      - owner = STALE_LEFTOVER confirmed
+      - explicit developer permission OR autonomous mode with recovery permission declared
+    After execution: verify lock is released before restarting mxcli
+
+STEP 4: ESCALATE TO DEVELOPER (when owner is ACTIVE_BUILD or UNIDENTIFIED)
+    Report complete diagnostic: lock path, owner PID, owner classification, recommended action
+    Do NOT proceed autonomously when live build work may be interrupted
+
+STEP 5: HARD PROCESS TERMINATION (last resort only — see Hard-Kill Conditions)
+    Only when all conditions in the Hard-Kill Conditions section are met
+```
+
+---
+
+### Hard-Kill Conditions
+
+Hard process termination of a Gradle/Java process requires ALL of the following positive evidence:
+
+1. `dependency_sync_state = lock_contended`
+2. Owner classification = `STALE_LEFTOVER` (confirmed, not assumed)
+3. `gradle --stop` was attempted and failed (or is not available in the environment)
+4. The owner PID is NOT associated with any active build output in the past N seconds
+5. The owner PID was spawned by a previous mxcli lifecycle that has since terminated
+6. No user/CI build session is active that could own the PID
+
+When all conditions are met: terminate only the specific stale owner PID. Do NOT terminate all
+Java processes or all Gradle daemons.
+
+Hard termination must be recorded in `prerequisite_state.blocked_operation` with evidence.
+
+---
+
+### Prohibited Recovery Actions
+
+**MxAgile MUST NOT automatically kill arbitrary Java/Gradle processes.** Process termination
+without positive stale-owner evidence is not canonical MxAgile behavior.
+
+These actions are NEVER allowed as routine or automatic recovery:
+
+| Prohibited Action | Why |
+|---|---|
+| Delete `~/.gradle/caches/**/*.lock` as startup routine | Deletes locks that may be protecting live builds |
+| Kill all Java processes (`wmic ... kill`) | Terminates unrelated development tools, IDEs, servers |
+| Kill all Gradle daemons without owner check | May interrupt active builds in other terminal sessions |
+| Kill a process merely because it is idle or exists | Idle ≠ orphaned; daemon may be reused by next build |
+| Delete `~/.gradle/caches/` or subsets | Destroys build cache; causes long re-download |
+| Restart mxcli without releasing the lock | Spawns a competing runtime pipeline |
+
+---
+
+### Idle-Timeout Mitigation (Optional)
+
+A reduced Gradle daemon idle timeout (`org.gradle.daemon.idletimeout` in `gradle.properties`) may
+reduce the probability of stale daemons holding locks by causing them to exit sooner after inactivity.
+
+**This is mitigation only, not resolution:**
+- The lifecycle problem (lock contention after previous run) still occurs at timeout boundaries
+- The timeout does not guarantee the daemon exits before the next run starts
+- Projects may already have this configured; do not blindly override it
+
+Evaluation: `gradle.properties: org.gradle.daemon.idletimeout=<ms>` or `--daemon-idle-timeout` flag.
+
+---
+
+### Repeated-Run Contract
+
+A second local run after a stopped or interrupted first run must be safe:
+
+```
+RUN #1 lifecycle (completed or interrupted)
+    ->
+State: runtime_pipeline_stage = any (stopped/failed/complete)
+    ->
+Before RUN #2: bounded diagnosis
+    1. Check whether any mxcli/Gradle process from RUN #1 is still active
+    2. Check whether any lock files from RUN #1 are still held
+    3. If NO active processes AND NO held locks: proceed with RUN #2 normally
+    4. If active processes from RUN #1: apply Lock-Owner Classification
+    5. If held locks: apply Safe Recovery Ladder
+    ->
+RUN #2 proceeds only after resources from RUN #1 are confirmed released or classified
+```
+
+**Concurrent run prevention:**
+- RUN #2 must not silently spawn competing runtime/build pipelines when RUN #1 still owns resources
+- If RUN #1 is still in DEPENDENCY_SYNC or BUILD_IN_PROGRESS: report and block RUN #2
+- Record in `prerequisite_state.dependency_sync_state` for session resumability
+
+---
+
+### Integration with Runtime Pipeline Stages
+
+```
+PREREQUISITE_DISCOVERY
+    ->
+DEPENDENCY_SYNC (track dependency_sync_state: active | long_running | stalled | lock_contended)
+    ->
+BUILD_IN_PROGRESS (only after DEPENDENCY_SYNC completes cleanly)
+    ->
+BUILD_SUCCEEDED
+    -> ...
+```
+
+`dependency_sync_state` is a sub-state of `DEPENDENCY_SYNC` pipeline stage.
+It does NOT replace or compete with `runtime_pipeline_stage`.
+When DEPENDENCY_SYNC completes: `dependency_sync_state = completed` (or absorbed into next stage).
+
+---
 
 ### Upstream Finding for mxcli
 
-**Observation:** An idle Gradle daemon retaining a dependency cache lock causes the next
-dependency sync to appear stalled without a clear timeout or error message.
+**Observation:** An idle Gradle daemon retaining `modules-2.lock` causes the next dependency sync to
+stall indefinitely without any error or timeout, with no structured signal distinguishing
+sync-in-progress from sync-stalled.
 
 **Expected mxcli behavior:**
-- Detect and report Gradle daemon lock contention during dependency sync
-- Either terminate its own stale daemons before sync, or expose a `--kill-daemons` option
-- Emit a structured readiness signal distinguishing sync-in-progress from sync-stalled
-- Expose the PID of any Gradle process it starts so MxAgile can trace it accurately
+1. Expose the PID of any Gradle daemon it starts, so MxAgile can trace ownership precisely
+2. Detect Gradle daemon lock contention during dependency sync and emit a structured event:
+   `{"event":"dependency_sync_stalled","cause":"gradle_lock","lock_path":"...","owner_pid":N}`
+3. Either terminate its own stale daemons before dependency sync, or expose a `--kill-daemons`
+   option that applies only to mxcli-managed daemons
+4. Emit a heartbeat/progress signal during dependency sync (e.g., every 30s) so clients can
+   distinguish slow-but-active from stalled
+5. Apply a bounded sync timeout with a clear error exit rather than waiting indefinitely
 
-**Impact:** Agent must use trial-and-error process inspection instead of authoritative mxcli
-signals, leading to brittle heuristics and operator confusion.
+**Impact if not resolved:** MxAgile must use platform-specific process inspection heuristics
+(inherently fragile, OS-dependent, not reliably deterministic) instead of authoritative mxcli
+signals, resulting in diagnostic uncertainty and risk of incorrect recovery.
 
 ---
 

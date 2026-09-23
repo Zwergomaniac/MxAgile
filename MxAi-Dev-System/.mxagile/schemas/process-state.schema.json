@@ -86,6 +86,31 @@
               ],
               "description": "Current or last-achieved local runtime startup stage. See policies/local-runtime-profile.md — Runtime Pipeline State Model. build_succeeded MUST NOT be treated as application_reachable. Agents must not start Playwright until browser_rendered; must not execute role scenarios until authenticated_session_ready."
             },
+            "dependency_sync_state": {
+              "type": "string",
+              "enum": [
+                "not_started",
+                "active",
+                "long_running",
+                "stalled",
+                "lock_contended",
+                "completed",
+                "failed",
+                "unknown"
+              ],
+              "description": "Sub-state of the DEPENDENCY_SYNC pipeline stage. active=forward progress observed. long_running=slower than normal but still progressing. stalled=no forward progress beyond stall_threshold. lock_contended=stalled AND lock file identified with owner process. completed=dependency sync finished successfully. Does NOT replace runtime_pipeline_stage. See policies/local-runtime-profile.md — Gradle Dependency-Sync Stall Diagnosis."
+            },
+            "dependency_sync_owner_classification": {
+              "type": "string",
+              "enum": [
+                "no_owner",
+                "active_build",
+                "stale_leftover",
+                "unidentified",
+                "own_lifecycle"
+              ],
+              "description": "Lock-owner classification when dependency_sync_state=lock_contended. stale_leftover=daemon from previous completed/interrupted lifecycle, no active build work; may be eligible for safe recovery. active_build=do NOT terminate. unidentified=do NOT terminate, escalate to developer. See policies/local-runtime-profile.md — Lock-Owner Classification."
+            },
             "database": {
               "type": "string",
               "enum": ["not_checked", "reachable", "unreachable", "auth_failed", "ready"],
