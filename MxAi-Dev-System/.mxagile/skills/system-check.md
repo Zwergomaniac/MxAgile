@@ -95,6 +95,8 @@ Also check migration and canonicalization state:
   - `status: in_progress` → **MIGRATION_IN_PROGRESS** (active DFC-AI migration — normal project work blocked)
   - state.yaml absent → **NO_MIGRATION_STATE** (fresh install or DFC migration not started)
 
+> **Note — Migration Axis vs. Reconciliation Axis:** `project_lifecycle_state` classifies the DFC-AI → MxAgile migration only. It is orthogonal to post-UPDATE reconciliation status. A project reporting `FULLY_NATIVE` may still require post-UPDATE reconciliation. Always check Section I (Lifecycle State and Reconciliation Detection) for current reconciliation requirements before recommending any lifecycle action.
+
 ---
 
 ## G. Company Layer
@@ -264,6 +266,7 @@ mxagile_system_check:
     migration_status: complete | in_progress | NOT_FOUND
     artifact_canonicalization: pending | in_progress | complete | NOT_FOUND
     project_lifecycle_state: HYBRID | FULLY_NATIVE | HYBRID_PRE_WP10 | MIGRATION_IN_PROGRESS | NO_MIGRATION_STATE
+    # migration axis only — FULLY_NATIVE does not imply post-UPDATE reconciliation complete; see lifecycle_state section
   company_layers:
     status: PASS | PASS_WITH_WARNINGS | FAIL | NOT_APPLICABLE
     detected: [list of layer IDs]
@@ -287,6 +290,8 @@ mxagile_system_check:
     mutation_eligibility: blocked | allowed | violation_detected | NOT_FOUND
     schema_reconciliation_needed: true | false
     evidence_gaps_count: N
+    legacy_evidence_unreconciled: true | false
+    reconciliation_required_before_implementation: true | false
     legacy_artifacts: [list of detected legacy locations]
     required_actions: [list of specific next-step actions derived from findings]
   warnings: []
@@ -305,7 +310,9 @@ Core UPDATE or fresh clone, without the developer needing to specify internal re
 
 2. **Schema reconciliation needed**: Do any parity records in `planning/parity/` have `schema_version` below current (1) or lack `overall_result`? Report YES/NO/NOT_APPLICABLE.
 
-3. **Evidence gaps**: Are there parity records with `overall_result: NOT_VERIFIED` or dimensions with `result: NOT_VERIFIED` that are `required: true`? Report count.
+3. **Evidence gaps**: Check both canonical parity records AND legacy evidence locations:
+   - **Canonical gaps**: Are there parity records in `planning/parity/` with `overall_result: NOT_VERIFIED` or required dimensions with `result: NOT_VERIFIED` (`required: true`)? Report count.
+   - **Legacy evidence unreconciled**: Does `.concord/screenshots/mockup/` contain any files AND no canonical evidence manifest exists under `planning/evidence/`? If YES: report `LEGACY_EVIDENCE_UNRECONCILED: true`. An `evidence_gaps_count` of 0 in this state does NOT mean evidence is complete — it means no canonical parity baseline has been established yet. Do NOT interpret zero canonical-manifest gaps as overall evidence completeness before legacy evidence has been reconciled and promoted.
 
 4. **Legacy artifact locations detected**:
    - `planning/stories/` directory exists? (legacy format; canonical: requirements/REQ-NNN.yml)
@@ -333,11 +340,17 @@ Based on findings, derive specific next actions:
 **If lifecycle state section I shows wave/phase:**
   "Lifecycle re-sync: currently at Wave [X], Phase [Y]. Resume from this position."
 
+**If `canonical_state_present: false` AND reconstructed phase is `implementing`, `verifying`, or `done`:**
+  "Canonical lifecycle state absent. Implementation MUST NOT resume based on historical artifact reconstruction alone. `reconciliation_required_before_implementation: true`. Required: run reconciliation to establish `planning/lifecycle/process-state.yaml` with verified `mutation_eligibility` before any implementation action."
+
 **If legacy artifact locations detected:**
   "Legacy artifacts found. Run: 'Perform project structure reconciliation per policies/reconciliation.md'"
 
 **If evidence gaps detected:**
   "Evidence gaps found for [count] required dimensions. Run: 'Identify targeted re-verification scenarios per policies/ui-parity.md'"
+
+**If `legacy_evidence_unreconciled: true`:**
+  "Legacy mockup evidence found at `.concord/screenshots/mockup/` without canonical evidence manifest. `evidence_gaps_count: 0` does NOT indicate evidence completeness in this state. Run: 'Reconcile and promote legacy evidence per policies/reconciliation.md and policies/evidence-contract.md before assessing evidence gaps.'"
 
 **If schema reconciliation needed:**
   "Parity schema upgrade required. Run: 'Upgrade parity records per policies/ui-parity.md — Existing Evidence Upgrade'"
