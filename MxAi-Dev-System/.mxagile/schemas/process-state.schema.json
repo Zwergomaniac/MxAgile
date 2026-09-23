@@ -61,6 +61,42 @@
           },
           "additionalProperties": false
         },
+        "prerequisite_state": {
+          "type": "object",
+          "description": "Non-secret readiness state for development prerequisites. NEVER store credential values here — only readiness classifications. Use this to resume after user provides required secret input without restarting from zero.",
+          "properties": {
+            "runtime_config": {
+              "type": "string",
+              "enum": ["not_checked", "discovered", "incomplete", "user_input_required", "configured", "validation_failed", "ready"],
+              "description": "Credential/config discovery status. discovered=source found but not all keys present; incomplete=source missing; user_input_required=bootstrap prepared, awaiting developer input; configured=all keys present; ready=validated successfully."
+            },
+            "database": {
+              "type": "string",
+              "enum": ["not_checked", "reachable", "unreachable", "auth_failed", "ready"],
+              "description": "Database connectivity status after using configured credentials."
+            },
+            "mock_data": {
+              "type": "string",
+              "enum": ["not_checked", "required", "seeded", "unavailable"],
+              "description": "Representative mock/seed data readiness for UI-driven scenarios."
+            },
+            "test_identities": {
+              "type": "string",
+              "enum": ["not_checked", "configured", "incomplete", "ready"],
+              "description": "Test user/role identity readiness for browser verification."
+            },
+            "discovery_evidence_level": {
+              "type": "string",
+              "enum": ["none", "static", "model", "runtime", "browser"],
+              "description": "Highest evidence level achieved during Discovery phase. Determines whether Full UI Discovery PASS is valid."
+            },
+            "blocked_operation": {
+              "type": "string",
+              "description": "Non-secret description of the operation that was blocked, for auto-resume. e.g. 'UI Discovery browser comparison for page Customer_NewEdit'"
+            }
+          },
+          "additionalProperties": false
+        },
         "resume_from": {
           "type": "string",
           "description": "Supplementary free-text hint. Structured checklist state (done/pending/failed) is authoritative for resume position."

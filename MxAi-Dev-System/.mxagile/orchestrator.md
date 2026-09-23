@@ -78,6 +78,48 @@ befindet. Runtime starten, Seite zeigen, Logs pruefen — alles gueltige Anfrage
 
 ---
 
+## Credential Bootstrap and Prerequisite Discovery
+
+Wenn `development.ui_driven = true` oder wenn ein Runtime-relevanter Lifecycle-Schritt
+bevorsteht, MUSS vor dem Versuch den Runtime zu starten die vollstaendige Prerequisite-
+und Credential-Discovery ausgefuehrt werden.
+
+Vollstaendiger Contract: `policies/credential-discovery.md`
+
+Kurzfassung des pflichtmaessigen Ablaufs:
+
+```
+prerequisite benoetigt
+    ->
+automatisch entdecken (`.env.mendix`, mxcli config, Projekteinstellungen, ...)
+    ->
+kann autonom aufgeloest werden?
+    |
+    +-- JA -> ausfuehren, validieren, fortfahren
+    |
+    +-- NEIN
+          ->
+    Genuinen User-Input benoetigt?
+          |
+          +-- JA
+          |     ->
+          | Bootstrap-Datei vorbereiten (key-Namen, Platzhalter, nicht-geheime Defaults)
+          | Nur fehlende Keys anfordern
+          | `prerequisite_state` in process-state aktualisieren
+          | Auto-Resume nach User-Input
+          |
+          +-- NEIN
+                ->
+          Technischen Fehler klassifizieren (CONFIG_NOT_DISCOVERED, RUNTIME_START_FAILED, etc.)
+```
+
+**NIEMALS:**
+- Default-Credential-Fehler als Beweis behandeln, dass `.env.mendix` fehlt oder falsch ist
+- `ALTER USER`, Passwort-Reset oder Credential-Mutation als Reaktion auf Auth-Fehler
+- Secret-Werte ausgeben, in Reports schreiben oder in process-state persistieren
+
+---
+
 ## Phase: Discovery
 
 - **Entry Gate:** keines (oder Intake COMPLETE)
@@ -88,20 +130,48 @@ befindet. Runtime starten, Seite zeigen, Logs pruefen — alles gueltige Anfrage
   - Relevante Input-Resources identifiziert (`input-resources/`)
   - Story-Spezifikation erstellt (`planning/stories/{STORYPREFIX}-*.md`, eine Datei je Requirement)
   - UI-Inventar erstellt (`planning/ui-inventory/`) — vom UI-Agent, wenn Mockups vorhanden
-  - Mockup-Screenshots unter `.concord/screenshots/mockup/` — vom UI-Agent
+  - Mockup-Screenshots unter `.concord/screenshots/mockup/` — vom UI-Agent (evidence: static)
   - Offene Entscheidungen als `DECISION REQUIRED` markiert
+  - **Evidenz-Level** fuer alle Befunde klassifiziert (`evidence: static/model/runtime/browser`)
   - Board-Sync ausgefuehrt (wenn Board konfiguriert — optional, D52)
+  - Wenn `ui_driven = true`: UI-Driven Runtime Readiness Gate ausgefuehrt (siehe unten)
 - **Beschreibung:**
   Zwei Agents arbeiten parallel:
   - **Discovery-Agent:** Analysiert Requirements-Dokument, bestehendes Modell, Board-Stories (optional).
+    Fuehrt bei `ui_driven = true` das UI-Driven Runtime Readiness Gate aus.
   - **UI-Agent:** Je nach Ausgangslage in einem von zwei Modi:
     - **Generate-Modus:** Kein Mockup vorhanden, aber App-Beschreibung → Wireframe-HTML
       mit mocketeer-spec generieren, Entwickler-Freigabe einholen, dann Analyze-Modus.
     - **Analyze-Modus:** Mockup vorhanden → per Playwright analysieren, YAML-Feldinventar
       mit `suggested_mendix_type` und `standard_widget` Flag erzeugen (D49).
+      **Evidenz-Level: STATIC** — Playwright oeffnet lokale `file://` HTML-Mockups.
 
   Primaere Quellen sind Kunden-Mockup + Requirements (Rang 1). Generierte Mockups sind
   Rang 1.5 (unterhalb Requirements). Board-Stories sind Kontext (Rang 3).
+
+### UI-Driven Runtime Readiness Gate (Discovery)
+
+Wenn `development.ui_driven = true`, ist FULL UI DISCOVERY PASS nur moeglich wenn:
+
+1. Credential-Discovery ausgefuehrt (`.env.mendix` geprueft)
+2. Lokaler Runtime gestartet und erreichbar
+3. Repraesentativer Daten-Zustand hergestellt
+4. Test-Identitaeten verfuegbar
+5. Browser-Evidenz (BROWSER-Level) fuer runtime-testbaren Scope erzeugt
+
+Ohne Browser-Evidenz muss das Discovery-Gate-Ergebnis als eine der folgenden
+Zwischenzustaende dokumentiert werden:
+
+| Zustand | Bedeutung |
+|---|---|
+| `FULL_UI_DISCOVERY_PASS` | Alle 5 Voraussetzungen erfuellt; Browser-Evidenz vorhanden |
+| `PARTIAL_DISCOVERY` | Modell/Static-Analyse vollstaendig; Browser-Evidence ausstehend |
+| `MODEL_ONLY_DISCOVERY` | Nur STATIC/MODEL-Evidenz; Runtime nicht gestartet |
+| `RUNTIME_BLOCKED` | Runtime-Start fehlgeschlagen nach korrekter Credential-Discovery |
+
+**FULL_UI_DISCOVERY_PASS darf NICHT deklariert werden ohne Browser-Evidenz.**
+
+Vollstaendige Evidenz-Level-Definitionen: `policies/evidence-levels.md`
 
 ---
 

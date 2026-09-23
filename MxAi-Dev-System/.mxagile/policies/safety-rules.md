@@ -26,6 +26,36 @@ Projektspezifische Ergaenzungen gehoeren in `AGENT.md`, nicht hierher.
 - Lokale Werte wie Passwoerter, Tokens und PATs niemals ausgeben, in MDL schreiben
   oder versionieren.
 - `.env.mendix`, `.mcp.json`, Bridge-Tokens und MCP-Clientkonfigurationen bleiben lokal.
+- Secret-Werte NIEMALS in Reports, process-state.yaml, Screenshots, Logs oder anderen
+  verfolgten Artefakten einschliessen.
+- In Reports nur nicht-geheime Bereitschafts-Metadaten verwenden:
+  PRESENT / MISSING / EMPTY / INVALID / VALID / USED / NOT_USED
+- Vollstaendiger Credential-Discovery-Vertrag: `policies/credential-discovery.md`
+
+## Credential-Mutations-Verbot
+
+Ein fehlgeschlagenes Standard/Default-Credential berechtigt NICHT zu:
+
+- `ALTER USER ... PASSWORD ...`
+- Passwort-Reset oder -Rotation
+- Konto-Neuerstellung
+- Datenbank-Benutzer-Neuerstellung
+- Datenbank-Reinitialisierung
+- Credential-Ueberschreibung
+- Destruktive Infrastruktur-Aenderungen jeglicher Art
+
+Das korrekte Vorgehen bei einem fehlgeschlagenen Credential:
+
+    Konfiguration entdecken
+        ->
+    Tatsaechlich konfigurierte Werte verwenden
+        ->
+    Validieren
+        ->
+    Ursache diagnostizieren
+
+Credential-Mutation als Reaktion auf Authentifizierungsfehler ist ein Framework-Verstoss.
+Gilt auch wenn die Mutation technisch durchfuehrbar waere.
 
 ## Company Layer Platform Modules
 

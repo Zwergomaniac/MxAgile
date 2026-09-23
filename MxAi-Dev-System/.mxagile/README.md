@@ -54,7 +54,9 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 │   ├── backlog-sync.md
 │   ├── implementation-control.md
 │   ├── development-runtime.md
-│   ├── runtime-strategy.md     <- Local First, Docker By Verification Need
+│   ├── runtime-strategy.md        <- Local First, Docker By Verification Need
+│   ├── credential-discovery.md    <- Credential Bootstrap: Discover before blocking
+│   ├── evidence-levels.md         <- STATIC/MODEL/RUNTIME/BROWSER evidence classification
 │   ├── test-workflow.md
 │   ├── consistency-check.md
 │   ├── mockup-analysis.md

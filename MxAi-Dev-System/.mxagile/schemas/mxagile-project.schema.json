@@ -77,6 +77,39 @@
         }
       },
       "additionalProperties": false
+    },
+    "prerequisites": {
+      "type": "object",
+      "description": "Project-level prerequisite and credential bootstrap configuration. MxAgile Core uses this to know which credential categories are required, which canonical source provides them, and how to validate readiness. Company Layers may extend this via .mxagile/layers/<id>/credentials.yml. See policies/credential-discovery.md for the full contract.",
+      "properties": {
+        "credential_source": {
+          "type": "string",
+          "default": ".env.mendix",
+          "description": "Canonical local secret file for this project. Default: .env.mendix (gitignored). MxAgile Core discovers and validates this file before any runtime start."
+        },
+        "mock_data": {
+          "type": "object",
+          "description": "Mock/seed data configuration for UI-driven scenarios.",
+          "properties": {
+            "bootstrap_script": {
+              "type": "string",
+              "description": "Path to seed/bootstrap script that initializes representative test data. Run automatically before browser verification when present."
+            },
+            "idempotent": {
+              "type": "boolean",
+              "default": true,
+              "description": "When true, the bootstrap script can be safely re-run without duplicating data."
+            }
+          },
+          "additionalProperties": false
+        },
+        "require_browser_evidence_for_discovery": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (default) and development.ui_driven=true, Full UI Discovery PASS requires browser-level evidence for runtime-testable scope. Set to false to allow model-only discovery to satisfy the gate (not recommended for ui_driven projects)."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

@@ -29,16 +29,34 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
 - `.mxagile/policies/mockup-analysis.md` — Mockup-Analyse-Regeln
 - `.mxagile/policies/runtime-strategy.md` — Runtime-Strategie: Local First, Docker by Need
+- `.mxagile/policies/evidence-levels.md` — Evidenz-Klassifikation (STATIC/MODEL/RUNTIME/BROWSER)
+- `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - Company Layer UI documentation (if installed): `.mxagile/layers/*/modules/` fuer UI-Komponenten-Referenzen
 
+## Evidence Level
+
+Alle Outputs des UI-Agent werden mit dem zutreffenden Evidenz-Level klassifiziert:
+
+| Modus | Evidenz-Level | Begruendung |
+|---|---|---|
+| Generate-Modus | STATIC | Nur Dokument-/Requirements-Analyse; kein Browser, keine App |
+| Analyze-Modus (lokales HTML) | STATIC | Playwright oeffnet lokale `file://` HTML-Mockups — keine laufende App |
+| Verifying-Modus (laufende App) | BROWSER | Playwright gegen laufende App, repraesentative Daten, korrekte Rolle |
+
+Im Analyze-Modus erzeugte Artefakte tragen `evidence: static` in ihren YAML-Metadaten.
+Screenshots aus `.concord/screenshots/mockup/` sind STATIC-Evidenz.
+Screenshots aus `.concord/screenshots/app/` sind BROWSER-Evidenz.
+
+**Vollstaendige Evidenz-Level-Definitionen:** `policies/evidence-levels.md`
+
 ## Modi-Uebersicht
 
-| Modus | Trigger | Output |
-|---|---|---|
-| **Generate** | Discovery + kein Mockup + App-Beschreibung vorhanden | Wireframe-HTML mit mocketeer-spec |
-| **Analyze** | Discovery + Mockup vorhanden | YAML-Feldinventar inkl. Navigation und Interaction-States |
-| **Verify** | Verifying + Applikation laeuft (lokal oder Docker per Runtime-Strategie) | Soll-Ist-Report inkl. Fidelity-Ergebnis |
+| Modus | Trigger | Output | Evidenz-Level |
+|---|---|---|---|
+| **Generate** | Discovery + kein Mockup + App-Beschreibung vorhanden | Wireframe-HTML mit mocketeer-spec | STATIC |
+| **Analyze** | Discovery + Mockup vorhanden | YAML-Feldinventar inkl. Navigation und Interaction-States | STATIC |
+| **Verify** | Verifying + Applikation laeuft (lokal oder Docker per Runtime-Strategie) | Soll-Ist-Report inkl. Fidelity-Ergebnis | BROWSER |
 
 ---
 
@@ -232,8 +250,13 @@ interaction_states:
 ### Output Files
 
 -   `planning/ui-inventory/{PageName}.yaml` (pro erkannter Seite, gemaeß Schema)
--   `.concord/screenshots/mockup/{PageName}_default.png` (Referenz-Screenshot)
--   `.concord/screenshots/mockup/{PageName}_{State}.png` (Zustand-Screenshots)
+-   `.concord/screenshots/mockup/{PageName}_default.png` (Referenz-Screenshot — evidence: static)
+-   `.concord/screenshots/mockup/{PageName}_{State}.png` (Zustand-Screenshots — evidence: static)
+
+**Evidenz-Level des Analyze-Modus: STATIC**
+Playwright oeffnet die lokale `file://`-Mockup-HTML — keine laufende Applikation.
+Das erzeugte Inventar und die Screenshots repraesentieren STATISCHE Evidenz.
+Sie sind wertvolle Spezifikationsgrundlage, aber KEIN Runtime- oder Browser-Nachweis.
 
 ---
 
@@ -245,6 +268,20 @@ Die Applikation laeuft bevorzugt als warmer lokaler Runtime (`mxcli run --local 
 Level 3). Docker (Level 4) wird nur verwendet wenn Container-Paritaet benoetigt oder
 der lokale Runtime keine valide Verifikationsevidenz liefern kann.
 Vollstaendige Eskalationsregeln: `.mxagile/policies/runtime-strategy.md`.
+
+**Evidenz-Level: BROWSER** — Verify-Modus erzeugt Browser-Evidenz (hoechster Level).
+Voraussetzung: laufende Applikation + repraesentativer Daten-Zustand + korrekte Benutzerrolle.
+Ohne diese Kombination ist kein valider Browser-Evidenz-Nachweis moeglich.
+
+### Voraussetzungen Verifying-Modus
+
+Vor dem Start Playwright/Browser:
+
+1. **Credential-Check:** Credential-Discovery gemaess `policies/credential-discovery.md`
+   — bevorzugt `.env.mendix`; Test-Identitaeten (MENDIX_APP_TEST_USERNAME etc.) pruefen
+2. **Repraesentative Daten:** Fuer Szenarien die befuellten Zustand erfordern: Seed-Skript
+   pruefen und ausfuehren; fehlende Daten als `MOCK_DATA_UNAVAILABLE` klassifizieren
+3. **Test-Rollen:** Fuer Role-spezifische Szenarien: Login als korrekte Demo-/Test-Rolle
 
 ### Ablauf
 

@@ -26,8 +26,11 @@ lifecycle:
       purpose: >
         Systematically analyse all available sources before any refinement or
         implementation begins. Produces story specifications, UI inventory, and
-        an explicit list of open decisions. Gate-to-refinement must pass before
-        moving forward.
+        an explicit list of open decisions. All findings are classified by evidence
+        level (static/model/runtime/browser). When ui_driven=true, Full Discovery
+        requires browser-level evidence for runtime-testable scope; without it the
+        gate result must reflect partial/model-only discovery. Gate-to-refinement
+        must pass before moving forward.
       entry_conditions:
         - "Input resources available (mockup and/or requirements), OR developer explicit approval to start without them"
         - "Intake COMPLETE if intake phase was used"
@@ -35,13 +38,21 @@ lifecycle:
       agents: [discovery-agent, ui-agent]
       outputs:
         - "planning/stories/{STORYPREFIX}-*.md"
-        - "planning/ui-inventory/*.yaml"
-        - ".concord/screenshots/mockup/"
+        - "planning/ui-inventory/*.yaml (evidence: static — mockup-derived)"
+        - ".concord/screenshots/mockup/ (evidence: static)"
+        - ".concord/screenshots/app/ (evidence: browser — only when runtime available)"
+        - "Evidence level classification per finding"
+      gate_variants:
+        - FULL_UI_DISCOVERY_PASS: "All evidence levels satisfied including browser"
+        - PARTIAL_DISCOVERY: "Static/model complete; browser evidence pending"
+        - MODEL_ONLY_DISCOVERY: "Only static/model evidence; runtime not started"
+        - RUNTIME_BLOCKED: "Runtime failed after correct credential discovery"
       next: [refinement]
       returns_to: []
       invalidation_conditions:
         - "Input resource (mockup or requirements document) changed"
         - "New requirement added that affects discovered scope"
+        - "Runtime evidence contradicts a previous static/model finding"
 
     refinement:
       purpose: >

@@ -175,10 +175,49 @@ Kein stilles Abweichen von der konfigurierten Fidelity-Anforderung.
 Geschaeftsregeln und Daten-Constraints folgen weiterhin der konfigurierten `source_authority`
 aus `mxagile-project.yaml` — typischerweise `requirements`.
 
+## Technische Arbeit vs. DECISION REQUIRED
+
+**TECHNISCHE ARBEIT** (autonom ausfuehren wenn das Zielverhalten ausreichend definiert ist):
+
+| Beispiel | Klassifikation |
+|---|---|
+| Neuer Microflow benoetigt | TECHNISCHE ARBEIT |
+| Neuer Nanoflow benoetigt | TECHNISCHE ARBEIT |
+| Seiten-Layout anpassen | TECHNISCHE ARBEIT |
+| SCSS-Klasse hinzufuegen | TECHNISCHE ARBEIT |
+| Entity-Attribut hinzufuegen | TECHNISCHE ARBEIT |
+| Rollen-Mapping setzen | TECHNISCHE ARBEIT |
+| Test-Daten-Setup benoetigt | TECHNISCHE ARBEIT |
+| Wiederverwendbare Komponente benoetigt | TECHNISCHE ARBEIT |
+| Browser-Test benoetigt | TECHNISCHE ARBEIT |
+
+Diese sind KEINE Grundlage fuer `DECISION REQUIRED`, solange das beabsichtigte Verhalten
+aus Requirements + Spec + UI-Inventar ausreichend ableitbar ist.
+
+**DECISION REQUIRED** (Unterbrechung des Entwicklers erforderlich):
+
+| Beispiel | Klassifikation |
+|---|---|
+| Fehlende Geschaeftssemantik (Regel nicht definiert) | DECISION REQUIRED |
+| Widerspruch zwischen autoritativen Quellen ohne konfigurierten Gewinner | DECISION REQUIRED |
+| Mehrdeutiges Produktverhalten mit materiell unterschiedlichen Ergebnissen | DECISION REQUIRED |
+| Sicherheits-/Richtlinienentscheidung ausserhalb der Agentenzustaendigkeit | DECISION REQUIRED |
+| Destruktive Operation die explizite Genehmigung erfordert | DECISION REQUIRED |
+| Organisatorische/Unternehmens-Entscheidung | DECISION REQUIRED |
+
+**Leitfrage:** "Weiss ich WAS gebaut werden soll?" (aus Requirements + Spec + Inventar)
+- JA → autonome technische Implementierung
+- NEIN / UNEINDEUTIG → DECISION REQUIRED mit praeziser Frage
+
+Beispiel aus der Praxis (REAL CapTrack):
+- "DEF-01: Requires a new microflow" → TECHNISCHE ARBEIT → implementiere autonom
+- "What calculation formula should be used for budget rollup?" (nicht in Spec) → DECISION REQUIRED
+
 ## Einschraenkungen
 
 - Kein formaler Browser-Test (Playwright-Verifikation machen UI-Agent und Acceptance-Agent
   in Verifying). Runtime-Inspektion waehrend Implementing ist Entwicklungs-Feedback,
   kein Verifikationsnachweis.
-- Keine Geschaeftsentscheidungen treffen — bei Unklarheit `DECISION REQUIRED` und `blocked`
+- Keine Geschaeftsentscheidungen treffen — bei echter fachlicher Unklarheit `DECISION REQUIRED`
+  und `blocked`; technische Implementierungsarbeit hingegen autonom durchfuehren
 - Keine Aenderungen ausserhalb der Checkliste — Scope ist fix

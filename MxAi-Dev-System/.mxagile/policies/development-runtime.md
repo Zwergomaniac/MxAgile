@@ -99,6 +99,30 @@ A local runtime failure during Implementing MUST NOT automatically:
 
 Preserve completed valid implementation work regardless of runtime state.
 
+## Credential and Configuration Discovery Before Runtime Start
+
+Before attempting to start the local runtime, automatically discover project credential
+and configuration sources.
+
+Required pre-start discovery (in order):
+
+1. **Inspect `.env.mendix`** — project-local credential file; check required keys
+2. **Inspect other local config** — `.env*`, mxcli configuration, project settings
+3. **Classify each required credential** — PRESENT / MISSING / EMPTY / INVALID
+4. **Use discovered credentials** — do NOT fall back to assumed defaults when a project
+   source exists
+
+If required credentials are MISSING or EMPTY after full discovery:
+- Follow the bootstrap flow in `policies/credential-discovery.md`
+- Request only the missing keys from the developer
+- Never propose credential mutation (ALTER USER, password reset, etc.)
+- Auto-resume after the developer populates the canonical secret source
+
+A failed DEFAULT credential does NOT indicate that `.env.mendix` is wrong or missing.
+The precedence order is: project-local config wins over framework defaults.
+
+Complete credential discovery contract: `policies/credential-discovery.md`
+
 ## Database
 
 Local runtime may have database prerequisites. MxAgile does not prescribe a universal
@@ -106,7 +130,7 @@ database type.
 
 Preference order:
 
-1. Existing project or runtime configuration (if present)
+1. Existing project or runtime configuration (if present, e.g. `.env.mendix`)
 2. Normal `mxcli run --local` behavior (mxcli defaults)
 3. Supported provisioning options (`--ensure-db` where environment supports it)
 4. Supported fallback options (`--db-type` alternatives)
@@ -115,8 +139,10 @@ Preference order:
 Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environments
 (native Windows, devcontainer, CI) have different database availability.
 
-If runtime startup fails with a database error, use mxcli-supported diagnostics
-and options before asking the developer.
+If runtime startup fails with a database error: first perform credential discovery per
+`policies/credential-discovery.md` before asking the developer. Use mxcli-supported
+diagnostics and options. A DB-AUTH failure after correct credential discovery is a
+diagnostic matter — not authorization for credential mutation.
 
 ## Verification Invariants
 
