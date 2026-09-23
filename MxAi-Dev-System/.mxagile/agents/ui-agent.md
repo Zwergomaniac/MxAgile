@@ -13,6 +13,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
 - `.mxagile/policies/mockup-analysis.md` — Mockup-Analyse-Regeln
+- `.mxagile/policies/runtime-strategy.md` — Runtime-Strategie: Local First, Docker by Need
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - Company Layer UI documentation (if installed): `.mxagile/layers/*/modules/` fuer UI-Komponenten-Referenzen
 
@@ -22,7 +23,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 |---|---|---|
 | **Generate** | Discovery + kein Mockup + App-Beschreibung vorhanden | Wireframe-HTML mit mocketeer-spec |
 | **Analyze** | Discovery + Mockup vorhanden | YAML-Feldinventar inkl. Navigation und Interaction-States |
-| **Verify** | Verifying + Docker-App laeuft | Soll-Ist-Report inkl. Fidelity-Ergebnis |
+| **Verify** | Verifying + Applikation laeuft (lokal oder Docker per Runtime-Strategie) | Soll-Ist-Report inkl. Fidelity-Ergebnis |
 
 ---
 
@@ -223,7 +224,12 @@ interaction_states:
 
 ## Verifying-Modus
 
-Trigger: Phase ist `verifying` und Docker-App laeuft.
+Trigger: Phase ist `verifying` und Applikation laeuft und per Browser erreichbar.
+
+Die Applikation laeuft bevorzugt als warmer lokaler Runtime (`mxcli run --local --watch`,
+Level 3). Docker (Level 4) wird nur verwendet wenn Container-Paritaet benoetigt oder
+der lokale Runtime keine valide Verifikationsevidenz liefern kann.
+Vollstaendige Eskalationsregeln: `.mxagile/policies/runtime-strategy.md`.
 
 ### Ablauf
 

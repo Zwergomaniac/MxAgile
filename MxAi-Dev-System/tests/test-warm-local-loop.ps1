@@ -192,13 +192,17 @@ Assert-FileContains "implementation-agent: runtime feedback is not verification"
 Write-Host ""
 
 # =========================================================================
-# Section F: Docker verification remains intact
+# Section F: Formal verification preserved (runtime-strategy aware)
 # =========================================================================
 
-Write-Host "--- Section F: Docker verification preserved ---"
+Write-Host "--- Section F: Formal verification preserved (runtime-strategy aware) ---"
 
-Assert-FileContains "quality-gate: docker build/start still required" `
-    $qualityGatePath '(?i)docker.*build|docker.*start'
+# Quality Gate still requires a runtime step — local first, Docker on escalation
+Assert-FileContains "quality-gate: runtime step 5 present (local or Docker)" `
+    $qualityGatePath '(?i)applikation laeuft|application.*laeuft|runtime.*step|schritt.*5.*runtime'
+
+Assert-FileContains "quality-gate: references runtime-strategy for escalation" `
+    $qualityGatePath 'runtime-strategy'
 
 Assert-FileContains "quality-gate: must pass before UI/Acceptance" `
     $qualityGatePath '(?i)muss bestehen'
@@ -206,10 +210,15 @@ Assert-FileContains "quality-gate: must pass before UI/Acceptance" `
 Assert-FileContains "orchestrator: verifying still requires quality gate" `
     $orchestratorPath '(?i)quality.*gate.*sequenziell|quality.*gate.*voraussetzung'
 
-# Docker check commands still present in consistency-check policy
+# mxcli docker check (consistency check, no build) is preserved
 $consistencyPath = Join-Path $ScriptDir ".mxagile/policies/consistency-check.md"
 Assert-FileContains "consistency-check: mxcli docker check preserved" `
     $consistencyPath 'mxcli docker check'
+
+# Docker IS still available as Level 4 escalation
+$runtimeStratPath = Join-Path $ScriptDir ".mxagile/policies/runtime-strategy.md"
+Assert-FileContains "runtime-strategy: Docker remains available as escalation" `
+    $runtimeStratPath '(?i)docker.*container.parity|container.*parity.*docker'
 
 Write-Host ""
 
@@ -257,7 +266,7 @@ Assert-FileContains "implementation-agent: UI-Iteration in runtime-relevant list
 # UI-Agent formal verify still phase-gated to Verifying
 $uiAgentPath = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 Assert-FileContains "ui-agent: verify mode still gated to verifying phase" `
-    $uiAgentPath '(?i)verifying.*docker|trigger.*verifying'
+    $uiAgentPath '(?i)verifying.*modus|verifying-modus|trigger.*verifying|phase.*verifying'
 
 Write-Host ""
 

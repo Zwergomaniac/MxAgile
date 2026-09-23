@@ -202,13 +202,15 @@ in der Verifying-Phase. Siehe Invarianten unter Uebergaenge und Ausnahmen.
 Technische Pruefung — muss bestehen bevor UI/Acceptance starten:
 - `mxcli check --references` ohne Fehler
 - `mxcli lint` ohne kritische Findings
-- `mxcli docker check` ohne CE-Fehler
-- Docker-Build und Container-Start erfolgreich
+- `mxcli docker check` ohne CE-Fehler (Konsistenzpruefung, kein Docker-Build)
+- Applikation laeuft und ist erreichbar — bevorzugt `mxcli run --local --watch` (Level 3);
+  Docker nur wenn Container-Paritaet benoetigt oder lokaler Runtime nicht moeglich
+  (vollstaendige Eskalationsregeln: `policies/runtime-strategy.md`)
 - Security Level mindestens Prototype (wenn Security-Pass ausgefuehrt)
 
 ### Schritt 2: UI-Agent + Acceptance-Agent (parallel)
 
-Starten sobald Docker-App laeuft:
+Starten sobald Applikation laeuft (lokal oder Docker per Runtime-Strategie):
 
 **UI-Agent (Verifying-Modus):**
 - Checklisten-Abgleich: YAML-Felder gegen `.mx-name-*` Selektoren
@@ -250,7 +252,7 @@ Bei Abweichungen:
 - **Verifying ist nicht optional und nicht ersetzbar.** Eine Wave gilt erst als
   abgeschlossen, wenn Quality-Gate UND UI-Agent UND Acceptance-Agent gelaufen sind
   (`planning/wave-reports/`). Ein Agent darf technische Gruenlaufergebnisse
-  (`mxcli check`, `docker check`, Docker-Start) dem Entwickler nicht als vollstaendige
+  (`mxcli check`, `docker check`, App-Start) dem Entwickler nicht als vollstaendige
   Verifikation praesentieren, solange Schritt 2 (UI-/Acceptance-Agent) nicht gelaufen ist.
 - Gate-Skills sind das primaere Qualitaetssicherungsinstrument. Die Zustandsdatei
   ist diagnostisches Tracking — nicht blockierend, aber verbindlich gefuehrt. Ein

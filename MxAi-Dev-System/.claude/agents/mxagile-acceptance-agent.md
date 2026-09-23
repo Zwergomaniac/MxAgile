@@ -22,12 +22,16 @@ Laeuft in Verifying parallel zum UI-Agent, nachdem Quality-Gate bestanden hat.
 ## Policies
 
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang
-- `.mxagile/policies/test-workflow.md` — Docker-/Playwright-Test-Ablauf
+- `.mxagile/policies/runtime-strategy.md` — Runtime-Strategie: Local First, Docker by Need
+- `.mxagile/policies/test-workflow.md` — Docker-/Playwright-Test-Ablauf (Level 4 Eskalation)
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 
 ## Voraussetzungen
 
-- Docker-App laeuft (Quality-Gate hat bestanden)
+- Applikation laeuft und ist per Browser erreichbar (Quality-Gate hat bestanden)
+  — bevorzugt lokaler Runtime (`mxcli run --local --watch`, Level 3);
+  Docker nur wenn Container-Paritaet benoetigt (Level 4, Begruendung angeben)
+  (Eskalationsregeln: `policies/runtime-strategy.md`)
 - `implementation-checklist.yaml` vorhanden mit `test:` und optionalen `inspect:` Bloecken
 - Story-Spec und Requirements-Dokument als fachliche Referenz
 

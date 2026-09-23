@@ -10,12 +10,16 @@ MxAgile distinguishes three independent concerns:
 |---|---|---|---|
 | **A. Model Validation** | Syntax, references, consistency | `mxcli check`, `mxcli lint`, `mxcli docker check` | Implementing + Verifying |
 | **B. Development Runtime** | Warm local runtime for iterative feedback | `mxcli run --local --watch` | Implementing |
-| **C. Formal Verification** | Quality Gate, UI-Agent Verify, Acceptance-Agent | Docker, Playwright, mxcli DESCRIBE | Verifying |
+| **C. Formal Verification** | Quality Gate, UI-Agent Verify, Acceptance-Agent | Local or Docker per runtime-strategy, Playwright, mxcli DESCRIBE | Verifying |
 
 A running development app is NOT Verification.
 
 Runtime inspection during Implementing is development feedback.
 Formal verification remains in the Verifying phase.
+
+The runtime mechanism for formal verification follows the escalation model in
+`policies/runtime-strategy.md`: local runtime preferred (Level 3); Docker only when
+container-parity is required or local runtime cannot provide valid evidence.
 
 ## Default Inner Development Loop
 

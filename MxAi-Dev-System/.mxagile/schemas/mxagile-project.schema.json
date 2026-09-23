@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MxAgile Project Configuration",
-  "description": "Project-level MxAgile configuration. Agents read mxagile-project.yaml in the project root to determine UI-driven mode, concern-specific source authority, and fidelity requirements. If the file is absent all defaults apply and existing MxAgile behavior is preserved.",
+  "description": "Project-level MxAgile configuration. Agents read mxagile-project.yaml in the project root to determine UI-driven mode, concern-specific source authority, fidelity requirements, and runtime strategy. If the file is absent all defaults apply and existing MxAgile behavior is preserved.",
   "type": "object",
   "properties": {
     "development": {
@@ -12,6 +12,19 @@
           "type": "boolean",
           "default": false,
           "description": "When true the mockup is the authoritative delivery reference for configured UI concerns. Discovery must find and process all HTML mockups. Implementation follows the UI inventory as a binding contract. Verification enforces fidelity."
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "description": "Runtime strategy configuration. Controls which mechanism is preferred for formal verification (Verifying phase). Defaults reflect local-first development. See policies/runtime-strategy.md for the full escalation model.",
+      "properties": {
+        "verification": {
+          "type": "string",
+          "enum": ["local_first", "docker"],
+          "default": "local_first",
+          "description": "local_first (default): prefer warm local runtime (mxcli run --local --watch, Level 3) for formal verification; escalate to Docker (Level 4) only when container-parity is required or local runtime cannot provide valid evidence. docker: always use Docker for formal verification (for projects requiring container parity or migrating gradually from legacy behavior). Existing projects without this field receive local_first behavior."
         }
       },
       "additionalProperties": false
