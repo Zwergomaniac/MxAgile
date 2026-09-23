@@ -152,7 +152,7 @@ try {
     Write-Host "[OK] mxagile-init.ps1 executed."
 
     # Step 1b: mxcli init --all-tools
-    # ORDERING CONSTRAINT: must run AFTER mxcli.exe is installed (Step 1a) and
+    # ORDERING CONSTRAINT: must run AFTER mxcli is installed (Step 1a) and
     # BEFORE MxAgile managed-block injection (Step 2), because mxcli init overwrites
     # CLAUDE.md and AGENTS.md — MxAgile then re-injects its managed block.
     #
@@ -169,9 +169,13 @@ try {
         Test-Path -LiteralPath (Join-Path $ProjectRoot $_) -PathType Leaf
     } | Where-Object { $_ -eq $false } | Measure-Object).Count -eq 0
 
-    $mxcliExe = Join-Path $ProjectRoot "mxcli.exe"
+    # Platform-aware mxcli binary name (mxcli.exe on Windows, mxcli on Linux/macOS)
+    $isWindowsPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::Windows)
+    $mxcliName = if ($isWindowsPlatform) { 'mxcli.exe' } else { 'mxcli' }
+    $mxcliExe = Join-Path $ProjectRoot $mxcliName
     if (-not (Test-Path -LiteralPath $mxcliExe -PathType Leaf)) {
-        throw "mxcli.exe not found after mxagile-init.ps1  -  mxcli installation may have failed."
+        throw "$mxcliName not found after mxagile-init.ps1 — mxcli installation may have failed."
     }
 
     # More robust check: prefer provenance marker over bare file existence.
@@ -181,7 +185,7 @@ try {
     #
     # If mxcli exposes a stronger initialization-state mechanism in future, replace this with it
     # rather than inventing redundant state. See upstream finding in policies/local-runtime-profile.md.
-    $mxcliInitProvenanceFile = Join-Path $ProjectRoot ".mxagile\state\mxcli-init.txt"
+    $mxcliInitProvenanceFile = [System.IO.Path]::Combine($ProjectRoot, ".mxagile", "state", "mxcli-init.txt")
     $provenanceExists = Test-Path -LiteralPath $mxcliInitProvenanceFile -PathType Leaf
 
     # Fall back to marker-file check if provenance file is absent (first run after this contract was introduced)
@@ -273,7 +277,7 @@ try {
             if (-not (Test-Path -LiteralPath $destSubDir -PathType Container)) {
                 New-Item -ItemType Directory -Path $destSubDir -Force | Out-Null
             }
-            Copy-Item -Path "$($_.FullName)\*" -Destination $destSubDir -Recurse -Force
+            Copy-Item -Path (Join-Path $_.FullName '*') -Destination $destSubDir -Recurse -Force
         } else {
             Copy-Item -LiteralPath $_.FullName -Destination $destMxAgile -Force
         }
@@ -451,7 +455,7 @@ try {
             }
             Write-Host "Copying layer contents to $destinationDir..."
             New-Item -Path $destinationDir -ItemType Directory -Force | Out-Null
-            Copy-Item -Path "$sourcePath\\*" -Destination $destinationDir -Recurse -Force -Exclude ".git"
+            Copy-Item -Path (Join-Path "$sourcePath" '*') -Destination $destinationDir -Recurse -Force -Exclude ".git"
 
             # 6. Provenance
             $provenancePath = Join-Path $destinationDir "provenance.json"

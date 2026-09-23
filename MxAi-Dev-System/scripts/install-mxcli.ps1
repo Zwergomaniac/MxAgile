@@ -43,8 +43,18 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-$Repo      = "mendixlabs/mxcli"
-$AssetName = "mxcli-windows-amd64.exe"
+$Repo = "mendixlabs/mxcli"
+
+# Platform detection — works on PS 5.1 (Windows-only) and PS Core (all platforms)
+$_isWin = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::Windows)
+$_isMac = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::OSX)
+
+$AssetName  = if ($_isWin)  { 'mxcli-windows-amd64.exe' }
+              elseif ($_isMac) { 'mxcli-darwin-amd64' }
+              else            { 'mxcli-linux-amd64' }
+$BinaryName = if ($_isWin) { 'mxcli.exe' } else { 'mxcli' }
 
 function Format-Bytes {
     param([long]$Bytes)
@@ -57,11 +67,13 @@ function Format-Bytes {
 Write-Host ""
 Write-Host "=== mxcli Stable Installer ===" -ForegroundColor Cyan
 Write-Host "Repository : $Repo"
-Write-Host "Target     : $(Join-Path $TargetDir 'mxcli.exe')"
+Write-Host "Platform   : $(if ($_isWin) { 'Windows' } elseif ($_isMac) { 'macOS' } else { 'Linux' })"
+Write-Host "Asset      : $AssetName"
+Write-Host "Target     : $(Join-Path $TargetDir $BinaryName)"
 if ($MinimumVersion) { Write-Host "Minimum    : $MinimumVersion" }
 Write-Host ""
 
-$TargetExe = Join-Path $TargetDir "mxcli.exe"
+$TargetExe = Join-Path $TargetDir $BinaryName
 
 # ------------------------------------------------------------
 # 1. Resolve latest stable release via GitHub API
@@ -162,7 +174,8 @@ Write-Host ""
 # 3. Download with retry
 # ------------------------------------------------------------
 
-$tempFile   = Join-Path $env:TEMP "mxcli-$($release.tag_name)-windows-amd64.exe"
+$tempBase   = [System.IO.Path]::GetTempPath()
+$tempFile   = Join-Path $tempBase "mxcli-$($release.tag_name)-$AssetName"
 $maxAttempts = 1 + [Math]::Max(0, $RetryCount)
 
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
@@ -226,6 +239,16 @@ Write-Host "Installing mxcli..." -ForegroundColor Cyan
 
 Copy-Item -Path $tempFile -Destination $TargetExe -Force
 Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+
+# Make executable on Linux / macOS (chmod is a no-op on Windows)
+if (-not $_isWin) {
+    $chmodResult = & chmod +x $TargetExe 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "chmod +x failed on $TargetExe ($chmodResult) -- binary may not be directly executable."
+    } else {
+        Write-Host "  chmod +x: OK"
+    }
+}
 
 # ------------------------------------------------------------
 # 6. Post-install verification

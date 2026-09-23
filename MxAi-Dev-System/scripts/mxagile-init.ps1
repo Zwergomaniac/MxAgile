@@ -30,7 +30,11 @@ $ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
 
 Write-Host "Checking for Python and pip..."
 
-$PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+# Prefer python3 on Linux/macOS; fall back to python (Windows / older PATH setups)
+$PythonCommand = Get-Command python3 -ErrorAction SilentlyContinue
+if (-not $PythonCommand) {
+    $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+}
 
 if (-not $PythonCommand) {
     throw "Python is not installed or not available in PATH."
@@ -62,13 +66,17 @@ else {
 # mxcli
 # ---------------------------------------------------------------------
 
-Write-Host "Checking for mxcli.exe..."
+Write-Host "Checking for mxcli..."
 
-$MxcliPath = Join-Path $ProjectRoot "mxcli.exe"
+# Platform-aware binary name
+$isWindowsPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::Windows)
+$mxcliName = if ($isWindowsPlatform) { 'mxcli.exe' } else { 'mxcli' }
+$MxcliPath = Join-Path $ProjectRoot $mxcliName
 
 if (-not (Test-Path -LiteralPath $MxcliPath -PathType Leaf)) {
 
-    Write-Host "mxcli.exe not found in project root. Running installer..."
+    Write-Host "$mxcliName not found in project root. Running installer..."
 
     $MxcliInstaller = Join-Path $PSScriptRoot "install-mxcli.ps1"
 
@@ -84,7 +92,7 @@ if (-not (Test-Path -LiteralPath $MxcliPath -PathType Leaf)) {
 }
 
 if (-not (Test-Path -LiteralPath $MxcliPath -PathType Leaf)) {
-    throw "mxcli.exe is still missing after installation: $MxcliPath"
+    throw "$mxcliName is still missing after installation: $MxcliPath"
 }
 
 Write-Host "mxcli ready:"
@@ -104,7 +112,7 @@ $Directories = @(
     $MxAgileDir
     (Join-Path $ProjectRoot "specs")
     (Join-Path $ProjectRoot "requirements")
-    (Join-Path $ProjectRoot "planning\tasks")
+    (Join-Path (Join-Path $ProjectRoot "planning") "tasks")
     (Join-Path $MxAgileDir "state")
     (Join-Path $MxAgileDir "schemas")
     (Join-Path $MxAgileDir "templates")

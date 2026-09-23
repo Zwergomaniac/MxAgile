@@ -90,13 +90,17 @@ $CanonicalDistributionUrl    = "https://github.com/Zwergomaniac/MxAgile.git"
 $CanonicalDistributionSubdir = "MxAi-Dev-System"   # distribution root lives here within the repo
 
 # ---------------------------------------------------------------------------
-# Direct-launch detection
+# Direct-launch detection (Windows only — explorer.exe parent process)
 # ---------------------------------------------------------------------------
 $isDirectLaunch = $false
-try {
-    $parentName    = (Get-Process -Id $PID -ErrorAction Stop).Parent.ProcessName
-    $isDirectLaunch = $parentName -in @('explorer', 'OpenWith')
-} catch { }
+$_isWindowsPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::Windows)
+if ($_isWindowsPlatform) {
+    try {
+        $parentName     = (Get-Process -Id $PID -ErrorAction Stop).Parent.ProcessName
+        $isDirectLaunch = $parentName -in @('explorer', 'OpenWith')
+    } catch { }
+}
 $shouldWait = $Wait -or $isDirectLaunch
 
 $tempDistDir = $null
@@ -180,7 +184,7 @@ try {
     $provenanceCoreSubdir     = ""
 
     if ([string]::IsNullOrWhiteSpace($DistributionSource)) {
-        $devInstaller = Join-Path $PSScriptRoot "scripts\install-core.ps1"
+        $devInstaller = Join-Path (Join-Path $PSScriptRoot "scripts") "install-core.ps1"
         if (Test-Path -LiteralPath $devInstaller -PathType Leaf) {
             Write-Host "Distribution    : $PSScriptRoot (running from within distribution)"
             $distributionRoot         = $PSScriptRoot
@@ -189,7 +193,7 @@ try {
             $provenanceCoreRef        = ""
             $provenanceCoreSubdir     = ""
         } else {
-            $tempDistDir = Join-Path $env:TEMP "mxagile-setup-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
+            $tempDistDir = Join-Path ([System.IO.Path]::GetTempPath()) "mxagile-setup-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
             Write-Host "Distribution    : $CanonicalDistributionUrl (canonical, ref: $DistributionRef)"
             Write-Host "  -> Cloning to : $tempDistDir (temporary)"
 
@@ -204,7 +208,7 @@ try {
             }
 
             $subDirPath = Join-Path $tempDistDir $CanonicalDistributionSubdir
-            $distributionRoot = if (Test-Path -LiteralPath (Join-Path $subDirPath "scripts\install-core.ps1") -PathType Leaf) {
+            $distributionRoot = if (Test-Path -LiteralPath (Join-Path (Join-Path $subDirPath "scripts") "install-core.ps1") -PathType Leaf) {
                 $subDirPath
             } else {
                 $tempDistDir
@@ -226,7 +230,7 @@ try {
         $provenanceCoreRef            = ""
         $provenanceCoreSubdir         = ""
     } else {
-        $tempDistDir = Join-Path $env:TEMP "mxagile-setup-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
+        $tempDistDir = Join-Path ([System.IO.Path]::GetTempPath()) "mxagile-setup-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
         Write-Host "Distribution    : $DistributionSource"
         Write-Host "  -> Cloning to : $tempDistDir (temporary)"
 
@@ -261,7 +265,7 @@ try {
     # =========================================================================
     # 5. Verify canonical installer exists in distribution
     # =========================================================================
-    $canonicalInstaller = Join-Path $distributionRoot "scripts\install-core.ps1"
+    $canonicalInstaller = Join-Path (Join-Path $distributionRoot "scripts") "install-core.ps1"
     if (-not (Test-Path -LiteralPath $canonicalInstaller -PathType Leaf)) {
         throw "Canonical installer not found in MxAgile distribution: $canonicalInstaller"
     }
