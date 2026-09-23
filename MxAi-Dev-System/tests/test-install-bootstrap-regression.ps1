@@ -81,8 +81,10 @@ function Remove-FixtureDirectory {
     }
 }
 
-$bootstrapScript = Join-Path $ScriptDir "install-mxagile.ps1"
-$mercedesScript  = Join-Path $ScriptDir "install-mxagile-mercedes.ps1"
+$bootstrapScript  = Join-Path $ScriptDir "install-mxagile.ps1"           # compatibility wrapper
+$mercedesScript   = Join-Path $ScriptDir "install-mxagile-mercedes.ps1"    # compatibility wrapper
+$setupScript      = Join-Path $ScriptDir "mxagile-setup.ps1"               # canonical entry point
+$setupMercedesScript = Join-Path $ScriptDir "mxagile-setup-mercedes.ps1"   # canonical entry point
 $distributionRoot = $ScriptDir   # MxAi-Dev-System/ IS the distribution root for local tests
 
 Write-Host ""
@@ -91,46 +93,59 @@ Write-Host "Distribution: $distributionRoot"
 Write-Host ""
 
 # =========================================================================
-# 1-4: Static verification of bootstrap script content
+# 1-4: Static verification of canonical setup script content
 # =========================================================================
-Write-Host "--- 1-4: Bootstrap script architecture ---"
+Write-Host "--- 1-4: Canonical setup script architecture (mxagile-setup.ps1) ---"
 
-Assert-FileContains "1: bootstrap has -DistributionSource parameter" `
-    $bootstrapScript 'DistributionSource'
+Assert-FileContains "1: setup has -DistributionSource parameter" `
+    $setupScript 'DistributionSource'
 
-Assert-FileContains "2: bootstrap does NOT assume PSScriptRoot is always distribution" `
-    $bootstrapScript 'DistributionSource.*not.*provided|IsNullOrWhiteSpace.*DistributionSource|not.*DistributionSource'
+Assert-FileContains "2: setup does NOT assume PSScriptRoot is always distribution" `
+    $setupScript 'DistributionSource.*not.*provided|IsNullOrWhiteSpace.*DistributionSource|not.*DistributionSource'
 
-Assert-FileContains "2: bootstrap acquires from local path when DistributionSource is a directory" `
-    $bootstrapScript 'Test-Path.*DistributionSource.*PathType Container|PathType Container.*DistributionSource'
+Assert-FileContains "2: setup acquires from local path when DistributionSource is a directory" `
+    $setupScript 'Test-Path.*DistributionSource.*PathType Container|PathType Container.*DistributionSource'
 
-Assert-FileContains "2: bootstrap supports git clone acquisition" `
-    $bootstrapScript 'git clone'
+Assert-FileContains "2: setup supports git clone acquisition" `
+    $setupScript 'git clone'
 
-Assert-FileContains "3: bootstrap has finally block for cleanup" `
-    $bootstrapScript 'finally\s*\{'
+Assert-FileContains "3: setup has finally block for cleanup" `
+    $setupScript 'finally\s*\{'
 
 Assert-FileContains "3: cleanup removes tempDistDir" `
-    $bootstrapScript 'Remove-Item.*tempDistDir|tempDistDir.*Remove-Item'
+    $setupScript 'Remove-Item.*tempDistDir|tempDistDir.*Remove-Item'
 
-Assert-FileContains "4: bootstrap validates distribution != target (safety check)" `
-    $bootstrapScript 'distribution.*must not.*inside.*target|distNorm.*targetNorm|targetNorm.*distNorm'
+Assert-FileContains "4: setup validates distribution != target (safety check)" `
+    $setupScript 'distribution.*must not.*inside.*target|distNorm.*targetNorm|targetNorm.*distNorm'
 
-Assert-FileContains "4: bootstrap resolves canonical installer from distribution root" `
-    $bootstrapScript 'distributionRoot.*scripts.*install-core|canonicalInstaller.*distributionRoot'
+Assert-FileContains "4: setup resolves canonical installer from distribution root" `
+    $setupScript 'distributionRoot.*scripts.*install-core|canonicalInstaller.*distributionRoot'
 
-# Zero-config assertions: canonical source embedded in bootstrapper
-Assert-FileContains "4b: bootstrap defines canonical distribution URL (zero-config)" `
-    $bootstrapScript 'CanonicalDistributionUrl'
+# Zero-config assertions: canonical source embedded in setup script
+Assert-FileContains "4b: setup defines canonical distribution URL (zero-config)" `
+    $setupScript 'CanonicalDistributionUrl'
 
-Assert-FileContains "4b: bootstrap defines canonical distribution subdirectory" `
-    $bootstrapScript 'CanonicalDistributionSubdir'
+Assert-FileContains "4b: setup defines canonical distribution subdirectory" `
+    $setupScript 'CanonicalDistributionSubdir'
 
-Assert-FileContains "4b: bootstrap falls through to canonical clone when not in distribution tree" `
-    $bootstrapScript 'CanonicalDistributionUrl.*canonical|canonical.*CanonicalDistributionUrl'
+Assert-FileContains "4b: setup falls through to canonical clone when not in distribution tree" `
+    $setupScript 'CanonicalDistributionUrl.*canonical|canonical.*CanonicalDistributionUrl'
 
-Assert-FileContains "4b: mercedes defines canonical distribution URL (zero-config)" `
-    $mercedesScript 'CanonicalDistributionUrl'
+Assert-FileContains "4b: mercedes-setup defines canonical distribution URL (zero-config)" `
+    $setupMercedesScript 'CanonicalDistributionUrl'
+
+# Compatibility wrappers delegate to canonical setup scripts
+Assert-FileContains "4c: old wrapper (install-mxagile.ps1) delegates to mxagile-setup.ps1" `
+    $bootstrapScript 'mxagile-setup\.ps1'
+
+Assert-FileContains "4c: old wrapper has deprecation notice" `
+    $bootstrapScript '(?i)deprecated'
+
+Assert-FileContains "4c: old mercedes wrapper delegates to mxagile-setup-mercedes.ps1" `
+    $mercedesScript 'mxagile-setup-mercedes\.ps1'
+
+Assert-FileContains "4c: old mercedes wrapper has deprecation notice" `
+    $mercedesScript '(?i)deprecated'
 
 Write-Host ""
 
@@ -154,8 +169,8 @@ try {
     Assert-FileAbsent "5: target has no detect-project-type.ps1 before bootstrap" `
         (Join-Path $fixtureDfc "scripts\detect-project-type.ps1")
 
-    # Run bootstrap with explicit DistributionSource (external use case)
-    $output = & $bootstrapScript `
+    # Run setup script with explicit DistributionSource (external use case)
+    $output = & $setupScript `
         -DistributionSource $distributionRoot `
         -ProjectRoot $fixtureDfc 2>&1
     $exitCode = $LASTEXITCODE
@@ -234,7 +249,7 @@ try {
     New-Item -Path (Join-Path $fixtureInvalid "App.mpr") -ItemType File -Force | Out-Null
     Set-Content -Path (Join-Path $fixtureInvalid "projekt.md") -Value "# Original" -Encoding UTF8
 
-    & $bootstrapScript `
+    & $setupScript `
         -DistributionSource "C:\this\path\does\not\exist\mxagile" `
         -ProjectRoot $fixtureInvalid 2>&1 | Out-Null
     $exitCode = $LASTEXITCODE
@@ -268,7 +283,7 @@ try {
     New-Item -Path (Join-Path $nestedDistSource "scripts") -ItemType Directory -Force | Out-Null
     New-Item -Path (Join-Path $nestedDistSource "scripts\install-core.ps1") -ItemType File -Force | Out-Null
 
-    & $bootstrapScript `
+    & $setupScript `
         -DistributionSource $nestedDistSource `
         -ProjectRoot $fixtureNested 2>&1 | Out-Null
     $exitCode = $LASTEXITCODE
@@ -289,16 +304,16 @@ $fixtureClean = New-FixtureDirectory "clean-external"
 try {
     New-Item -Path (Join-Path $fixtureClean "App.mpr") -ItemType File -Force | Out-Null
 
-    $output = & $bootstrapScript `
+    $output = & $setupScript `
         -DistributionSource $distributionRoot `
         -ProjectRoot $fixtureClean 2>&1
     $exitCode = $LASTEXITCODE
 
-    # Exit code is non-zero (mxcli missing, etc.) but NOT because of bootstrap acquisition failure
+    # Exit code is non-zero (mxcli missing, etc.) but NOT because of setup acquisition failure
     $hasAcquisitionError = ($output | Where-Object { $_ -match 'Canonical installer not found|Distribution not found|PSScriptRoot' }) -ne $null
-    Assert-True "11: bootstrap acquisition succeeded (no 'Canonical installer not found' error)" `
+    Assert-True "11: setup acquisition succeeded (no 'Canonical installer not found' error)" `
         (-not $hasAcquisitionError) `
-        "Bootstrap acquisition failed: $($output -join ' | ')"
+        "Setup acquisition failed: $($output -join ' | ')"
 
     # No installer scripts in clean target
     Assert-FileAbsent "11: detect-project-type.ps1 NOT in clean target" `
@@ -313,24 +328,24 @@ try {
 Write-Host ""
 
 # =========================================================================
-# 12: Mercedes variant also has acquisition logic
+# 12: Canonical Mercedes setup script has acquisition logic
 # =========================================================================
-Write-Host "--- 12: Mercedes variant architecture ---"
+Write-Host "--- 12: Canonical Mercedes setup script architecture ---"
 
-Assert-FileContains "12: mercedes has -DistributionSource parameter" `
-    $mercedesScript 'DistributionSource'
+Assert-FileContains "12: mercedes-setup has -DistributionSource parameter" `
+    $setupMercedesScript 'DistributionSource'
 
-Assert-FileContains "12: mercedes has finally cleanup block" `
-    $mercedesScript 'finally\s*\{'
+Assert-FileContains "12: mercedes-setup has finally cleanup block" `
+    $setupMercedesScript 'finally\s*\{'
 
-Assert-FileContains "12: mercedes supports git clone acquisition" `
-    $mercedesScript 'git clone'
+Assert-FileContains "12: mercedes-setup supports git clone acquisition" `
+    $setupMercedesScript 'git clone'
 
-Assert-FileContains "12: mercedes safety check: distribution != target" `
-    $mercedesScript 'distNorm.*targetNorm|distribution.*must not.*inside'
+Assert-FileContains "12: mercedes-setup safety check: distribution != target" `
+    $setupMercedesScript 'distNorm.*targetNorm|distribution.*must not.*inside'
 
-Assert-FileContains "12: mercedes resolves canonical installer from distribution" `
-    $mercedesScript 'distributionRoot.*scripts.*install-core|canonicalInstaller.*distributionRoot'
+Assert-FileContains "12: mercedes-setup resolves canonical installer from distribution" `
+    $setupMercedesScript 'distributionRoot.*scripts.*install-core|canonicalInstaller.*distributionRoot'
 
 Write-Host ""
 

@@ -43,19 +43,25 @@ This ensures that agent configurations (`.claude/`, `.github/`, `.agents/`, etc.
 
 1.  Clone this repository to your local machine.
 2.  Open a PowerShell terminal in the project root directory.
-3.  Run the appropriate installer script:
+3.  Run the appropriate setup script:
 
     *   **Generic MxAgile:**
         ```powershell
-        .\install-mxagile.ps1
+        .\mxagile-setup.ps1
         ```
 
     *   **Mercedes-Benz Environment:**
         ```powershell
-        .\install-mxagile-mercedes.ps1
+        .\mxagile-setup-mercedes.ps1
         ```
 
-These scripts use the canonical Core URL (`https://github.com/Zwergomaniac/MxAgile.git`) by default.
+    The setup scripts detect project state automatically (fresh install or update) — you do not
+    need to choose between install and update scripts.
+
+    The scripts use the canonical Core URL (`https://github.com/Zwergomaniac/MxAgile.git`) by default.
+
+    > **Note:** `install-mxagile.ps1` and `install-mxagile-mercedes.ps1` remain available as
+    > deprecated compatibility wrappers. They delegate to the setup scripts above.
 
 ## Basic Workflow
 

@@ -1,39 +1,56 @@
 # Project Setup and Installation
 
-This guide explains how to set up a new Mendix project using the MxAgile template.
+This guide explains how to set up a new or update an existing Mendix project with MxAgile.
+
+## Public Bootstrap Entry Points
+
+| Script | Purpose |
+|---|---|
+| `mxagile-setup.ps1` | **Canonical** generic setup — detects state, installs or updates |
+| `mxagile-setup-mercedes.ps1` | **Canonical** Mercedes setup — detects Core + Layer state independently |
+| `install-mxagile.ps1` | **Deprecated** — compatibility wrapper, delegates to `mxagile-setup.ps1` |
+| `install-mxagile-mercedes.ps1` | **Deprecated** — compatibility wrapper, delegates to `mxagile-setup-mercedes.ps1` |
+
+The setup scripts detect project state automatically:
+
+- **FRESH PROJECT** → performs `INSTALL`
+- **EXISTING MXAGILE PROJECT** → performs `UPDATE`
+
+You do not need to decide whether to run an install or update script.
 
 ## Prerequisites
 
 Before you begin, please ensure you have the following tools installed on your system:
 
-*   **Python:** Version 3.8 or higher.
-*   **Pip:** The Python package installer (usually included with Python).
-*   **Git:** For version control.
+*   **Git:** For version control (required to acquire the MxAgile distribution).
 
 ## Setup Process
 
-Setting up a new MxAgile project involves running the appropriate installer.
+### Run the Setup Script
 
-### Run the Installation Script
+Choose the setup script based on your requirements:
 
-Choose the installation script based on your requirements:
-
-*   **Generic Setup:** Use for general projects without specific company-layer requirements. Uses the canonical Core URL (`https://github.com/Zwergomaniac/MxAgile.git`) by default.
+*   **Generic Setup:** Use for general projects without specific company-layer requirements.
+    Uses the canonical Core URL (`https://github.com/Zwergomaniac/MxAgile.git`) by default.
     ```powershell
-    .\install-mxagile.ps1
+    .\mxagile-setup.ps1
     ```
 
-*   **Mercedes-Benz Environment:** Use when working with Mercedes-Benz specific standards. This will automatically fetch and apply the necessary company layer and use the canonical Core URL.
+*   **Mercedes-Benz Environment:** Independently detects MxAgile Core state and Mercedes
+    Company Layer state, then performs the correct operation for each.
     ```powershell
-    .\install-mxagile-mercedes.ps1
+    .\mxagile-setup-mercedes.ps1
     ```
 
 Both scripts will:
 
-1.  **Safety Check:** Validate that a single `.mpr` project file exists in the root.
-2.  **Initialize Environment:** Check for Python, install dependencies, and create the required directory structure.
-3.  **Setup Agents:** Configure the agent system according to project needs.
-4.  **Layer Management:** (Mercedes script only) Automatically resolve and configure the Mercedes-Benz company layer.
+1.  **Detect project state:** Report `FRESH_PROJECT` or `EXISTING_MXAGILE_PROJECT`.
+2.  **Report selected operation:** `INSTALL` or `UPDATE` for Core (and Layer separately for Mercedes).
+3.  **Report protected state:** `.mxagile/layers/`, `.mxagile/state/`, `.mxagile/migration/` are never overwritten.
+4.  **Safety Check:** Validate that a single `.mpr` project file exists in the root.
+5.  **Install or Update:** Bootstrap MxAgile from scratch or synchronize an existing installation.
+6.  **Setup Agents:** Configure the agent system (platform projections for all supported agents).
+7.  **Layer Management:** (Mercedes script only) Install or update the Mercedes-Benz company layer.
 
 ### Step 2: Synchronize Agent Environment
 
@@ -61,20 +78,20 @@ git commit -m "Initial commit: Set up MxAgile project structure"
 
 ## Core Update / Synchronization (existing MxAgile installations)
 
-`install-core.ps1` is the canonical entry point for **both** fresh installation and existing-project Core synchronization. You do not need a separate update command.
-
-To update an already-installed MxAgile project to a newer Core version, re-run the same installer from the new distribution:
+Re-run the same setup script from the new distribution — it detects the existing installation and performs an `UPDATE` automatically:
 
 ```powershell
-# Generic Core update
-.\scripts\install-core.ps1 -ProjectRoot <path-to-your-project>
+# Generic Core update (detects existing installation, performs UPDATE)
+.\mxagile-setup.ps1
 
-# Mercedes environment update (also refreshes Company Layer)
-.\scripts\install-core.ps1 -ProjectRoot <path-to-your-project> `
-    -CompanyLayerSource <layer-git-url> `
-    -CompanyLayerSourceType git `
-    -CompanyLayerRef main
+# Mercedes environment update (detects Core + Layer independently, updates both)
+.\mxagile-setup-mercedes.ps1
 ```
+
+The public entry points (`mxagile-setup.ps1`, `mxagile-setup-mercedes.ps1`) always select the
+correct operation. There is no separate update command.
+
+Internally, `scripts/install-core.ps1` is the canonical installer invoked by all entry points.
 
 ### What the update preserves
 
