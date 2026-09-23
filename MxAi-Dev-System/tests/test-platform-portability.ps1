@@ -45,6 +45,7 @@ function Assert-FileNotContains {
 
 $PortabilityPol  = Join-Path $ScriptDir ".mxagile/policies/platform-portability.md"
 $SetupPs         = Join-Path $ScriptDir "mxagile-setup.ps1"
+$SetupMercedesPs = Join-Path $ScriptDir "mxagile-setup-mercedes.ps1"
 $InstallCore     = Join-Path $ScriptDir "scripts/install-core.ps1"
 $InstallMxcli    = Join-Path $ScriptDir "scripts/install-mxcli.ps1"
 $MxagileInit     = Join-Path $ScriptDir "scripts/mxagile-init.ps1"
@@ -108,6 +109,19 @@ Assert-FileContains "D.2 RuntimeInformation used for Windows detection" $SetupPs
 Assert-FileNotContains "D.3 env:TEMP not used directly in setup script" $SetupPs '\$env:TEMP'
 Assert-FileContains "D.4 GetTempPath used for temp dir" $SetupPs 'GetTempPath'
 Assert-FileContains "D.5 scripts/install-core.ps1 path uses nested Join-Path" $SetupPs 'Join-Path.*scripts.*install-core|Join-Path \(Join-Path.*scripts\)'
+
+# ---------------------------------------------------------------------------
+# TEST G: mxagile-setup-mercedes.ps1 — same portability contract as D
+# (was missed in original portability pass — regression coverage for Mercedes entry point)
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST G: mxagile-setup-mercedes.ps1 Windows-specific patterns" -ForegroundColor Cyan
+
+Assert-FileContains "G.1 explorer.exe detection guarded by isWindowsPlatform" $SetupMercedesPs 'isWindowsPlatform[\s\S]{1,200}explorer'
+Assert-FileContains "G.2 RuntimeInformation used for Windows detection" $SetupMercedesPs 'RuntimeInformation.*IsOSPlatform'
+Assert-FileNotContains "G.3 env:TEMP not used directly in mercedes setup script" $SetupMercedesPs '\$env:TEMP'
+Assert-FileContains "G.4 GetTempPath used for temp dir" $SetupMercedesPs 'GetTempPath'
+Assert-FileContains "G.5 scripts/install-core.ps1 path uses nested Join-Path" $SetupMercedesPs 'Join-Path.*scripts.*install-core|Join-Path \(Join-Path.*scripts\)'
 
 # ---------------------------------------------------------------------------
 # TEST E: install-core.ps1 — mxcli name + path fixes
