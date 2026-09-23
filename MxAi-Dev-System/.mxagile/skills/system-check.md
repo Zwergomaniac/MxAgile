@@ -279,16 +279,73 @@ mxagile_system_check:
       artifact_format: PASS | FAIL | UNKNOWN
       core_update_mechanism: PASS | FAIL | UNKNOWN
       migration_vs_canonicalization: PASS | FAIL | UNKNOWN
+  lifecycle_state:
+    canonical_state_present: true | false
+    legacy_state_in_scratch: true | false
+    current_wave: "W01" | NOT_FOUND
+    current_phase: discovery | refinement | ready | implementing | verifying | done | NOT_FOUND
+    mutation_eligibility: blocked | allowed | violation_detected | NOT_FOUND
+    schema_reconciliation_needed: true | false
+    evidence_gaps_count: N
+    legacy_artifacts: [list of detected legacy locations]
+    required_actions: [list of specific next-step actions derived from findings]
   warnings: []
   failures: []
 ```
+
+## I. Lifecycle State and Reconciliation Detection
+
+This section enables a fresh agent to determine what lifecycle actions are required after a
+Core UPDATE or fresh clone, without the developer needing to specify internal reconciliation phases.
+
+1. **Canonical lifecycle state**: Does `planning/lifecycle/process-state.yaml` exist?
+   - If YES: read and report current wave/phase/gate status
+   - If NO but `.concord/scratch/process-state.yaml` exists: report that legacy location detected; migration to canonical location needed
+   - If neither exists: report NO_LIFECYCLE_STATE (fresh project or not yet started)
+
+2. **Schema reconciliation needed**: Do any parity records in `planning/parity/` have `schema_version` below current (1) or lack `overall_result`? Report YES/NO/NOT_APPLICABLE.
+
+3. **Evidence gaps**: Are there parity records with `overall_result: NOT_VERIFIED` or dimensions with `result: NOT_VERIFIED` that are `required: true`? Report count.
+
+4. **Legacy artifact locations detected**:
+   - `planning/stories/` directory exists? (legacy format; canonical: requirements/REQ-NNN.yml)
+   - `sprints/decisions.md` exists? (legacy; canonical: planning/decisions/)
+   - `.concord/screenshots/mockup/` has content? (legacy evidence; should be promoted to planning/evidence/)
+
+5. **Mutation eligibility**: Does `planning/lifecycle/process-state.yaml` have `mutation_eligibility: blocked`? Report current value.
+
+---
 
 ## Important: Fresh Session Required
 This check is most reliable when run in a NEW agent session started after installation.
 The test verifies discovery from the installed repository, not from installation context.
 
 ## Next Steps
-[If FAIL: list specific corrective actions for each failure.]
-[If PASS_WITH_WARNINGS: list recommended follow-up actions.]
-[If PASS: "Installation verified. MxAgile is correctly installed and operational."]
+
+Based on findings, derive specific next actions:
+
+**If FAIL on any section A–H:**
+  List specific corrective actions for each failure.
+
+**If lifecycle state section I shows NO_LIFECYCLE_STATE:**
+  "No prior lifecycle state found. Begin Discovery when ready."
+
+**If lifecycle state section I shows wave/phase:**
+  "Lifecycle re-sync: currently at Wave [X], Phase [Y]. Resume from this position."
+
+**If legacy artifact locations detected:**
+  "Legacy artifacts found. Run: 'Perform project structure reconciliation per policies/reconciliation.md'"
+
+**If evidence gaps detected:**
+  "Evidence gaps found for [count] required dimensions. Run: 'Identify targeted re-verification scenarios per policies/ui-parity.md'"
+
+**If schema reconciliation needed:**
+  "Parity schema upgrade required. Run: 'Upgrade parity records per policies/ui-parity.md — Existing Evidence Upgrade'"
+
+**If PASS with no lifecycle issues:**
+  "Installation verified. MxAgile is correctly installed and operational."
+
+Note: All lifecycle reconciliation and re-verification actions should be driven by a new agent
+session reading the installed framework policies. The developer only needs to confirm and direct;
+the agent derives the required steps from the installed framework.
 ````

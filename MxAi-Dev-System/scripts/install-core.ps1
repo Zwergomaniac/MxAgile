@@ -174,14 +174,51 @@ try {
         throw "mxcli.exe not found after mxagile-init.ps1  -  mxcli installation may have failed."
     }
 
+    # More robust check: prefer provenance marker over bare file existence.
+    # After successful mxcli init, a provenance marker is written to .mxagile/state/mxcli-init.txt.
+    # This marker stores the mxcli version at init time and is more reliable than checking
+    # whether CLAUDE.md/AGENTS.md happen to exist (which could be created by other means).
+    #
+    # If mxcli exposes a stronger initialization-state mechanism in future, replace this with it
+    # rather than inventing redundant state. See upstream finding in policies/local-runtime-profile.md.
+    $mxcliInitProvenanceFile = Join-Path $ProjectRoot ".mxagile\state\mxcli-init.txt"
+    $provenanceExists = Test-Path -LiteralPath $mxcliInitProvenanceFile -PathType Leaf
+
+    # Fall back to marker-file check if provenance file is absent (first run after this contract was introduced)
+    if ($IsUpdate -and -not $provenanceExists) {
+        $mxcliAlreadyInitialized = ($mxcliInitMarkers | ForEach-Object {
+            Test-Path -LiteralPath (Join-Path $ProjectRoot $_) -PathType Leaf
+        } | Where-Object { $_ -eq $false } | Measure-Object).Count -eq 0
+        if ($mxcliAlreadyInitialized) {
+            Write-Host "[INFO] mxcli-init provenance file absent; using file-existence fallback for UPDATE check."
+        }
+    } elseif ($IsUpdate -and $provenanceExists) {
+        $mxcliAlreadyInitialized = $true
+        $provenanceContent = Get-Content -LiteralPath $mxcliInitProvenanceFile -Raw -ErrorAction SilentlyContinue
+        Write-Host "[INFO] mxcli-init provenance: $provenanceContent"
+    }
+
     if ($mxcliAlreadyInitialized) {
-        Write-Host "[SKIP] mxcli init --all-tools: UPDATE and mxcli integration files already present."
-        Write-Host "       (Re-run with a fresh project or delete CLAUDE.md/AGENTS.md to force re-init.)"
+        Write-Host "[SKIP] mxcli init --all-tools: UPDATE and mxcli integration already initialized."
+        Write-Host "       To force re-initialization: delete .mxagile/state/mxcli-init.txt and re-run."
     } else {
-        Write-Host "Running mxcli init --all-tools ($(if ($IsUpdate) { 'UPDATE: missing files' } else { 'NEW INSTALL' }))..."
+        Write-Host "Running mxcli init --all-tools ($(if ($IsUpdate) { 'UPDATE: not yet initialized' } else { 'NEW INSTALL' }))..."
         & $mxcliExe init --all-tools $ProjectRoot
         if ($LASTEXITCODE -ne 0) { throw "mxcli init --all-tools failed with exit code $LASTEXITCODE." }
         Write-Host "[OK] mxcli init --all-tools completed."
+
+        # Write provenance marker for future UPDATE runs
+        $stateDir = Join-Path $ProjectRoot ".mxagile\state"
+        if (-not (Test-Path -LiteralPath $stateDir -PathType Container)) {
+            New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        }
+        $mxcliVersion = "unknown"
+        try {
+            $mxcliVersion = (& $mxcliExe --version 2>&1 | Select-Object -First 1).ToString().Trim()
+        } catch { }
+        $provenanceContent = "mxcli_version=$mxcliVersion`ninitialized_at=$(Get-Date -Format 'yyyy-MM-dd')"
+        [System.IO.File]::WriteAllText($mxcliInitProvenanceFile, $provenanceContent, [System.Text.Encoding]::UTF8)
+        Write-Host "[OK] mxcli-init provenance written to .mxagile/state/mxcli-init.txt"
     }
 
     # Step 1c: Copy canonical .mxagile/ payload (skills, agents, policies, lifecycle.yaml, etc.)

@@ -4,11 +4,39 @@ Maschinenlesbare Lifecycle-Definition: `.mxagile/lifecycle.yaml` (schema_version
 Dieses Dokument ist die narrative Erweiterung davon — detaillierte Vorbedingungen,
 Artefakte, Agenten und Ablaufregeln pro Phase.
 
-Der aktuelle Phasenstatus wird in `.concord/scratch/process-state.yaml` festgehalten
-(lokal, gitignored). Gate-Skills pruefen Vorbedingungen vor Phasenwechseln.
+Der aktuelle Phasenstatus wird in `planning/lifecycle/process-state.yaml` (Git-tracked,
+kanonisch) festgehalten. `.concord/scratch/process-state.yaml` ist nur lokaler Session-Cache.
+Gate-Skills pruefen Vorbedingungen vor Phasenwechseln.
 
 Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 Lifecycle Re-Sync & Interruption: siehe `policies/lifecycle-resync.md`.
+Ownership-Guard: siehe `policies/ownership-guard.md`.
+
+---
+
+## FRAMEWORK_CHANGE Detection (ERSTES Startup-Check)
+
+**Vor jeder anderen Aktion** den User-Request klassifizieren:
+
+Aendert die Anfrage:
+- MxAgile Core-Verhalten, Policies, Schemas?
+- Agents, Skills, Lifecycle-Architektur?
+- Installer/Update-Verhalten?
+- Generierte Framework-Projektionen?
+- Beliebige Datei unter `.mxagile/` die aus der Framework-Distribution stammt?
+
+**JA → FRAMEWORK_CHANGE**
+
+Dann pruefen: Ist dies der kanonische MxAgile-Framework-Entwicklungs-Workspace?
+(`.mxagile/` ist Source-of-Truth UND kein Mendix-Consumer-Projekt)
+
+- **NEIN (Consumer-Projekt):** Installierte `.mxagile/`-Kopie NICHT veraendern.
+  Klassifikation melden, Finding dokumentieren, Consumer-Projekt bewahren.
+  Vollstaendiger Vertrag: `policies/ownership-guard.md`
+
+- **JA (Framework-Dev-Workspace):** Normale Framework-Entwicklungsregeln gelten.
+
+**NEIN → normales Projekt-Lifecycle-Arbeit; mit Startup Re-Sync fortfahren.**
 
 ---
 
@@ -20,8 +48,9 @@ fortgesetzt wird. Vollstaendiger Algorithmus: `policies/lifecycle-resync.md`.
 
 Quellen in Autoritaetsreihenfolge:
 1. Repository-Artefakte (Checkliste, Story-Specs, Decisions, Input-Resources)
-2. `.concord/scratch/process-state.yaml`
-3. `.mxagile/lifecycle.yaml`
+2. `planning/lifecycle/process-state.yaml` (kanonisch, Git-tracked — primaere Quelle)
+3. `.concord/scratch/process-state.yaml` (lokaler Session-Cache — Fallback wenn (2) fehlt)
+4. `.mxagile/lifecycle.yaml`
 
 Abgeschlossene Lifecycle-Phasen werden NICHT neu durchlaufen, nur weil eine neue
 Agent-Session startet. Konversationsspeicher ist ergaenzend, nicht autoritativ.
