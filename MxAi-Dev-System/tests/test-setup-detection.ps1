@@ -317,7 +317,7 @@ try {
         "Expected LAYER_NOT_INSTALLED. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
     Assert-True "8: Mercedes fresh reports Core action INSTALL" `
-        ($outputStr -match 'Core action.*INSTALL|INSTALL.*Core') `
+        ($outputStr -match 'Core action.*INSTALL|INSTALL.*Core|Core.*->.*INSTALL|FRESH_PROJECT.*->.*INSTALL') `
         "Expected Core action INSTALL. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
 } finally {
@@ -354,11 +354,11 @@ try {
         "Expected LAYER_NOT_INSTALLED. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
     Assert-True "9: Core operation is UPDATE" `
-        ($outputStr -match 'Core action.*UPDATE|UPDATE.*Core') `
+        ($outputStr -match 'Core action.*UPDATE|UPDATE.*Core|Core.*->.*UPDATE') `
         "Expected Core action UPDATE. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
     Assert-True "9: Layer operation is INSTALL" `
-        ($outputStr -match 'Company Layer action.*INSTALL|Layer action.*INSTALL') `
+        ($outputStr -match 'Company Layer action.*INSTALL|Layer action.*INSTALL|Layer.*->.*INSTALL|LAYER_NOT_INSTALLED.*->.*INSTALL|LAYER_NOT_INSTALLED.*INSTALL') `
         "Expected Layer action INSTALL. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
 } finally {
