@@ -438,8 +438,10 @@ try {
                 throw "layer.json not found in the source directory."
             }
             $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-            $layerId = $manifest.id
-            $layerName = $manifest.name
+            $layerId            = $manifest.id
+            $layerName          = $manifest.name
+            $layerVersion       = [string]$manifest.version
+            $layerSchemaVersion = [string]$manifest.schemaVersion
             if ([string]::IsNullOrWhiteSpace($layerId)) {
                 throw "layer.json is missing a valid 'id'."
             }
@@ -448,20 +450,52 @@ try {
             # 4. Destination
             $destinationDir = Join-Path $ProjectRoot ".mxagile\layers\$layerId"
 
-            # 5. Copy
+            # 5. Copy — Layer-owned artifacts only (declared in layer.json → artifacts)
             if (Test-Path -LiteralPath $destinationDir) {
                 Write-Host "Removing existing layer directory..."
                 Remove-Item -LiteralPath $destinationDir -Recurse -Force
             }
             Write-Host "Copying layer contents to $destinationDir..."
             New-Item -Path $destinationDir -ItemType Directory -Force | Out-Null
-            Copy-Item -Path (Join-Path "$sourcePath" '*') -Destination $destinationDir -Recurse -Force -Exclude ".git"
 
-            # 6. Provenance
+            $localArtifacts = $manifest.artifacts
+            $localAllowed = [System.Collections.Generic.HashSet[string]]::new(
+                [System.StringComparer]::OrdinalIgnoreCase)
+            $localAllowed.Add("layer.json") | Out-Null
+            if ($null -ne $localArtifacts) {
+                foreach ($prop in $localArtifacts.PSObject.Properties) {
+                    $topLevel = (([string]$prop.Value) -split '[/\\]', 2)[0].Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($topLevel)) {
+                        $localAllowed.Add($topLevel) | Out-Null
+                    }
+                }
+            }
+            Get-ChildItem -LiteralPath "$sourcePath" -Force |
+                Where-Object { $_.Name -ne ".git" -and
+                               $_.Name -ne "provenance.json" -and
+                               $localAllowed.Contains($_.Name) } |
+                ForEach-Object {
+                    $dest2 = Join-Path $destinationDir $_.Name
+                    if ($_.PSIsContainer) {
+                        Copy-Item -LiteralPath $_.FullName -Destination $dest2 -Recurse -Force
+                    } else {
+                        Copy-Item -LiteralPath $_.FullName -Destination $dest2 -Force
+                    }
+                }
+
+            # 6. Provenance — UPDATE-CONTRACT.md field schema
             $provenancePath = Join-Path $destinationDir "provenance.json"
-            $provenance = @{
-                source_type = "Local"
-                source = $sourcePath
+            $provenance = [ordered]@{
+                layerId          = $layerId
+                installedVersion = $layerVersion
+                schemaVersion    = $layerSchemaVersion
+                sourceRepository = $sourcePath.ToString()
+                sourceRef        = "local"
+                sourceCommit     = $null
+                installedAt      = (Get-Date -Format 'o')
+                installedBy      = 'mxagile-core/install-core-local'
+                previousVersion  = $null
+                previousCommit   = $null
             }
             $provenance | ConvertTo-Json | Set-Content -LiteralPath $provenancePath -Encoding UTF8
             Write-Host "[OK] Provenance file created."

@@ -115,8 +115,10 @@ try {
         throw "Unable to parse layer.json: $($_.Exception.Message)"
     }
 
-    $LayerId   = [string]$LayerManifest.id
-    $LayerName = [string]$LayerManifest.name
+    $LayerId            = [string]$LayerManifest.id
+    $LayerName          = [string]$LayerManifest.name
+    $LayerVersion       = [string]$LayerManifest.version
+    $LayerSchemaVersion = [string]$LayerManifest.schemaVersion
 
     if ([string]::IsNullOrWhiteSpace($LayerId)) {
         throw "layer.json does not define a valid 'id'."
@@ -165,28 +167,55 @@ try {
         Out-Null
 
     # -----------------------------------------------------------------
-    # Copy payload without .git
+    # Copy Layer-owned artifacts only (not the entire repository)
+    # Declared artifacts come from layer.json → artifacts; layer.json itself
+    # is always included.  .git and provenance.json are always excluded.
     # -----------------------------------------------------------------
+
+    $ArtifactsManifest = $LayerManifest.artifacts
+    $AllowedNames = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    $AllowedNames.Add("layer.json") | Out-Null
+
+    if ($null -ne $ArtifactsManifest) {
+        foreach ($prop in $ArtifactsManifest.PSObject.Properties) {
+            $topLevel = (([string]$prop.Value) -split '[/\\]', 2)[0].Trim()
+            if (-not [string]::IsNullOrWhiteSpace($topLevel)) {
+                $AllowedNames.Add($topLevel) | Out-Null
+            }
+        }
+    }
 
     Get-ChildItem `
         -LiteralPath $TempDir `
         -Force |
-        Where-Object { $_.Name -ne ".git" } |
-        Copy-Item `
-            -Destination $DestinationDir `
-            -Recurse `
-            -Force
+        Where-Object { $_.Name -ne ".git" -and
+                       $_.Name -ne "provenance.json" -and
+                       $AllowedNames.Contains($_.Name) } |
+        ForEach-Object {
+            $dest = Join-Path $DestinationDir $_.Name
+            if ($_.PSIsContainer) {
+                Copy-Item -LiteralPath $_.FullName -Destination $dest -Recurse -Force
+            } else {
+                Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
+            }
+        }
 
     # -----------------------------------------------------------------
-    # Provenance
+    # Provenance — UPDATE-CONTRACT.md field schema
     # -----------------------------------------------------------------
 
     $Provenance = [ordered]@{
-        layer_id          = $LayerId
-        layer_name        = $LayerName
-        source            = $RepositoryUrl
-        requested_ref     = $Ref
-        resolved_revision = $ResolvedRevision
+        layerId          = $LayerId
+        installedVersion = $LayerVersion
+        schemaVersion    = $LayerSchemaVersion
+        sourceRepository = $RepositoryUrl
+        sourceRef        = $Ref
+        sourceCommit     = $ResolvedRevision
+        installedAt      = (Get-Date -Format 'o')
+        installedBy      = 'mxagile-core/fetch-layer'
+        previousVersion  = $null
+        previousCommit   = $null
     }
 
     $ProvenancePath = Join-Path $DestinationDir "provenance.json"
@@ -211,12 +240,14 @@ Source: $RepositoryUrl
 Requested ref: $Ref
 
 Resolved revision: $ResolvedRevision
+
+Installed version: $LayerVersion
 "@
 
-    Set-Content `
-        -LiteralPath $ManifestPath `
-        -Value $Manifest `
-        -Encoding utf8
+    [System.IO.File]::WriteAllText(
+        $ManifestPath,
+        $Manifest,
+        [System.Text.Encoding]::UTF8)
 
     # -----------------------------------------------------------------
     # Validate installed state

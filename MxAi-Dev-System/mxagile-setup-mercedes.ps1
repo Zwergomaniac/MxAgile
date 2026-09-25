@@ -123,18 +123,27 @@ try {
     $coreState     = if ($coreInstalled) { "EXISTING_MXAGILE_PROJECT" } else { "FRESH_PROJECT" }
     $coreOperation = if ($coreInstalled) { "UPDATE" } else { "INSTALL" }
 
-    # Layer detection: any subdirectory under .mxagile/layers/ indicates a layer is installed
+    # Layer detection: any subdirectory under .mxagile/layers/ indicates a layer is installed.
+    # Also check for provenance.json to distinguish TRACKED vs UNTRACKED installations.
     $layersDir = Join-Path $ProjectRoot ".mxagile\layers"
-    $layerInstalled = $false
+    $layerInstalled  = $false
+    $layerHasProvenance = $false
     $layerIds = @()
     if (Test-Path -LiteralPath $layersDir -PathType Container) {
         $layerDirs = @(Get-ChildItem -LiteralPath $layersDir -Directory -ErrorAction SilentlyContinue)
         if ($layerDirs.Count -gt 0) {
             $layerInstalled = $true
             $layerIds = $layerDirs | ForEach-Object { $_.Name }
+            # Check provenance in each installed layer dir
+            $layerHasProvenance = ($layerDirs | ForEach-Object {
+                Test-Path -LiteralPath (Join-Path $_.FullName "provenance.json") -PathType Leaf
+            } | Where-Object { $_ -eq $true } | Measure-Object).Count -gt 0
         }
     }
-    $layerState     = if ($layerInstalled) { "MERCEDES_LAYER_INSTALLED ($($layerIds -join ', '))" } else { "LAYER_NOT_INSTALLED" }
+    $layerProvenanceNote = if ($layerInstalled) {
+        if ($layerHasProvenance) { " [provenance: OK]" } else { " [provenance: MISSING - will report UNTRACKED]" }
+    } else { "" }
+    $layerState     = if ($layerInstalled) { "MERCEDES_LAYER_INSTALLED ($($layerIds -join ', '))$layerProvenanceNote" } else { "LAYER_NOT_INSTALLED" }
     $layerOperation = if ($layerInstalled) { "UPDATE" } else { "INSTALL" }
 
     Write-Host ""
@@ -281,20 +290,78 @@ try {
     Write-Host ""
 
     # =========================================================================
-    # 6. Invoke canonical installer against the target project
+    # 6. Invoke canonical Core installer (without Company Layer when already installed)
+    #
+    # Company Layer install vs update are independent operations:
+    #   Layer NOT installed → pass -CompanyLayerSource to install-core.ps1 (initial install)
+    #   Layer INSTALLED     → call update-layer.ps1 separately (CR-10: independent update domains)
     # =========================================================================
-    & $canonicalInstaller `
-        -ProjectRoot              $ProjectRoot `
-        -CompanyLayerSource       $MercedesGitUrl `
-        -CompanyLayerSourceType   Git `
-        -CompanyLayerRef          $MercedesRef `
-        -IsUpdate                 $coreInstalled `
-        -ProvenanceFlavor         "mercedes" `
-        -ProvenanceCoreSource     $provenanceCoreSource `
-        -ProvenanceCoreSourceType $provenanceCoreSourceType `
-        -ProvenanceCoreRef        $provenanceCoreRef `
-        -ProvenanceCoreSubdir     $provenanceCoreSubdir
-    $exitCode = $LASTEXITCODE
+
+    # Step 6a: Core installation / update
+    if (-not $layerInstalled) {
+        # First-time setup: install Core AND Layer together
+        & $canonicalInstaller `
+            -ProjectRoot              $ProjectRoot `
+            -CompanyLayerSource       $MercedesGitUrl `
+            -CompanyLayerSourceType   Git `
+            -CompanyLayerRef          $MercedesRef `
+            -IsUpdate                 $coreInstalled `
+            -ProvenanceFlavor         "mercedes" `
+            -ProvenanceCoreSource     $provenanceCoreSource `
+            -ProvenanceCoreSourceType $provenanceCoreSourceType `
+            -ProvenanceCoreRef        $provenanceCoreRef `
+            -ProvenanceCoreSubdir     $provenanceCoreSubdir
+        $exitCode = $LASTEXITCODE
+    } else {
+        # Layer already installed: update Core only (no -CompanyLayerSource)
+        & $canonicalInstaller `
+            -ProjectRoot              $ProjectRoot `
+            -IsUpdate                 $coreInstalled `
+            -ProvenanceFlavor         "mercedes" `
+            -ProvenanceCoreSource     $provenanceCoreSource `
+            -ProvenanceCoreSourceType $provenanceCoreSourceType `
+            -ProvenanceCoreRef        $provenanceCoreRef `
+            -ProvenanceCoreSubdir     $provenanceCoreSubdir
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -ne 0) {
+            throw "MxAgile Core update failed with exit code $exitCode."
+        }
+
+        # Step 6b: Independent Company Layer update
+        $updateLayerScript = Join-Path (Join-Path $distributionRoot "scripts") "update-layer.ps1"
+        if (-not (Test-Path -LiteralPath $updateLayerScript -PathType Leaf)) {
+            throw "update-layer.ps1 not found in MxAgile distribution: $updateLayerScript"
+        }
+
+        Write-Host ""
+        Write-Host "---"
+        Write-Host "Company Layer Update (independent)" -ForegroundColor Cyan
+        Write-Host "---"
+        Write-Host ""
+
+        $updateLayerArgs = @(
+            "-RepositoryUrl", $MercedesGitUrl,
+            "-Ref",           $MercedesRef,
+            "-ProjectRoot",   $ProjectRoot
+        )
+        if ($NonInteractive) { $updateLayerArgs += "-NonInteractive" }
+
+        & $updateLayerScript @updateLayerArgs
+        $layerExitCode = $LASTEXITCODE
+
+        # Exit codes from update-layer.ps1:
+        #   0 = SUCCESS / NO_UPDATE_AVAILABLE / NOT_INSTALLED
+        #   1 = UPDATE_FAILED
+        #   2 = BLOCKED_INCOMPATIBLE
+        #   3 = UNTRACKED_INSTALLATION
+        if ($layerExitCode -eq 1) {
+            throw "Company Layer update failed (exit code $layerExitCode)."
+        }
+        # Exit codes 2 and 3 are diagnostic — not fatal for the overall setup.
+        # The Core update already succeeded; the Layer diagnostic is reported above.
+        $exitCode = if ($layerExitCode -gt 0) { $layerExitCode } else { 0 }
+    }
 
 } catch {
     Write-Host ""
