@@ -12,7 +12,7 @@ Widersprueche und fehlender Geschaeftsregeln vor der Implementierung.
 5. **Evidenz-Reifegrad pruefen:** Fuer jeden Discovery-Fund pruefen welchen Evidenz-Level
    er hat (`evidence: static` / `model` / `runtime` / `browser`) gemaess `policies/evidence-levels.md`
 6. Formuliere strukturierte Rueckfragen mit Kontext und Empfehlung
-7. Arbeite Antworten in die Story-Spezifikation und `sprints/decisions.md` ein
+7. Arbeite Antworten in die Story-Spezifikation und `planning/decisions/DEC-NNN.md` ein
 8. Pruefe am Ende die Vorbedingungen aus `.mxagile/skills/gate-to-ready.md`
 
 ## Evidence-Reifegrad-Bewusstsein
@@ -50,6 +50,53 @@ Wenn das WAS klar ist, ist es Implementierung — nicht Entscheidung.
 
 Wenn eine Entscheidung aussteht: nur den davon abhaengigen Scope blockieren.
 Alle unabhaengigen Discovery/Refinement-Items weiterfuehren.
+
+## Strukturierter Traceability-Lookup (UI-Befund → Artefakt)
+
+Wenn ein manueller UI-Befund vorliegt (abweichendes Verhalten, neues Element, unerwartete Interaktion):
+
+### P1/P2/P3 Verbote
+
+- **P1:** Ein Grep-Treffer (Textübereinstimmung) ist KEINE Mutationsberechtigung.
+- **P2:** Kein Grep-Treffer ist KEINE Berechtigung, ein neues Requirement zu erstellen.
+- **P3:** Eine strukturelle Beziehung (Kandidat aus Index) ist KEINE Mutationsberechtigung.
+
+Alle drei Verbote gelten unabhängig voneinander. Keine Kombination hebt sie auf.
+
+### 8-Schritt Auflösungsalgorithmus
+
+1. **Betroffenen Screen identifizieren** — PAGE-NNN aus `planning/ui-inventory/` bestimmen
+2. **Strukturierten Index-Query ausführen** — `python scripts/resolve_impact.py PAGE-NNN` ausführen (liefert: direkte Requirements, Scenario-Requirements, Specs)
+3. **Direkte kanonische Traversal** — `requirements/*.yml` auf `derivedFrom: PAGE-NNN` und `screens: [PAGE-NNN]` prüfen
+4. **Semantische Textsuche** — Freitext-Suche in gefundenen Requirements auf inhaltliche Relevanz
+5. **Kandidaten prüfen** — Jedes Kandidaten-Requirement inhaltlich lesen (nicht nur ID-Treffer zählen)
+6. **Klassifizieren** — Finding-Klassifikationsvokabular (unten) anwenden
+7. **Vorschlag formulieren** — Konkreten Mutations-Vorschlag mit Beleg vorlegen
+8. **Ausführen (nach Entwickler-Bestätigung)** — Mutation nur nach expliziter Freigabe
+
+### Finding-Klassifikationsvokabular
+
+| Klassifikation | Bedeutung | Aktion |
+|---|---|---|
+| `EXISTING_REQUIREMENT_REFINEMENT` | Gefundenes Requirement deckt den Befund ab — Präzisierung nötig | REQ-NNN erweitern |
+| `SPEC_REFINEMENT` | Requirement klar, Spec-Detail unvollständig | SPEC-NNN erweitern |
+| `MOCKUP_REFINEMENT` | Befund ist Mockup-Abweichung, kein Requirement-Gap | Target-Mockup aktualisieren |
+| `IMPLEMENTATION_DEFECT` | Implementierung weicht von bestehendem REQ/SPEC ab | Defekt dokumentieren, Impl. korrigieren |
+| `PARITY_DEFECT` | App weicht vom akzeptierten Revision-Bundle ab | Parity-Report; keine REQ-Änderung |
+| `NEW_REQUIREMENT` | Genuiner Scope-Gap ohne bestehendes REQ | NUR nach expliziter Produktentscheidung |
+| `DECISION_REQUIRED` | Mehrdeutige Intent — kein einzelnes REQ passt eindeutig | Entwickler-Entscheidung anfordern |
+| `AMBIGUOUS` | Unzureichende Evidenz für Klassifikation | Mehr Analyse nötig |
+
+**Produktakzeptanz ist Pflicht vor:** `NEW_REQUIREMENT`, Änderung von `derivedFrom`, Änderung von `screens[]`.
+
+### Klassifikationsregeln (decisive cases)
+
+- Grep-Treffer in REQ-Text → Kandidat identifiziert → **Schritt 5 weiterführen**, nicht direkt mutieren
+- Kein Treffer → **NICHT** sofort `NEW_REQUIREMENT` → zunächst semantische Suche und Klassifikation
+- Bestehende Requirement-Intent klar → REQ-ID erhalten, nur Attribut ergänzen
+- Widerspruch zwischen zwei Requirements → `DECISION_REQUIRED`, keine eigenmächtige Auflösung
+
+Vollständiger Vertrag: `.mxagile/policies/impact-resolution.md`
 
 ## Einschraenkungen
 

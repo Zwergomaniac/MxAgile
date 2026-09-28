@@ -82,6 +82,20 @@
         "expected_overall": { "type": "string" }
       }
     },
+    "mockup_name": {
+      "type": "string",
+      "description": "Optional: name of the SPA mockup bundle used as verification reference. Matches page.schema.json mockup_name. For SPA bundle projects. Absent for single-file legacy targets."
+    },
+    "target_revision": {
+      "type": "string",
+      "pattern": "^REV-[0-9]{3,}$",
+      "description": "Optional: accepted revision ID of the target bundle used for this verification. Points to planning/target-mockups/<mockup-name>/_history/<target_revision>/revision.yaml. When present, enables precise staleness comparison: evidence is STALE if the active revision ID differs from this value."
+    },
+    "bundle_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Optional: SHA-256 bundle hash of the target at time of verification. Deterministic identity of the exact bundle state verified against. Enables hash-based staleness detection independent of revision IDs."
+    },
     "schema_version": {
       "type": "integer",
       "description": "Version of this parity schema. Increment when the dimension set changes. Used for evidence upgrade detection."

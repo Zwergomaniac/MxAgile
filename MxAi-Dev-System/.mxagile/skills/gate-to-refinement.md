@@ -13,6 +13,9 @@ Prueft ob die Discovery-Phase vollstaendig abgeschlossen ist bevor Refinement be
       (c) Explizite Entwicklerfreigabe zum Fortfahren ohne Requirements.
       Ohne fachliche Grundlage: **STOP** — Rueckfragen an den Entwickler stellen.
 - [ ] UI-Inventar vorhanden unter `planning/ui-inventory/` (wenn Mockups unter `input-resources/ui-ux/` existieren)
+- [ ] **Coverage-Gap-Check abgeschlossen:** Fuer jede inventarisierte Page wurde geprueft ob
+  Requirements-Traceability vorhanden ist. Pages ohne Traceability sind als `COVERAGE_GAP`
+  in der Story-Spec dokumentiert. (Coverage-Gaps sind kein Gate-Blocker, aber sie muessen sichtbar sein.)
 - [ ] Falls generiertes Mockup: `"approved": true` im mocketeer-spec (Entwicklerfreigabe erteilt)
 - [ ] Bestehendes Modell im betroffenen Modul gelesen
 - [ ] Company Layer Platform-Constraints evaluiert: falls Layer installiert (.mxagile/layers/) → platform-modules.yml gelesen; falls keine Layer → NOT_APPLICABLE

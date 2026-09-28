@@ -20,7 +20,7 @@ Nach Discovery, wenn offene `DECISION REQUIRED` oder `ASSUMPTION` existieren.
    - Blockade-Bewertung: blockiert dieser Punkt die Implementierung?
 4. **Rueckfragen gebuendelt stellen** — Nicht einzeln, sondern gesammelt dem
    Entwickler vorlegen.
-5. **Antworten einarbeiten** — Entscheidungen in `sprints/decisions.md`
+5. **Antworten einarbeiten** — Entscheidungen in `planning/decisions/DEC-NNN.md`
    dokumentieren. Annahmen in der Story-Spezifikation aktualisieren.
 6. **Iterieren** — Wenn neue Fragen entstehen, erneut Rueckfragen formulieren.
    Erst weiter wenn alle Blocker aufgeloest sind.
@@ -28,5 +28,5 @@ Nach Discovery, wenn offene `DECISION REQUIRED` oder `ASSUMPTION` existieren.
 ## Output
 
 - Aktualisierte Story-Spezifikation ohne offene Blocker
-- Neue Eintraege in `sprints/decisions.md`
+- Neue Eintraege in `planning/decisions/DEC-NNN.md`
 - Akzeptanzkriterien in der Story-Spezifikation

@@ -45,8 +45,8 @@ neuen Arbeitspaket.
    in `.mxagile/layers/<layer-id>/platform-modules.yml` pruefen welche Plattformmodule
    relevant sind. Ohne Layer: kein company-spezifischer Modul-Constraint.
 
-7. **Entscheidungen pruefen** — `sprints/decisions.md` auf relevante Vorarbeiten
-   durchsehen.
+7. **Entscheidungen pruefen** — `planning/decisions/` auf relevante Vorarbeiten
+   durchsehen (canonical location; legacy: `sprints/decisions.md` if present).
 
 8. **Luecken markieren** — Fehlende Informationen als `DECISION REQUIRED` oder
    `ASSUMPTION` markieren.

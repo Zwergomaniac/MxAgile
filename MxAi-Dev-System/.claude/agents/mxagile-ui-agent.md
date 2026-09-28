@@ -154,8 +154,13 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
 ### Ablauf
 
 1.  **Schema laden:** Lade das Ziels-Schema aus `.mxagile/schemas/page.schema.json`.
-2.  **Mockups analysieren:** Starte Playwright, oeffne jedes Mockup-HTML aus `input-resources/ui-ux/`
-    (alle `*.html` inkl. `index.html`; `_archive/` ignorieren).
+2.  **Mockups analysieren:** Starte Playwright und bestimme den Entry Point:
+    - **SPA-Bundle** (Verzeichnis mit `index.html`): Öffne `index.html` als Entry Point und
+      navigiere innerhalb der SPA zu allen Screens. Jedes erreichbare Screen ist eine separate Page.
+      **NICHT** jede `*.html`-Datei im Bundle einzeln direkt öffnen — das umgeht die SPA-Navigation.
+    - **Single-File-Legacy** (`*.html` ohne Bundle-Struktur): Öffne direkt.
+    - `_archive/` ignorieren. Wenn `input-resources/ui-ux/<mockup-name>/index.html` existiert,
+      ist es immer ein SPA-Bundle.
 3.  **Seiten-Struktur erfassen:** Gehe alle Seiten und sichtbaren Zustaende systematisch durch.
     Identifiziere logische Bereiche (Sections) und UI-Gruppen (Components wie Forms, Tables).
 4.  **UI-Pattern und Display-Mode bestimmen (PFLICHT vor Widget-Benennung):**
@@ -177,6 +182,9 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
     `planning/ui-inventory/`. Das Format MUSS dem `page.schema.json` entsprechen.
     *   **IDs generieren:** Erzeuge stabile, lesbare IDs fuer alle Elemente
         (z.B. `PAGE-CUSTOMER-EDIT`, `FIELD-CUSTOMER-NAME`, `ACT-CUSTOMER-SAVE`).
+    *   **`mockup_name` setzen:** Wenn die Page aus einem SPA-Bundle stammt, trage den
+        Bundle-Namen in das Feld `mockup_name` ein (z.B. `mockup_name: kidscompass-web`).
+        Bei Single-File-Legacy leer lassen.
     *   **Semantik extrahieren:** Fuehre die Felder `purpose`, `roles`, `sections`,
         `components`, `fields` und `actions` aus der visuellen Analyse.
     *   **`visual_priority` fuer Aktionen:** Primaere Aktionen (z.B. Speichern-Schaltflaeche)
@@ -322,12 +330,22 @@ BEVOR Aenderungen vorgenommen werden.
 
 ### Aktives Target-Mockup bestimmen
 
-Lies aus `planning/ui-inventory/{PageName}.yaml` das Feld `target_mockup`.
-- Falls `target_mockup` gesetzt: verwende dieses als Referenz fuer die Verifizierung.
+Lies aus `planning/ui-inventory/{PageName}.yaml`:
+
+**SPA-Bundle (bevorzugt):** Falls `mockup_name` gesetzt:
+1. Prüfe `target_revision` — wenn gesetzt (z.B. `REV-003`), ist der akzeptierte Revision-Pfad:
+   `planning/target-mockups/<mockup_name>/_history/<target_revision>/`
+2. Prüfe `bundle_hash` — wenn vorhanden, gegen den Hash des aktiven Working-Target vergleichen.
+   Wenn Working-Target-Hash ≠ `bundle_hash`: WORKING_TARGET_UNACCEPTED_DEVIATION — Gate blockiert.
+   Die Abweichung kann nur durch `python scripts/create_revision.py` aufgelöst werden.
+3. Verwende den akzeptierten Revision-Pfad als Referenz. Nie den Working Target direkt als Referenz.
+
+**Single-File-Legacy (Rückfall):**
+- Falls `target_mockup` gesetzt: verwende dieses als Referenz.
 - Falls `target_mockup` fehlt: verwende `source_mockup` als Target.
 - Nie gegen ein veraltetes `source_mockup` verifizieren wenn ein aktuelles `target_mockup` existiert.
 
-Vollstaendiger Vertrag: `policies/mockup-lifecycle.md`.
+Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-bundle.md`.
 
 ### Ablauf
 

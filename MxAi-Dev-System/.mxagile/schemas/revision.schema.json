@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile SPA Mockup Bundle Revision",
+  "description": "Immutable manifest for one accepted revision of a SPA mockup bundle. Located at planning/target-mockups/<mockup-name>/_history/REV-NNN/revision.yaml. Created only when a working-target bundle change is explicitly accepted through the Autonomous Refinement acceptance process, backed by a planning/decisions/DEC-NNN entry. See policies/spa-mockup-bundle.md and policies/mockup-lifecycle.md.",
+  "type": "object",
+  "required": ["revision_id", "mockup_name", "created_at", "entry_point", "bundle_hash", "lifecycle_trigger", "change_classification", "impact_scope"],
+  "additionalProperties": false,
+  "properties": {
+    "revision_id": {
+      "type": "string",
+      "pattern": "^REV-[0-9]{3,}$",
+      "description": "Stable sequential identifier for this revision, e.g. REV-001. Sequential within a mockup bundle. Must match the containing directory name."
+    },
+    "mockup_name": {
+      "type": "string",
+      "description": "Name of the mockup bundle this revision belongs to. Matches the directory under planning/target-mockups/<mockup-name>/."
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "ISO date (YYYY-MM-DD) when this revision was accepted and archived."
+    },
+    "predecessor_revision_id": {
+      "type": "string",
+      "pattern": "^REV-[0-9]{3,}$",
+      "description": "The previous accepted revision ID. Absent on REV-001 (first revision). Forms an immutable chain of accepted design decisions."
+    },
+    "entry_point": {
+      "type": "string",
+      "description": "Relative path to the SPA entry point within this revision directory. Normally 'index.html'. Navigate here to launch the bundle.",
+      "default": "index.html"
+    },
+    "bundle_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Deterministic SHA-256 hash of the complete bundle contents. Algorithm: for every included file, sort by canonical relative path (forward slashes), compute SHA-256 of raw bytes for each file, build sorted manifest lines '<canonical-path>:<file-sha256>', SHA-256 the resulting joined manifest. Excludes: revision.yaml itself, _history/ subdirectory. See policies/spa-mockup-bundle.md for full algorithm specification."
+    },
+    "lifecycle_trigger": {
+      "type": "string",
+      "enum": ["refinement_accepted", "initial_acceptance", "source_rebase_accepted"],
+      "description": "What lifecycle event created this revision. refinement_accepted: developer accepted a proposed target change. initial_acceptance: first target differs from source mockup. source_rebase_accepted: target was rebased against a new source version with explicit acceptance."
+    },
+    "change_classification": {
+      "type": "string",
+      "enum": ["material", "non_material", "unknown"],
+      "description": "Whether this change requires re-verification of existing evidence. material: existing parity evidence for affected screens becomes STALE. non_material: cosmetic/non-functional change; agent may PROPOSE this classification but developer must CONFIRM it. unknown: conservative default when classification cannot be determined; treat as material. NEVER use non_material to silently preserve evidence when product authority is changing.",
+      "default": "unknown"
+    },
+    "impact_scope": {
+      "type": "string",
+      "enum": ["targeted", "cross_cutting", "full", "unknown"],
+      "description": "Scope of impact for evidence staleness propagation. targeted: only explicitly listed screens/flows are affected; selective staleness via affected_screens. cross_cutting: shared nav/CSS/shell changed; broader staleness scope. full: all screens affected or impact cannot be bounded. unknown: conservative fallback — treat as full. Default is unknown.",
+      "default": "unknown"
+    },
+    "affected_screens": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^PAGE-[A-Z0-9_-]+$"
+      },
+      "description": "PAGE-NNN identifiers of screens affected by this revision. Required when impact_scope is 'targeted'. When impact_scope is 'full' or 'cross_cutting', this list is advisory only. Screen identity (PAGE-NNN) is stable across revisions."
+    },
+    "affected_flows": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional FLOW-ID labels of navigation flows affected by this revision. Flow IDs correspond to flow_id values on navigation entries in page inventory YAMLs. Advisory only — for diagnostics and reporting."
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^REQ-[0-9]{3,}$"
+      },
+      "description": "REQ-NNN identifiers of Requirements whose visual/interaction contract changed in this revision. Populated from affected_screens Requirement relationships. Used for reporting, not for automatic mutation."
+    },
+    "acceptance_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^DEC-[0-9]{3,}$"
+      },
+      "description": "DEC-NNN identifiers from planning/decisions/ that authorized this revision. Required for lifecycle_trigger=refinement_accepted. The DEC record is the authoritative approval provenance. A schema field alone cannot prove human approval."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable summary of why this revision was accepted."
+    },
+    "source_bundle_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Optional: SHA-256 hash of the source bundle (input-resources/ui-ux/<mockup-name>/) at the time this revision was created. Enables source-target comparison."
+    }
+  }
+}

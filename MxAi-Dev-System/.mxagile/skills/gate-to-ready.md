@@ -6,7 +6,7 @@ bevor die Implementierung freigegeben wird.
 ## Vorbedingungen
 
 - [ ] Alle `DECISION REQUIRED` beantwortet oder als bewusste `ASSUMPTION` markiert
-- [ ] Entscheidungen in `sprints/decisions.md` dokumentiert
+- [ ] Entscheidungen in `planning/decisions/DEC-NNN.md` dokumentiert
 - [ ] Widersprueche zwischen Quellen aufgeloest (gemaess `policies/source-priority.md`)
 - [ ] Akzeptanzkriterien in der Story-Spezifikation vorhanden
 - [ ] Wave-Planung in `planning/execution-waves.md` aktualisiert
@@ -21,6 +21,12 @@ bevor die Implementierung freigegeben wird.
   - Company Layer Komponenten wurden als erste Option geprueft
   - `preliminary` confidence ist ein Blocker fuer gate-to-ready wenn das Inventar UI-Driven ist
 - [ ] Keine offenen Blocker
+- [ ] **SPA-Bundle Revision Check (wenn `mockup_name` in Page YAML gesetzt):**
+  Fuer jede Page mit `mockup_name`: Working-Target-Hash == `bundle_hash` im Page YAML?
+  Wenn NEIN: WORKING_TARGET_UNACCEPTED_DEVIATION — Gate blockiert bis `create_revision.py` ausgefuehrt wurde.
+  Das Gate darf diese Abweichung NICHT selbst auflösen. Nur `scripts/create_revision.py` darf Revisionen erstellen.
+- [ ] **Coverage-Gap-Sichtbarkeit:** Alle Pages ohne Requirements-Traceability als `COVERAGE_GAP` in der
+  Implementation-Checkliste dokumentiert (nicht blockierend, aber sichtbar als offener Punkt)
 - [ ] **Wenn `development.ui_driven = true`:** Fuer jede Seite im UI-Inventar sind
       `source_mockup`, `ui_inventory` und `layout_reference` verfuegbar und werden
       als bindende Referenz-Felder in die Checkliste uebernommen

@@ -49,6 +49,11 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
    c. `input-resources/requirements/` pruefen
    d. Wenn `development.ui_driven = true` UND HTML-Mockup gefunden:
       UI-Agent Analyze MUSS ausgefuehrt werden — nicht optional, kein Weiterfahren ohne Inventar
+   e. **Coverage-Gap-Check (nach UI-Inventar-Erstellung):** Wenn UI-Inventar erstellt wurde:
+      `python scripts/resolve_impact.py PAGE-NNN` fuer jede neue Page ausführen.
+      Pages ohne Requirements-Traceability (leere `all_requirements`) als `COVERAGE_GAP` markieren.
+      Coverage-Gaps in die Story-Spec als offene Punkte aufnehmen — sie sind kein Blocker,
+      aber PFLICHT-Input fuer den Discovery-Agent und das Gate-to-Refinement.
 6. Analysiere die Rang-1-Quellen: Requirements-Dokument und Mockup (falls vorhanden)
 7. Analysiere das bestehende Mendix-Modell via mxcli
 8. Lies Board-Stories als Kontext (falls Board konfiguriert)

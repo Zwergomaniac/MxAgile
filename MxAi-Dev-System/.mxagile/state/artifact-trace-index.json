@@ -1,7 +1,7 @@
 {
-  "specs": {
-    "SPEC-01": {
-      "path": "specs\\SPEC-01.yml"
-    }
-  }
+  "_retired": true,
+  "_notice": "This file is RETIRED. The canonical artifact index is .mxagile/state/artifact-index.json",
+  "_replacement": ".mxagile/state/artifact-index.json",
+  "_retired_at": "2026-09-28",
+  "_reason": "Superseded by artifact-index.json which contains nodes, edges, source_fingerprint, and supports full traceability graph (DERIVED_FROM, APPLIES_TO, IMPLEMENTED_BY, VERIFIED_BY, COVERS edges). This stub had no live nodes or edges and was never built by the active tooling."
 }

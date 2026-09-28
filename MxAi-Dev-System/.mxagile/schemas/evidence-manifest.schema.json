@@ -104,7 +104,21 @@
         },
         "target_mockup": {
           "type": "string",
-          "description": "Active acceptance target used for comparison."
+          "description": "Active acceptance target used for comparison. For legacy single-file targets: path to the target HTML. For SPA bundles: use mockup_name + target_revision instead."
+        },
+        "mockup_name": {
+          "type": "string",
+          "description": "Optional: name of the SPA mockup bundle used as verification reference. Absent for single-file legacy evidence entries."
+        },
+        "target_revision": {
+          "type": "string",
+          "pattern": "^REV-[0-9]{3,}$",
+          "description": "Optional: accepted revision ID of the bundle verified against. Enables precise revision-aware staleness for this evidence entry. Points to planning/target-mockups/<mockup-name>/_history/<target_revision>/revision.yaml."
+        },
+        "bundle_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "Optional: SHA-256 bundle hash of the target at time of verification. Hash-based identity for the exact bundle state this evidence was collected against."
         },
         "parity_report_path": {
           "type": "string",

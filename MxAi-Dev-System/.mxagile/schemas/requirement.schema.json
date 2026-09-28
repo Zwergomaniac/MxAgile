@@ -33,7 +33,15 @@
     "derivedFrom": {
       "type": "string",
       "pattern": "^PAGE-",
-      "description": "Optional page ID this requirement originates from. Creates a DERIVED_FROM edge in the artifact index: Page -> Requirement."
+      "description": "Optional page ID this requirement ORIGINATES FROM (provenance). Records which screen was the source of this requirement during Discovery. Creates a DERIVED_FROM edge in the artifact index: Page -> Requirement. Single value — provenance is a point origin, not applicability. Do NOT overload this field for multi-screen applicability — use the 'screens' field instead."
+    },
+    "screens": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^PAGE-[A-Z0-9_-]+$"
+      },
+      "description": "Optional list of PAGE-NNN identifiers where this Requirement is applicable (displayed, enforced, or verified). A Requirement may apply to multiple screens even if it originated from one. Creates APPLIES_TO edges in the artifact index: Requirement -> Page (for each screen). Use for Screen -> Requirement lookup. Not a replacement for derivedFrom — derivedFrom is provenance, screens is applicability scope. See policies/impact-resolution.md."
     },
     "target_users": {
       "type": "array",
