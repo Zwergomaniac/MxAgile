@@ -68,10 +68,11 @@ function New-FakeLayerRepo {
         [string]$CoreConstraint  = ">=1.0.0",
         [bool]$InitGit           = $true,
         # Artifact control
-        [bool]$IncludeGlossary      = $true,   # false -> omit glossary.yml from source
-        [bool]$BadDetailFileRef     = $false,  # true  -> dangling detailFile in platform-modules.yml
-        [string]$MaliciousArtifact  = "",      # non-empty -> inject this artifact path in layer.json
-        [bool]$AddDeepNestedContent = $false   # true  -> add SampleApp/node_modules deep path to repo
+        [bool]$IncludeGlossary         = $true,  # false -> omit glossary.yml from source
+        [bool]$BadDetailFileRef        = $false, # true  -> dangling detailFile in platform-modules.yml
+        [string]$MaliciousArtifact     = "",     # non-empty -> inject this artifact path in layer.json
+        [bool]$AddDeepNestedContent    = $false, # true  -> add SampleApp/node_modules deep path to repo
+        [string]$PlatformModulesContent = ""     # non-empty -> override default platform-modules.yml
     )
     $dir = Join-Path $env:TEMP "mxagile-repo-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -102,7 +103,10 @@ function New-FakeLayerRepo {
             -Value "terms: [{term: TestTerm, definition: A test term}]`n" -Encoding UTF8
     }
 
-    if ($BadDetailFileRef) {
+    if (-not [string]::IsNullOrWhiteSpace($PlatformModulesContent)) {
+        Set-Content -Path (Join-Path $dir "platform-modules.yml") `
+            -Value $PlatformModulesContent -Encoding UTF8
+    } elseif ($BadDetailFileRef) {
         Set-Content -Path (Join-Path $dir "platform-modules.yml") `
             -Value "platform-modules-information:`n  modules:`n    - id: TEST`n      detailFile: modules/DOES_NOT_EXIST.md`n" `
             -Encoding UTF8
@@ -156,12 +160,14 @@ function New-FakeLayerRepo {
 function Install-FakeLayer {
     param(
         [string]$ProjectRoot,
-        [string]$LayerId         = "test-layer",
+        [string]$LayerId          = "test-layer",
         [string]$InstalledVersion = "1.0.0",
         [string]$InstalledCommit  = "aaa000bbb111",
         [string]$SchemaVersion    = "1",
         [string]$GlossaryContent  = "terms: []`n",
-        [bool]$WriteProvenance    = $true
+        [bool]$WriteProvenance    = $true,
+        [bool]$WriteLegacyProvenance = $false,  # true -> use legacy resolved_revision field
+        [bool]$WriteStateManifest = $false       # true -> write state/manifest.{id}.md
     )
     $layerDir = Join-Path $ProjectRoot ".mxagile\layers\$LayerId"
     New-Item -ItemType Directory -Path $layerDir -Force | Out-Null
@@ -176,20 +182,44 @@ function Install-FakeLayer {
         -Value "platform-modules-information:`n  modules: []`n" -Encoding UTF8
 
     if ($WriteProvenance) {
-        $prov = [ordered]@{
-            layerId          = $LayerId
-            installedVersion = $InstalledVersion
-            schemaVersion    = $SchemaVersion
-            sourceRepository = "https://example.com/layer.git"
-            sourceRef        = "main"
-            sourceCommit     = $InstalledCommit
-            installedAt      = "2026-01-01T00:00:00Z"
-            installedBy      = "mxagile-core/fetch-layer"
-            previousVersion  = $null
-            previousCommit   = $null
+        $prov = if ($WriteLegacyProvenance) {
+            # Legacy provenance schema: resolved_revision instead of sourceCommit
+            [ordered]@{
+                layerId           = $LayerId
+                schemaVersion     = $SchemaVersion
+                sourceRepository  = "https://example.com/layer.git"
+                sourceRef         = "main"
+                resolved_revision = $InstalledCommit
+                installedAt       = "2026-01-01T00:00:00Z"
+                installedBy       = "mxagile-core/fetch-layer"
+            }
+        } else {
+            [ordered]@{
+                layerId          = $LayerId
+                installedVersion = $InstalledVersion
+                schemaVersion    = $SchemaVersion
+                sourceRepository = "https://example.com/layer.git"
+                sourceRef        = "main"
+                sourceCommit     = $InstalledCommit
+                installedAt      = "2026-01-01T00:00:00Z"
+                installedBy      = "mxagile-core/fetch-layer"
+                previousVersion  = $null
+                previousCommit   = $null
+            }
         }
         $prov | ConvertTo-Json | Set-Content -Path (Join-Path $layerDir "provenance.json") -Encoding UTF8
     }
+
+    if ($WriteStateManifest) {
+        $stateDir = Join-Path $ProjectRoot ".mxagile\state"
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        $manifestContent = "# Layer: Installed Layer ($LayerId)`n`nInstalled version: $InstalledVersion`n`nResolved revision: $InstalledCommit`n"
+        [System.IO.File]::WriteAllText(
+            (Join-Path $stateDir "manifest.$LayerId.md"),
+            $manifestContent,
+            [System.Text.Encoding]::UTF8)
+    }
+
     return $layerDir
 }
 
@@ -197,6 +227,11 @@ function Get-ProvenanceContent {
     param([string]$ProjectRoot, [string]$LayerId = "test-layer")
     $path = Join-Path $ProjectRoot ".mxagile\layers\$LayerId\provenance.json"
     return Get-Content -LiteralPath $path -Raw
+}
+
+function Get-StateManifestPath {
+    param([string]$ProjectRoot, [string]$LayerId = "test-layer")
+    return Join-Path $ProjectRoot ".mxagile\state\manifest.$LayerId.md"
 }
 
 function Get-BackupCount {
@@ -931,6 +966,299 @@ function Test-SchemaVersionSameNoPromptRequired {
 }
 
 # =============================================================================
+# -- YAML NULL DETAILFILE (Bug 1) ---------------------------------------------
+# =============================================================================
+
+# --- 20. detailFile: null is treated as "no detail file", not a path ----------
+
+function Test-NullDetailFileSkippedInValidation {
+    # Verifies that a platform-modules.yml entry with "detailFile: null" does not
+    # cause validation to fail.  The string "null" must not be treated as a path.
+    Write-Host "Running Test-NullDetailFileSkippedInValidation..."
+    $project = New-TempProject
+    $pm = "platform-modules-information:`n  modules:`n    - id: MOD1`n      detailFile: null`n"
+    $repo = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -PlatformModulesContent $pm
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" | Out-Null
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 0 "detailFile: null must not block validation"
+        $prov = Get-ProvenanceContent -ProjectRoot $project | ConvertFrom-Json
+        Assert-Equal $prov.installedVersion "1.2.0" "update must complete"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 21. detailFile: ~ (YAML compact null) is treated as "no detail file" ----
+
+function Test-TildeDetailFileSkippedInValidation {
+    # Verifies that a platform-modules.yml entry with "detailFile: ~" (YAML
+    # compact null) does not cause validation to fail.
+    Write-Host "Running Test-TildeDetailFileSkippedInValidation..."
+    $project = New-TempProject
+    $pm = "platform-modules-information:`n  modules:`n    - id: MOD1`n      detailFile: ~`n"
+    $repo = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -PlatformModulesContent $pm
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" | Out-Null
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 0 "detailFile: ~ must not block validation"
+        $prov = Get-ProvenanceContent -ProjectRoot $project | ConvertFrom-Json
+        Assert-Equal $prov.installedVersion "1.2.0" "update must complete"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# =============================================================================
+# -- STATE MANIFEST ROLLBACK (Bug 2) ------------------------------------------
+# =============================================================================
+
+# --- 22. Existing state manifest is restored after validation failure ---------
+
+function Test-RollbackRestoresExistingStateManifest {
+    # Verifies that when validation fails (BadDetailFileRef), the pre-update state
+    # manifest content is restored.  Covers:
+    #   - req 1 (apply/validation failure restores existing manifest)
+    #   - req 2 (failed validation restores existing manifest)
+    Write-Host "Running Test-RollbackRestoresExistingStateManifest..."
+    $project = New-TempProject
+    $repo    = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -BadDetailFileRef $true
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" `
+        -WriteStateManifest $true | Out-Null
+
+    $smPath    = Get-StateManifestPath -ProjectRoot $project
+    $smBefore  = Get-Content -LiteralPath $smPath -Raw
+
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 1 "exit 1 on validation failure"
+
+        Assert-FileExists $smPath "state manifest must exist after rollback"
+        $smAfter = Get-Content -LiteralPath $smPath -Raw
+        Assert-Equal $smAfter $smBefore "state manifest must be the pre-update version after rollback"
+        Assert-False ($smAfter -match "1\.2\.0") "target version must not appear in restored state manifest"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 23. Absent state manifest is restored to absence after failure -----------
+
+function Test-RollbackRestoresAbsentStateManifest {
+    # Verifies that when no state manifest existed before the update and validation
+    # fails, the state manifest is removed during rollback.  Covers req 4 + req 5.
+    Write-Host "Running Test-RollbackRestoresAbsentStateManifest..."
+    $project = New-TempProject
+    $repo    = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -BadDetailFileRef $true
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" `
+        -WriteStateManifest $false | Out-Null
+
+    $smPath = Get-StateManifestPath -ProjectRoot $project
+    Assert-FileNotExists $smPath "state manifest must not exist before update (test precondition)"
+
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 1 "exit 1 on validation failure"
+
+        Assert-FileNotExists $smPath "state manifest must not exist after rollback (restored to absence)"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 24. Restored state manifest is byte-identical to original ---------------
+
+function Test-StateManifestByteIdenticalAfterRollback {
+    # Verifies that the state manifest restored by rollback is byte-identical
+    # to the pre-update content.  Covers req 3.
+    Write-Host "Running Test-StateManifestByteIdenticalAfterRollback..."
+    $project = New-TempProject
+    $repo    = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -BadDetailFileRef $true
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" `
+        -WriteStateManifest $true | Out-Null
+
+    $smPath       = Get-StateManifestPath -ProjectRoot $project
+    $bytesBefore  = [System.IO.File]::ReadAllBytes($smPath)
+
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 1 "exit 1 on validation failure"
+
+        $bytesAfter = [System.IO.File]::ReadAllBytes($smPath)
+        Assert-Equal $bytesAfter.Length $bytesBefore.Length "restored manifest must have identical byte length"
+        for ($i = 0; $i -lt $bytesBefore.Length; $i++) {
+            if ($bytesAfter[$i] -ne $bytesBefore[$i]) {
+                throw "ASSERT FAILED [byte-identical rollback]: byte $i differs (expected $($bytesBefore[$i]), got $($bytesAfter[$i]))"
+            }
+        }
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 25. Target version is not recorded anywhere after failed update ----------
+
+function Test-TargetVersionNotRecordedAfterRollback {
+    # Verifies that after a failed update + rollback, the target version is not
+    # recorded in the state manifest, provenance, or installed layer.json.
+    # Covers req 5.
+    Write-Host "Running Test-TargetVersionNotRecordedAfterRollback..."
+    $project = New-TempProject
+    $repo    = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -BadDetailFileRef $true
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" `
+        -WriteStateManifest $true | Out-Null
+    $smPath = Get-StateManifestPath -ProjectRoot $project
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 1 "exit 1 on validation failure"
+
+        # Provenance must not reference 1.2.0
+        $prov = Get-ProvenanceContent -ProjectRoot $project | ConvertFrom-Json
+        Assert-Equal $prov.installedVersion "1.0.0" "provenance must remain at previous version"
+
+        # State manifest must not reference 1.2.0 as installed version
+        $smContent = Get-Content -LiteralPath $smPath -Raw
+        Assert-False ($smContent -match "1\.2\.0") "target version must not appear in restored state manifest"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 26. Layer + provenance + manifest are mutually consistent after rollback --
+
+function Test-LayerProvenanceManifestConsistentAfterRollback {
+    # Verifies that layer dir content, provenance.json, and the state manifest
+    # all describe the same pre-update version after a failed update.  Covers req 6.
+    Write-Host "Running Test-LayerProvenanceManifestConsistentAfterRollback..."
+    $project = New-TempProject
+    $repo    = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -BadDetailFileRef $true
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" `
+        -GlossaryContent "terms: [{term: OldTerm, definition: installed at 1.0.0}]`n" `
+        -WriteStateManifest $true | Out-Null
+    $smPath = Get-StateManifestPath -ProjectRoot $project
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 1 "exit 1 on validation failure"
+
+        # Layer dir describes previous version
+        $layerDir     = Join-Path $project ".mxagile\layers\test-layer"
+        $installedLjm = Get-Content -LiteralPath (Join-Path $layerDir "layer.json") -Raw | ConvertFrom-Json
+        Assert-Equal ([string]$installedLjm.version) "1.0.0" "installed layer.json must be restored to 1.0.0"
+
+        # Provenance describes previous version
+        $prov = Get-ProvenanceContent -ProjectRoot $project | ConvertFrom-Json
+        Assert-Equal $prov.installedVersion "1.0.0" "provenance must describe 1.0.0"
+
+        # State manifest describes previous version
+        $smContent = Get-Content -LiteralPath $smPath -Raw
+        Assert-True ($smContent -match "1\.0\.0") "state manifest must reference 1.0.0"
+        Assert-False ($smContent -match "1\.2\.0") "state manifest must not reference 1.2.0"
+
+        # Glossary content is the pre-update content
+        $glossary = Get-Content -LiteralPath (Join-Path $layerDir "glossary.yml") -Raw
+        Assert-True ($glossary -match "OldTerm") "glossary must be the pre-update content"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# =============================================================================
+# -- CAPTRACK BROWNFIELD REGRESSION -------------------------------------------
+# =============================================================================
+
+# --- 27. CapTrack-like brownfield: legacy provenance + null detailFile --------
+
+function Test-CapTrackBrownfieldSuccessfulUpdate {
+    # Regression fixture reflecting the characteristics that exposed both bugs
+    # during the REAL CapTrack Company Layer acceptance test:
+    #   - Legacy provenance (resolved_revision, no installedVersion)
+    #   - Layer 1.0.0 installed
+    #   - Target Layer 1.2.0 with schemaVersion 1 (same)
+    #   - platform-modules.yml with detailFile: null entries
+    #   - State manifest already present
+    # Verifies that a successful update proceeds to completion.
+    Write-Host "Running Test-CapTrackBrownfieldSuccessfulUpdate..."
+    $project = New-TempProject
+    $pm = "platform-modules-information:`n  modules:`n    - id: MOD1`n      detailFile: null`n    - id: MOD2`n      detailFile: ~`n"
+    $repo = New-FakeLayerRepo -Id "captrack" -Version "1.2.0" -SchemaVersion "1" `
+        -PlatformModulesContent $pm
+    Install-FakeLayer -ProjectRoot $project -LayerId "captrack" -InstalledVersion "1.0.0" `
+        -SchemaVersion "1" -InstalledCommit "legacy000commit" `
+        -WriteLegacyProvenance $true -WriteStateManifest $true | Out-Null
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 0 "CapTrack brownfield update must succeed"
+
+        $prov = Get-ProvenanceContent -ProjectRoot $project -LayerId "captrack" | ConvertFrom-Json
+        Assert-Equal $prov.installedVersion "1.2.0" "provenance must record 1.2.0"
+
+        $smPath = Get-StateManifestPath -ProjectRoot $project -LayerId "captrack"
+        Assert-FileExists $smPath "state manifest must exist after successful update"
+        $smContent = Get-Content -LiteralPath $smPath -Raw
+        Assert-True ($smContent -match "1\.2\.0") "state manifest must record 1.2.0"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 28. CapTrack brownfield: injected validation failure rolls back entirely --
+
+function Test-CapTrackBrownfieldRollback {
+    # Same brownfield setup as above, but target has a dangling detailFile that
+    # triggers validation failure.  Verifies the entire transaction is rolled back:
+    # layer dir, provenance, AND state manifest all restored to pre-update state.
+    Write-Host "Running Test-CapTrackBrownfieldRollback..."
+    $project = New-TempProject
+    # Target has both null detailFiles AND a dangling ref — null must be skipped,
+    # but the dangling ref must still cause validation to fail.
+    $pm = "platform-modules-information:`n  modules:`n    - id: MOD1`n      detailFile: null`n    - id: MOD2`n      detailFile: modules/DOES_NOT_EXIST.md`n"
+    $repo = New-FakeLayerRepo -Id "captrack" -Version "1.2.0" -SchemaVersion "1" `
+        -PlatformModulesContent $pm
+    Install-FakeLayer -ProjectRoot $project -LayerId "captrack" -InstalledVersion "1.0.0" `
+        -SchemaVersion "1" -InstalledCommit "legacy000commit" `
+        -WriteLegacyProvenance $true -WriteStateManifest $true | Out-Null
+
+    $smPath      = Get-StateManifestPath -ProjectRoot $project -LayerId "captrack"
+    $smBefore    = Get-Content -LiteralPath $smPath -Raw
+
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 1 "CapTrack brownfield with dangling ref must fail"
+
+        # State manifest restored
+        Assert-FileExists $smPath "state manifest must exist after rollback"
+        $smAfter = Get-Content -LiteralPath $smPath -Raw
+        Assert-Equal $smAfter $smBefore "state manifest must be restored to pre-update content"
+        Assert-False ($smAfter -match "1\.2\.0") "target version must not appear after rollback"
+
+        # Provenance reverted (legacy provenance used resolved_revision — version read from layer.json)
+        $layerDir    = Join-Path $project ".mxagile\layers\captrack"
+        $restoredLjm = Get-Content -LiteralPath (Join-Path $layerDir "layer.json") -Raw | ConvertFrom-Json
+        Assert-Equal ([string]$restoredLjm.version) "1.0.0" "installed layer.json must be 1.0.0 after rollback"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# =============================================================================
 # -- SPARSE ACQUISITION / LONG-PATH SAFETY -------------------------------------
 # =============================================================================
 
@@ -1063,7 +1391,19 @@ $tests = @(
     # Sparse acquisition / long-path safety (3)
     "Test-SparseAcquisitionExcludesIrrelevantContent",
     "Test-AcquisitionDoesNotModifyGlobalGitConfig",
-    "Test-PS51RuntimeDiagnostic"
+    "Test-PS51RuntimeDiagnostic",
+    # YAML null detailFile — Bug 1 (2)
+    "Test-NullDetailFileSkippedInValidation",
+    "Test-TildeDetailFileSkippedInValidation",
+    # State manifest rollback — Bug 2 (5)
+    "Test-RollbackRestoresExistingStateManifest",
+    "Test-RollbackRestoresAbsentStateManifest",
+    "Test-StateManifestByteIdenticalAfterRollback",
+    "Test-TargetVersionNotRecordedAfterRollback",
+    "Test-LayerProvenanceManifestConsistentAfterRollback",
+    # CapTrack brownfield regression (2)
+    "Test-CapTrackBrownfieldSuccessfulUpdate",
+    "Test-CapTrackBrownfieldRollback"
 )
 
 Write-Host ""

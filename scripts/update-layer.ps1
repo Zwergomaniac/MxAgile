@@ -238,11 +238,13 @@ $TempCloneDir = Join-Path $MxAgileDir "tmp_layer_update"
 $BackupBase   = Join-Path $MxAgileDir "tmp_layer_backup"
 
 # Variables accessible across try/catch
-$tempClonePath   = $null
-$backupPath      = $null
-$layerDir        = $null
-$installedVersion = $null
-$installedCommit  = $null
+$backupPath           = $null
+$layerDir             = $null
+$installedVersion     = $null
+$installedCommit      = $null
+$stateManifestPath    = $null
+$stateManifestBytes   = $null
+$stateManifestExisted = $false
 
 Write-Host ""
 Write-Host "=======================================" -ForegroundColor Cyan
@@ -567,6 +569,14 @@ try {
     # CR-06: Backup — copy existing Layer dir before any mutation
     # =========================================================================
 
+    # Capture current state manifest for transactional rollback (must happen
+    # before any filesystem mutation, together with the layer dir backup).
+    $stateManifestPath = Join-Path $StateDir "manifest.$targetLayerId.md"
+    if (Test-Path -LiteralPath $stateManifestPath -PathType Leaf) {
+        $stateManifestBytes   = [System.IO.File]::ReadAllBytes($stateManifestPath)
+        $stateManifestExisted = $true
+    }
+
     $timestamp  = Get-Date -Format 'yyyyMMddHHmmss'
     $backupPath = "${BackupBase}_${targetLayerId}_${timestamp}"
 
@@ -629,7 +639,6 @@ try {
         New-Item -ItemType Directory -Path $StateDir -Force | Out-Null
     }
 
-    $stateManifestPath = Join-Path $StateDir "manifest.$targetLayerId.md"
     $stateManifestContent = @"
 # Layer: $targetName ($targetLayerId)
 
@@ -688,9 +697,11 @@ Previous version: $installedVersion
         if ([string]::IsNullOrWhiteSpace($pmContent)) {
             throw "Validation failed: platform-modules.yml is empty after update."
         }
-        # Verify detailFile references resolve
+        # Verify detailFile references resolve.
+        # YAML null representations ("null", "~") mean "no detail file" — skip them.
         [regex]::Matches($pmContent, '(?m)^\s*detailFile:\s*(.+)$') | ForEach-Object {
             $refPath = $_.Groups[1].Value.Trim().Trim('"', "'")
+            if ([string]::IsNullOrWhiteSpace($refPath) -or $refPath -eq 'null' -or $refPath -eq '~') { return }
             $refFull = Join-Path $layerDir $refPath
             if (-not (Test-Path -LiteralPath $refFull -PathType Leaf)) {
                 throw "Validation failed: platform-modules.yml references missing file: $refPath"
@@ -795,6 +806,22 @@ Previous version: $installedVersion
         }
     } else {
         Write-Host "  No backup available (failure occurred before backup was created)." -ForegroundColor DarkGray
+    }
+
+    # Restore state manifest — must be consistent with the restored Layer projection.
+    # Runs even if the layer dir rollback failed (independent artifact).
+    if (-not [string]::IsNullOrWhiteSpace($stateManifestPath)) {
+        try {
+            if ($stateManifestExisted -and $null -ne $stateManifestBytes) {
+                [System.IO.File]::WriteAllBytes($stateManifestPath, $stateManifestBytes)
+                Write-Host "  [OK] State manifest restored." -ForegroundColor Green
+            } elseif (-not $stateManifestExisted -and (Test-Path -LiteralPath $stateManifestPath)) {
+                Remove-Item -LiteralPath $stateManifestPath -Force
+                Write-Host "  [OK] State manifest removed (restored to previous absence)." -ForegroundColor Green
+            }
+        } catch {
+            Write-Host "  [WARN] Failed to restore state manifest: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
     }
 
     Write-Host ""
