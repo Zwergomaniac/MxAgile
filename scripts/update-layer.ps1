@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Updates an installed MxAgile Company Layer independently of MxAgile Core.
@@ -282,15 +283,59 @@ try {
     # =========================================================================
 
     Remove-TempDir $TempCloneDir
-    $tempClonePath = $TempCloneDir
 
-    Write-Host "Cloning target Layer from repository..."
+    Write-Host "Acquiring target Layer from repository (sparse)..."
 
-    & git clone --depth 1 --branch $Ref -- $RepositoryUrl $TempCloneDir 2>&1 |
+    # Phase 1: shallow clone without materializing any files.
+    # --no-checkout avoids writing deeply-nested reference-app content (e.g.
+    # SampleApp/node_modules/) that would exceed the Windows MAX_PATH limit.
+    & git clone --depth 1 --no-checkout --branch $Ref -- $RepositoryUrl $TempCloneDir 2>&1 |
         ForEach-Object { Write-Host "  git: $_" }
 
     if ($LASTEXITCODE -ne 0) {
         throw "git clone failed with exit code $LASTEXITCODE."
+    }
+
+    # Scope core.longpaths to this acquisition repo only — never modifies global config.
+    & git -C $TempCloneDir config core.longpaths true 2>&1 | Out-Null
+
+    # Phase 2: read layer.json from the object store (no disk write) to determine
+    # which paths are declared as installation artifacts.
+    $preSparseManifestLines = & git -C $TempCloneDir show "HEAD:layer.json" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Target repository does not contain layer.json."
+    }
+
+    $preSparseManifest = $null
+    try {
+        $preSparseManifest = ($preSparseManifestLines -join "`n") | ConvertFrom-Json
+    } catch {
+        throw "Unable to parse target layer.json: $($_.Exception.Message)"
+    }
+
+    # Derive sparse-checkout patterns: layer.json + top-level declared artifact paths.
+    [string[]]$sparsePatterns = @("layer.json")
+    if ($null -ne $preSparseManifest.artifacts) {
+        foreach ($artifactPath in $preSparseManifest.artifacts.PSObject.Properties.Value) {
+            $topLevel = ([string]$artifactPath).TrimEnd('/\') -split '[/\\]' | Select-Object -First 1
+            if (-not [string]::IsNullOrWhiteSpace($topLevel) -and $sparsePatterns -notcontains $topLevel) {
+                $sparsePatterns += $topLevel
+            }
+        }
+    }
+
+    # Phase 3: materialize only declared artifact paths.
+    # Falls back to a full checkout on git < 2.25 (sparse-checkout not available);
+    # repo-scoped core.longpaths is still applied in the fallback path.
+    & git -C $TempCloneDir sparse-checkout init --no-cone 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $sparseArgs = @('-C', $TempCloneDir, 'sparse-checkout', 'set') + $sparsePatterns
+        & git @sparseArgs 2>&1 | Out-Null
+    }
+    & git -C $TempCloneDir checkout 2>&1 | ForEach-Object { Write-Host "  git: $_" }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "git checkout failed with exit code $LASTEXITCODE."
     }
 
     # =========================================================================

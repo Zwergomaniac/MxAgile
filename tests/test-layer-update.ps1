@@ -70,7 +70,8 @@ function New-FakeLayerRepo {
         # Artifact control
         [bool]$IncludeGlossary      = $true,   # false -> omit glossary.yml from source
         [bool]$BadDetailFileRef     = $false,  # true  -> dangling detailFile in platform-modules.yml
-        [string]$MaliciousArtifact  = ""       # non-empty -> inject this artifact path in layer.json
+        [string]$MaliciousArtifact  = "",      # non-empty -> inject this artifact path in layer.json
+        [bool]$AddDeepNestedContent = $false   # true  -> add SampleApp/node_modules deep path to repo
     )
     $dir = Join-Path $env:TEMP "mxagile-repo-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -110,6 +111,19 @@ function New-FakeLayerRepo {
             -Value "platform-modules-information:`n  modules: []`n" -Encoding UTF8
     }
 
+    if ($AddDeepNestedContent) {
+        # Simulate deeply-nested reference-app content with paths long enough to
+        # exceed the Windows MAX_PATH (260 chars) limit when cloned via plain
+        # "git clone --depth 1" without core.longpaths.  The sparse-checkout
+        # acquisition introduced in update-layer.ps1 avoids materializing this.
+        $deepDir = Join-Path $dir ("SampleApp/javascriptsource/nanoflowcommons/node_modules/" +
+            "very-long-package-name-that-makes-the-path-long/node_modules/" +
+            "another-very-long-package-name-for-testing-purposes/node_modules/" +
+            "yet-another-really-long-package-name-here/dist/submodule/utilities/helpers")
+        New-Item -ItemType Directory -Path $deepDir -Force | Out-Null
+        Set-Content -Path (Join-Path $deepDir "index.js") -Value "module.exports = {};" -Encoding UTF8
+    }
+
     if ($InitGit) {
         Push-Location $dir
         # Temporarily lower EAP: WPS 5.1 writes native-command stderr to the PS
@@ -120,6 +134,8 @@ function New-FakeLayerRepo {
             & git init -q  2>&1 | Out-Null
             & git config user.email "test@test.com" 2>&1 | Out-Null
             & git config user.name  "Test"          2>&1 | Out-Null
+            # Enable long paths for this fixture repo so deep-nested content can be committed.
+            & git config core.longpaths true 2>&1 | Out-Null
             & git add .    2>&1 | Out-Null
             & git commit -m "init" -q 2>&1 | Out-Null
             # Normalize branch name to 'main' for -Ref "main" compatibility
@@ -915,6 +931,97 @@ function Test-SchemaVersionSameNoPromptRequired {
 }
 
 # =============================================================================
+# -- SPARSE ACQUISITION / LONG-PATH SAFETY -------------------------------------
+# =============================================================================
+
+# --- 17. Deep-nested repo content does not block acquisition -----------------
+
+function Test-SparseAcquisitionExcludesIrrelevantContent {
+    # Verifies that update-layer.ps1 succeeds when the Layer repository contains
+    # deeply-nested reference-app content (e.g. SampleApp/node_modules/...) whose
+    # full path would exceed the Windows 260-char MAX_PATH limit under a naive
+    # "git clone --depth 1".  The sparse-checkout acquisition must materialize
+    # only declared artifacts and must complete without error.
+    Write-Host "Running Test-SparseAcquisitionExcludesIrrelevantContent..."
+    $project = New-TempProject
+    $repo    = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -AddDeepNestedContent $true
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" | Out-Null
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 0 "update from repo with deep-nested content must succeed"
+
+        $layerDir = Join-Path $project ".mxagile\layers\test-layer"
+        Assert-FileExists (Join-Path $layerDir "glossary.yml") "declared artifact must be installed"
+
+        # Undeclared reference-app content must not appear in the installed layer
+        Assert-False (Test-Path -LiteralPath (Join-Path $layerDir "SampleApp")) `
+            "SampleApp reference-app content must not be installed"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 18. Acquisition does not modify global git core.longpaths ---------------
+
+function Test-AcquisitionDoesNotModifyGlobalGitConfig {
+    # Verifies that running update-layer.ps1 leaves the developer's global
+    # git configuration unchanged.  core.longpaths is scoped to the acquisition
+    # temp repo only; the global value (whether set or absent) must be preserved.
+    Write-Host "Running Test-AcquisitionDoesNotModifyGlobalGitConfig..."
+    $project = New-TempProject
+    $repo    = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0"
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" | Out-Null
+
+    $longpathsBefore     = & git config --global --get core.longpaths 2>$null
+    $longpathsBeforeExit = $LASTEXITCODE   # 0 = key exists, 1 = key absent
+
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
+        Assert-Equal $LASTEXITCODE 0 "update must succeed"
+
+        $longpathsAfter     = & git config --global --get core.longpaths 2>$null
+        $longpathsAfterExit = $LASTEXITCODE
+
+        Assert-Equal $longpathsAfterExit $longpathsBeforeExit `
+            "global core.longpaths presence must be unchanged after update"
+        if ($longpathsBeforeExit -eq 0) {
+            Assert-Equal $longpathsAfter $longpathsBefore `
+                "global core.longpaths value must be unchanged after update"
+        }
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo    -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# --- 19. PS 5.1 invocation produces a clear version-requirement diagnostic ---
+
+function Test-PS51RuntimeDiagnostic {
+    # Verifies that invoking update-layer.ps1 via Windows PowerShell 5.1 exits
+    # non-zero and emits a clear "#Requires -Version 7.0" diagnostic rather than
+    # a cryptic parser error.  Skipped on platforms where powershell.exe is absent.
+    Write-Host "Running Test-PS51RuntimeDiagnostic..."
+
+    if (-not (Get-Command powershell.exe -ErrorAction SilentlyContinue)) {
+        Write-Host "  SKIPPED (powershell.exe not available on this platform)"
+        return
+    }
+
+    $output   = & powershell.exe -NoProfile -NonInteractive -File $UpdateScript `
+                    -RepositoryUrl "https://example.com/fake" 2>&1
+    $exitCode = $LASTEXITCODE
+
+    Assert-True ($exitCode -ne 0) "PS5.1 invocation must exit non-zero"
+    $outputStr = ($output -join " ")
+    Assert-True ($outputStr -match "(?i)(version|7\.|requires)") `
+        "PS5.1 output must contain a version-requirement diagnostic (got: $outputStr)"
+    Write-Host "  PASSED"
+}
+
+# =============================================================================
 # -- Test runner ---------------------------------------------------------------
 # =============================================================================
 
@@ -952,7 +1059,11 @@ $tests = @(
     "Test-CrossPlatformPathBehavior",
     # schemaVersion semantics (2)
     "Test-SchemaVersionChangeProceedsWithoutMigration",
-    "Test-SchemaVersionSameNoPromptRequired"
+    "Test-SchemaVersionSameNoPromptRequired",
+    # Sparse acquisition / long-path safety (3)
+    "Test-SparseAcquisitionExcludesIrrelevantContent",
+    "Test-AcquisitionDoesNotModifyGlobalGitConfig",
+    "Test-PS51RuntimeDiagnostic"
 )
 
 Write-Host ""
