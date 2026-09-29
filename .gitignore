@@ -42,3 +42,6 @@ desktop.ini
 # Editor / tool backups
 *.bak
 *.tmp
+
+# Nested working repo (framework development)
+MxAi-Dev-System/
