@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<!--
+  TC-03 fixture: Sidebar and center are both independently scrollable.
+  The dynamic discovery algorithm must prefer the center (wider, more content)
+  over the sidebar (narrower, less content).
+
+  Both use overflow-y: auto and both have scrollHeight > clientHeight.
+  The correct selection: .mx-scrollcontainer-center (the main content area).
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>mx-scroll fixture: sidebar + center both scrollable</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: sans-serif; }
+
+    .mx-scrollcontainer-wrapper {
+      display: flex;
+      height: 100vh;
+    }
+
+    /*
+      Sidebar: overflow-y auto, has 1200px content, clientHeight ~600px.
+      Score: (1200 - 600) * 180 = 108,000
+    */
+    .mx-scrollcontainer-sidebar {
+      width: 180px;
+      overflow-y: auto;
+      background: #f0f0f0;
+      border-right: 1px solid #ccc;
+      padding: 8px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-item {
+      height: 80px;
+      margin-bottom: 8px;
+      background: #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+
+    /*
+      Center: overflow-y auto, has 5200px content, clientHeight ~600px.
+      Score: (5200 - 600) * 820 = 3,772,000 — must win over sidebar.
+    */
+    .mx-scrollcontainer-center {
+      flex: 1;
+      overflow-y: auto;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .content-section {
+      height: 600px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      border-bottom: 1px solid #e0e0e0;
+      margin-bottom: 8px;
+    }
+    .content-section:nth-child(odd)  { background: #e8f4fd; }
+    .content-section:nth-child(even) { background: #fff3cd; }
+  </style>
+</head>
+<body>
+  <div class="mx-scrollcontainer-wrapper">
+    <nav class="mx-scrollcontainer-sidebar">
+      <!-- 15 items × 88px ≈ 1320px total height -->
+      <div class="sidebar-item">Nav 1</div>
+      <div class="sidebar-item">Nav 2</div>
+      <div class="sidebar-item">Nav 3</div>
+      <div class="sidebar-item">Nav 4</div>
+      <div class="sidebar-item">Nav 5</div>
+      <div class="sidebar-item">Nav 6</div>
+      <div class="sidebar-item">Nav 7</div>
+      <div class="sidebar-item">Nav 8</div>
+      <div class="sidebar-item">Nav 9</div>
+      <div class="sidebar-item">Nav 10</div>
+      <div class="sidebar-item">Nav 11</div>
+      <div class="sidebar-item">Nav 12</div>
+      <div class="sidebar-item">Nav 13</div>
+      <div class="sidebar-item">Nav 14</div>
+      <div class="sidebar-item">Nav 15</div>
+    </nav>
+    <main class="mx-scrollcontainer-center">
+      <div class="content-section" data-section="1">Center Section 1</div>
+      <div class="content-section" data-section="2">Center Section 2</div>
+      <div class="content-section" data-section="3">Center Section 3</div>
+      <div class="content-section" data-section="4">Center Section 4</div>
+      <div class="content-section" data-section="5">Center Section 5</div>
+      <div class="content-section" data-section="6">Center Section 6</div>
+      <div class="content-section" data-section="7">Center Section 7</div>
+      <div class="content-section" data-section="8">Center Section 8</div>
+    </main>
+  </div>
+</body>
+</html>

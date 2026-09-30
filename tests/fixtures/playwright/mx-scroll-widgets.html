@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<!--
+  TC-04 fixture: Multiple nested scrollable widgets plus a .mx-scrollcontainer-center.
+  The known-selector pass must find .mx-scrollcontainer-center first, before dynamic
+  fallback would even run. This proves that known selectors short-circuit the scan.
+
+  Nested widgets:
+    - .widget-list-a: overflow-y auto, 200px tall, 900px content
+    - .widget-list-b: overflow-y scroll, 300px tall, 1200px content
+  Main container:
+    - .mx-scrollcontainer-center: 5000px content — correctly selected by known selector
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>mx-scroll fixture: multiple scrollable widgets + center</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: sans-serif; }
+
+    .mx-scrollcontainer-wrapper {
+      display: flex;
+      height: 100vh;
+    }
+
+    .mx-scrollcontainer-sidebar {
+      width: 180px;
+      background: #f5f5f5;
+      border-right: 1px solid #ccc;
+      padding: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .mx-scrollcontainer-center {
+      flex: 1;
+      overflow-y: auto;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .page-section {
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    /* Nested scrollable widget A — a list component */
+    .widget-list-a {
+      height: 200px;
+      overflow-y: auto;
+      border: 1px solid #b0c4de;
+      border-radius: 4px;
+      background: #f0f8ff;
+    }
+    .widget-list-a .list-item {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border-bottom: 1px solid #d0d8e4;
+    }
+
+    /* Nested scrollable widget B — a grid/table */
+    .widget-list-b {
+      height: 300px;
+      overflow-y: scroll;
+      border: 1px solid #c8a0a0;
+      border-radius: 4px;
+      background: #fff8f8;
+    }
+    .widget-list-b .list-item {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border-bottom: 1px solid #dcc0c0;
+    }
+
+    .content-section {
+      height: 600px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      border-bottom: 1px solid #e0e0e0;
+      margin-bottom: 8px;
+      border-radius: 4px;
+    }
+    .content-section:nth-child(odd)  { background: #e8f4fd; }
+    .content-section:nth-child(even) { background: #fef5e7; }
+  </style>
+</head>
+<body>
+  <div class="mx-scrollcontainer-wrapper">
+    <nav class="mx-scrollcontainer-sidebar">
+      <p>Nav A</p>
+      <p>Nav B</p>
+    </nav>
+    <main class="mx-scrollcontainer-center">
+
+      <div class="page-section">
+        <div class="section-title">Customer List (nested scrollable widget A)</div>
+        <div class="widget-list-a">
+          <div class="list-item">Customer 1</div>
+          <div class="list-item">Customer 2</div>
+          <div class="list-item">Customer 3</div>
+          <div class="list-item">Customer 4</div>
+          <div class="list-item">Customer 5</div>
+          <div class="list-item">Customer 6</div>
+          <div class="list-item">Customer 7</div>
+          <div class="list-item">Customer 8</div>
+          <div class="list-item">Customer 9</div>
+          <div class="list-item">Customer 10</div>
+          <div class="list-item">Customer 11</div>
+          <div class="list-item">Customer 12</div>
+          <div class="list-item">Customer 13</div>
+          <div class="list-item">Customer 14</div>
+          <div class="list-item">Customer 15</div>
+        </div>
+      </div>
+
+      <div class="page-section">
+        <div class="section-title">Transaction Grid (nested scrollable widget B)</div>
+        <div class="widget-list-b">
+          <div class="list-item">Transaction 1 — €1,200.00</div>
+          <div class="list-item">Transaction 2 — €950.00</div>
+          <div class="list-item">Transaction 3 — €4,200.00</div>
+          <div class="list-item">Transaction 4 — €280.00</div>
+          <div class="list-item">Transaction 5 — €8,750.00</div>
+          <div class="list-item">Transaction 6 — €1,100.00</div>
+          <div class="list-item">Transaction 7 — €3,450.00</div>
+          <div class="list-item">Transaction 8 — €620.00</div>
+          <div class="list-item">Transaction 9 — €7,900.00</div>
+          <div class="list-item">Transaction 10 — €450.00</div>
+          <div class="list-item">Transaction 11 — €2,300.00</div>
+          <div class="list-item">Transaction 12 — €1,870.00</div>
+          <div class="list-item">Transaction 13 — €5,600.00</div>
+          <div class="list-item">Transaction 14 — €890.00</div>
+          <div class="list-item">Transaction 15 — €3,100.00</div>
+        </div>
+      </div>
+
+      <div class="content-section" data-section="3">Section 3 — below widgets</div>
+      <div class="content-section" data-section="4">Section 4</div>
+      <div class="content-section" data-section="5">Section 5</div>
+      <div class="content-section" data-section="6">Section 6 — bottom</div>
+
+    </main>
+  </div>
+</body>
+</html>

@@ -65,7 +65,8 @@ $skillDescriptions = @{
     'gate-to-refinement' = 'Gate-Pruefung: Discovery vollstaendig?'
     'gate-to-ready'      = 'Gate-Pruefung: Refinement vollstaendig, bereit fuer Implementierung?'
     'system-check'       = 'Validate MxAgile installation and agent discovery'
-    'migration'          = 'Migrate project artifacts from legacy planning structures to MxAgile framework'
+    'migration'             = 'Migrate project artifacts from legacy planning structures to MxAgile framework'
+    'visual-verification'   = 'Mendix-aware Playwright scrolling and visual parity verification for Mendix/Atlas applications'
 }
 
 # --- Agent descriptions ---

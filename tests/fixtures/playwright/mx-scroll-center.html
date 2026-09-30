@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!--
+  TC-02 / TC-06 / TC-07 / TC-09 / TC-10 / TC-11 fixture:
+  Mendix-style .mx-scrollcontainer-center is the primary scroll container.
+  The document body does NOT scroll — only the center container does.
+
+  Layout mirrors a real Atlas Mendix page:
+    - fixed header (50px)
+    - .mx-scrollcontainer-wrapper fills the remaining viewport height
+      - .mx-scrollcontainer-sidebar: narrow, NOT scrollable
+      - .mx-scrollcontainer-center: wide, scrollable (content ~5200px tall)
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>mx-scroll fixture: .mx-scrollcontainer-center</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #fff; font-family: sans-serif; }
+
+    .mx-header {
+      height: 50px;
+      background: #003d6a;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .mx-scrollcontainer-wrapper {
+      display: flex;
+      height: calc(100vh - 50px);
+      overflow: hidden;
+    }
+
+    .mx-scrollcontainer-sidebar {
+      width: 200px;
+      background: #f0f0f0;
+      border-right: 1px solid #ccc;
+      padding: 16px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .mx-scrollcontainer-center {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .content-section {
+      height: 650px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      border-bottom: 1px solid #e0e0e0;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .content-section:nth-child(odd)  { background: #e8f4fd; }
+    .content-section:nth-child(even) { background: #fef9e7; }
+
+    .target-element {
+      margin-top: 16px;
+      padding: 24px;
+      background: #d5f5e3;
+      border: 2px solid #27ae60;
+      border-radius: 4px;
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="mx-header">MxAgile Test App — Center Scroll Fixture</div>
+  <div class="mx-scrollcontainer-wrapper">
+    <nav class="mx-scrollcontainer-sidebar">
+      <p>Nav item 1</p>
+      <p>Nav item 2</p>
+      <p>Nav item 3</p>
+    </nav>
+    <main class="mx-scrollcontainer-center">
+      <div class="content-section" data-section="1">Section 1 — viewport 1</div>
+      <div class="content-section" data-section="2">Section 2 — viewport 2</div>
+      <div class="content-section" data-section="3">Section 3 — viewport 3</div>
+      <div class="content-section" data-section="4">Section 4 — viewport 4</div>
+      <div class="content-section" data-section="5">Section 5 — viewport 5</div>
+      <div class="content-section" data-section="6">Section 6 — viewport 6</div>
+      <div class="content-section" data-section="7">Section 7 — viewport 7</div>
+      <div class="target-element" id="target-bottom">Target element near bottom</div>
+    </main>
+  </div>
+</body>
+</html>

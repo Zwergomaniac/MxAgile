@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!--
+  TC-05 / TC-12 fixture: Page content fits in the viewport — no scrolling is needed.
+  No element has scrollHeight > clientHeight.
+  discoverScrollContainer must return { found: false }.
+  mxScroll must return RESULT.NO_SCROLL_CONTAINER with useful diagnostics.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>mx-scroll fixture: no scroll needed</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: sans-serif; background: #f9f9f9; }
+
+    .mx-scrollcontainer-wrapper {
+      display: flex;
+      height: 100vh;
+    }
+
+    .mx-scrollcontainer-sidebar {
+      width: 180px;
+      background: #f0f0f0;
+      border-right: 1px solid #ccc;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .mx-scrollcontainer-center {
+      flex: 1;
+      overflow: hidden;
+      background: #fff;
+      padding: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .page-content {
+      text-align: center;
+    }
+
+    h1 { font-size: 1.8rem; color: #333; margin-bottom: 16px; }
+    p  { font-size: 1rem; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="mx-scrollcontainer-wrapper">
+    <nav class="mx-scrollcontainer-sidebar">
+      <p>Dashboard</p>
+      <p>Reports</p>
+    </nav>
+    <main class="mx-scrollcontainer-center">
+      <div class="page-content">
+        <h1>Dashboard</h1>
+        <p>All content fits in the viewport. No scrolling is needed.</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

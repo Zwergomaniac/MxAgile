@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!--
+  TC-08 fixture: Known selector .mx-scrollcontainer-center is present but has
+  overflow: hidden, so setting scrollTop has no effect. Discovery finds the element
+  by known selector (isScrollable = false). mxScroll must return SCROLL_NOT_EFFECTIVE
+  after detecting that the actual scrollTop did not reach the requested position.
+
+  This replicates the real failure mode: a JavaScript el.scrollTop = N executes
+  without throwing but the container does not move because it has overflow hidden.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>mx-scroll fixture: ineffective scroll (overflow hidden)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: sans-serif; }
+
+    .mx-scrollcontainer-wrapper {
+      display: flex;
+      height: 100vh;
+    }
+
+    .mx-scrollcontainer-sidebar {
+      width: 180px;
+      background: #f0f0f0;
+      border-right: 1px solid #ccc;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    /* overflow: hidden — scrollTop assignment will not move this container */
+    .mx-scrollcontainer-center {
+      flex: 1;
+      overflow: hidden;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .content-section {
+      height: 600px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .content-section:nth-child(odd)  { background: #ffe0e0; }
+    .content-section:nth-child(even) { background: #e0ffe0; }
+  </style>
+</head>
+<body>
+  <div class="mx-scrollcontainer-wrapper">
+    <nav class="mx-scrollcontainer-sidebar">
+      <p>Nav</p>
+    </nav>
+    <main class="mx-scrollcontainer-center">
+      <div class="content-section">Section 1 (overflow:hidden — not scrollable)</div>
+      <div class="content-section">Section 2</div>
+      <div class="content-section">Section 3</div>
+      <div class="content-section">Section 4</div>
+      <div class="content-section">Section 5</div>
+    </main>
+  </div>
+</body>
+</html>

@@ -25,6 +25,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/verification-scenario.md` — Material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy, parallelism safety
 - `.mxagile/policies/evidence-contract.md` — Temporary vs. canonical evidence, screenshot promotion contract, evidence manifest
 - `.mxagile/policies/project-knowledge.md` — Canonical artifact map, Git-tracked locations, gitignore contract, fresh clone test
+- `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
 - Company Layer UI documentation (if installed): `.mxagile/layers/*/modules/` fuer UI-Komponenten-Referenzen
 
 ## Evidence Level
@@ -344,6 +345,9 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
       - App-Screenshot unter `.concord/screenshots/app/{PageName}_visual.png`
       - Vergleich Layout, Farben, Spacing, visuelle Hierarchie
       - Abweichungen in `deviations` mit `dimension: visual`
+      - Fuer Abweichungen mit SCSS-Ursache: Concern vor Uebergabe an Implementation-Agent
+        klassifizieren (Komponente? Seite? Layout?), damit der Implementation-Agent den
+        richtigen Partial-Ort bestimmt. Vollstaendiger Vertrag: `policies/scss-engineering.md`.
 
    **b. CONTENT dimension** — DOM-Text-Extraktion (PFLICHT — Screenshot allein reicht nicht):**
       - Navigationsgruppenbezeichnungen via CSS-Selector extrahieren
