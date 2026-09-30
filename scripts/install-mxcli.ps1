@@ -30,6 +30,13 @@
 
 .PARAMETER RetryCount
     Number of download retry attempts after the first failure. Default: 2.
+
+.PARAMETER GitHubToken
+    Personal access token (or fine-grained token) for GitHub API authentication.
+    Raises the per-IP rate limit from 60 to 5000 requests/hour.
+    Falls back to the GITHUB_TOKEN or GH_TOKEN environment variable if not supplied.
+    A token is only needed when the fast-path (local binary already satisfies
+    MinimumVersion) cannot be taken.
 #>
 
 [CmdletBinding()]
@@ -38,12 +45,20 @@ param (
     [string]$MinimumVersion     = "",
     [int]$DownloadTimeoutSec    = 300,
     [int]$ApiTimeoutSec         = 30,
-    [int]$RetryCount            = 2
+    [int]$RetryCount            = 2,
+    [string]$GitHubToken        = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $Repo = "mendixlabs/mxcli"
+
+# Auto-detect GitHub token from environment when not passed explicitly.
+if ([string]::IsNullOrWhiteSpace($GitHubToken)) {
+    $GitHubToken = if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) { $env:GITHUB_TOKEN }
+                   elseif (-not [string]::IsNullOrWhiteSpace($env:GH_TOKEN))  { $env:GH_TOKEN }
+                   else { "" }
+}
 
 # Platform detection — works on PS 5.1 (Windows-only) and PS Core (all platforms)
 $_isWin = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
@@ -76,7 +91,33 @@ Write-Host ""
 $TargetExe = Join-Path $TargetDir $BinaryName
 
 # ------------------------------------------------------------
-# 1. Resolve latest stable release via GitHub API
+# 1. Fast path: MinimumVersion + local binary — skip API call
+# ------------------------------------------------------------
+
+if (-not [string]::IsNullOrWhiteSpace($MinimumVersion) -and
+    (Test-Path -LiteralPath $TargetExe -PathType Leaf)) {
+    Write-Host "Checking local version against minimum requirement..." -ForegroundColor Cyan
+    $fpVersionStr = ""
+    try {
+        $fpOut   = & $TargetExe --version 2>$null
+        $fpMatch = [regex]::Match($fpOut, '(\d+\.\d+\.\d+)')
+        if ($fpMatch.Success) { $fpVersionStr = $fpMatch.Groups[1].Value }
+    } catch { }
+
+    if ($fpVersionStr) {
+        if ([System.Version]$fpVersionStr -ge [System.Version]$MinimumVersion) {
+            Write-Host "  Local $fpVersionStr >= minimum $MinimumVersion -- requirement satisfied." -ForegroundColor Green
+            Write-Host ""
+            Write-Host "[OK] mxcli $fpVersionStr meets the minimum version requirement." -ForegroundColor Green
+            exit 0
+        }
+        Write-Host "  Local $fpVersionStr < minimum $MinimumVersion -- update required." -ForegroundColor Yellow
+        Write-Host ""
+    }
+}
+
+# ------------------------------------------------------------
+# 2. Resolve latest stable release via GitHub API
 # ------------------------------------------------------------
 
 Write-Host "Resolving latest stable mxcli release..." -ForegroundColor Cyan
@@ -85,6 +126,10 @@ $headers = @{
     "Accept"     = "application/vnd.github+json"
     "User-Agent" = "mxcli-powershell-installer"
 }
+if (-not [string]::IsNullOrWhiteSpace($GitHubToken)) {
+    $headers["Authorization"] = "Bearer $GitHubToken"
+    Write-Host "  Auth       : token present (authenticated)" -ForegroundColor DarkGray
+}
 
 try {
     $releases = Invoke-RestMethod `
@@ -92,7 +137,18 @@ try {
         -Headers     $headers `
         -TimeoutSec  $ApiTimeoutSec
 } catch {
-    throw "GitHub API call failed (timeout=${ApiTimeoutSec}s): $($_.Exception.Message)"
+    $errMsg = $_.Exception.Message
+    if ($errMsg -match '403') {
+        throw (
+            "GitHub API rate limit exceeded (unauthenticated: 60 req/hour per IP).`n" +
+            "  Fix: set the GITHUB_TOKEN environment variable to a GitHub personal access token,`n" +
+            "       or pass -GitHubToken <token> to this script.`n" +
+            "  A token with no scopes (public read-only) is sufficient.`n" +
+            "  Authenticated rate limit: 5000 req/hour.`n" +
+            "  Original error: $errMsg"
+        )
+    }
+    throw "GitHub API call failed (timeout=${ApiTimeoutSec}s): $errMsg"
 }
 
 $release = $releases |
@@ -124,7 +180,7 @@ Write-Host "  Latest  : $($release.tag_name)  ($assetSizeHuman)" -ForegroundColo
 Write-Host ""
 
 # ------------------------------------------------------------
-# 2. Check local version
+# 3. Check local version
 # ------------------------------------------------------------
 
 Write-Host "Checking local version..." -ForegroundColor Cyan
@@ -171,7 +227,7 @@ if (Test-Path -LiteralPath $TargetExe -PathType Leaf) {
 Write-Host ""
 
 # ------------------------------------------------------------
-# 3. Download with retry
+# 4. Download with retry
 # ------------------------------------------------------------
 
 $tempBase   = [System.IO.Path]::GetTempPath()
@@ -208,7 +264,7 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
 }
 
 # ------------------------------------------------------------
-# 4. Verify download
+# 5. Verify download
 # ------------------------------------------------------------
 
 Write-Host ""
@@ -232,7 +288,7 @@ Write-Host "  Size    : $actualHuman ($actualSize bytes) -- matches release asse
 Write-Host ""
 
 # ------------------------------------------------------------
-# 5. Install
+# 6. Install
 # ------------------------------------------------------------
 
 Write-Host "Installing mxcli..." -ForegroundColor Cyan
@@ -251,7 +307,7 @@ if (-not $_isWin) {
 }
 
 # ------------------------------------------------------------
-# 6. Post-install verification
+# 7. Post-install verification
 # ------------------------------------------------------------
 
 if (-not (Test-Path -LiteralPath $TargetExe -PathType Leaf)) {
