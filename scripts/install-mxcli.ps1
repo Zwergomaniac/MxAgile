@@ -293,8 +293,46 @@ Write-Host ""
 
 Write-Host "Installing mxcli..." -ForegroundColor Cyan
 
-Copy-Item -Path $tempFile -Destination $TargetExe -Force
+# Windows holds an exclusive lock on running executables; overwrite fails with
+# "file is being used by another process".  Strategy: rename the old binary
+# aside first (rename succeeds for transient handles even when overwrite fails),
+# then copy the new binary into place.  If rename also fails (mxcli is actively
+# running), retry up to 3 times with a short wait and emit a clear stop message.
+$staleExe  = "$TargetExe.old"
+$installOk = $false
+Remove-Item -LiteralPath $staleExe -Force -ErrorAction SilentlyContinue
+
+for ($attempt = 1; $attempt -le 3 -and -not $installOk; $attempt++) {
+    if ($attempt -gt 1) {
+        Write-Host "  mxcli.exe is locked — waiting 3s before retry ($attempt/3)..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 3
+    }
+
+    $moved = $false
+    try {
+        if ($_isWin -and (Test-Path -LiteralPath $TargetExe -PathType Leaf)) {
+            Move-Item -LiteralPath $TargetExe -Destination $staleExe -Force
+            $moved = $true
+        }
+        Copy-Item -Path $tempFile -Destination $TargetExe -Force
+        $installOk = $true
+    } catch {
+        # If rename succeeded but copy failed (e.g. disk full), restore the old binary.
+        if ($moved -and
+            (Test-Path -LiteralPath $staleExe -PathType Leaf) -and
+            -not (Test-Path -LiteralPath $TargetExe -PathType Leaf)) {
+            Move-Item -LiteralPath $staleExe -Destination $TargetExe -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $staleExe  -Force -ErrorAction SilentlyContinue
+
+if (-not $installOk) {
+    throw ("Cannot replace mxcli.exe — the file is held by a running process.`n" +
+           "  Stop any running mxcli processes (e.g. 'mxcli run --local') and re-run this script.")
+}
 
 # Make executable on Linux / macOS (chmod is a no-op on Windows)
 if (-not $_isWin) {
