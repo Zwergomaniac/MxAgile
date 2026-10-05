@@ -838,5 +838,35 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "GUID-based temp dirs. Runs apply-project-agent-instructions.ps1 via pwsh subprocess. Verifies: explicit mxagile-project.yaml.name preserved across apply-script runs (MPR stem does not overwrite), name stable across 3 runs, .dfc-ai/policies/ auto-migrated in skillssource/AGENTS.md, .dfc-ai/modules/ NOT auto-migrated in project-authored files. No network or mxcli."
+  },
+  {
+    "File": "test-design-contract-identity.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static checks on design-contract-intake.md, test-contract-derivation.md, discovery-agent.md, docs/schemas.md, requirement.schema.json, test-contract.schema.json. Verifies: formal identity model (source vs canonical), source-to-canonical mapping (id_map), collision handling, decision import completeness, TRACEABILITY_ERROR semantics, source ID containment rule, backward compatibility. Pure read-only static check."
+  },
+  {
+    "File": "test-story-spec-provenance.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static checks on planning/story-spec.schema.json and .mxagile/agents/refinement-agent.md, .mxagile/skills/refinement.md, .mxagile/policies/test-contract-derivation.md. Verifies: design_contract_provenance property formally defined (not required), IdMapEntry in definitions with additionalProperties: false, mapping_status 5-value enum, source_type 7-value enum, canonical_id allows null, backward-compatible mockup_id/revision fields, Refinement agent and skill own id_map completion, test-contract handoff safety. Pure read-only static check."
   }
 ]

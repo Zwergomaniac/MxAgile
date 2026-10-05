@@ -22,7 +22,12 @@ Nach Discovery, wenn offene `DECISION REQUIRED` oder `ASSUMPTION` existieren.
    Entwickler vorlegen.
 5. **Antworten einarbeiten** — Entscheidungen in `planning/decisions/DEC-NNN.md`
    dokumentieren. Annahmen in der Story-Spezifikation aktualisieren.
-6. **Iterieren** — Wenn neue Fragen entstehen, erneut Rueckfragen formulieren.
+6. **Design Contract Mapping vervollstaendigen** (falls `design_contract_provenance.id_map`
+   vorhanden) — Alle PENDING- und COLLISION-Eintraege reconcilieren. Bestaettigte
+   Quell-Entscheidungen canonisieren (DIRECT / MAPPED / EXCLUDED). Quell-Beziehungen
+   in kanonische Felder uebersetzen. Vollstaendiger Vertrag:
+   `agents/refinement-agent.md` — Design Contract Source-to-Canonical Mapping.
+7. **Iterieren** — Wenn neue Fragen entstehen, erneut Rueckfragen formulieren.
    Erst weiter wenn alle Blocker aufgeloest sind.
 
 ## Output

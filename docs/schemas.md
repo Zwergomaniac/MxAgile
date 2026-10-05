@@ -239,6 +239,92 @@ superseded. The `status` field handles lifecycle transitions.
 
 ---
 
+## Design Contract Source Identity and Canonical Mapping
+
+When a Mocketeer Design Contract is consumed during Discovery, two identity spaces coexist.
+Understanding the boundary prevents semantic cross-reference defects.
+
+### Two Identity Namespaces
+
+**Source Identity** (Design Contract namespace):
+```
+source_system:   mocketeer
+source_artifact: <mockup.id>
+source_revision: <mockup.revision>
+source_type:     requirement | decision | role | screen | flow | gap
+source_id:       REQ-066 | DEC-024 | ROLE-MANAGER | ...
+```
+
+**Canonical Identity** (project namespace):
+```
+canonical_type:  requirement | decision | ...
+canonical_id:    REQ-068 | DEC-031 | ...   (assigned in Refinement)
+```
+
+A source `REQ-066` and a canonical `REQ-066` are DIFFERENT artifacts.
+Equal IDs indicate a collision risk, NOT semantic identity.
+
+### Source-to-Canonical Mapping
+
+The mapping lives in `design_contract_provenance.id_map` within the story spec produced by Discovery.
+It is populated incrementally:
+- Discovery: source side complete; canonical side null / PENDING.
+- Refinement: canonical artifacts created; `id_map` entries updated to MAPPED or DIRECT.
+
+The artifact trace index (`.mxagile/state/artifact-index.json`) records relationships within the
+canonical namespace. Source-level relationships are preserved in `id_map` entries
+(`source_superseded_by`, `source_governs`) so the source graph remains reconstructable.
+
+### Collision Handling
+
+When a Design Contract source ID is already occupied canonically by an unrelated artifact:
+
+1. Set `mapping_status: COLLISION` with `collision_note`.
+2. During Refinement, allocate a new canonical ID (e.g., source `REQ-007` → canonical `REQ-012`).
+3. Preserve source identity; do not renumber source IDs.
+4. Resolve all relationships referencing this source ID through the allocated mapping.
+
+### Source ID Containment — Where DC Source IDs May and May Not Appear
+
+| Location | May contain DC source IDs? | Notes |
+|---|---|---|
+| `design_contract_provenance.id_map[].source_id` | YES | The designated store |
+| `test-contract.proof_points[].traceability.design_contract_elements` | YES | Per proof point |
+| `design_contract_ref` (any artifact) | YES — partial | `<mockup.id>@revision=<N>` only, not element IDs |
+| `requirement.derivedFrom` | NO | `^PAGE-` IDs only |
+| `test-contract.requirement_ids` | NO | Canonical `REQ-NNN.yml` IDs only |
+| `revision.acceptance_decisions` | NO | Canonical `planning/decisions/DEC-NNN.md` IDs only |
+| Any invented field (`related_decisions`, etc.) | NO | Not a valid schema field in any canonical artifact |
+
+### Intake Failure Semantics
+
+A confirmed Design Contract decision (`CONFIRMED_BY_STAKEHOLDER` / `CONFIRMED_BY_SOURCE`) that
+materially governs an imported requirement must be dispositioned before intake reports `COMPLETE`.
+Valid dispositions: DIRECT mapping to existing canonical decision, MAPPED (new canonical decision
+created in Refinement), or EXCLUDED (with explicit justification).
+
+If an undispositioned confirmed material decision exists, intake reports `TRACEABILITY_ERROR`.
+Refinement MUST NOT start with a known wrong or unresolved canonical reference.
+
+### Concise Worked Example
+
+Source contract `acme/rev5`:
+- `REQ-001` (superseded_by `REQ-007`) → story spec entry, `id_map PENDING`
+- `REQ-007` → collision with canonical `REQ-007` (unrelated) → `id_map COLLISION`
+- `DEC-004` governs `REQ-007` → collision with canonical `DEC-004` (unrelated) → `id_map COLLISION`
+
+After Refinement:
+- Source `REQ-001` → canonical `REQ-001` (DIRECT, same content)
+- Source `REQ-007` → canonical `REQ-012` (MAPPED, new allocation due to collision)
+- Source `DEC-004` → canonical `DEC-009` (MAPPED, new allocation due to collision)
+- Canonical `REQ-012` has `superseded_by: REQ-001` (resolved from source `REQ-001`)
+- Canonical `DEC-009` governs `REQ-012` (resolved from source mapping)
+- Pre-existing canonical `REQ-007` and `DEC-004` untouched.
+
+Full policy: `.mxagile/policies/design-contract-intake.md`.
+
+---
+
 ## Legacy and migration
 
 Legacy DFC-AI artifacts at `planning/stories/REQ-*.md` are NOT indexed by

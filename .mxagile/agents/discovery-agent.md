@@ -67,6 +67,23 @@ When an HTML mockup is found under `input-resources/ui-ux/`, check for an embedd
 4. **Requirement intake:** Map Design Contract `requirements[]` to story spec entries with
    `source: design_contract` and `design_contract_ref: <mockup.id>@revision=<N>`.
 
+   **ID NAMESPACE GUARD (critical):** Design Contract source IDs (`REQ-NNN`, `DEC-NNN`, `ROLE-NNN`)
+   are syntactically identical to canonical MxAgile IDs but live in a separate namespace.
+   A source `REQ-066` is NOT the same as canonical `requirements/REQ-066.yml` unless a validated
+   mapping in `design_contract_provenance.id_map` explicitly establishes semantic identity.
+
+   - DO: record each DC element in `id_map` with its full source identity and `mapping_status: PENDING`.
+   - DO: resolve source relationships through `id_map` — write canonical IDs only after mapping is confirmed.
+   - DO: check for collisions — if a DC source ID matches an existing canonical ID that covers different
+     content, set `mapping_status: COLLISION` and do NOT treat equal IDs as semantic identity.
+   - DO NOT: copy DC source IDs directly into canonical reference fields (`requirement_ids`,
+     `derivedFrom`, `acceptance_decisions`, or any invented field like `related_decisions`).
+
+   For confirmed decisions (`CONFIRMED_BY_STAKEHOLDER` or `CONFIRMED_BY_SOURCE`) that materially
+   govern imported requirements: record in `id_map` and ensure the decision is dispositioned
+   (mapped, imported, or explicitly excluded) before reporting intake `COMPLETE`.
+   See `policies/design-contract-intake.md` — DECISION IMPORT COMPLETENESS.
+
 5. **Test Contract signal:** After COMPLETE or PARTIAL-with-roles intake, record in the story spec:
    ```yaml
    test_contract_signal:

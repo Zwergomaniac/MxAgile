@@ -8,6 +8,42 @@ Mocketeer Design Contract. Applied by `skills/test-contract.md`.
 1. **Canonical requirement** (`requirements/REQ-NNN.yml`) — primary source. Must have at least one `acceptance_criteria` entry (Given/When/Then).
 2. **Mocketeer Design Contract** (optional) — `id="mocketeer-spec"` JSON from intake. Enriches roles, permissions, and element-level traceability. See `policies/design-contract-intake.md`.
 
+## Design Contract Source ID Containment
+
+When a Design Contract is the upstream source, DC source IDs and canonical IDs occupy **separate namespaces** (see `policies/design-contract-intake.md` — Formal Identity Model). The test contract schema enforces this separation:
+
+- **`requirement_ids`** — must contain ONLY canonical `requirements/REQ-NNN.yml` IDs.
+  A test contract can only be derived AFTER a canonical requirement exists (produced in Refinement).
+  Never write a DC source `REQ-NNN` value into `requirement_ids`.
+
+- **`traceability.design_contract_elements`** (per proof point) — this is the ONLY location
+  where DC source IDs (`REQ-NNN`, `DEC-NNN`, `PERM-NNN`, `ROLE-NNN`) may appear in a test contract.
+  Use it to preserve the DC element IDs that each proof point originates from.
+
+- **`design_contract_ref`** — stores `<mockup.id>@revision=<N>` (the overall contract reference).
+  Not for individual DC element IDs.
+
+The mapping from DC source ID to canonical ID must be resolved through
+`design_contract_provenance.id_map` in the story spec before populating `requirement_ids`.
+If no canonical mapping exists for a DC source ID yet, the test contract MUST NOT be created
+for that requirement — wait until Refinement completes the canonical artifact and updates `id_map`.
+
+**Example proof point with correct source provenance:**
+
+```yaml
+proof_points:
+  - id: PP-001
+    claim: "A ROLE-MANAGER user can create a site record."
+    role: ROLE-MANAGER
+    data_state: empty
+    required_layers: [MODEL, RUNTIME]
+    traceability:
+      acceptance_clause_id: AC-001
+      design_contract_elements: [REQ-066, DEC-024]   # DC source IDs — NOT canonical IDs
+```
+
+The canonical `requirement_ids` in the same contract references `REQ-068` (canonical), not `REQ-066`.
+
 ## Derivation Rules
 
 ### One test contract per requirement group

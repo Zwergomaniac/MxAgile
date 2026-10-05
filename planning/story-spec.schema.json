@@ -96,6 +96,70 @@
           "description": "Mockup screen IDs, e.g. F05, E03"
         }
       }
+    },
+
+    "design_contract_provenance": {
+      "type": "object",
+      "description": "Provenance record for an imported Mocketeer Design Contract. Created by the Discovery Agent during Design Contract intake. See policies/design-contract-intake.md.",
+      "properties": {
+        "source_system": {
+          "type": "string",
+          "enum": ["mocketeer"],
+          "description": "Source system that produced the Design Contract."
+        },
+        "source_artifact": {
+          "type": "string",
+          "description": "Design Contract identifier (mockup.id). Part of source identity."
+        },
+        "mockup_id": {
+          "type": "string",
+          "description": "Backward-compatible alias for source_artifact."
+        },
+        "source_revision": {
+          "type": ["string", "integer"],
+          "description": "Design Contract revision (mockup.revision). Part of source identity."
+        },
+        "revision": {
+          "type": ["string", "integer"],
+          "description": "Backward-compatible alias for source_revision."
+        },
+        "intake_date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "ISO date when intake was performed."
+        },
+        "intake_result": {
+          "type": "string",
+          "enum": ["COMPLETE", "PARTIAL", "FAILED", "TRACEABILITY_ERROR", "INTAKE_FAILED", "INTAKE_PARTIAL"],
+          "description": "Outcome of the intake. TRACEABILITY_ERROR blocks Refinement."
+        },
+        "partial_reason": {
+          "type": "string",
+          "description": "Reason when intake_result is PARTIAL or TRACEABILITY_ERROR."
+        },
+        "maturity_assessed": {
+          "type": "boolean",
+          "description": "True when a Mocketeer assessment block was consumed."
+        },
+        "prototype_readiness": {
+          "type": "string",
+          "description": "Upstream prototype readiness value from assessment block."
+        },
+        "development_handoff_readiness": {
+          "type": "string",
+          "description": "Upstream handoff readiness value from assessment block."
+        },
+        "blocking_gaps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Gap IDs that block handoff, from assessment block."
+        },
+        "id_map": {
+          "type": "array",
+          "description": "Source-to-canonical ID mapping table. Discovery populates source side (PENDING/COLLISION). Refinement completes canonical side (DIRECT/MAPPED/EXCLUDED). See policies/design-contract-intake.md — SOURCE-TO-CANONICAL MAPPING.",
+          "items": { "$ref": "#/definitions/IdMapEntry" }
+        }
+      }
     }
   },
 
@@ -275,6 +339,63 @@
         "entity_or_module": { "type": "string" },
         "module": { "type": "string" },
         "description": { "type": "string" }
+      }
+    },
+
+    "IdMapEntry": {
+      "type": "object",
+      "description": "One entry in the source-to-canonical mapping table. Discovery sets source_type, source_id, mapping_status PENDING or COLLISION. Refinement completes canonical_id and updates mapping_status.",
+      "required": ["source_type", "source_id", "canonical_id", "mapping_status"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["requirement", "decision", "business_rule", "role", "screen", "flow", "gap"],
+          "description": "The artifact type as classified in the Design Contract."
+        },
+        "source_id": {
+          "type": "string",
+          "description": "The element ID as expressed in the Design Contract (e.g. REQ-066, DEC-024)."
+        },
+        "source_revision": {
+          "type": ["string", "integer", "null"],
+          "description": "Design Contract revision this element came from. Part of full source identity."
+        },
+        "source_status": {
+          "type": "string",
+          "description": "The Design Contract status of this element (e.g. CONFIRMED_BY_STAKEHOLDER)."
+        },
+        "canonical_type": {
+          "type": ["string", "null"],
+          "enum": ["requirement", "decision", "business_rule", "role", "screen", "flow", null],
+          "description": "The MxAgile canonical artifact type. Null when no canonical equivalent exists (e.g. ROLE entries without a canonical role artifact)."
+        },
+        "canonical_id": {
+          "type": ["string", "null"],
+          "description": "The canonical artifact ID (e.g. REQ-068, DEC-031). Null when mapping_status is PENDING or COLLISION — Refinement populates this field."
+        },
+        "mapping_status": {
+          "type": "string",
+          "enum": ["PENDING", "DIRECT", "MAPPED", "EXCLUDED", "COLLISION"],
+          "description": "PENDING: Discovery complete, canonical side not yet resolved. DIRECT: Same semantic content confirmed (IDs may differ). MAPPED: Canonical ID allocated (different from source). EXCLUDED: Explicitly excluded with justification. COLLISION: Source ID matches an unrelated canonical artifact."
+        },
+        "collision_note": {
+          "type": "string",
+          "description": "Explanation when mapping_status is COLLISION. States why the source ID and the existing canonical ID are unrelated."
+        },
+        "exclusion_reason": {
+          "type": "string",
+          "description": "Justification when mapping_status is EXCLUDED."
+        },
+        "source_superseded_by": {
+          "type": "string",
+          "description": "Source-level supersession: the source_id that supersedes this element within the Design Contract. Preserved as-is; resolved to canonical in a separate canonical relationship field."
+        },
+        "source_governs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Source-level governance: source_ids governed by this decision within the Design Contract."
+        }
       }
     }
   }
