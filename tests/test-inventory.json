@@ -810,6 +810,21 @@
     "Reason": "GUID-based temp dirs. Runs apply-project-agent-instructions.ps1 via pwsh subprocess 3 times per fixture. Verifies: German Unicode preserved across 3 runs (A==B==C), no mojibake, [PROJEKTNAME] replaced from mxagile-project.yaml.name, Alpha/Beta project isolation, idempotency of second materialization run, safe unresolved state when name absent. No network or mxcli."
   },
   {
+    "File": "test-orientation.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static checks on .mxagile/policies/user-orientation.md, orchestrator.md, apply-project-agent-instructions.ps1, install-core.ps1. Verifies: P0 triggers (PROJECT_INITIALIZED/ADOPTED/EXPLICIT_HELP), no-gate rule, no-tracking rule, core vocabulary, no-enumeration-of-internals, brownfield orientation, continue-original-intent rule, no new agent/phase created, company-agnostic content, new-install orientation hint. Pure read-only static check."
+  },
+  {
     "File": "test-materialization-contract.ps1",
     "Tier": 1,
     "FastGate": true,

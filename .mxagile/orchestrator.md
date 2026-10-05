@@ -14,9 +14,31 @@ Ownership-Guard: siehe `policies/ownership-guard.md`.
 
 ---
 
-## FRAMEWORK_CHANGE Detection (ERSTES Startup-Check)
+## ORIENTATION Check (vor FRAMEWORK_CHANGE)
 
-**Vor jeder anderen Aktion** den User-Request klassifizieren:
+**Vor dem FRAMEWORK_CHANGE-Check** den User-Request auf Orientierungsanfragen pruefen.
+
+Erkennt die Anfrage ein Orientierungs-Intent? Beispiel-Patterns:
+"wie funktioniert MxAgile", "mxagile help", "was kann ich mit MxAgile machen",
+"wie soll ich weitermachen", "what can I do with MxAgile", "how does this work", "help"
+
+**JA → ORIENTATION**
+Kurze Orientierung ausgeben (EXPLICIT_HELP-Template aus `policies/user-orientation.md`).
+Vollstaendiger Vertrag: `policies/user-orientation.md`.
+
+Orientierung blockiert NIEMALS den eigentlichen Request. Kein Bestaetigunsgate.
+
+- Nur Orientierung angefragt: Orientierung ausgeben, dann auf Benutzerinput warten.
+- Orientierung + weitere Aufgabe: Orientierung ausgeben, dann FRAMEWORK_CHANGE-Check und
+  normale Lifecycle-Arbeit fortfahren.
+
+**NEIN → weiter mit FRAMEWORK_CHANGE-Check.**
+
+---
+
+## FRAMEWORK_CHANGE Detection
+
+**Vor jeder anderen Lifecycle-Aktion** den User-Request klassifizieren:
 
 Aendert die Anfrage:
 - MxAgile Core-Verhalten, Policies, Schemas?
@@ -54,6 +76,13 @@ Quellen in Autoritaetsreihenfolge:
 
 Abgeschlossene Lifecycle-Phasen werden NICHT neu durchlaufen, nur weil eine neue
 Agent-Session startet. Konversationsspeicher ist ergaenzend, nicht autoritativ.
+
+**Orientierung bei frisch initialisiertem oder adoptiertem Projekt:**
+Falls nach Startup Re-Sync kein Lifecycle-Zustand vorhanden ist (kein
+`planning/lifecycle/process-state.yaml` und kein `.concord/scratch/process-state.yaml`):
+kurze PROJECT_INITIALIZED- oder PROJECT_ADOPTED-Orientierung ausgeben.
+Vollstaendiger Vertrag: `policies/user-orientation.md`.
+Orientierung blockiert niemals den eigentlichen User-Request.
 
 ---
 

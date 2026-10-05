@@ -693,6 +693,11 @@ try {
     Write-Host ""
     Write-Host "  (New session required: the check must verify discovery from the" -ForegroundColor DarkGray
     Write-Host "   installed repository, not from this installation session.)" -ForegroundColor DarkGray
+    if (-not $IsUpdate) {
+        Write-Host ""
+        Write-Host "  After the system check, simply describe what you want to achieve." -ForegroundColor Cyan
+        Write-Host "  MxAgile will orient you and route the work — no agent or skill selection needed." -ForegroundColor DarkGray
+    }
     Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
 
     exit 0

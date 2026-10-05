@@ -359,6 +359,10 @@ When starting, resuming, or picking up work, follow this order:
 5. **Scope: this project root only** — do not traverse into parent directories, parent repositories,
    sibling projects, or `project-templates/`. All lifecycle evidence is inside this project.
 
+6. **New project or orientation** — If Startup Re-Sync finds no prior lifecycle state (fresh
+   initialization or adoption), OR if the user asks how MxAgile works: follow
+   `.mxagile/policies/user-orientation.md`. Orientation is brief and never blocks the user's request.
+
 Detailed policy: `.mxagile/policies/lifecycle-resync.md`
 '@
 
@@ -410,6 +414,7 @@ When starting, resuming, or picking up work:
 2. Reconstruct: process-state → checklist → decisions → story specs.
 3. Empty Brain → continue from project artifacts. Do NOT inspect Git history.
 4. Scope: this project root only. Do not traverse parent or sibling directories.
+5. New project or orientation → `.mxagile/policies/user-orientation.md`. Brief, never blocks.
 
 Policy: `.mxagile/policies/lifecycle-resync.md`
 
