@@ -54,6 +54,8 @@ Assert ($ic -match 'canonical_url') 'A7: provenance records canonical_url for up
 Assert ($ic -match 'update_entry_point') 'A8: provenance records update_entry_point'
 Assert ($ic -match 'consumer_note') 'A9: provenance carries consumer_note about absent scripts'
 Assert ($ic -match "CoreCommit.*CoreVersion|CoreVersion.*CoreCommit") 'A10: passes CoreCommit and CoreVersion to setup-agent-system'
+Assert ($ic -match 'IsNullOrWhiteSpace.*ProvenanceCoreCommit|ProvenanceCoreCommit.*IsNullOrWhiteSpace') 'A11: self-resolves commit when caller did not provide it'
+Assert ($ic -match 'Split-Path.*PSScriptRoot.*Parent|PSScriptRoot.*Parent') 'A12: self-resolution uses PSScriptRoot parent as distribution root'
 
 # ──────────────────────────────────────────────────────────────
 # B  mxagile-setup.ps1: resolves commit SHA and passes it through
@@ -111,6 +113,8 @@ Assert ($sc -match 'projections.manifest\.json|projections_currency') 'E12: chec
 Assert ($sc -match 'STALE') 'E13: reports STALE when projections not regenerated'
 Assert ($sc -match 'core_installation:') 'E14: machine-readable YAML has core_installation block'
 Assert ($sc -match 'core_currency:') 'E15: machine-readable YAML has core_currency block'
+Assert ($sc -match 'null.*never.*CURRENT|never.*CURRENT.*null|null.*not.*CURRENT|COMMIT_UNKNOWN') 'E16: null commit is never classified as CURRENT'
+Assert ($sc -match 'null.*null.*not.*match|null.*not.*prove.*currency|null.*do not prove|null values do not prove') 'E17: null == null is not proof of projection currency'
 
 # ──────────────────────────────────────────────────────────────
 # F  update-contract.md policy: complete and correct
@@ -131,6 +135,7 @@ Assert ($uc -match 'Content Fingerprint|content.*fingerprint') 'F9: documents co
 Assert ($uc -match 'schema_version.*"1"') 'F10: provenance schema_version documented'
 Assert ($uc -match 'install_mode') 'F11: install_mode field documented'
 Assert ($uc -match 'previous_commit') 'F12: previous_commit field documented'
+Assert ($uc -match 'null.*null.*not.*proof|null.*null.*not.*match|null.*never.*CURRENT|null.*PROVENANCE_INCOMPLETE|null.*UNVERIFIED') 'F13: null semantics documented — null is not CURRENT'
 
 # ──────────────────────────────────────────────────────────────
 # Summary

@@ -383,6 +383,21 @@ try {
         } catch { }
     }
 
+    # Self-resolve source commit when caller did not provide it.
+    # install-core.ps1 lives at <distribution>/scripts/ so its parent IS the distribution root.
+    # This ensures commit is populated whether this script is called directly by a consumer agent
+    # (following update_entry_point) or via mxagile-setup.ps1 which already resolved the commit.
+    if ([string]::IsNullOrWhiteSpace($ProvenanceCoreCommit)) {
+        try {
+            $distRoot    = Split-Path $PSScriptRoot -Parent
+            $resolvedSha = (& git -C $distRoot rev-parse HEAD 2>&1 |
+                Select-Object -First 1).ToString().Trim()
+            if ($resolvedSha -match '^[a-f0-9]{40}$') {
+                $ProvenanceCoreCommit = $resolvedSha
+            }
+        } catch { }
+    }
+
     $coreProv = [ordered]@{
         schema_version        = "1"
         flavor                = $ProvenanceFlavor

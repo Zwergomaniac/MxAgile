@@ -393,7 +393,7 @@ Read `.mxagile/state/core-provenance.json`:
 
 1. Read `core-provenance.json`. If absent: `currency: PROVENANCE_INCOMPLETE` — skip this section.
 
-2. Identify the installed commit from `commit` field. If null: `currency: UNVERIFIED (COMMIT_UNKNOWN)` — version string alone is not sufficient for currency.
+2. Identify the installed commit from `commit` field. If null: `currency: UNVERIFIED (COMMIT_UNKNOWN)` — version string alone is not sufficient for currency. A null commit means the exact Core identity is unknown; it is **never** classified as CURRENT.
 
 3. **If `source_type == "git"` and `source` is a URL**:
    - Attempt: `git ls-remote <source> <ref>` to resolve current upstream HEAD SHA (read-only, no clone needed).
@@ -410,8 +410,9 @@ Read `.mxagile/state/core-provenance.json`:
 
 5. **Projections currency** — read `.mxagile/state/projections-manifest.json`:
    - If absent: `projections_currency: UNKNOWN`
-   - If `generated_from_core_commit == installed commit`: `CURRENT`
-   - If different: `STALE` — projections were not regenerated after this Core update; re-run setup to regenerate.
+   - If `generated_from_core_commit == null` OR `installed commit == null`: `projections_currency: UNKNOWN` — null values do **not** prove currency; `null == null` is not a match.
+   - If both are non-null and equal: `CURRENT`
+   - If both are non-null but different: `STALE` — projections were not regenerated after this Core update; re-run setup to regenerate.
 
 ---
 

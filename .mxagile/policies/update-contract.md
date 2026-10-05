@@ -51,6 +51,20 @@ upstream `commit` SHA at the distribution source for the configured `ref`.
 
 Checking procedure: `git ls-remote <source> <ref>` (read-only, no clone needed).
 
+**Null semantics** — explicit, non-negotiable:
+
+| installed `commit` | upstream SHA | Currency verdict |
+|---|---|---|
+| non-null SHA | same SHA | CURRENT |
+| non-null SHA | different SHA | UPDATE_AVAILABLE |
+| `null` | any | PROVENANCE_INCOMPLETE / UNVERIFIED — **never CURRENT** |
+| any | unavailable | SOURCE_UNAVAILABLE / UNVERIFIED — **never CURRENT** |
+
+`null == null` is **not** proof of currency. Two unknowns cannot be compared.
+
+Similarly for projections: `generated_from_core_commit == null` means projection currency
+is UNKNOWN — never CURRENT.
+
 ---
 
 ## 3. Distribution vs Consumer Ownership
