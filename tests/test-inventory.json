@@ -778,5 +778,35 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Validates Core provenance contract: install-core.ps1 writes core-provenance.json with all required fields, setup scripts resolve commit SHA via git rev-parse, projections manifest chain (setup-agent-system -> generator -> projections-manifest.json), system-check.md Sections J and K (Core identity + currency), update-contract.md policy completeness. Pure read-only static check."
+  },
+  {
+    "File": "test-encoding-safety.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static checks: apply-project-agent-instructions.ps1 uses ReadAllText (not Get-Content -Raw) for all file reads; project-name materialization functions present and call projekt.md + skillssource/AGENTS.md; mxagile-init.ps1 includes name placeholder + UTF-8 NoBOM write; install-core.ps1 materializes from .mpr; schema has name property; system-check.md Section L covers template/encoding/legacy detection. Pure read-only static check."
+  },
+  {
+    "File": "test-utf8-idempotency.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "GUID-based temp dirs. Runs apply-project-agent-instructions.ps1 via pwsh subprocess 3 times per fixture. Verifies: German Unicode preserved across 3 runs (A==B==C), no mojibake, [PROJEKTNAME] replaced from mxagile-project.yaml.name, Alpha/Beta project isolation, idempotency of second materialization run, safe unresolved state when name absent. No network or mxcli."
   }
 ]

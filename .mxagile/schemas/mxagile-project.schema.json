@@ -4,6 +4,10 @@
   "description": "Project-level MxAgile configuration. Agents read mxagile-project.yaml in the project root to determine UI-driven mode, concern-specific source authority, fidelity requirements, and runtime strategy. If the file is absent all defaults apply and existing MxAgile behavior is preserved.",
   "type": "object",
   "properties": {
+    "name": {
+      "type": "string",
+      "description": "Project display name. Materializes [PROJEKTNAME] placeholders in project instruction files. Derived from the .mpr filename on first install. Update this if the display name should differ from the Mendix project filename."
+    },
     "development": {
       "type": "object",
       "description": "Development mode flags.",

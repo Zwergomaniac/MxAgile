@@ -226,6 +226,12 @@ Overall: PASS | PASS_WITH_WARNINGS | FAIL
 - currency_note: [reason when not CURRENT]
 - projections_currency: CURRENT | STALE | UNKNOWN
 
+## L. Project Template Health
+- project_name: [resolved name | UNRESOLVED_TEMPLATE_VALUE]
+- template_markers: NONE | [list of unresolved markers]
+- encoding_health: OK | ENCODING_CORRUPTION_SUSPECTED
+- legacy_references: NONE | [list of obsolete path patterns detected]
+
 ## H. Agent Understanding (Self-Assessed)
 - Canonical source: [PASS|FAIL|UNKNOWN]
 - Required tooling: [PASS|FAIL|UNKNOWN]
@@ -333,6 +339,11 @@ mxagile_system_check:
     reconciliation_required_before_implementation: true | false
     legacy_artifacts: [list of detected legacy locations]
     required_actions: [list of specific next-step actions derived from findings]
+  project_template_health:
+    project_name: "resolved name" | UNRESOLVED_TEMPLATE_VALUE
+    template_markers: []
+    encoding_health: OK | ENCODING_CORRUPTION_SUSPECTED
+    legacy_references: []
   warnings: []
   failures: []
 ```
@@ -416,6 +427,47 @@ Read `.mxagile/state/core-provenance.json`:
 
 ---
 
+## L. Project Template Health
+
+Check relevant project instruction files for unresolved template markers, encoding corruption, and obsolete framework path references.
+
+Files to check: `skillssource/AGENTS.md`, `projekt.md`, `AGENTS.md`, `AGENT.md`
+
+1. **Project name resolution**:
+   - Read `mxagile-project.yaml`. Extract `name:` field.
+   - If `name` is absent or equals `[PROJEKTNAME]`: report `project_name: UNRESOLVED_TEMPLATE_VALUE`
+   - If resolved: report `project_name: [actual name]`
+
+2. **Unresolved template markers** — scan the files above for known framework template placeholders:
+   - `[PROJEKTNAME]` — unresolved project name
+   - `[Rolle]`, `[Modul]`, `[PROJEKTNAME]-playwright` — other template slots
+   - `<!-- TODO: Projektspezifische Rollen` — role authoring TODO
+   - `<!-- TODO:` generally — identify if it is a framework template marker or project-authored TODO
+   - Classify each as: `UNRESOLVED_TEMPLATE_VALUE` | `PROJECT_AUTHORING_REQUIRED` | `PROJECT_AUTHORED`
+   - Do NOT flag general project-authored TODOs as framework defects.
+
+3. **Encoding corruption detection** (conservative — safety net, not repair):
+   - Scan framework-managed instruction files for characteristic CP1252→UTF-8 mojibake patterns:
+     - `Ã¤` (corrupted ä), `Ã¶` (ö), `Ã¼` (ü), `Ã„` (Ä), `Ã–` (Ö), `Ãœ` (Ü), `ÃŸ` (ß)
+     - `â€"` (em dash), `â€˜` / `â€™` (curly quotes)
+   - If any pattern found: report `encoding_health: ENCODING_CORRUPTION_SUSPECTED`
+   - Do NOT attempt automatic repair. Report which file and pattern was found.
+   - Primary fix is re-running setup from the current distribution (encoding reads are now correct).
+
+4. **Legacy framework path references** — scan for obsolete framework path prefixes in instruction files:
+   - `.dfc-ai/` — pre-MxAgile DFC-AI framework paths
+   - If found: report as `LEGACY_REFERENCE` with the file and line
+   - Where a safe canonical MxAgile equivalent exists (e.g., `.dfc-ai/policies/test-workflow.md` → `.mxagile/policies/test-workflow.md`), note the replacement but do NOT auto-repair project-owned prose.
+   - If ambiguous: report as migration debt for manual review.
+
+**Classification taxonomy:**
+- `UNRESOLVED_TEMPLATE_VALUE` — a framework template slot not yet replaced by project identity
+- `PROJECT_AUTHORING_REQUIRED` — a section marked for project-specific content; not yet written
+- `LEGACY_REFERENCE` — references obsolete framework paths from a prior framework version
+- `ENCODING_CORRUPTION_SUSPECTED` — characteristic mojibake detected; re-run setup to restore
+
+---
+
 ## Important: Fresh Session Required
 This check is most reliable when run in a NEW agent session started after installation.
 The test verifies discovery from the installed repository, not from installation context.
@@ -459,6 +511,18 @@ Based on findings, derive specific next actions:
 
 **If `core_currency.status == UNVERIFIED`:**
   "Core currency cannot be verified (upstream unavailable or commit unknown). This does NOT mean the installation is out of date — it means currency is unverifiable from here. Check manually when network access is available."
+
+**If `project_template_health.project_name == UNRESOLVED_TEMPLATE_VALUE`:**
+  "Project name not yet materialized. Add `name: \"Your Project Name\"` to `mxagile-project.yaml` and re-run setup to materialize instruction file templates."
+
+**If `project_template_health.template_markers` is non-empty:**
+  "Unresolved template markers found. Review each item: UNRESOLVED_TEMPLATE_VALUE items require filling in `mxagile-project.yaml.name` and re-running setup; PROJECT_AUTHORING_REQUIRED items require direct project-specific authoring."
+
+**If `project_template_health.encoding_health == ENCODING_CORRUPTION_SUSPECTED`:**
+  "Encoding corruption detected in instruction files. This indicates repeated Core updates ran under Windows PowerShell 5.1 with an old installer. Re-run setup from the current distribution to restore correct UTF-8 encoding. Do not attempt manual repair."
+
+**If `project_template_health.legacy_references` is non-empty:**
+  "Legacy DFC-AI framework path references found. These are migration debt. Review each item and update to the current .mxagile/ equivalent if a safe canonical replacement exists, or consult the project's migration history."
 
 **If PASS with no lifecycle issues:**
   "Installation verified. MxAgile is correctly installed and operational."

@@ -143,6 +143,10 @@ try {
     }
     Write-Host "[OK] Project preflight check passed (found $($mprFiles.Name))"
 
+    # Derive project name from .mpr filename (authoritative Mendix project identity).
+    # Materialize into mxagile-project.yaml after mxagile-init.ps1 runs (Step 1a).
+    $mprProjectName = [System.IO.Path]::GetFileNameWithoutExtension($mprFiles[0].Name)
+
     # Step 1a: MxAgile directory scaffold  -  also installs mxcli.exe
     $initScript = Join-Path $PSScriptRoot "mxagile-init.ps1"
     if (-not (Test-Path -LiteralPath $initScript)) {
@@ -151,6 +155,20 @@ try {
     Write-Host "Calling mxagile-init.ps1..."
     & $initScript -ProjectRoot $ProjectRoot
     Write-Host "[OK] mxagile-init.ps1 executed."
+
+    # Materialize project name into mxagile-project.yaml if still a template placeholder.
+    # mxagile-init.ps1 creates the file with name: "[PROJEKTNAME]"; resolve it now.
+    $projectYamlPath = Join-Path $ProjectRoot "mxagile-project.yaml"
+    if (Test-Path -LiteralPath $projectYamlPath -PathType Leaf) {
+        try {
+            $yamlContent = [System.IO.File]::ReadAllText($projectYamlPath, [System.Text.UTF8Encoding]::new($false))
+            if ($yamlContent -match '\[PROJEKTNAME\]') {
+                $yamlContent = $yamlContent -replace '\[PROJEKTNAME\]', $mprProjectName
+                [System.IO.File]::WriteAllText($projectYamlPath, $yamlContent, [System.Text.UTF8Encoding]::new($false))
+                Write-Host "[OK] mxagile-project.yaml: materialized project name '$mprProjectName'"
+            }
+        } catch { }
+    }
 
     # Step 1b: mxcli init --all-tools
     # ORDERING CONSTRAINT: must run AFTER mxcli is installed (Step 1a) and

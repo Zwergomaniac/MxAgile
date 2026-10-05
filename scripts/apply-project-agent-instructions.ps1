@@ -98,10 +98,13 @@ function Apply-ManagedBlock {
         [string]$FileDescription
     )
 
-    # Read current file content (empty string if file does not exist yet)
+    # Read current file content (empty string if file does not exist yet).
+    # Explicit UTF-8 NoBOM read is required for PS5.1/PS7 consistency — Get-Content -Raw
+    # without an encoding parameter defaults to the host code page (ANSI/CP1252 on PS5.1),
+    # which corrupts existing UTF-8 content on every rewrite.
     $currentContent = ""
     if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
-        $currentContent = Get-Content -LiteralPath $FilePath -Raw
+        $currentContent = [System.IO.File]::ReadAllText($FilePath, $Utf8WithoutBom)
         if ($null -eq $currentContent) { $currentContent = "" }
     }
 
@@ -211,7 +214,7 @@ function Add-GitIgnoreEntry {
     )
 
     $content = if (Test-Path -LiteralPath $GitIgnorePath -PathType Leaf) {
-        Get-Content -LiteralPath $GitIgnorePath -Raw
+        [System.IO.File]::ReadAllText($GitIgnorePath, $Utf8WithoutBom)
     } else {
         ""
     }
@@ -228,6 +231,47 @@ function Add-GitIgnoreEntry {
             "$prefix$Entry`n",
             $Utf8WithoutBom
         )
+    }
+}
+
+# ---------------------------------------------------------------------
+# Read-ProjectName
+# Returns the project name from mxagile-project.yaml, or $null if absent/unresolved.
+# The name field is set by install-core.ps1 from the .mpr filename on first install.
+# ---------------------------------------------------------------------
+function Read-ProjectName {
+    param([string]$ProjectRoot)
+    $yamlPath = Join-Path $ProjectRoot "mxagile-project.yaml"
+    if (-not (Test-Path -LiteralPath $yamlPath -PathType Leaf)) { return $null }
+    try {
+        $yaml = [System.IO.File]::ReadAllText($yamlPath, $Utf8WithoutBom)
+        if ($yaml -match '(?m)^name:\s+"?([^"\r\n\[]+)"?\s*$') {
+            $name = $Matches[1].Trim().Trim('"')
+            if ($name -and $name -ne '[PROJEKTNAME]') { return $name }
+        }
+    } catch { }
+    return $null
+}
+
+# ---------------------------------------------------------------------
+# Materialize-ProjectName
+# Replaces the [PROJEKTNAME] template placeholder in a project-owned file.
+# Only runs if the placeholder is still present — once a project has
+# customized the file, this is a no-op (idempotent, safe on update).
+# ---------------------------------------------------------------------
+function Materialize-ProjectName {
+    param(
+        [string]$FilePath,
+        [string]$ProjectName
+    )
+    if (-not $ProjectName) { return }
+    if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) { return }
+    $content = [System.IO.File]::ReadAllText($FilePath, $Utf8WithoutBom)
+    if ($content -notmatch '\[PROJEKTNAME\]') { return }
+    $newContent = $content.Replace('[PROJEKTNAME]', $ProjectName)
+    if ($newContent -ne $content) {
+        [System.IO.File]::WriteAllText($FilePath, $newContent, $Utf8WithoutBom)
+        Write-Host "  Materialized [PROJEKTNAME] -> '$ProjectName' in $(Split-Path $FilePath -Leaf)"
     }
 }
 
@@ -254,7 +298,7 @@ Ensure-Directory -Path $GitHubDirectory
 # ---------------------------------------------------------------------
 # Read project instructions
 # ---------------------------------------------------------------------
-$ProjectInstructions = Get-Content -LiteralPath $SourcePath -Raw
+$ProjectInstructions = [System.IO.File]::ReadAllText($SourcePath, $Utf8WithoutBom)
 if ($null -eq $ProjectInstructions) { $ProjectInstructions = "" }
 
 # ---------------------------------------------------------------------
@@ -376,6 +420,18 @@ Paths marked "(when present)" may not exist yet in a new project. Discover what 
         -FileDescription "skillssource/AGENTS.md"
 
     Write-Host "  $SkillsAgentsPath"
+}
+
+# ---------------------------------------------------------------------
+# Project name materialization
+# Replace [PROJEKTNAME] template placeholder in project-owned files
+# when the canonical name is available and the placeholder is still unresolved.
+# Safe on update: no-op once the file has been project-customized.
+# ---------------------------------------------------------------------
+$projectName = Read-ProjectName -ProjectRoot $ProjectRoot
+if ($projectName) {
+    Materialize-ProjectName -FilePath (Join-Path $ProjectRoot "skillssource\AGENTS.md") -ProjectName $projectName
+    Materialize-ProjectName -FilePath (Join-Path $ProjectRoot "projekt.md") -ProjectName $projectName
 }
 
 # ---------------------------------------------------------------------

@@ -265,12 +265,16 @@ else {
 $ProjectConfig = Join-Path $ProjectRoot "mxagile-project.yaml"
 if (-not (Test-Path -LiteralPath $ProjectConfig -PathType Leaf)) {
     Write-Host "Creating default project configuration: $ProjectConfig"
-    Set-Content -LiteralPath $ProjectConfig -Encoding UTF8 -Value @"
+    $projectConfigContent = @"
 # MxAgile Project Configuration
 # Schema: .mxagile/schemas/mxagile-project.schema.json
 #
-# Agents read this file to determine UI-driven mode, source authority, and fidelity.
+# Agents read this file to determine project name, UI-driven mode, source authority, and fidelity.
 # If this file is absent all defaults apply and existing MxAgile behavior is preserved.
+
+# Project display name — replace [PROJEKTNAME] with the actual project name.
+# MxAgile uses this to materialize template placeholders in instruction files.
+name: "[PROJEKTNAME]"
 
 development:
   # Set to true to enable the Mockup-Driven UI Contract:
@@ -293,6 +297,7 @@ ui:
   # high:     adds semantic layout, grouping, ordering, navigation, interaction, hierarchy check
   fidelity: standard
 "@
+    [System.IO.File]::WriteAllText($ProjectConfig, $projectConfigContent, [System.Text.UTF8Encoding]::new($false))
 }
 else {
     Write-Host "File exists, preserving: $ProjectConfig"
