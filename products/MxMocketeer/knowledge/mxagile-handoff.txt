@@ -1,0 +1,31 @@
+# MxMocketeer → Development / MxAgile Handoff
+
+## Handoff Principle
+The HTML file is a two-layer artifact:
+1. Visible clickable prototype for Product Owners and key users.
+2. Embedded Design Contract for analysis and development agents.
+
+## Target Mapping
+- Requirements → canonical requirements
+- Decisions/Rationale → decision records
+- Business Rules/Calculations → specifications and acceptance criteria
+- Roles/Permissions → role contract and positive/negative authorization tests
+- Screens/Flows/States → UI/process specifications and Playwright scenarios
+- Assumptions/Open Questions/Conflicts → refinement backlog and gates
+- Out of Scope/Phase 2 → scope guard
+- Mendix Candidates → technical discovery — not automatic adoption
+
+## Conflict Rule
+The visible mockup shows observable behavior; the Design Contract explains intent. When there is a discrepancy, do not resolve it yourself — mark it as a conflict and ask the Product Owner.
+
+## Handoff Readiness
+- Central flows are clickable
+- Relevant roles and constraints are documented
+- Key states are visible or described
+- Confirmed decisions are traceable
+- Critical assumptions and open questions are marked
+- Stable IDs and traceability are present
+- Preservation Check passed
+
+## Do Not Automatically Adopt
+Unconfirmed technical candidates, sample data, temporary text, visual placeholders, and assumptions must not be treated as confirmed implementation requirements.

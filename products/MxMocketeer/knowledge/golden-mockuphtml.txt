@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MxMocketeer Golden Reference</title>
+  <!--
+  MXMOCKETEER DESIGN CONTRACT
+  Contract-Version: 1
+  Visible prototype = customer-facing UI.
+  #mocketeer-spec = machine-readable design context, not technical implementation.
+  Preserve stable IDs and unrelated confirmed knowledge during refinement.
+  -->
+  <script type="application/json" id="mocketeer-spec">
+  {
+    "schema_version": "1.0",
+    "mockup": {
+      "id": "MOCKUP-SITE-REGISTRY",
+      "revision": 1,
+      "previous_revision": null,
+      "title": "Site Registry — golden reference",
+      "language": "en",
+      "updated_at": "2026-10-05",
+      "change_scope": ["SCREEN-001", "FLOW-001"]
+    },
+    "project": {
+      "name": "Golden Reference",
+      "scope": "Site Registry — manage business sites for a fictional organization"
+    },
+    "sources": [
+      {"id": "SRC-001", "type": "stakeholder", "title": "PO clarification session", "status": "CONFIRMED_BY_STAKEHOLDER"}
+    ],
+    "roles": [
+      {
+        "id": "ROLE-MANAGER",
+        "name": "Site Manager",
+        "goals": ["Manage the site portfolio"],
+        "responsibilities": ["Keep site data accurate and current"],
+        "organizational_scope": "all",
+        "data_scope": "all sites",
+        "can": ["CAP-SITE-VIEW", "CAP-SITE-CREATE", "CAP-SITE-EDIT"],
+        "cannot": ["CAP-TECHNICAL-DIAGNOSTICS"],
+        "known_states": ["normal", "empty", "error"],
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      },
+      {
+        "id": "ROLE-VIEWER",
+        "name": "Observer",
+        "goals": ["View site information"],
+        "responsibilities": [],
+        "organizational_scope": "all",
+        "data_scope": "active sites only",
+        "can": ["CAP-SITE-VIEW"],
+        "cannot": ["CAP-SITE-CREATE", "CAP-SITE-EDIT"],
+        "known_states": ["normal", "empty", "no_permission"],
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      }
+    ],
+    "requirements": [
+      {
+        "id": "REQ-001",
+        "actor_role_refs": ["ROLE-MANAGER", "ROLE-VIEWER"],
+        "goal": "View and filter the site list",
+        "why": "Maintain an overview of the organization's sites",
+        "acceptance_criteria": [
+          "List shows name, region, and status",
+          "Search filters the list in real time without a page reload"
+        ],
+        "screen_refs": ["SCREEN-001"],
+        "decision_refs": [],
+        "business_rule_refs": [],
+        "priority": "Must",
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      },
+      {
+        "id": "REQ-002",
+        "actor_role_refs": ["ROLE-MANAGER"],
+        "goal": "Create a site in a dialog",
+        "why": "Register new organizational sites",
+        "acceptance_criteria": [
+          "Name field is mandatory",
+          "Successful save shows the new site in the list"
+        ],
+        "screen_refs": ["SCREEN-001"],
+        "decision_refs": ["DEC-001"],
+        "business_rule_refs": ["BR-001"],
+        "priority": "Must",
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      },
+      {
+        "id": "REQ-003",
+        "actor_role_refs": ["ROLE-VIEWER"],
+        "goal": "Access the site list in read-only mode",
+        "why": "Provide information access without edit rights",
+        "acceptance_criteria": [
+          "No create or edit control is visible to an Observer"
+        ],
+        "screen_refs": ["SCREEN-001"],
+        "decision_refs": [],
+        "business_rule_refs": [],
+        "priority": "Must",
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      }
+    ],
+    "decisions": [
+      {
+        "id": "DEC-001",
+        "decision_status": "CONFIRMED",
+        "topic": "Edit interaction pattern",
+        "decision": "Sites are created and edited in a modal dialog.",
+        "rationale": "The list overview remains visible and provides context during editing.",
+        "alternatives_rejected": ["Separate detail page"],
+        "affected_requirements": ["REQ-002"],
+        "affected_screens": ["SCREEN-001"],
+        "owner": "Product Owner",
+        "source_refs": ["SRC-001"]
+      }
+    ],
+    "business_rules": [
+      {
+        "id": "BR-001",
+        "rule": "Site name is required and must not be empty.",
+        "scope_refs": ["FLOW-001"],
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      }
+    ],
+    "calculations": [],
+    "data_semantics": [
+      {
+        "id": "DATA-001",
+        "field": "site.status",
+        "meaning": "Active or Inactive — reflects whether the site is currently operational",
+        "source": "Site master data",
+        "editable_by": ["ROLE-MANAGER"]
+      }
+    ],
+    "screens": [
+      {
+        "id": "SCREEN-001",
+        "name": "Site list",
+        "purpose": "View, search, and manage sites",
+        "role_refs": ["ROLE-MANAGER", "ROLE-VIEWER"],
+        "requirement_refs": ["REQ-001", "REQ-002", "REQ-003"],
+        "decision_refs": ["DEC-001"],
+        "states": ["normal", "empty", "error", "no_permission"],
+        "interaction_intent": [
+          "Search filters without page reload",
+          "Modal dialog keeps list visible during create/edit"
+        ],
+        "responsive_intent": "Card grid adapts to narrow viewports; table view on wide screens"
+      }
+    ],
+    "flows": [
+      {
+        "id": "FLOW-001",
+        "name": "Create site",
+        "start_screen_ref": "SCREEN-001",
+        "role_refs": ["ROLE-MANAGER"],
+        "steps": [
+          "Click Add Site button to open dialog",
+          "Enter name (required) and select region",
+          "Click Save"
+        ],
+        "result": "New site appears in the list",
+        "error_paths": ["Missing name — validation error shown inline (BR-001)"]
+      }
+    ],
+    "permissions": [
+      {
+        "id": "PERM-001",
+        "role_ref": "ROLE-MANAGER",
+        "capability": "CAP-SITE-CREATE",
+        "effect": "ALLOW",
+        "scope": "all sites",
+        "explicit": true,
+        "source_refs": ["SRC-001"]
+      },
+      {
+        "id": "PERM-002",
+        "role_ref": "ROLE-VIEWER",
+        "capability": "CAP-SITE-CREATE",
+        "effect": "DENY",
+        "scope": "all sites",
+        "explicit": true,
+        "source_refs": ["SRC-001"]
+      }
+    ],
+    "assumptions": [],
+    "open_questions": [
+      {
+        "id": "Q-001",
+        "question": "Can sites be deleted, or only deactivated?",
+        "owner": "Product Owner",
+        "scope_refs": ["SCREEN-001"],
+        "blocks_implementation": true,
+        "status": "OPEN"
+      }
+    ],
+    "conflicts": [],
+    "risks": [],
+    "accepted_risks": [],
+    "out_of_scope": ["Technical diagnostic functions"],
+    "phase2": ["Bulk import of sites"],
+    "dependencies": [],
+    "mendix_candidates": {
+      "entities": [
+        {"name": "Site", "status": "derived", "reason": "Persistent site master data entity"}
+      ],
+      "pages": [
+        {"name": "SiteOverview_List", "status": "derived"}
+      ],
+      "microflows": [
+        {"name": "ACT_SaveSite", "type": "ACT", "status": "derived"}
+      ]
+    },
+    "findings": [],
+    "traceability": [
+      {
+        "requirement_ref": "REQ-002",
+        "screen_refs": ["SCREEN-001"],
+        "element_refs": ["site-create-button"],
+        "decision_refs": ["DEC-001"],
+        "role_refs": ["ROLE-MANAGER"],
+        "business_rule_refs": ["BR-001"]
+      }
+    ]
+  }
+  </script>
+  <style>
+    :root { font-family: Segoe UI, Arial, sans-serif; color: #222; background: #f5f6f8; }
+    body { margin: 0; }
+    .app { max-width: 1020px; margin: auto; padding: 24px; }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .top h1 { margin: 0 0 4px; }
+    .top p { margin: 0; color: #666; font-size: .9em; }
+    .toolbar { display: flex; gap: 8px; margin: 20px 0; flex-wrap: wrap; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+    .card { background: white; border: 1px solid #ddd; border-radius: 10px; padding: 16px; }
+    .card h2 { margin: 8px 0 4px; font-size: 1.05em; }
+    .card p { margin: 0; color: #555; font-size: .9em; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: .8em; background: #dff3e4; color: #1a6632; }
+    .card .actions { margin-top: 12px; }
+    button { padding: 8px 14px; cursor: pointer; border-radius: 6px; font-size: .95em; border: 1px solid transparent; }
+    .btn-primary { background: #0078d4; color: white; }
+    .btn-primary:hover { background: #006cbf; }
+    .btn-secondary { background: white; color: #222; border-color: #999; }
+    .btn-secondary:hover { background: #f3f3f3; }
+    input[type=search], input[type=text], select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: .95em; }
+    #search { flex: 1; min-width: 180px; }
+    .empty-state { color: #888; padding: 40px; text-align: center; background: white; border-radius: 10px; border: 1px dashed #ccc; }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 100; }
+    .dialog { background: white; padding: 28px; border-radius: 12px; width: min(460px, 92vw); box-shadow: 0 8px 32px #0003; }
+    .dialog h2 { margin: 0 0 20px; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; margin-bottom: 4px; font-size: .9em; font-weight: 600; }
+    .field input, .field select { width: 100%; box-sizing: border-box; }
+    .error-msg { color: #b00020; font-size: .88em; margin-top: 4px; min-height: 1.2em; }
+    .dialog-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+    .spec-footer { margin-top: 32px; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; font-size: .85em; color: #444; }
+    .spec-footer summary { cursor: pointer; font-weight: 600; }
+    .hidden { display: none; }
+    @media (max-width: 600px) {
+      .toolbar { flex-direction: column; }
+      .top { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" data-mx-screen="SCREEN-001">
+    <div class="top">
+      <div>
+        <h1>Site Registry</h1>
+        <p>Golden Reference Mockup &mdash; <em>All data is fictional</em></p>
+      </div>
+      <select id="role" aria-label="Active role" title="Switch role to see permission differences">
+        <option value="manager">Site Manager</option>
+        <option value="viewer">Observer (read-only)</option>
+      </select>
+    </div>
+
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search sites&hellip;" aria-label="Search sites">
+      <button id="site-create-button" class="btn-primary"
+              data-mx-req="REQ-002" data-mx-decision="DEC-001" data-mx-role="ROLE-MANAGER">
+        Add Site
+      </button>
+    </div>
+
+    <section id="list" class="grid" aria-live="polite" aria-label="Site list"></section>
+
+    <details class="spec-footer">
+      <summary>Business context (spec footer)</summary>
+      <p>
+        <strong>Requirements:</strong> REQ-001 (view/filter all roles), REQ-002 (create — Manager only), REQ-003 (read-only for Observer).<br>
+        <strong>Decision DEC-001:</strong> Modal dialog instead of a separate page — list stays visible.<br>
+        <strong>Business rule BR-001:</strong> Site name is required.<br>
+        <strong>Open Q-001:</strong> Can sites be deleted or only deactivated? (blocks implementation — owner: Product Owner)
+      </p>
+    </details>
+  </main>
+
+  <!-- DEC-001: Modal dialog for create/edit -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+    <form class="dialog" id="site-form" novalidate>
+      <h2 id="dialog-title">Add Site</h2>
+
+      <div class="field">
+        <label for="site-name">Name <span aria-hidden="true" style="color:#b00020">*</span></label>
+        <input id="site-name" type="text" autocomplete="off" aria-required="true" placeholder="Enter site name">
+        <div id="name-error" class="error-msg" aria-live="polite" role="alert"></div>
+      </div>
+
+      <div class="field">
+        <label for="site-region">Region</label>
+        <select id="site-region">
+          <option>Northern Region</option>
+          <option>Southern Region</option>
+          <option>Eastern Region</option>
+          <option>Western Region</option>
+        </select>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" id="cancel-btn">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // Mock data — all fictional (MOCKUP-SITE-REGISTRY, revision 1)
+    let sites = [
+      { name: 'Northgate Site', region: 'Northern Region', status: 'Active' },
+      { name: 'Westshore Site', region: 'Western Region', status: 'Active' }
+    ];
+
+    const listEl   = document.getElementById('list');
+    const searchEl = document.getElementById('search');
+    const createBtn= document.getElementById('site-create-button');
+    const roleEl   = document.getElementById('role');
+    const modal    = document.getElementById('modal');
+    const formEl   = document.getElementById('site-form');
+    const nameErr  = document.getElementById('name-error');
+
+    function isManager() { return roleEl.value === 'manager'; }
+
+    function render() {
+      const q = searchEl.value.toLowerCase();
+      const filtered = sites.filter(s => s.name.toLowerCase().includes(q));
+
+      // REQ-003 / PERM-002: hide create button for Observers
+      createBtn.hidden = !isManager();
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<p class="empty-state">No sites match your search.</p>';
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(s => `
+        <article class="card" data-mx-req="REQ-001">
+          <span class="badge">${s.status}</span>
+          <h2>${s.name}</h2>
+          <p>${s.region}</p>
+          ${isManager() ? '<div class="actions"><button class="btn-secondary" type="button">Edit</button></div>' : ''}
+        </article>
+      `).join('');
+    }
+
+    searchEl.addEventListener('input', render);
+    roleEl.addEventListener('change', render);
+
+    // Open dialog (DEC-001)
+    createBtn.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+      document.getElementById('site-name').focus();
+    });
+
+    // Close dialog
+    document.getElementById('cancel-btn').addEventListener('click', closeDialog);
+    modal.addEventListener('click', e => { if (e.target === modal) closeDialog(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+
+    function closeDialog() {
+      modal.classList.add('hidden');
+      formEl.reset();
+      nameErr.textContent = '';
+    }
+
+    // Save — BR-001: name required
+    formEl.addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('site-name').value.trim();
+      if (!name) {
+        nameErr.textContent = 'Site name is required (BR-001).';
+        document.getElementById('site-name').focus();
+        return;
+      }
+      const region = document.getElementById('site-region').value;
+      sites.push({ name, region, status: 'Active' });
+      closeDialog();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

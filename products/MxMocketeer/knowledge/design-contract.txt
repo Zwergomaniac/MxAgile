@@ -1,0 +1,160 @@
+# MxMocketeer Design Contract v1
+
+## Purpose
+The Design Contract preserves confirmed customer and design intent in the same HTML file as the clickable prototype. It is a business handoff medium, not a technical Mendix specification.
+
+## Mandatory HTML Structure
+```html
+<!--
+MXMOCKETEER DESIGN CONTRACT
+Contract-Version: 1
+Visible prototype = customer-facing UI.
+#mocketeer-spec = machine-readable design context, not technical implementation.
+Preserve stable IDs and unrelated confirmed knowledge during refinement.
+-->
+<script type="application/json" id="mocketeer-spec">{ ... }</script>
+```
+
+## Top-Level Structure
+```json
+{
+  "schema_version": "1.0",
+  "mockup": {
+    "id": "MOCKUP-EXAMPLE",
+    "revision": 1,
+    "previous_revision": null,
+    "title": "Example",
+    "language": "en",
+    "updated_at": "YYYY-MM-DD",
+    "change_scope": ["SCREEN-001"]
+  },
+  "project": {},
+  "sources": [],
+  "roles": [],
+  "requirements": [],
+  "decisions": [],
+  "business_rules": [],
+  "calculations": [],
+  "data_semantics": [],
+  "screens": [],
+  "flows": [],
+  "permissions": [],
+  "assumptions": [],
+  "open_questions": [],
+  "conflicts": [],
+  "risks": [],
+  "accepted_risks": [],
+  "out_of_scope": [],
+  "phase2": [],
+  "dependencies": [],
+  "mendix_candidates": {},
+  "findings": [],
+  "traceability": []
+}
+```
+
+## Common Fields
+Where applicable, entries use:
+- `id`: stable and unique, e.g. REQ-001, DEC-001, ROLE-ADMIN, BR-001, SCREEN-001.
+- `status`: CONFIRMED_BY_SOURCE, CONFIRMED_BY_STAKEHOLDER, DERIVED, RECOMMENDATION, ASSUMPTION_REQUIRES_APPROVAL, CONFLICTING, OPEN, ACCEPTED_RISK, REJECTED, or SUPERSEDED.
+- `source_refs`: IDs or descriptions of the source material.
+- `owner`: responsible role, not necessarily a person's name.
+- `scope_refs`: affected screens/flows/requirements.
+
+## Roles and Personas
+```json
+{
+  "id": "ROLE-MANAGER",
+  "name": "Site Manager",
+  "goals": [],
+  "responsibilities": [],
+  "organizational_scope": "all",
+  "data_scope": "all application-relevant data",
+  "can": ["CAP-SITE-MANAGE"],
+  "cannot": ["CAP-TECHNICAL-DIAGNOSTICS"],
+  "known_states": ["normal", "empty", "error"],
+  "status": "CONFIRMED_BY_STAKEHOLDER"
+}
+```
+`cannot[]` contains only explicitly excluded capabilities. Unmentioned actions are unknown — not automatically forbidden.
+
+## Requirements
+```json
+{
+  "id": "REQ-001",
+  "actor_role_refs": ["ROLE-MANAGER"],
+  "goal": "View and manage sites",
+  "why": "Keep the site portfolio current",
+  "acceptance_criteria": [],
+  "screen_refs": ["SCREEN-001"],
+  "decision_refs": ["DEC-001"],
+  "business_rule_refs": [],
+  "priority": "Must",
+  "status": "CONFIRMED_BY_STAKEHOLDER"
+}
+```
+
+## Decisions
+```json
+{
+  "id": "DEC-001",
+  "decision_status": "CONFIRMED",
+  "topic": "Edit interaction pattern",
+  "decision": "Sites are edited in a modal dialog.",
+  "rationale": "The list overview stays visible and provides context.",
+  "alternatives_rejected": ["Separate detail page"],
+  "affected_requirements": ["REQ-001"],
+  "affected_screens": ["SCREEN-001"],
+  "owner": "Product Owner"
+}
+```
+
+## Business Rules and Calculations
+Business rules are business-verifiable rules. Calculations include meaning, formula or pseudo-logic, unit, rounding, data source, and scope. Never invent a formula.
+
+## Screens, Flows, and States
+Screens contain: purpose, roles, relevant elements, requirements/decisions, states, and responsive intent. Flows contain: start, steps, alternatives, result, and error paths. States at minimum where relevant: loading, empty, normal, warning, error, success, disabled, read_only, no_permission.
+
+## Permissions
+Permissions can express cross-role rules:
+```json
+{
+  "id": "PERM-001",
+  "role_ref": "ROLE-MANAGER",
+  "capability": "CAP-SITE-MANAGE",
+  "effect": "ALLOW",
+  "scope": "all sites",
+  "explicit": true,
+  "source_refs": ["SRC-001"]
+}
+```
+
+## Assumptions, Questions, Conflicts, and Risks
+Each entry includes: reason, owner, affected scope, and `blocks_implementation`. Assumptions are never presented as confirmed. Risks may become ACCEPTED_RISK when owner and consequence are documented.
+
+## Mendix Candidates
+Candidates only — never unconfirmed technical fact. Possible categories: modules, entities, attributes, associations, enumerations, pages, roles, microflows, integrations. Microflow types may be proposed as ACT, SUB, VAL, DS, SE, or NAV. Each candidate carries status confirmed|derived|open and a reason.
+
+## Traceability
+```json
+{
+  "requirement_ref": "REQ-001",
+  "screen_refs": ["SCREEN-001"],
+  "element_refs": ["site-create-button"],
+  "decision_refs": ["DEC-001"],
+  "role_refs": ["ROLE-MANAGER"],
+  "business_rule_refs": []
+}
+```
+
+## Preservation Contract
+During refinement:
+- IDs remain stable.
+- Unaffected CONFIRMED entries are preserved.
+- Removal only on explicit request or via SUPERSEDED decision.
+- `mockup.revision` is incremented; `previous_revision` references the predecessor.
+- `change_scope` lists only affected IDs.
+- Before output, compare before/after IDs. Unexpected loss: STOP and report.
+
+## Privacy and Security
+No secrets, tokens, real credentials, or unnecessary personal data. Mark synthetic personal examples as mock data. Include sensitive technical information only when required for a design decision and explicitly approved.

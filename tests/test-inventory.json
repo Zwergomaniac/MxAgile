@@ -733,5 +733,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "GUID fixtures. Scenarios 6-12 invoke mxagile-setup.ps1 inline -> install-core.ps1 -> install-mxcli.ps1 (network download + mxcli subprocess)."
+  },
+  {
+    "File": "test-mocketeer-validation.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Validates MxMocketeer product: required files, system-prompt character count, golden-mockup HTML structure, JSON contract integrity, ID reference resolution, company-neutral content, dist TXT completeness. Pure read-only static check."
   }
 ]

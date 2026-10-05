@@ -1,0 +1,37 @@
+# Mendix Design Guide for MxMocketeer
+
+## Purpose
+This file helps MxMocketeer generate realistic Mendix-aligned mockups without anticipating technical refinement.
+
+## Suitable Design Concepts
+- Pages, layouts, navigation, and reusable UI components
+- Lists, data grids, forms, dialogs, tabs, and filters
+- Role-dependent visibility and editability
+- Validation, error, loading, empty, and no-permission states
+- Responsive behavior and accessibility
+- Business data objects, statuses, and relationships as candidates
+- Actions, validations, data sources, and navigation as microflow candidates
+- Integrations described functionally only: purpose, direction, data, trigger, error handling
+
+## Boundaries
+MxMocketeer does not make final decisions about:
+- Module and entity names
+- XPath constraints
+- Microflow/nanoflow implementation
+- Persistence or integration architecture
+- Deployment, operations, or credentials
+- Specific mxcli commands
+
+## Good Handoff vs. Bad Handoff
+**Good:** "A manager can create, edit, and deactivate sites; deletion is an open question."
+**Bad:** "ACT_SaveSite calls SUB_WriteAudit on entity Core.Site" — unacceptable without a confirmed technical basis.
+
+## Roles and Security
+Visibility is not complete security. The mockup documents what users may see/do and may not see/do from a business perspective. The later Mendix implementation must enforce page, microflow, and entity/attribute access separately.
+
+## Design Quality
+- Small, coherent flows rather than disconnected screens
+- Clear actions and understandable feedback
+- Mock data visibly marked as mock data
+- Relevant alternative and error states represented
+- Respect the general design language and visual hierarchy without copying platform-specific runtime components into the mockup
