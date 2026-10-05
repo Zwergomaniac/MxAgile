@@ -206,6 +206,26 @@ Overall: PASS | PASS_WITH_WARNINGS | FAIL
 - Layers found: [list of IDs or NONE]
 - [For each layer:] [id]: layer.json=[OK|MISSING], provenance.json=[OK|MISSING], .git=[ABSENT(OK)|PRESENT(FAIL)], manifest=[OK|MISSING]
 
+## J. Core Installation Identity
+- core-provenance.json: PRESENT | MISSING (PROVENANCE_INCOMPLETE)
+- flavor: core | mercedes | UNKNOWN
+- source: [url or path or UNKNOWN]
+- source_type: git | local | UNKNOWN
+- ref: [ref or UNKNOWN]
+- commit: [40-char SHA or null]
+- version: [version or UNKNOWN]
+- installed_at: [ISO8601 or UNKNOWN]
+- install_mode: install | update | UNKNOWN
+- previous_commit: [SHA or null]
+- distribution_owned: [list of scripts]
+
+## K. Core Currency
+- installed_commit: [SHA or null]
+- upstream_commit: [SHA | UNKNOWN | SOURCE_UNAVAILABLE]
+- currency: CURRENT | UPDATE_AVAILABLE | UNVERIFIED | PROVENANCE_INCOMPLETE
+- currency_note: [reason when not CURRENT]
+- projections_currency: CURRENT | STALE | UNKNOWN
+
 ## H. Agent Understanding (Self-Assessed)
 - Canonical source: [PASS|FAIL|UNKNOWN]
 - Required tooling: [PASS|FAIL|UNKNOWN]
@@ -271,6 +291,25 @@ mxagile_system_check:
     status: PASS | PASS_WITH_WARNINGS | FAIL | NOT_APPLICABLE
     detected: [list of layer IDs]
     violations: [list of issues]
+  core_installation:
+    status: PASS | PROVENANCE_INCOMPLETE
+    file_present: true | false
+    flavor: core | mercedes | UNKNOWN
+    source: "url or path" | UNKNOWN
+    source_type: git | local | UNKNOWN
+    ref: "main" | UNKNOWN
+    commit: "40-char sha" | null
+    version: "1.1" | UNKNOWN
+    installed_at: "ISO8601" | UNKNOWN
+    install_mode: install | update | UNKNOWN
+    previous_commit: "sha" | null
+    distribution_owned: [list of script paths]
+  core_currency:
+    status: CURRENT | UPDATE_AVAILABLE | UNVERIFIED | PROVENANCE_INCOMPLETE
+    installed_commit: "sha" | null
+    upstream_commit: "sha" | UNKNOWN | SOURCE_UNAVAILABLE
+    currency_note: "reason when not CURRENT"
+    projections_currency: CURRENT | STALE | UNKNOWN
   behavioral_contract:
     status: PASS | FAIL | UNKNOWN
     note: "Self-assessed — not filesystem verified"
@@ -323,6 +362,59 @@ Core UPDATE or fresh clone, without the developer needing to specify internal re
 
 ---
 
+## J. Core Installation Identity
+
+Read `.mxagile/state/core-provenance.json`:
+
+1. If the file is **absent**: report `PROVENANCE_INCOMPLETE`. This is expected for projects installed before this contract was introduced — proceed, but note the gap.
+2. If **present**, read and report:
+   - `flavor` — "core" or "mercedes"
+   - `source` — distribution URL or local path used during install
+   - `source_type` — "git" or "local"
+   - `ref` — git branch/tag (e.g. "main")
+   - `commit` — full SHA of the installed distribution commit (null = unknown)
+   - `version` — framework version string (e.g. "1.1")
+   - `installed_at` — ISO8601 timestamp
+   - `install_mode` — "install" or "update"
+   - `previous_commit` — SHA of the prior commit on last update (null on fresh install)
+   - `distribution.canonical_url` — authoritative update source URL
+   - `distribution.update_entry_point` — script that owns Core update
+   - `distribution.distribution_owned` — list of distribution-owned scripts
+
+3. **Distribution-owned scripts**: scripts listed in `distribution.distribution_owned` are NOT consumer project artifacts. Their absence in a consumer project is **correct and expected** — never diagnose a missing distribution-owned script as a consumer defect. Do not search local filesystems for these scripts when the provenance record identifies the canonical source.
+
+4. **No-filesystem-guessing invariant**: MxAgile Core source discovery must come from `core-provenance.json` or explicit installer configuration. Do not search arbitrary local filesystem locations for historical repository names (e.g. MxAi-Dev-System, DFC-AI), guessed development repositories, or machine-specific paths. If authoritative source provenance is unavailable or invalid, report `SOURCE_UNAVAILABLE` — do not compensate through broad filesystem search.
+
+---
+
+## K. Core Currency
+
+**Offline rule**: If upstream cannot be queried, do NOT claim CURRENT. Report `currency: UNVERIFIED`.
+
+1. Read `core-provenance.json`. If absent: `currency: PROVENANCE_INCOMPLETE` — skip this section.
+
+2. Identify the installed commit from `commit` field. If null: `currency: UNVERIFIED (COMMIT_UNKNOWN)` — version string alone is not sufficient for currency.
+
+3. **If `source_type == "git"` and `source` is a URL**:
+   - Attempt: `git ls-remote <source> <ref>` to resolve current upstream HEAD SHA (read-only, no clone needed).
+   - If successful:
+     - `installed_commit == upstream_commit` → `CURRENT`
+     - `installed_commit != upstream_commit` → `UPDATE_AVAILABLE`
+     - Report both SHAs.
+   - If command fails (network, auth, timeout): `currency: UNVERIFIED — SOURCE_UNAVAILABLE`
+   - Do NOT run `git clone` to check currency.
+
+4. **If `source_type == "local"`**:
+   - Attempt `git -C <source> rev-parse HEAD` to get current local HEAD.
+   - If source path unavailable: `currency: UNVERIFIED — LOCAL_SOURCE_UNAVAILABLE`.
+
+5. **Projections currency** — read `.mxagile/state/projections-manifest.json`:
+   - If absent: `projections_currency: UNKNOWN`
+   - If `generated_from_core_commit == installed commit`: `CURRENT`
+   - If different: `STALE` — projections were not regenerated after this Core update; re-run setup to regenerate.
+
+---
+
 ## Important: Fresh Session Required
 This check is most reliable when run in a NEW agent session started after installation.
 The test verifies discovery from the installed repository, not from installation context.
@@ -354,6 +446,18 @@ Based on findings, derive specific next actions:
 
 **If schema reconciliation needed:**
   "Parity schema upgrade required. Run: 'Upgrade parity records per policies/ui-parity.md — Existing Evidence Upgrade'"
+
+**If `core_installation.status == PROVENANCE_INCOMPLETE`:**
+  "Core installation provenance absent. This is expected for projects installed before the provenance contract was introduced. Run setup again to write provenance: `mxagile-setup.ps1 -ProjectRoot <path>`"
+
+**If `core_currency.status == UPDATE_AVAILABLE`:**
+  "Core update available. Installed commit: [installed_commit]. Upstream commit: [upstream_commit]. Run: `mxagile-setup.ps1 -ProjectRoot <path>` from the latest distribution."
+
+**If `core_currency.projections_currency == STALE`:**
+  "Generated projections are stale relative to installed Core. Re-run setup or regenerate: run setup from the installed distribution."
+
+**If `core_currency.status == UNVERIFIED`:**
+  "Core currency cannot be verified (upstream unavailable or commit unknown). This does NOT mean the installation is out of date — it means currency is unverifiable from here. Check manually when network access is available."
 
 **If PASS with no lifecycle issues:**
   "Installation verified. MxAgile is correctly installed and operational."

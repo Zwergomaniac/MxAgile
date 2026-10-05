@@ -763,5 +763,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Validates WP2+WP3 lifecycle extensions: test-contract/verification-plan schemas (JSON parse + structural), all 7 WP2 policies, evidence-levels BUILD layer, gate-to-ready Testability Gate, acceptance-agent WP2 structure, discovery-agent Design Contract intake, lifecycle.yaml WP2 gates, skills.yaml adapter registrations, WP3 maturity intake (HANDOFF_READY/REFINEMENT_REQUIRED/BLOCKED/legacy), gap-to-refinement mapping, gate-bypass guard, company-neutral content. Pure read-only static check."
+  },
+  {
+    "File": "test-core-provenance.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Validates Core provenance contract: install-core.ps1 writes core-provenance.json with all required fields, setup scripts resolve commit SHA via git rev-parse, projections manifest chain (setup-agent-system -> generator -> projections-manifest.json), system-check.md Sections J and K (Core identity + currency), update-contract.md policy completeness. Pure read-only static check."
   }
 ]

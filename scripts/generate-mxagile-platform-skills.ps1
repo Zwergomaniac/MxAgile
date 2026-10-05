@@ -22,6 +22,8 @@
 [CmdletBinding()]
 param(
     [string]$ProjectRoot = $PWD.Path,
+    [string]$CoreCommit  = "",
+    [string]$CoreVersion = "",
     [switch]$DryRun
 )
 
@@ -206,5 +208,28 @@ Generate-OpenCodeSkills
 
 Write-Host "`n--- Hermes ---"
 Generate-HermesSkills
+
+# Write projections manifest when Core identity is available
+if ($CoreCommit -or $CoreVersion) {
+    $manifestPath = Join-Path $ProjectRoot '.mxagile\state\projections-manifest.json'
+    $manifestDir  = Split-Path $manifestPath -Parent
+    if (-not (Test-Path $manifestDir)) { New-Item -ItemType Directory -Path $manifestDir -Force | Out-Null }
+    $manifest = [ordered]@{
+        schema_version              = "1"
+        generated_at                = (Get-Date -Format 'o')
+        generated_from_core_commit  = if ($CoreCommit)  { $CoreCommit }  else { $null }
+        generated_from_core_version = if ($CoreVersion) { $CoreVersion } else { $null }
+        generator                   = "generate-mxagile-platform-skills.ps1"
+        generator_owned_by          = "distribution"
+        regeneration_note           = "Run mxagile-setup.ps1 (or scripts/install-core.ps1 -IsUpdate `$true) from the MxAgile distribution to regenerate."
+    }
+    if (-not $DryRun) {
+        $manifest | ConvertTo-Json |
+            Set-Content -LiteralPath $manifestPath -Encoding UTF8
+        Write-Host "  Generated: .mxagile/state/projections-manifest.json"
+    } else {
+        Write-Host "  [DRY RUN] .mxagile/state/projections-manifest.json"
+    }
+}
 
 Write-Host "`nDone."

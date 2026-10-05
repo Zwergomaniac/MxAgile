@@ -269,6 +269,20 @@ try {
     }
 
     # =========================================================================
+    # Resolve exact Core commit SHA from distribution (best-effort)
+    # Commit hash is the primary currency signal — version string alone is not sufficient.
+    # =========================================================================
+    $provenanceCoreCommit = ""
+    try {
+        $resolvedSha = (& git -C $distributionRoot rev-parse HEAD 2>&1 |
+            Select-Object -First 1).ToString().Trim()
+        if ($resolvedSha -match '^[a-f0-9]{40}$') {
+            $provenanceCoreCommit = $resolvedSha
+            Write-Host "  -> Core commit   : $provenanceCoreCommit"
+        }
+    } catch { }
+
+    # =========================================================================
     # 4. Safety: distribution must not be inside the target project
     # =========================================================================
     $targetNorm = $ProjectRoot.TrimEnd('\', '/')
@@ -310,7 +324,8 @@ try {
             -ProvenanceCoreSource     $provenanceCoreSource `
             -ProvenanceCoreSourceType $provenanceCoreSourceType `
             -ProvenanceCoreRef        $provenanceCoreRef `
-            -ProvenanceCoreSubdir     $provenanceCoreSubdir
+            -ProvenanceCoreSubdir     $provenanceCoreSubdir `
+            -ProvenanceCoreCommit     $provenanceCoreCommit
         $exitCode = $LASTEXITCODE
     } else {
         # Layer already installed: update Core only (no -CompanyLayerSource)
@@ -321,7 +336,8 @@ try {
             -ProvenanceCoreSource     $provenanceCoreSource `
             -ProvenanceCoreSourceType $provenanceCoreSourceType `
             -ProvenanceCoreRef        $provenanceCoreRef `
-            -ProvenanceCoreSubdir     $provenanceCoreSubdir
+            -ProvenanceCoreSubdir     $provenanceCoreSubdir `
+            -ProvenanceCoreCommit     $provenanceCoreCommit
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -ne 0) {

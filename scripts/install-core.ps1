@@ -18,7 +18,8 @@ param (
     [string]$ProvenanceCoreSource     = "",
     [string]$ProvenanceCoreSourceType = "",
     [string]$ProvenanceCoreRef        = "",
-    [string]$ProvenanceCoreSubdir     = ""
+    [string]$ProvenanceCoreSubdir     = "",
+    [string]$ProvenanceCoreCommit     = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -355,6 +356,63 @@ try {
     }
     Write-Host "[OK] Canonical MxAgile payload installed."
 
+    # =========================================================================
+    # Core Installation Provenance
+    # Writes machine-readable identity to .mxagile/state/core-provenance.json so
+    # consumer agents can determine the installed Core without guessing repo paths.
+    # =========================================================================
+    $coreVersion = "unknown"
+    try {
+        $installedVersionYaml = Join-Path $destMxAgile "version.yaml"
+        if (Test-Path -LiteralPath $installedVersionYaml -PathType Leaf) {
+            $vc = Get-Content -LiteralPath $installedVersionYaml -Raw
+            if ($vc -match '(?m)^version:\s+"?([^"\s\r\n]+)"?') { $coreVersion = $Matches[1] }
+        }
+    } catch { }
+
+    $coreProvPath        = Join-Path $destState "core-provenance.json"
+    $previousCommit      = $null
+    $previousVersion     = $null
+    $previousInstalledAt = $null
+    if ($IsUpdate -and (Test-Path -LiteralPath $coreProvPath -PathType Leaf)) {
+        try {
+            $prevProv = Get-Content -LiteralPath $coreProvPath -Raw | ConvertFrom-Json -ErrorAction Stop
+            if ($prevProv.PSObject.Properties.Name -contains 'commit')       { $previousCommit      = $prevProv.commit }
+            if ($prevProv.PSObject.Properties.Name -contains 'version')      { $previousVersion     = $prevProv.version }
+            if ($prevProv.PSObject.Properties.Name -contains 'installed_at') { $previousInstalledAt = $prevProv.installed_at }
+        } catch { }
+    }
+
+    $coreProv = [ordered]@{
+        schema_version        = "1"
+        flavor                = $ProvenanceFlavor
+        source                = $ProvenanceCoreSource
+        source_type           = $ProvenanceCoreSourceType
+        ref                   = $ProvenanceCoreRef
+        commit                = if ($ProvenanceCoreCommit) { $ProvenanceCoreCommit } else { $null }
+        version               = $coreVersion
+        installed_at          = (Get-Date -Format 'o')
+        install_mode          = if ($IsUpdate) { "update" } else { "install" }
+        previous_commit       = $previousCommit
+        previous_version      = $previousVersion
+        previous_installed_at = $previousInstalledAt
+        distribution          = [ordered]@{
+            canonical_url      = "https://github.com/Zwergomaniac/MxAgile.git"
+            update_entry_point = "scripts/install-core.ps1"
+            update_flag        = '-IsUpdate $true'
+            distribution_owned = @(
+                "scripts/install-core.ps1",
+                "scripts/setup-agent-system.ps1",
+                "scripts/generate-mxagile-platform-skills.ps1"
+            )
+            consumer_note      = "Distribution-owned scripts are NOT consumer project artifacts. Their absence in a consumer project is expected and normal, never a defect."
+        }
+    }
+    $coreProv | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $coreProvPath -Encoding UTF8
+    $shortCommit = if ($ProvenanceCoreCommit) { $ProvenanceCoreCommit.Substring(0,[Math]::Min(8,$ProvenanceCoreCommit.Length)) } else { "(unknown)" }
+    Write-Host "[OK] Core provenance written to .mxagile/state/core-provenance.json"
+    Write-Host "     version=$coreVersion  commit=$shortCommit  mode=$(if ($IsUpdate) { 'update' } else { 'install' })"
+
     # Step 1d: Post-install migration state reconciliation
     # For already-migrated projects that predate WP-10, artifact_canonicalization
     # is absent from state.yaml — the field did not exist at migration time.
@@ -399,7 +457,7 @@ try {
         throw "setup-agent-system.ps1 not found in script directory."
     }
     Write-Host "Calling setup-agent-system.ps1..."
-    & $setupScript -ProjectRoot $ProjectRoot
+    & $setupScript -ProjectRoot $ProjectRoot -CoreCommit $ProvenanceCoreCommit -CoreVersion $coreVersion
     Write-Host "[OK] setup-agent-system.ps1 executed."
 
     # =========================================================================

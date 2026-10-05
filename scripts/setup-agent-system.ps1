@@ -13,6 +13,8 @@ All project output is written relative to the explicitly supplied ProjectRoot.
 [CmdletBinding()]
 param (
     [string]$ProjectRoot = (Get-Location).Path,
+    [string]$CoreCommit  = "",
+    [string]$CoreVersion = "",
 
     [switch]$DryRun
 )
@@ -70,11 +72,15 @@ try {
     if ($DryRun) {
         & $GenerateScript `
             -ProjectRoot $ProjectRoot `
+            -CoreCommit  $CoreCommit `
+            -CoreVersion $CoreVersion `
             -DryRun
     }
     else {
         & $GenerateScript `
-            -ProjectRoot $ProjectRoot
+            -ProjectRoot $ProjectRoot `
+            -CoreCommit  $CoreCommit `
+            -CoreVersion $CoreVersion
     }
 
     if (-not $?) {

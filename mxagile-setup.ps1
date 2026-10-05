@@ -252,6 +252,20 @@ try {
     }
 
     # =========================================================================
+    # Resolve exact Core commit SHA from distribution (best-effort)
+    # Commit hash is the primary currency signal — version string alone is not sufficient.
+    # =========================================================================
+    $provenanceCoreCommit = ""
+    try {
+        $resolvedSha = (& git -C $distributionRoot rev-parse HEAD 2>&1 |
+            Select-Object -First 1).ToString().Trim()
+        if ($resolvedSha -match '^[a-f0-9]{40}$') {
+            $provenanceCoreCommit = $resolvedSha
+            Write-Host "  -> Core commit   : $provenanceCoreCommit"
+        }
+    } catch { }
+
+    # =========================================================================
     # 4. Safety: distribution must not be inside the target project
     # =========================================================================
     $targetNorm = $ProjectRoot.TrimEnd('\', '/')
@@ -282,6 +296,7 @@ try {
         -ProvenanceCoreSourceType $provenanceCoreSourceType `
         -ProvenanceCoreRef        $provenanceCoreRef `
         -ProvenanceCoreSubdir     $provenanceCoreSubdir `
+        -ProvenanceCoreCommit     $provenanceCoreCommit `
         -IsUpdate                 $coreInstalled
     $exitCode = $LASTEXITCODE
 
