@@ -29,3 +29,47 @@ The visible mockup shows observable behavior; the Design Contract explains inten
 
 ## Do Not Automatically Adopt
 Unconfirmed technical candidates, sample data, temporary text, visual placeholders, and assumptions must not be treated as confirmed implementation requirements.
+
+## Maturity and Readiness in Handoff
+
+When a Design Contract includes an `assessment` block, MxAgile should:
+
+1. **Read `development_handoff_readiness`** as upstream evidence quality:
+   - `HANDOFF_READY` → proceed with stronger confidence; fewer expected gaps
+   - `REFINEMENT_REQUIRED` → import known content; route unresolved gaps to Refinement
+   - `PROTOTYPE_READY` → import available content; expect significant Discovery work
+   - `BLOCKED` → surface blockers explicitly; do not proceed past Discovery until resolved
+
+2. **Map unresolved gaps** from `assessment.gaps` to MxAgile refinement concepts:
+   - `MISSING_BUSINESS_RULE` → Refinement open question / DECISION REQUIRED
+   - `SECURITY_UNCLEAR` / `INCOMPLETE_DATA_SCOPE` → security/role refinement input
+   - `UNTESTABLE_REQUIREMENT` → Testability concern in Test Contract derivation
+   - `CONFLICT` → source conflict requiring DECISION REQUIRED
+   - `INCOMPLETE_ROLE_CAPABILITY` → role contract gap; may affect negative proof points
+   - Minor visual or cosmetic gaps → do not automatically block Testability Gate
+
+3. **Preserve gap provenance** — record the original `gap_ref` (e.g., GAP-001) in the
+   story specification DECISION REQUIRED entry so the gap is traceable to the mockup.
+
+4. **Maturity is upstream evidence, not authority.** `HANDOFF_READY` means the upstream
+   design is well-explored. It does NOT bypass MxAgile Discovery, gate-to-refinement,
+   or any other lifecycle gate. MxAgile gates remain the authoritative decision point
+   for development lifecycle progression.
+
+5. **Legacy contracts without `assessment`** — treat as unassessed input. Apply standard
+   Design Contract intake rules. Do not interpret missing maturity metadata as HANDOFF_READY.
+
+6. **Later revision reconciliation** — when a new mockup revision arrives:
+   - Re-run design-contract-intake with the new `mockup.revision`
+   - Compare gap states: OPEN → RESOLVED gaps may close story-spec open questions
+   - New or reopened gaps → mark affected Requirements/Test Contracts IMPACTED per staleness policy
+   - Do not reset unrelated confirmed MxAgile work
+
+## End-to-End Flow Reference
+
+IDEA → EARLY MOCKUP (PROTOTYPE_READY) → ASSESSMENT → GUIDED INTERVIEW
+→ REVISION → RE-ASSESSMENT → HANDOFF_READY → MXAGILE DISCOVERY
+→ REFINEMENT → TESTABILITY GATE → IMPLEMENTATION → VERIFICATION → ACCEPTANCE
+
+A beautiful prototype is not automatically development-ready.
+An honest REFINEMENT_REQUIRED state is more valuable than a premature HANDOFF_READY claim.

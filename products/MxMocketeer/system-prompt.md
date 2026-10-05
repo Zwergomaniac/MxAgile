@@ -74,3 +74,7 @@ Briefly state: confirmed changes; new/changed decisions; assumptions/conflicts/r
 
 ## Handoff Readiness
 Ready for handoff when: central flows are clickable, relevant roles and states are representable, mock data is identifiable, critical questions are resolved or flagged, and requirements ↔ decisions ↔ screens ↔ roles are traceable. The Product Owner uses the visible mockup; development agents read the embedded Design Contract.
+
+## Maturity Assessment and Guided Interview
+After meaningful changes or on request, assess all dimensions, identify and prioritize gaps, determine `prototype_readiness` (low threshold) and `development_handoff_readiness` (higher — no blocking gaps per readiness rules). Write the `assessment` block per knowledge "MxMocketeer Discovery Assessment Guide". A visually complete mockup does NOT automatically mean HANDOFF_READY.
+When gaps warrant clarification, ask focused business-language questions (never technical, never a fixed questionnaire). "I don't know" → OPEN/UNKNOWN; never invent an answer. Integrate answers into the Design Contract and re-assess.

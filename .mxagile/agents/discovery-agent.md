@@ -8,8 +8,9 @@ beginnt.
 
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang-Hierarchie
 - `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
-- `.mxagile/policies/evidence-levels.md` — Evidenz-Level-Klassifikation (STATIC/MODEL/RUNTIME/BROWSER)
+- `.mxagile/policies/evidence-levels.md` — Evidenz-Level-Klassifikation (STATIC/MODEL/BUILD/RUNTIME/FRONTEND)
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/policies/design-contract-intake.md` — Mocketeer Design Contract v1 intake (WP2)
 
 ## Projektkonfiguration
 
@@ -45,6 +46,38 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
 9. Fuehre die Discovery-Phase durch
 10. Wenn `development.ui_driven = true`: **UI-Driven Runtime Readiness Gate** pruefen (siehe unten)
 11. Pruefe am Ende die Vorbedingungen aus `.mxagile/skills/gate-to-refinement.md`
+
+## Mocketeer Design Contract Intake (WP2 Extension)
+
+When an HTML mockup is found under `input-resources/ui-ux/`, check for an embedded Design Contract:
+
+1. **Detect** `<script type="application/json" id="mocketeer-spec">` in the HTML `<head>`.
+   If absent: no Design Contract; proceed with standard mockup analysis.
+
+2. **Run intake** per `policies/design-contract-intake.md`:
+   - Parse and validate JSON structure.
+   - Map statuses to intake dispositions.
+   - Record `design_contract_provenance` in the story specification.
+
+3. **Role intake:** For each role in `roles[]`:
+   - Record role ID, label, `can[]` list (positive authorization candidates), `cannot[]` list
+     (negative authorization requirements — become negative proof points in the test contract).
+   - Do not infer permissions beyond what the Design Contract states.
+
+4. **Requirement intake:** Map Design Contract `requirements[]` to story spec entries with
+   `source: design_contract` and `design_contract_ref: <mockup.id>@revision=<N>`.
+
+5. **Test Contract signal:** After COMPLETE or PARTIAL-with-roles intake, record in the story spec:
+   ```yaml
+   test_contract_signal:
+     design_contract_ref: <mockup.id>@revision=<N>
+     roles_available: [ROLE-NNN, ...]
+     negative_proof_points_required: [ROLE-NNN, ...]  # from cannot[] entries
+   ```
+   This signals `skills/test-contract.md` during Refinement that Design Contract data is available.
+
+6. **Mendix Candidates:** Confirmed candidates (`confirmed: true`) → add to model analysis scope.
+   Unconfirmed → record as `ASSUMPTION [evidence:static]`, flag for DECISION REQUIRED.
 
 ## Mockup-Analyse
 

@@ -20,6 +20,7 @@ bevor die Implementierung freigegeben wird.
   - `display_mode: display` Components verwenden kein Eingabe-Widget ohne explizite Begruendung
   - Company Layer Komponenten wurden als erste Option geprueft
   - `preliminary` confidence ist ein Blocker fuer gate-to-ready wenn das Inventar UI-Driven ist
+- [ ] **Testability Gate:** Test Contract present for each requirement in scope OR testability explicitly justified as NOT_APPLICABLE / MANUAL_ONLY (see Testability Gate section below)
 - [ ] Keine offenen Blocker
 - [ ] **SPA-Bundle Revision Check (wenn `mockup_name` in Page YAML gesetzt):**
   Fuer jede Page mit `mockup_name`: Working-Target-Hash == `bundle_hash` im Page YAML?
@@ -121,6 +122,53 @@ items:
   - `layout_reference` — Pfad zum Referenz-Screenshot (aus `layout_reference` im Page YAML)
   - `fidelity` — Fidelity-Anforderung aus `mxagile-project.yaml` (`standard` oder `high`)
   - Diese Felder machen Mockup-Treue zur **Implementierungspflicht** — nicht zu optionalem Kontext
+
+## Testability Gate (WP2 Extension)
+
+This gate checks that every requirement in scope has a derivable or existing Test Contract.
+
+### Preconditions
+
+- [ ] **Test Contract present:** For each REQ-NNN in the wave scope, one of the following is true:
+  - `planning/test-contracts/TC-NNN.yaml` exists with `status: draft` or `active`
+  - OR: The checklist item for this requirement has `testability: NOT_APPLICABLE`
+    with an explicit `testability_justification` field (e.g. "Pure UI layout, no business rule to automate")
+  - OR: The checklist item has `testability: MANUAL_ONLY` with `testability_justification`
+    (e.g. "Requires physical device — no Playwright support for this scenario")
+  - Undocumented absence is a GATE BLOCKER.
+
+- [ ] **No STALE test contracts in scope:** All TC-NNN in scope must have `status: draft` or `active`.
+  A `stale` contract must be updated before gate-to-ready passes.
+
+- [ ] **Verification Plan is NOT required here:** VPL is produced at Verifying phase entry, after
+  implementation, when infrastructure availability and model state are known. Do not block gate-to-ready
+  on VPL existence. A checklist item may record a preliminary `expected_layers:` hint for planning,
+  but this is not the authoritative Verification Plan.
+
+### Testability Fields in Checklist Items
+
+Extend the implementation checklist format with optional testability fields:
+
+```yaml
+  - id: COMP-SITE-CREATE
+    type: page_component
+    req: [REQ-001]
+    ...
+    test_contract: TC-001
+    testability: TESTABLE_AUTO | TESTABLE_MANUAL | NOT_APPLICABLE | INFRASTRUCTURE_GAP | MANUAL_ONLY
+    testability_justification: ""  # Required when NOT_APPLICABLE or MANUAL_ONLY
+```
+
+### Result Recording
+
+Write to `.concord/scratch/process-state.yaml` under the wave's gate:
+
+```yaml
+waves.W01.gates.testability_gate: passed | failed
+waves.W01.gates.testability_gate_note: ""
+```
+
+A failed Testability Gate blocks gate-to-ready. Record which requirements lack test contracts.
 
 ## Pruefung
 

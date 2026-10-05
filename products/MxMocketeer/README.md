@@ -12,10 +12,11 @@ products/MxMocketeer/
     README.md
 
     knowledge/
-        design-contract.txt   — Design Contract v1 schema and preservation rules
-        mendix-design-guide.txt — Mendix-aligned design guidance
-        mxagile-handoff.txt   — handoff mapping to development / MxAgile
-        golden-mockuphtml.txt — complete golden reference mockup (HTML source in TXT)
+        design-contract.txt       — Design Contract v1 schema, maturity assessment schema, preservation rules
+        discovery-assessment.txt  — assessment dimensions, gap taxonomy, interview strategy, readiness rules
+        mendix-design-guide.txt   — Mendix-aligned design guidance
+        mxagile-handoff.txt       — handoff mapping to development / MxAgile, maturity integration
+        golden-mockuphtml.txt     — complete golden reference mockup (HTML source in TXT)
 
     tests/
         preservation-acceptance.md        — manual acceptance test procedure
@@ -26,7 +27,7 @@ products/MxMocketeer/
 
 1. Open Microsoft 365 Copilot Agent Builder (or equivalent).
 2. Paste `system-prompt.md` into the **Instructions** field.
-3. Upload all four files from `knowledge/` as knowledge.
+3. Upload all five files from `knowledge/` as knowledge.
 4. Add the six entries from `suggested-prompts.md` as suggested prompts.
 5. Name the agent **MxMocketeer v3**.
 6. Publish with limited scope for pilot testing.
@@ -49,6 +50,8 @@ Every MxMocketeer output is a self-contained HTML file containing:
 - Embedded machine-readable Design Contract (`<script type="application/json" id="mocketeer-spec">`)
 
 The contract preserves requirements, decisions, roles (with positive and explicit negative capabilities), business rules, flows, states, assumptions, open questions, and traceability across iterative refinements.
+
+The optional `assessment` block records maturity dimensions, identified gaps, and readiness state (`PROTOTYPE_READY`, `REFINEMENT_REQUIRED`, `HANDOFF_READY`, `BLOCKED`). A visually complete prototype is not automatically development-ready.
 
 Schema reference: `knowledge/design-contract.txt`
 

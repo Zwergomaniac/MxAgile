@@ -36,6 +36,7 @@ $required = @(
     'suggested-prompts.md',
     'agent-builder-setup.md',
     'knowledge/design-contract.txt',
+    'knowledge/discovery-assessment.txt',
     'knowledge/mendix-design-guide.txt',
     'knowledge/mxagile-handoff.txt',
     'knowledge/golden-mockuphtml.txt',
@@ -206,6 +207,7 @@ foreach ($term in $banned) {
 Write-Host "`n[6] Knowledge files non-empty"
 $knowledgeFiles = @(
     'knowledge/design-contract.txt',
+    'knowledge/discovery-assessment.txt',
     'knowledge/mendix-design-guide.txt',
     'knowledge/mxagile-handoff.txt',
     'knowledge/golden-mockuphtml.txt'
@@ -217,6 +219,198 @@ foreach ($rel in $knowledgeFiles) {
         Assert ($len -gt 100) "Non-empty: $rel" "$len chars"
     }
 }
+
+# ──────────────────────────────────────────────────────────────
+# 7  System prompt safety margin
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[7] System prompt safety margin (>= 100 chars remaining)"
+if (Test-Path $promptPath) {
+    $remaining = 8000 - $chars
+    Write-Host "    Remaining margin: $remaining characters"
+    Assert ($remaining -ge 100) "System prompt has >= 100 chars safety margin" "remaining: $remaining"
+    Assert ($remaining -le 7900) "System prompt not suspiciously empty" "remaining: $remaining"
+}
+
+# ──────────────────────────────────────────────────────────────
+# 8  System prompt discipline — behavior split
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[8] System prompt discipline — key invariants present, taxonomy not duplicated"
+$promptContent = if (Test-Path $promptPath) { Get-Content $promptPath -Raw -Encoding UTF8 } else { '' }
+
+# Critical invariants must be in system prompt
+Assert ($promptContent -match 'prototype_readiness|prototype.*readiness') 'System prompt mentions prototype_readiness'
+Assert ($promptContent -match 'development_handoff_readiness|handoff.*readiness') 'System prompt mentions development_handoff_readiness'
+Assert ($promptContent -match 'never invent|Never invent|do not invent') 'System prompt contains "never invent" invariant'
+Assert ($promptContent -match 'Guided Interview|guided.*interview|adaptive.*interview') 'System prompt mentions guided interview'
+Assert ($promptContent -match 'HANDOFF_READY|handoff.*ready') 'System prompt references HANDOFF_READY'
+
+# Detailed taxonomy must NOT be duplicated — it lives in knowledge
+$dimensionIds = @('DIM-PURPOSE_SCOPE','DIM-ROLES_CAPABILITIES','DIM-DATA_SEMANTICS','DIM-SECURITY_PRIVACY')
+$dimInPrompt = $dimensionIds | Where-Object { $promptContent -match $_ } | Measure-Object | Select-Object -ExpandProperty Count
+Assert ($dimInPrompt -eq 0) 'Detailed dimension IDs not duplicated in system prompt'
+
+# ──────────────────────────────────────────────────────────────
+# 9  design-contract.txt assessment schema
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[9] design-contract.txt assessment schema"
+$dcPath = Join-Path $ProductRoot 'knowledge/design-contract.txt'
+$dc = if (Test-Path $dcPath) { Get-Content $dcPath -Raw -Encoding UTF8 } else { '' }
+
+Assert ($dc -match 'assessment') 'design-contract.txt defines assessment block'
+Assert ($dc -match 'prototype_readiness') 'assessment contains prototype_readiness'
+Assert ($dc -match 'development_handoff_readiness') 'assessment contains development_handoff_readiness'
+Assert ($dc -match 'PROTOTYPE_READY') 'defines PROTOTYPE_READY readiness value'
+Assert ($dc -match 'HANDOFF_READY') 'defines HANDOFF_READY readiness value'
+Assert ($dc -match 'REFINEMENT_REQUIRED') 'defines REFINEMENT_REQUIRED readiness value'
+Assert ($dc -match 'BLOCKED') 'defines BLOCKED readiness value'
+Assert ($dc -match 'DIM-') 'defines dimension IDs'
+Assert ($dc -match 'UNEXPLORED') 'defines UNEXPLORED dimension status'
+Assert ($dc -match 'PARTIAL') 'defines PARTIAL dimension status'
+Assert ($dc -match 'SUFFICIENT') 'defines SUFFICIENT dimension status'
+Assert ($dc -match 'CONFLICTING') 'defines CONFLICTING dimension status'
+Assert ($dc -match '"gaps"') 'assessment defines gaps array'
+Assert ($dc -match 'GAP-') 'gap IDs use GAP- prefix pattern'
+Assert ($dc -match 'blocking') 'gap has blocking field'
+Assert ($dc -match 'blocks_handoff') 'gap has blocks_handoff field'
+Assert ($dc -match 'next_exploration_areas') 'assessment has next_exploration_areas'
+Assert ($dc -match 'backward-compatible optional') 'assessment documented as backward-compatible optional'
+Assert ($dc -match 'CANNOT UPDATE.*CANNOT READ|CAN READ.*CAN UPDATE|inference') 'states operation inference prohibition'
+
+# ──────────────────────────────────────────────────────────────
+# 10  discovery-assessment.txt content
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[10] discovery-assessment.txt content"
+$daPath = Join-Path $ProductRoot 'knowledge/discovery-assessment.txt'
+$da = if (Test-Path $daPath) { Get-Content $daPath -Raw -Encoding UTF8 } else { '' }
+
+Assert ($da -match 'PROTOTYPE_READINESS|PROTOTYPE_READY') 'defines prototype readiness'
+Assert ($da -match 'DEVELOPMENT_HANDOFF_READINESS|HANDOFF_READY') 'defines handoff readiness'
+Assert ($da -match 'Handoff Readiness Requirements') 'defines handoff readiness requirements'
+Assert ($da -match 'Adaptive Interview|adaptive.*interview') 'defines adaptive interview strategy'
+Assert ($da -match 'Unknown.*Open Answer|I don.*t know') 'handles unknown answers'
+Assert ($da -match 'business language|business.*question') 'requires business-language questions'
+Assert ($da -match 'blocking.*gap|blocks_handoff') 'defines blocking gap semantics'
+Assert ($da -match 'SECURITY_UNCLEAR|PRIVACY_UNCLEAR') 'addresses security/privacy gaps'
+Assert ($da -match 'READ.*UPDATE.*independently|independently.*derived') 'operation independence rule'
+Assert ($da -match 'User-Facing Maturity Summary|maturity.*summary') 'defines user-facing summary'
+Assert ($da -match 'Assessment Is Not the Interview') 'separates assessment from interview'
+Assert ($da -match 'Provenance|provenance') 'addresses provenance recording'
+Assert ($da -match 'Iteration Model|iteration.*model') 'defines iterative lifecycle'
+Assert ($da -match 'overall.*percentage|percentage.*score|false.*quantitative' -or
+        $da -match 'Not.*percent|no.*percent') 'avoids deceptive percentage scores'
+
+# ──────────────────────────────────────────────────────────────
+# 11  Golden mockup assessment block validation
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[11] Golden mockup assessment block"
+if (Test-Path $gmPath) {
+    $html2 = Get-Content $gmPath -Raw -Encoding UTF8
+    if ($html2 -match '(?s)<script[^>]*id="mocketeer-spec"[^>]*>(.*?)</script>') {
+        try {
+            $c2 = $Matches[1].Trim() | ConvertFrom-Json -ErrorAction Stop
+
+            Assert ($null -ne $c2.assessment) 'golden mockup has assessment block'
+            Assert ($c2.assessment.prototype_readiness -eq 'PROTOTYPE_READY') 'golden mockup prototype_readiness is PROTOTYPE_READY'
+            Assert ($c2.assessment.development_handoff_readiness -ne 'HANDOFF_READY') 'golden mockup dev handoff not prematurely HANDOFF_READY'
+            Assert ($c2.assessment.development_handoff_readiness -match 'REFINEMENT_REQUIRED|BLOCKED') 'golden mockup shows appropriate partial maturity'
+            Assert ($null -ne $c2.assessment.dimensions) 'assessment has dimensions array'
+            Assert ($c2.assessment.dimensions.Count -ge 6) "assessment has >= 6 dimensions ($($c2.assessment.dimensions.Count) found)"
+            Assert ($null -ne $c2.assessment.gaps) 'assessment has gaps array'
+            Assert ($c2.assessment.gaps.Count -ge 1) "at least 1 gap ($($c2.assessment.gaps.Count) found)"
+            Assert ($null -ne $c2.assessment.blocking_gaps) 'assessment has blocking_gaps'
+            Assert ($null -ne $c2.assessment.next_exploration_areas) 'assessment has next_exploration_areas'
+
+            # Gap IDs must be unique
+            $gapIds = @($c2.assessment.gaps | ForEach-Object { $_.id })
+            $dupGaps = $gapIds | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name }
+            Assert ($dupGaps.Count -eq 0) 'No duplicate gap IDs' ($dupGaps -join ', ')
+
+            # blocking_gaps must reference existing gap IDs
+            foreach ($bgRef in $c2.assessment.blocking_gaps) {
+                Assert ($gapIds -contains $bgRef) "blocking_gap $bgRef references existing gap"
+            }
+
+            # At least one blocking gap
+            Assert ($c2.assessment.blocking_gaps.Count -ge 1) 'At least one blocking gap present'
+
+            # At least one non-blocking gap (so we can test both coexisting)
+            $nonBlockingGaps = $c2.assessment.gaps | Where-Object { $_.blocking -eq $false -or $_.blocks_handoff -eq $false }
+            Assert ($nonBlockingGaps.Count -ge 1) 'At least one non-blocking gap (coexists with blocking)'
+
+            # Dimension statuses include at least one PARTIAL or UNEXPLORED (showing honest partial state)
+            $partialDims = $c2.assessment.dimensions | Where-Object { $_.status -in @('PARTIAL','UNEXPLORED') }
+            Assert ($partialDims.Count -ge 1) "At least one PARTIAL or UNEXPLORED dimension (honest maturity)"
+
+            # No UNEXPLORED falsely equated to RESOLVED — check resolution_state
+            $unresolvedGaps = $c2.assessment.gaps | Where-Object { $_.resolution_state -eq 'OPEN' }
+            Assert ($unresolvedGaps.Count -ge 1) 'At least one OPEN gap remains (prototype-in-progress)'
+
+            # assessed_revision must match mockup.revision
+            Assert ($c2.assessment.assessed_revision -eq $c2.mockup.revision) 'assessed_revision matches mockup.revision'
+
+            # Third role (ROLE-DEPTMGR) demonstrates operation-aware capability uncertainty
+            $deptMgr = $c2.roles | Where-Object { $_.id -eq 'ROLE-DEPTMGR' }
+            Assert ($null -ne $deptMgr) 'Golden mockup includes a role with uncertain data scope'
+            Assert ($deptMgr.status -match 'ASSUMPTION_REQUIRES_APPROVAL|OPEN') 'Uncertain role has appropriate status'
+
+        } catch {
+            Assert $false 'Golden mockup assessment block JSON valid' "$_"
+        }
+    }
+}
+
+# ──────────────────────────────────────────────────────────────
+# 12  mxagile-handoff.txt maturity integration
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[12] mxagile-handoff.txt maturity integration"
+$mhPath = Join-Path $ProductRoot 'knowledge/mxagile-handoff.txt'
+$mh = if (Test-Path $mhPath) { Get-Content $mhPath -Raw -Encoding UTF8 } else { '' }
+
+Assert ($mh -match 'HANDOFF_READY.*not.*bypass|not.*bypass.*HANDOFF_READY|gates remain.*authoritative') 'states HANDOFF_READY does not bypass MxAgile gates'
+Assert ($mh -match 'REFINEMENT_REQUIRED') 'references REFINEMENT_REQUIRED intake'
+Assert ($mh -match 'gap.*provenance|provenance.*gap|gap_ref') 'addresses gap provenance'
+Assert ($mh -match 'later revision|revision.*reconcil|reconcil') 'addresses revision reconciliation'
+Assert ($mh -match 'beautiful.*prototype.*not.*automatically|prototype.*not.*development-ready') 'states prototype is not automatically development-ready'
+
+# ──────────────────────────────────────────────────────────────
+# 13  Impact-based security priority and prompt safety margin
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[13] Impact-based security priority and prompt safety margin"
+
+# A: material impact language present
+Assert ($da -match 'materially affect') 'A: material-impact language present in security priority rule'
+
+# B: non-material/out-of-scope security gaps not automatically HIGH
+Assert ($da -match 'Not automatically HIGH|not automatically HIGH') 'B: non-material security gaps not automatically HIGH'
+
+# C: category alone does not determine blocks_handoff
+Assert ($da -match 'Category alone|category alone') 'C: category alone does not determine blocks_handoff'
+
+# E: system prompt maintainability target <= 7400 (report; non-blocking)
+$sp2 = Get-Content $promptPath -Raw -Encoding UTF8
+$spLen2 = $sp2.Length
+$maintTarget = 7400
+Write-Host "    System prompt length: $spLen2 chars (maintainability target: ≤$maintTarget)"
+if ($spLen2 -le $maintTarget) {
+    Write-Host "  PASS  E: system prompt within maintainability target ($spLen2 ≤ $maintTarget)" -ForegroundColor Green
+    $script:pass++
+} else {
+    Write-Host "  WARN  E: system prompt $spLen2 exceeds maintainability target $maintTarget (still within 8000 hard limit)" -ForegroundColor Yellow
+    $script:pass++
+}
+
+# F: critical invariants remain in system prompt after compression
+Assert ($sp2 -match 'does NOT automatically mean HANDOFF_READY') 'F: visually-complete ≠ HANDOFF_READY preserved in prompt'
+Assert ($sp2 -match 'business-language') 'F: business-language requirement preserved in prompt'
+Assert ($sp2 -match 'OPEN/UNKNOWN') 'F: OPEN/UNKNOWN recording invariant preserved in prompt'
+Assert ($sp2 -match 'never invent an answer') 'F: never-invent-answer invariant preserved in prompt'
+Assert ($sp2 -match 'readiness rules') 'F: HANDOFF_READY readiness-rules reference preserved in prompt'
+
+# G: detailed methodology remains in Knowledge (not removed by prompt compression)
+Assert ($da -match 'Handoff Readiness Requirements') 'G: handoff readiness requirements checklist in Knowledge'
+Assert ($da -match 'DIM-PURPOSE_SCOPE') 'G: dimension IDs remain in Knowledge'
+Assert ($da -match 'Adaptive Interview Strategy') 'G: adaptive interview strategy in Knowledge'
+Assert ($da -match 'Risk-Based Exploration') 'G: risk-based exploration guidance in Knowledge'
 
 # ──────────────────────────────────────────────────────────────
 # Summary

@@ -16,12 +16,12 @@
     "schema_version": "1.0",
     "mockup": {
       "id": "MOCKUP-SITE-REGISTRY",
-      "revision": 1,
-      "previous_revision": null,
+      "revision": 2,
+      "previous_revision": 1,
       "title": "Site Registry — golden reference",
       "language": "en",
       "updated_at": "2026-10-05",
-      "change_scope": ["SCREEN-001", "FLOW-001"]
+      "change_scope": ["assessment", "ROLE-DEPTMGR"]
     },
     "project": {
       "name": "Golden Reference",
@@ -54,6 +54,18 @@
         "cannot": ["CAP-SITE-CREATE", "CAP-SITE-EDIT"],
         "known_states": ["normal", "empty", "no_permission"],
         "status": "CONFIRMED_BY_STAKEHOLDER"
+      },
+      {
+        "id": "ROLE-DEPTMGR",
+        "name": "Department Manager",
+        "goals": ["View sites relevant to their department"],
+        "responsibilities": [],
+        "organizational_scope": "own department",
+        "data_scope": "UNKNOWN — open question: own department only or all?",
+        "can": ["CAP-SITE-VIEW"],
+        "cannot": ["CAP-SITE-CREATE"],
+        "known_states": ["normal", "no_permission"],
+        "status": "ASSUMPTION_REQUIRES_APPROVAL"
       }
     ],
     "requirements": [
@@ -139,7 +151,7 @@
         "id": "SCREEN-001",
         "name": "Site list",
         "purpose": "View, search, and manage sites",
-        "role_refs": ["ROLE-MANAGER", "ROLE-VIEWER"],
+        "role_refs": ["ROLE-MANAGER", "ROLE-VIEWER", "ROLE-DEPTMGR"],
         "requirement_refs": ["REQ-001", "REQ-002", "REQ-003"],
         "decision_refs": ["DEC-001"],
         "states": ["normal", "empty", "error", "no_permission"],
@@ -185,7 +197,16 @@
         "source_refs": ["SRC-001"]
       }
     ],
-    "assumptions": [],
+    "assumptions": [
+      {
+        "id": "ASSUM-001",
+        "assumption": "Department Manager sees all sites until data scope is clarified.",
+        "owner": "Product Owner",
+        "affected_scope": ["ROLE-DEPTMGR", "REQ-001"],
+        "blocks_implementation": false,
+        "status": "ASSUMPTION_REQUIRES_APPROVAL"
+      }
+    ],
     "open_questions": [
       {
         "id": "Q-001",
@@ -194,6 +215,15 @@
         "scope_refs": ["SCREEN-001"],
         "blocks_implementation": true,
         "status": "OPEN"
+      },
+      {
+        "id": "Q-002",
+        "question": "Which sites can a Department Manager see — only their own department's sites, or all sites?",
+        "owner": "Product Owner",
+        "scope_refs": ["ROLE-DEPTMGR", "SCREEN-001"],
+        "blocks_implementation": true,
+        "status": "OPEN",
+        "gap_ref": "GAP-001"
       }
     ],
     "conflicts": [],
@@ -223,7 +253,80 @@
         "role_refs": ["ROLE-MANAGER"],
         "business_rule_refs": ["BR-001"]
       }
-    ]
+    ],
+    "assessment": {
+      "assessed_revision": 2,
+      "assessed_at": "2026-10-05",
+      "assessed_by": "MxMocketeer",
+      "prototype_readiness": "PROTOTYPE_READY",
+      "development_handoff_readiness": "REFINEMENT_REQUIRED",
+      "prototype_readiness_reason": "Main workflow is clickable; two roles functional; mock data visible.",
+      "handoff_readiness_reason": "GAP-001 blocks handoff: Department Manager data scope unknown. Q-001 (delete vs. deactivate) blocks handoff.",
+      "dimensions": [
+        {"id": "DIM-PURPOSE_SCOPE",           "status": "SUFFICIENT", "notes": "Goal, actors, and MVP scope confirmed by stakeholder"},
+        {"id": "DIM-FUNCTIONAL_COVERAGE",     "status": "SUFFICIENT", "notes": "Create and view flows clickable; edit flow stubbed"},
+        {"id": "DIM-BUSINESS_RULES",          "status": "PARTIAL",    "notes": "BR-001 confirmed; delete/deactivate rule open (Q-001)"},
+        {"id": "DIM-ROLES_CAPABILITIES",      "status": "PARTIAL",    "notes": "Manager and Observer confirmed; Department Manager data scope UNKNOWN (GAP-001)"},
+        {"id": "DIM-DATA_SEMANTICS",          "status": "SUFFICIENT", "notes": "Site entity and status field semantics clear"},
+        {"id": "DIM-UX_NAVIGATION",           "status": "SUFFICIENT", "notes": "Single-screen modal pattern confirmed (DEC-001)"},
+        {"id": "DIM-STATES_EDGE_CASES",       "status": "PARTIAL",    "notes": "Empty state and create validation represented; delete/error paths pending Q-001"},
+        {"id": "DIM-VALIDATION_ERROR_HANDLING","status": "SUFFICIENT","notes": "Required name validated inline per BR-001"},
+        {"id": "DIM-SECURITY_PRIVACY",        "status": "PARTIAL",    "notes": "Observer read-only explicit; Department Manager data scope drives access rule — currently UNKNOWN"},
+        {"id": "DIM-ACCESSIBILITY",           "status": "PARTIAL",    "notes": "ARIA roles and keyboard navigation present; full audit not performed"},
+        {"id": "DIM-NON_FUNCTIONAL",          "status": "UNEXPLORED", "notes": "Performance, availability, and language requirements not yet discussed"},
+        {"id": "DIM-DEVELOPMENT_HANDOFF",     "status": "PARTIAL",    "notes": "Traceability complete for confirmed scope; blocking gaps prevent full handoff"}
+      ],
+      "gaps": [
+        {
+          "id": "GAP-001",
+          "dimension": "DIM-ROLES_CAPABILITIES",
+          "category": "INCOMPLETE_DATA_SCOPE",
+          "description": "Department Manager data scope is unknown — all sites or own department only?",
+          "why_it_matters": "Determines entity access rule scope and security test proof points",
+          "priority": "HIGH",
+          "blocking": true,
+          "blocks_handoff": true,
+          "affected_elements": ["ROLE-DEPTMGR", "REQ-001", "Q-002"],
+          "suggested_interview_focus": "Can a Department Manager see only their department's sites, or all sites?",
+          "resolution_state": "OPEN",
+          "source_refs": ["SRC-001"]
+        },
+        {
+          "id": "GAP-002",
+          "dimension": "DIM-BUSINESS_RULES",
+          "category": "MISSING_BUSINESS_RULE",
+          "description": "Delete vs. deactivate rule undefined",
+          "why_it_matters": "Affects data retention, audit trail, and what delete/deactivate flows to implement",
+          "priority": "HIGH",
+          "blocking": true,
+          "blocks_handoff": true,
+          "affected_elements": ["REQ-001", "Q-001", "SCREEN-001"],
+          "suggested_interview_focus": "Should sites be permanently deleteable, or only set to Inactive?",
+          "resolution_state": "OPEN",
+          "source_refs": []
+        },
+        {
+          "id": "GAP-003",
+          "dimension": "DIM-NON_FUNCTIONAL",
+          "category": "NON_FUNCTIONAL_UNEXPLORED",
+          "description": "Performance, availability, and language requirements not discussed",
+          "why_it_matters": "May affect architecture or phasing decisions",
+          "priority": "LOW",
+          "blocking": false,
+          "blocks_handoff": false,
+          "affected_elements": [],
+          "suggested_interview_focus": "Are there response-time, availability, or multi-language requirements?",
+          "resolution_state": "OPEN",
+          "source_refs": []
+        }
+      ],
+      "blocking_gaps": ["GAP-001", "GAP-002"],
+      "next_exploration_areas": [
+        {"priority": 1, "topic": "Department Manager data scope",     "gap_ref": "GAP-001"},
+        {"priority": 2, "topic": "Delete vs. deactivate business rule", "gap_ref": "GAP-002"},
+        {"priority": 3, "topic": "Non-functional requirements",         "gap_ref": "GAP-003"}
+      ]
+    }
   }
   </script>
   <style>
@@ -245,6 +348,7 @@
     .btn-primary:hover { background: #006cbf; }
     .btn-secondary { background: white; color: #222; border-color: #999; }
     .btn-secondary:hover { background: #f3f3f3; }
+    .btn-ghost { background: transparent; color: #0078d4; border: none; font-size: .85em; padding: 4px 8px; cursor: pointer; }
     input[type=search], input[type=text], select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: .95em; }
     #search { flex: 1; min-width: 180px; }
     .empty-state { color: #888; padding: 40px; text-align: center; background: white; border-radius: 10px; border: 1px dashed #ccc; }
@@ -258,6 +362,9 @@
     .dialog-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
     .spec-footer { margin-top: 32px; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; font-size: .85em; color: #444; }
     .spec-footer summary { cursor: pointer; font-weight: 600; }
+    .maturity-banner { background: #fff8e1; border: 1px solid #f9c84a; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: .88em; }
+    .maturity-banner strong { color: #7a5100; }
+    .maturity-banner ul { margin: 6px 0 0; padding-left: 18px; }
     .hidden { display: none; }
     @media (max-width: 600px) {
       .toolbar { flex-direction: column; }
@@ -275,7 +382,17 @@
       <select id="role" aria-label="Active role" title="Switch role to see permission differences">
         <option value="manager">Site Manager</option>
         <option value="viewer">Observer (read-only)</option>
+        <option value="deptmgr">Department Manager (scope open)</option>
       </select>
+    </div>
+
+    <!-- Maturity banner: visible at REFINEMENT_REQUIRED — hidden when HANDOFF_READY -->
+    <div id="maturity-banner" class="maturity-banner" role="note" aria-label="Design maturity status">
+      <strong>Design status: Prototype Ready — Development Handoff Not Yet Ready</strong>
+      <ul>
+        <li>Open: Which sites can a Department Manager see? (Q-002)</li>
+        <li>Open: Can sites be deleted or only deactivated? (Q-001)</li>
+      </ul>
     </div>
 
     <div class="toolbar">
@@ -291,10 +408,12 @@
     <details class="spec-footer">
       <summary>Business context (spec footer)</summary>
       <p>
-        <strong>Requirements:</strong> REQ-001 (view/filter all roles), REQ-002 (create — Manager only), REQ-003 (read-only for Observer).<br>
-        <strong>Decision DEC-001:</strong> Modal dialog instead of a separate page — list stays visible.<br>
+        <strong>Requirements:</strong> REQ-001 (view/filter — all roles), REQ-002 (create — Manager only), REQ-003 (read-only for Observer).<br>
+        <strong>Decision DEC-001:</strong> Modal dialog — list stays visible.<br>
         <strong>Business rule BR-001:</strong> Site name is required.<br>
-        <strong>Open Q-001:</strong> Can sites be deleted or only deactivated? (blocks implementation — owner: Product Owner)
+        <strong>Open Q-001:</strong> Delete vs. deactivate? (blocks handoff — owner: Product Owner)<br>
+        <strong>Open Q-002:</strong> Department Manager data scope? (blocks handoff — owner: Product Owner)<br>
+        <strong>Assumption ASSUM-001:</strong> Department Manager sees all sites until Q-002 resolved.
       </p>
     </details>
   </main>
@@ -328,27 +447,29 @@
   </div>
 
   <script>
-    // Mock data — all fictional (MOCKUP-SITE-REGISTRY, revision 1)
+    // Mock data — all fictional (MOCKUP-SITE-REGISTRY, revision 2)
     let sites = [
-      { name: 'Northgate Site', region: 'Northern Region', status: 'Active' },
-      { name: 'Westshore Site', region: 'Western Region', status: 'Active' }
+      { name: 'Northgate Site', region: 'Northern Region', status: 'Active', dept: 'Northern' },
+      { name: 'Westshore Site', region: 'Western Region',  status: 'Active', dept: 'Western'  },
+      { name: 'Eastpark Site',  region: 'Eastern Region',  status: 'Inactive', dept: 'Eastern' }
     ];
 
-    const listEl   = document.getElementById('list');
-    const searchEl = document.getElementById('search');
-    const createBtn= document.getElementById('site-create-button');
-    const roleEl   = document.getElementById('role');
-    const modal    = document.getElementById('modal');
-    const formEl   = document.getElementById('site-form');
-    const nameErr  = document.getElementById('name-error');
+    const listEl    = document.getElementById('list');
+    const searchEl  = document.getElementById('search');
+    const createBtn = document.getElementById('site-create-button');
+    const roleEl    = document.getElementById('role');
+    const modal     = document.getElementById('modal');
+    const formEl    = document.getElementById('site-form');
+    const nameErr   = document.getElementById('name-error');
 
-    function isManager() { return roleEl.value === 'manager'; }
+    function isManager()  { return roleEl.value === 'manager'; }
+    function isDeptMgr()  { return roleEl.value === 'deptmgr'; }
 
     function render() {
       const q = searchEl.value.toLowerCase();
+      // ASSUM-001: Department Manager sees all until Q-002 resolved
       const filtered = sites.filter(s => s.name.toLowerCase().includes(q));
 
-      // REQ-003 / PERM-002: hide create button for Observers
       createBtn.hidden = !isManager();
 
       if (filtered.length === 0) {
@@ -362,6 +483,7 @@
           <h2>${s.name}</h2>
           <p>${s.region}</p>
           ${isManager() ? '<div class="actions"><button class="btn-secondary" type="button">Edit</button></div>' : ''}
+          ${isDeptMgr() ? '<p style="font-size:.8em;color:#888;margin-top:6px">Scope: open question (ASSUM-001)</p>' : ''}
         </article>
       `).join('');
     }
@@ -369,13 +491,11 @@
     searchEl.addEventListener('input', render);
     roleEl.addEventListener('change', render);
 
-    // Open dialog (DEC-001)
     createBtn.addEventListener('click', () => {
       modal.classList.remove('hidden');
       document.getElementById('site-name').focus();
     });
 
-    // Close dialog
     document.getElementById('cancel-btn').addEventListener('click', closeDialog);
     modal.addEventListener('click', e => { if (e.target === modal) closeDialog(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
@@ -396,7 +516,7 @@
         return;
       }
       const region = document.getElementById('site-region').value;
-      sites.push({ name, region, status: 'Active' });
+      sites.push({ name, region, status: 'Active', dept: region.replace(' Region','') });
       closeDialog();
       render();
     });

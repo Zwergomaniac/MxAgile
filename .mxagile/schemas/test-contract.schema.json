@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Test Contract",
+  "description": "Canonical proof obligation for a set of requirements. Captures WHAT must be proven — layer-agnostic, not a test implementation. Derived from requirement acceptance criteria and optionally from a Mocketeer Design Contract. Canonical location: planning/test-contracts/TC-NNN.yaml. See policies/test-contract-derivation.md.",
+  "type": "object",
+  "required": ["schema_version", "ID", "title", "status", "requirement_ids", "proof_points"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "ID": {
+      "type": "string",
+      "pattern": "^TC-[0-9]{3,}$",
+      "description": "Stable identifier. Must match filename stem: TC-001.yaml -> ID: TC-001."
+    },
+    "title": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "active", "stale", "impacted", "superseded"],
+      "description": "draft: being authored. active: approved proof obligation. stale: upstream requirement/AC changed — must be updated before use. impacted: upstream design contract changed — review required. superseded: replaced by another contract."
+    },
+    "staleness_cause": {
+      "type": ["string", "null"],
+      "enum": ["REQUIREMENT_CHANGED", "ACCEPTANCE_CRITERIA_CHANGED", "DESIGN_CONTRACT_CHANGED", "SUPERSEDED", null],
+      "description": "Populated when status is stale, impacted, or superseded. Null when active/draft."
+    },
+    "requirement_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^REQ-" },
+      "description": "REQ-NNN identifiers this contract covers. At least one required."
+    },
+    "acceptance_criteria_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "AC-NNN identifiers from the referenced requirements that this contract proves."
+    },
+    "design_contract_ref": {
+      "type": ["string", "null"],
+      "description": "Optional upstream Mocketeer Design Contract reference: <mockup_id>@revision=<N>. Populated when this contract was derived from a Mocketeer output. Null for requirement-only derivation."
+    },
+    "proof_points": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Discrete proof obligations. Each is a testable claim with a specific role, data state, and required evidence layers.",
+      "items": { "$ref": "#/definitions/proof_point" }
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "What this contract explicitly does not cover."
+    },
+    "notes": { "type": "string" },
+    "derived_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "ISO date when this contract was first produced."
+    },
+    "derived_by": {
+      "type": "string",
+      "description": "Agent or skill that produced this contract."
+    }
+  },
+  "definitions": {
+    "proof_point": {
+      "type": "object",
+      "required": ["id", "claim", "role", "data_state", "required_layers"],
+      "additionalProperties": false,
+      "description": "A single testable claim: who, what data state, what is asserted, which evidence layers are mandatory.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^PP-[0-9]{3,}$",
+          "description": "Stable ID. Must be unique within this contract."
+        },
+        "claim": {
+          "type": "string",
+          "description": "Observable outcome assertion. Written as the system property that must hold — not as a test step. Example: 'A ROLE-MANAGER user can submit the create-site form and the record persists.'"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role under test. Prefix with '!' for negative authorization proof (role must NOT have access). Example: 'ROLE-MANAGER' or '!ROLE-VIEWER'."
+        },
+        "operation": {
+          "type": "string",
+          "description": "Optional. The specific operation being tested on the resource. Standard values: READ, CREATE, UPDATE, DELETE, EXECUTE. Domain-specific values allowed. When absent, the proof point tests the capability holistically. INFERENCE PROHIBITION: CANNOT UPDATE does not imply CANNOT READ; CAN READ does not imply CAN UPDATE. Each operation must be independently derived.",
+          "examples": ["READ", "CREATE", "UPDATE", "DELETE", "EXECUTE"]
+        },
+        "authorization_disposition": {
+          "type": "string",
+          "enum": ["REQUIRED", "EXPLICITLY_FORBIDDEN", "UNSPECIFIED", "UNKNOWN"],
+          "description": "Authorization disposition for this role+operation combination. REQUIRED: role must have this permission. EXPLICITLY_FORBIDDEN: role must NOT (canonical source is explicit). UNSPECIFIED: no canonical source addresses this. UNKNOWN: contradicting signals. Drives autonomous remediation classification when set."
+        },
+        "data_state": {
+          "type": "string",
+          "enum": ["empty", "populated", "partial", "error", "any"],
+          "description": "Required application data state for this proof point."
+        },
+        "required_layers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": ["STATIC", "MODEL", "BUILD", "RUNTIME", "FRONTEND"]
+          },
+          "description": "Evidence layers that MUST pass. All must be satisfied for this proof point to be accepted. See policies/verification-layers.md."
+        },
+        "optional_layers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["STATIC", "MODEL", "BUILD", "RUNTIME", "FRONTEND"]
+          },
+          "description": "Evidence layers that add confidence but are not blocking for acceptance."
+        },
+        "security_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["VISIBILITY", "ACCESSIBILITY", "AUTHORIZATION", "DATA_SCOPE"]
+          },
+          "description": "Security dimensions exercised by this proof point. Empty array for non-security proof points. See policies/verification-layers.md for dimension semantics."
+        },
+        "traceability": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "acceptance_clause_id": {
+              "type": "string",
+              "description": "AC-NNN identifier from the parent requirement."
+            },
+            "design_contract_elements": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "IDs from the upstream Mocketeer Design Contract (REQ-NNN, DEC-NNN, PERM-NNN, ROLE-NNN) that this proof point originates from."
+            }
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "stale", "impacted", "deferred", "not_applicable"],
+          "description": "Per-proof-point status override. When absent, inherits parent contract status."
+        },
+        "remediation_state": {
+          "type": "string",
+          "enum": [
+            "REQUIRED_BUT_UNAVAILABLE",
+            "EXPLICITLY_FORBIDDEN_BUT_AVAILABLE",
+            "UNSPECIFIED_BUT_AVAILABLE",
+            "BUSINESS_EXPECTATION_UNKNOWN",
+            null
+          ],
+          "description": "Autonomous remediation classification. Null when not applicable. See policies/autonomous-remediation.md."
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

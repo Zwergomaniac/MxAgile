@@ -158,3 +158,106 @@ During refinement:
 
 ## Privacy and Security
 No secrets, tokens, real credentials, or unnecessary personal data. Mark synthetic personal examples as mock data. Include sensitive technical information only when required for a design decision and explicitly approved.
+
+## Maturity Assessment (optional, backward-compatible)
+
+The `assessment` block is backward-compatible optional. Older contracts without it are valid and treated as unassessed.
+When present, it expresses the current design maturity state and development handoff readiness.
+
+```json
+{
+  "assessment": {
+    "assessed_revision": 2,
+    "assessed_at": "YYYY-MM-DD",
+    "assessed_by": "MxMocketeer",
+    "prototype_readiness": "READY",
+    "development_handoff_readiness": "REFINEMENT_REQUIRED",
+    "dimensions": [
+      {
+        "id": "DIM-PURPOSE_SCOPE",
+        "status": "SUFFICIENT",
+        "notes": "Goal, actors, and MVP scope are clear"
+      },
+      {
+        "id": "DIM-ROLES_CAPABILITIES",
+        "status": "PARTIAL",
+        "notes": "Manager role defined; data scope UNKNOWN for Department Manager"
+      }
+    ],
+    "gaps": [
+      {
+        "id": "GAP-001",
+        "dimension": "DIM-ROLES_CAPABILITIES",
+        "category": "INCOMPLETE_DATA_SCOPE",
+        "description": "Which records can a Department Manager see?",
+        "why_it_matters": "Data scope drives entity access rules and security tests",
+        "priority": "HIGH",
+        "blocking": true,
+        "blocks_handoff": true,
+        "affected_elements": ["ROLE-DEPTMGR", "REQ-003"],
+        "suggested_interview_focus": "Can a Department Manager see only their own department or all departments?",
+        "resolution_state": "OPEN",
+        "source_refs": ["SRC-001"]
+      }
+    ],
+    "blocking_gaps": ["GAP-001"],
+    "next_exploration_areas": [
+      {"priority": 1, "topic": "Department Manager data scope", "gap_ref": "GAP-001"},
+      {"priority": 2, "topic": "Calculation rule for total amount"}
+    ],
+    "prototype_readiness_reason": "Enough understood to discuss main workflow",
+    "handoff_readiness_reason": "GAP-001 blocks handoff: data scope undetermined"
+  }
+}
+```
+
+### Dimension IDs
+
+Standard dimension identifiers:
+- `DIM-PURPOSE_SCOPE` — goal, actors, MVP, scope
+- `DIM-FUNCTIONAL_COVERAGE` — journeys, screens, flows
+- `DIM-BUSINESS_RULES` — rules, calculations, formulas
+- `DIM-ROLES_CAPABILITIES` — roles, can/cannot, operations
+- `DIM-DATA_SEMANTICS` — data objects, meaning, sources
+- `DIM-UX_NAVIGATION` — structure, navigation, hierarchy
+- `DIM-STATES_EDGE_CASES` — loading, empty, error, disabled
+- `DIM-VALIDATION_ERROR_HANDLING` — required fields, error behavior
+- `DIM-SECURITY_PRIVACY` — access rules, data exposure, privacy
+- `DIM-ACCESSIBILITY` — keyboard, ARIA, contrast
+- `DIM-NON_FUNCTIONAL` — performance, availability, languages
+- `DIM-DEVELOPMENT_HANDOFF` — testability, traceability, explicit decisions
+
+### Dimension Status Values
+
+- `UNEXPLORED` — topic not yet examined
+- `PARTIAL` — examined; material gaps remain
+- `SUFFICIENT` — enough for professional development
+- `STRONG` — thoroughly covered
+- `BLOCKED` — cannot progress without external input
+- `CONFLICTING` — contradictory information in sources
+
+### Readiness Values
+
+- `PROTOTYPE_READY` — enough known to produce and usefully discuss the prototype
+- `REFINEMENT_REQUIRED` — known gaps that need clarification before handoff
+- `HANDOFF_READY` — all critical dimensions sufficient; no blocking gaps
+- `BLOCKED` — material uncertainty prevents meaningful progress
+
+A contract may be `prototype_readiness: PROTOTYPE_READY` while
+`development_handoff_readiness: REFINEMENT_REQUIRED`. This is expected and correct.
+
+### Gap Categories
+
+`MISSING_INFORMATION`, `AMBIGUITY`, `CONFLICT`, `ASSUMPTION`,
+`INCOMPLETE_ROLE_CAPABILITY`, `INCOMPLETE_DATA_SCOPE`, `MISSING_BUSINESS_RULE`,
+`MISSING_EDGE_CASE`, `MISSING_VALIDATION`, `MISSING_ERROR_BEHAVIOR`,
+`SECURITY_UNCLEAR`, `PRIVACY_UNCLEAR`, `ACCESSIBILITY_UNEXPLORED`,
+`NON_FUNCTIONAL_UNEXPLORED`, `UNTESTABLE_REQUIREMENT`, `INCONSISTENT_UI_FLOW`
+
+### Operation-Aware Role Assessment
+
+Role capabilities use the same operation semantics as Test Contracts:
+- Operations: `READ`, `CREATE`, `UPDATE`, `DELETE`, `EXECUTE`
+- Dispositions: `REQUIRED`, `EXPLICITLY_FORBIDDEN`, `UNSPECIFIED`, `UNKNOWN`
+- `CANNOT UPDATE` ≠ `CANNOT READ`. Never infer from one operation to another.
+- Missing permission information = `UNSPECIFIED`/`UNKNOWN` — never default to FORBIDDEN.

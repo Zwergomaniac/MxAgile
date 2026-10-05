@@ -1,0 +1,261 @@
+# MxMocketeer Discovery Assessment Guide
+
+## Purpose
+This file governs how MxMocketeer assesses a mockup's maturity, detects gaps,
+runs adaptive interviews, and determines readiness. Detailed mechanics live here;
+the system prompt contains only mandatory behavioral invariants.
+
+---
+
+## Two Readiness Concepts
+
+PROTOTYPE_READINESS
+  Enough is understood to create and usefully discuss the current prototype.
+  Threshold: intentionally low — early visualization is valuable.
+
+DEVELOPMENT_HANDOFF_READINESS
+  The design is sufficiently explored and explicit for professional development/refinement.
+  Threshold: materially higher — critical dimensions sufficient, no blocking gaps.
+
+A prototype may legitimately be PROTOTYPE_READY but not HANDOFF_READY.
+This is the normal, expected state for an early mockup. Never treat it as an error.
+
+---
+
+## When to Assess
+
+- After any meaningful change (new requirements, role clarification, rule added)
+- When explicitly requested ("Are we ready for development?")
+- When the user asks for a maturity summary
+- When generating handoff guidance
+
+Do NOT require full assessment before producing the first mockup.
+Assessment enriches the mockup; it does not gate it.
+
+---
+
+## Assessment Procedure
+
+Step 1 — INSPECT CURRENT STATE
+  Read the complete embedded Design Contract.
+  Identify what is present, what is confirmed, what is uncertain.
+
+Step 2 — EVALUATE EACH DIMENSION
+  For each standard dimension (see Design Contract schema):
+  - What evidence exists? (confirmed, derived, assumption, open, missing)
+  - What gaps remain?
+  - Is this dimension UNEXPLORED / PARTIAL / SUFFICIENT / STRONG / BLOCKED / CONFLICTING?
+
+Step 3 — IDENTIFY AND CLASSIFY GAPS
+  For each gap:
+  - Assign stable GAP-NNN id
+  - Classify by category
+  - Assess priority (HIGH / MEDIUM / LOW) based on:
+      * security/privacy risk
+      * business/financial impact
+      * implementation cost if misunderstood
+      * number of downstream decisions affected
+      * blocking vs. non-blocking character
+  - Set blocking: true only when it materially prevents handoff or development
+
+Step 4 — DETERMINE READINESS
+  PROTOTYPE_READY: yes, unless goal/users completely unknown
+  HANDOFF_READY: requires all HANDOFF_READINESS_REQUIREMENTS below
+
+Step 5 — UPDATE CONTRACT
+  Write assessment block to the Design Contract.
+  Do not increment revision solely for an assessment update — increment only
+  when design content (screens, requirements, roles, rules) changes.
+
+---
+
+## Handoff Readiness Requirements
+
+All of the following must be SUFFICIENT or STRONG; none may be BLOCKED or CONFLICTING:
+
+1. DIM-PURPOSE_SCOPE — goal, actors, MVP scope clear
+2. DIM-FUNCTIONAL_COVERAGE — critical journeys navigable, at least one end-to-end flow
+3. DIM-BUSINESS_RULES — critical calculations and rules explicit (not UNKNOWN)
+4. DIM-ROLES_CAPABILITIES — roles defined with can/cannot; data scope not UNKNOWN for critical roles
+5. DIM-DATA_SEMANTICS — key data objects and their meaning clear
+6. DIM-SECURITY_PRIVACY — access rules clear where security-relevant; no SECURITY_UNCLEAR blocker
+7. DIM-VALIDATION_ERROR_HANDLING — required fields and critical error paths defined
+8. No blocking gaps (blocking: true) remain OPEN
+9. No unresolved CONFLICT items that affect critical business decisions
+10. Assumptions with material downstream risk are explicitly visible
+
+The following dimensions may be PARTIAL or UNEXPLORED without blocking handoff
+(unless they contain a high-priority blocking gap):
+  DIM-ACCESSIBILITY, DIM-NON_FUNCTIONAL, DIM-UX_NAVIGATION (minor aesthetic detail)
+
+---
+
+## Assessment Is Not the Interview
+
+Assessment determines what is unknown.
+The Interview asks the right questions to reduce uncertainty.
+Keep these phases separate.
+
+---
+
+## Adaptive Interview Strategy
+
+When to interview:
+  After assessment identifies gaps that warrant clarification.
+  When the user requests questions or asks to "continue discovery."
+
+Question selection:
+  Select the highest-priority unresolved gaps.
+  For each gap, formulate ONE clear, understandable question.
+  Batch 3–6 questions at a time (context-dependent — fewer for simple topics,
+  up to 6 for complex multi-role scenarios).
+
+Question quality rules:
+  - Ask in business language. Never ask about XPath, microflows by technical name, or database schema.
+  - Translate technical uncertainty to the business concern it represents.
+  - Where helpful, offer concrete choices — but always allow "other" or "I don't know."
+  - One focused question is better than three vague questions.
+
+Prioritization factors:
+  1. Blocking gaps (blocks_handoff: true) — always first
+  2. Security/privacy uncertainty — elevated attention; HIGH when materially affecting authorization, privacy, or sensitive data
+  3. Business rule / calculation ambiguity — high if financial or legal impact
+  4. Role/data scope uncertainty — high when it affects access control
+  5. Flow/validation gaps — medium
+  6. Visual/aesthetic preferences — low
+
+---
+
+## Business-Language Question Examples
+
+Bad (technical):
+  "What XPath constraint should be applied to the Manager entity access rule?"
+
+Good (business):
+  "Which records can a Department Manager see — only their own department, or all departments?"
+
+Bad (technical):
+  "Which ACT_ microflow implements the approval action?"
+
+Good (business):
+  "When a manager approves a request, what should happen? Should the requester receive a notification?"
+
+Bad (assumes answer):
+  "Since managers can create, they can also delete, right?"
+
+Good (independent operation check):
+  "Can managers delete records, or should they only be able to deactivate them?
+   (Note: this is separate from their ability to create records.)"
+
+Operations (READ, UPDATE, CREATE, DELETE, EXECUTE) are independently derived.
+CANNOT UPDATE does not imply CANNOT READ. CAN READ does not imply CAN UPDATE.
+Each operation's authorization must be confirmed or remain UNSPECIFIED.
+
+Never use an overall percentage score as the authoritative maturity measure.
+High visual completeness can hide critical security or business uncertainty.
+Use dimension status + gaps + blockers + readiness gates instead.
+
+---
+
+## Unknown / Open Answer Handling
+
+A Product Owner may say "I don't know" or provide no answer.
+
+NEVER invent an answer for an unresolved business question.
+
+Record the appropriate state:
+  - "I don't know" → OPEN or UNKNOWN (depending on whether it is a gap or a capability)
+  - "We haven't decided" → OPEN with status ASSUMPTION_REQUIRES_APPROVAL
+  - "That's a risk we accept" → ACCEPTED_RISK with documented owner and consequence
+  - "Someone else decides" → OPEN with owner field set
+
+An unresolved question may remain in the mockup and the assessment.
+Set blocking: true only when it materially affects handoff readiness.
+
+Do not block the next mockup revision merely because questions remain open.
+Honest uncertainty is more valuable than invented clarity.
+
+---
+
+## Provenance for Resolved Items
+
+When a gap is resolved through the interview, record:
+  - Resolution state: RESOLVED
+  - Resulting decision/answer in the relevant Decision, Business Rule, or Assumption
+  - Affected contract elements (which requirements, roles, rules were updated)
+  - Revision in which it was resolved
+
+Do not store full conversation transcripts in the contract.
+Store the semantic outcome only.
+
+---
+
+## User-Facing Maturity Summary
+
+When the user asks for a maturity summary or readiness review, present:
+
+  Current state:
+    [prototype_readiness] / [development_handoff_readiness]
+
+  Strong:
+    [dimensions with SUFFICIENT or STRONG status]
+
+  Needs clarification:
+    [dimensions with PARTIAL status — concise description of gap]
+
+  Blocking issues (if any):
+    [blocking gaps — plain language, not schema IDs]
+
+  Highest-priority next topics:
+    [top 3 items from next_exploration_areas]
+
+Present in plain language. Do not surface raw GAP-NNN IDs or dimension IDs to the user
+unless they specifically ask for them.
+
+---
+
+## Iteration Model
+
+The lifecycle is iterative, not sequential:
+
+  v0.x — Exploring: PROTOTYPE_READY, gaps visible, handoff not yet ready
+  v0.x — Refining: key gaps addressed, critical dimensions improving
+  v1.x — Validating: HANDOFF_READY candidate, final blockers resolved
+  v1.x+ — Confirmed: HANDOFF_READY, ready for MxAgile Discovery
+
+HTML is produced at every stage. Assessment metadata travels with the mockup.
+A beautiful early mockup honestly marked as REFINEMENT_REQUIRED is the correct output.
+
+---
+
+## Risk-Based Exploration
+
+Not all gaps are equal. Prioritization:
+
+SECURITY_UNCLEAR or PRIVACY_UNCLEAR
+  → Elevated assessment attention. HIGH priority and may block handoff when the unresolved
+    issue materially affects authorization correctness, privacy, sensitive data, role isolation,
+    data ownership, or active security boundaries. Not automatically HIGH or blocking merely
+    because the gap category is security or privacy. Out-of-scope or non-material security
+    gaps may legitimately be MEDIUM/LOW and non-blocking.
+
+INCOMPLETE_DATA_SCOPE for security-relevant roles
+  → HIGH priority when undefined data scope materially affects access control or authorization
+    correctness (example: GAP-001 — data scope determines entity access rule scope and security
+    test proof points). Not automatically HIGH merely because a role has a security label.
+    Category alone does not determine blocks_handoff; assess material impact first.
+
+MISSING_BUSINESS_RULE for financial/legal calculations
+  → High priority. Wrong formula = wrong implementation.
+
+MISSING_VALIDATION for required fields
+  → Medium priority. Can often be resolved quickly.
+
+MISSING_EDGE_CASE for rare scenarios
+  → Low priority unless financial or security consequence.
+
+ACCESSIBILITY_UNEXPLORED or NON_FUNCTIONAL_UNEXPLORED
+  → Low priority for early iterations. Raise before final handoff.
+
+Visual preference / label wording
+  → Lowest priority. Do not block handoff for cosmetic detail.

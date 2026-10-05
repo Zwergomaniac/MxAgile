@@ -34,3 +34,18 @@ overrides:
       ---
       description: "Gate-Pruefung: Refinement vollstaendig, bereit fuer Implementierung?"
       ---
+  test-contract:
+    template: |
+      ---
+      description: "Derive Test Contract (WHAT to prove) from requirement acceptance criteria and optional Mocketeer Design Contract"
+      ---
+  verification-plan:
+    template: |
+      ---
+      description: "Produce Verification Plan (WHICH evidence layers) from a Test Contract"
+      ---
+  test-generate:
+    template: |
+      ---
+      description: "Generate concrete test execution steps (HOW) from a Verification Plan"
+      ---

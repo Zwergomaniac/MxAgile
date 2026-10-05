@@ -747,6 +747,21 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Validates MxMocketeer product: required files, system-prompt character count, golden-mockup HTML structure, JSON contract integrity, ID reference resolution, company-neutral content, dist TXT completeness. Pure read-only static check."
+    "Reason": "Validates MxMocketeer product: required files (incl. discovery-assessment.txt), system-prompt character count + safety margin + discipline (invariants present, taxonomy not duplicated), golden-mockup HTML + JSON structure, assessment block (dimensions/gaps/readiness/blocking_gaps), ID reference resolution, company-neutral content. Pure read-only static check."
+  },
+  {
+    "File": "test-wp2-lifecycle-extensions.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Validates WP2+WP3 lifecycle extensions: test-contract/verification-plan schemas (JSON parse + structural), all 7 WP2 policies, evidence-levels BUILD layer, gate-to-ready Testability Gate, acceptance-agent WP2 structure, discovery-agent Design Contract intake, lifecycle.yaml WP2 gates, skills.yaml adapter registrations, WP3 maturity intake (HANDOFF_READY/REFINEMENT_REQUIRED/BLOCKED/legacy), gap-to-refinement mapping, gate-bypass guard, company-neutral content. Pure read-only static check."
   }
 ]

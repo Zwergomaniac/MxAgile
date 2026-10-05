@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Verification Plan",
+  "description": "Selects which evidence layers serve each proof point in a test contract, with rationale. Answers WHICH layers to run — not HOW the tests are technically implemented. Canonical location: planning/verification-plans/VPL-NNN.yaml. See policies/verification-layers.md and skills/verification-plan.md.",
+  "type": "object",
+  "required": ["schema_version", "ID", "test_contract_id", "wave_id", "status", "layer_assignments"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "ID": {
+      "type": "string",
+      "pattern": "^VPL-[0-9]{3,}$",
+      "description": "Stable identifier. Must match filename stem: VPL-001.yaml -> ID: VPL-001."
+    },
+    "test_contract_id": {
+      "type": "string",
+      "pattern": "^TC-[0-9]{3,}$",
+      "description": "The test contract this plan covers."
+    },
+    "wave_id": {
+      "type": "string",
+      "description": "Wave this plan is scoped to, e.g. W01."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "active", "superseded"],
+      "description": "draft: being authored. active: approved, drives verification runs. superseded: replaced."
+    },
+    "layer_assignments": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per proof point in the test contract.",
+      "items": { "$ref": "#/definitions/layer_assignment" }
+    },
+    "regression_scope": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["proof_point_id", "promoted_from_wave"],
+        "additionalProperties": false,
+        "properties": {
+          "proof_point_id": { "type": "string" },
+          "promoted_from_wave": { "type": "string" },
+          "promotion_reason": { "type": "string" }
+        }
+      },
+      "description": "Proof points promoted from earlier waves as regression candidates."
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "generated_by": { "type": "string" },
+    "notes": { "type": "string" }
+  },
+  "definitions": {
+    "layer_assignment": {
+      "type": "object",
+      "required": ["proof_point_id", "layer_decisions"],
+      "additionalProperties": false,
+      "properties": {
+        "proof_point_id": {
+          "type": "string",
+          "pattern": "^PP-[0-9]{3,}$",
+          "description": "References a proof_point.id in the test contract."
+        },
+        "layer_decisions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["layer", "included", "rationale"],
+            "additionalProperties": false,
+            "properties": {
+              "layer": {
+                "type": "string",
+                "enum": ["STATIC", "MODEL", "BUILD", "RUNTIME", "FRONTEND"]
+              },
+              "included": {
+                "type": "boolean",
+                "description": "true: this layer MUST run for this proof point. false: explicitly excluded."
+              },
+              "rationale": {
+                "type": "string",
+                "description": "Why this layer is included or excluded. One sentence."
+              },
+              "exclusion_reason": {
+                "type": "string",
+                "enum": ["NOT_APPLICABLE", "COVERED_BY_LOWER_LAYER", "INFRASTRUCTURE_UNAVAILABLE", "EXPLICITLY_DEFERRED", null],
+                "description": "Populated when included=false."
+              }
+            }
+          }
+        },
+        "test_generation_hint": {
+          "type": "string",
+          "description": "Optional hint for skills/test-generate.md: which mxcli command, which Playwright flow, which entity to DESCRIBE."
+        },
+        "campaign_type": {
+          "type": "string",
+          "enum": ["REQUIREMENT", "ROLE", "RISK_CHANGE_IMPACT"],
+          "description": "Which acceptance campaign type this proof point contributes to. See policies/acceptance-campaign.md."
+        }
+      }
+    }
+  }
+}

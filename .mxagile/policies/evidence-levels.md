@@ -53,6 +53,28 @@ Properties:
 
 Tag in reports: `evidence: model`
 
+### LEVEL 2.5 — BUILD
+
+Source: The strongest available Mendix semantic/build-time validation — consistency checks that go
+beyond model structure into behavior under Mendix's semantic rules.
+
+Examples (semantically):
+- XPath constraint in entity access rule is syntactically and semantically valid
+- Microflow referenced from navigation is reachable from at least one role
+- Container/model parity (e.g. `mxcli docker check` where supported)
+- Security expression consistency: entity access rule and page access rule agree for the same entity + role
+
+Properties:
+- Requires mxcli access to the `.mpr` file
+- Does NOT require a running application
+- Stronger than MODEL: validates model consistency under semantic rules, not just structure
+- Weaker than RUNTIME: does not prove runtime behavior, only build-time correctness
+- Optional layer: when no semantic build capability is available, `exclusion_reason: INFRASTRUCTURE_UNAVAILABLE`
+- `mxcli check` (syntax) and `mxcli DESCRIBE` (structure) are NOT equivalent to BUILD
+  unless they also verify semantic properties (XPath validity, security expression semantics)
+
+Tag in reports: `evidence: build`
+
 ### LEVEL 3 — RUNTIME
 
 Source: Running application state — local warm runtime
@@ -103,10 +125,15 @@ Tag in reports: `evidence: browser`
 | gate-to-refinement: full UI Discovery PASS | MODEL | BROWSER (Level 4) for runtime-testable scope |
 | gate-to-ready: all DECISION REQUIRED resolved | STATIC | STATIC |
 | gate-to-ready: UI inventory complete | STATIC | STATIC |
+| gate-to-ready: testability gate (test contract present) | STATIC | STATIC |
 | quality-gate: model validation | MODEL | MODEL |
+| quality-gate: build validation (when configured) | BUILD | BUILD |
 | quality-gate: runtime readiness | RUNTIME | RUNTIME |
 | UI-Agent Verify: field/button structure | BROWSER | BROWSER |
-| Acceptance-Agent: user journeys | BROWSER | BROWSER |
+| Acceptance-Agent: REQUIREMENT campaign | per proof point required_layers | per proof point required_layers |
+| Acceptance-Agent: ROLE campaign | per proof point required_layers | per proof point required_layers |
+| Acceptance-Agent: RISK_CHANGE_IMPACT campaign | per proof point required_layers | per proof point required_layers |
+| acceptance-gate: all campaigns passed | MODEL + RUNTIME or FRONTEND | MODEL + RUNTIME + FRONTEND |
 
 ## UI-Driven Discovery Evidence Gap
 
