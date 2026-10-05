@@ -92,6 +92,34 @@ Assert ($sc -match 'project_template_health') 'F8: machine-readable YAML has pro
 Assert ($sc -match 'Do not.*auto.*repair|Do not attempt.*repair|not.*attempt.*repair') 'F9: does not attempt automatic mojibake repair'
 
 # ──────────────────────────────────────────────────────────────
+# G  Project name semantics: explicit name preserved; MPR stem is initialization fallback
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[G] Project name semantics: explicit name preserved; MPR is initialization fallback only"
+Assert ($ic -match 'yamlContent.*match.*PROJEKTNAME') 'G1: install-core.ps1 guards MPR materialization — only fills [PROJEKTNAME] placeholder'
+Assert ($apply -match '-ne.*PROJEKTNAME') 'G2: apply-script Read-ProjectName returns null for [PROJEKTNAME] value (explicit name preserved)'
+Assert ($schema -match 'Derived from.*\.mpr|display.*differ.*Mendix|display name should differ') 'G3: schema distinguishes display identity from MPR technical filename'
+
+# ──────────────────────────────────────────────────────────────
+# H  Role section ownership contract
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[H] Role section ownership: PROJECT_AUTHORING_REQUIRED, no auto-fill"
+$agentsTpl = Get-Content (Join-Path $RepoRoot 'skillssource\AGENTS.md') -Raw -Encoding UTF8
+Assert ($agentsTpl -match 'PROJECT_AUTHORING_REQUIRED') 'H1: skillssource/AGENTS.md role section marked PROJECT_AUTHORING_REQUIRED'
+Assert ($agentsTpl -notmatch '<!-- TODO: Projektspezifische') 'H2: old ambiguous role TODO comment replaced in template'
+Assert ($apply -notmatch 'Materialize.*\[Rolle\]|Replace.*\[Rolle\]') 'H3: no role materialization in apply-script (canonical roles not invented)'
+Assert ($sc -match 'Projektspezifische.*PROJECT_AUTHORING_REQUIRED|PROJECT_AUTHORING_REQUIRED.*role') 'H4: system-check associates role section with PROJECT_AUTHORING_REQUIRED classification'
+Assert ($sc -match 'UNRESOLVED_TEMPLATE_VALUE.*re-running setup|re-running setup.*UNRESOLVED_TEMPLATE_VALUE') 'H5: system-check distinguishes UNRESOLVED_TEMPLATE_VALUE (re-run setup) from PROJECT_AUTHORING_REQUIRED (project authoring)'
+
+# ──────────────────────────────────────────────────────────────
+# I  Legacy path migration contract
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[I] Legacy path migration: .dfc-ai/policies/ auto-migrated; .dfc-ai/modules/ detected-only"
+Assert ($apply -match 'Migrate-LegacyFrameworkPaths') 'I1: apply-script has Migrate-LegacyFrameworkPaths function'
+Assert ($apply -match '\.dfc-ai/policies/.*\.mxagile/policies/|\.mxagile/policies/.*\.dfc-ai/policies/') 'I2: migration maps .dfc-ai/policies/ to .mxagile/policies/'
+Assert ($apply -notmatch '\.dfc-ai/modules/.*-replace|Replace.*\.dfc-ai/modules/') 'I3: .dfc-ai/modules/ is NOT auto-migrated in apply-script'
+Assert ($sc -match '\.dfc-ai/modules/.*DETECTED_ONLY|DETECTED_ONLY.*modules|no deterministic.*dfc-ai/modules') 'I4: system-check flags .dfc-ai/modules/ as DETECTED_ONLY (no auto-migration)'
+
+# ──────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n========================================"

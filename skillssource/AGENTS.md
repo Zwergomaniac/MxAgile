@@ -43,7 +43,9 @@ Vor jeder Story-Analyse den aktuellen Inhalt von `input-resources/` inventarisie
 ## Security & Access Rules
 
 ### Role Model
-<!-- TODO: Projektspezifische Rollen eintragen -->
+<!-- PROJECT_AUTHORING_REQUIRED: Define project-specific application roles.
+     Replace [Rolle] with each role defined in your Mendix security model.
+     Remove this comment and the example line when the role model is complete. -->
 - `Administrator` — ...
 - `[Rolle]` — ...
 

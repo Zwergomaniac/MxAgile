@@ -276,6 +276,34 @@ function Materialize-ProjectName {
 }
 
 # ---------------------------------------------------------------------
+# Migrate-LegacyFrameworkPaths
+# Migrates deterministic legacy DFC-AI framework path references to their
+# canonical MxAgile equivalents in a single target file.
+#
+# Scope: called for skillssource/AGENTS.md only — the framework-template-adjacent
+#        file already written during setup. Project-authored prose is NOT touched;
+#        system-check reports those as LEGACY_REFERENCE for manual review.
+#
+# Deterministic mapping:
+#   .dfc-ai/policies/ -> .mxagile/policies/  (exact canonical location)
+#
+# NOT migrated here:
+#   .dfc-ai/modules/  — no guaranteed .mxagile/ equivalent; ambiguous project prose.
+# ---------------------------------------------------------------------
+function Migrate-LegacyFrameworkPaths {
+    param([string]$FilePath)
+    if (-not $FilePath) { return }
+    if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) { return }
+    $content = [System.IO.File]::ReadAllText($FilePath, $Utf8WithoutBom)
+    if ($content -notmatch '\.dfc-ai/policies/') { return }
+    $newContent = $content -replace '\.dfc-ai/policies/', '.mxagile/policies/'
+    if ($newContent -ne $content) {
+        [System.IO.File]::WriteAllText($FilePath, $newContent, $Utf8WithoutBom)
+        Write-Host "  Migrated .dfc-ai/policies/ -> .mxagile/policies/ in $(Split-Path $FilePath -Leaf)"
+    }
+}
+
+# ---------------------------------------------------------------------
 # Validate required source file
 # ---------------------------------------------------------------------
 foreach ($requiredPath in @($SourcePath, $AgentsPath, $ClaudePath)) {
@@ -433,6 +461,11 @@ if ($projectName) {
     Materialize-ProjectName -FilePath (Join-Path $ProjectRoot "skillssource\AGENTS.md") -ProjectName $projectName
     Materialize-ProjectName -FilePath (Join-Path $ProjectRoot "projekt.md") -ProjectName $projectName
 }
+
+# Migrate deterministic legacy DFC-AI framework paths in skillssource/AGENTS.md.
+# This file may carry old .dfc-ai/ references from pre-MxAgile templates.
+# Ambiguous paths (.dfc-ai/modules/ etc.) are not touched; system-check reports them.
+Migrate-LegacyFrameworkPaths -FilePath (Join-Path $ProjectRoot "skillssource\AGENTS.md")
 
 # ---------------------------------------------------------------------
 # Local-state ignore rules

@@ -808,5 +808,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "GUID-based temp dirs. Runs apply-project-agent-instructions.ps1 via pwsh subprocess 3 times per fixture. Verifies: German Unicode preserved across 3 runs (A==B==C), no mojibake, [PROJEKTNAME] replaced from mxagile-project.yaml.name, Alpha/Beta project isolation, idempotency of second materialization run, safe unresolved state when name absent. No network or mxcli."
+  },
+  {
+    "File": "test-materialization-contract.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "GUID-based temp dirs. Runs apply-project-agent-instructions.ps1 via pwsh subprocess. Verifies: explicit mxagile-project.yaml.name preserved across apply-script runs (MPR stem does not overwrite), name stable across 3 runs, .dfc-ai/policies/ auto-migrated in skillssource/AGENTS.md, .dfc-ai/modules/ NOT auto-migrated in project-authored files. No network or mxcli."
   }
 ]

@@ -439,11 +439,13 @@ Files to check: `skillssource/AGENTS.md`, `projekt.md`, `AGENTS.md`, `AGENT.md`
    - If resolved: report `project_name: [actual name]`
 
 2. **Unresolved template markers** — scan the files above for known framework template placeholders:
-   - `[PROJEKTNAME]` — unresolved project name
-   - `[Rolle]`, `[Modul]`, `[PROJEKTNAME]-playwright` — other template slots
-   - `<!-- TODO: Projektspezifische Rollen` — role authoring TODO
+   - `[PROJEKTNAME]` — unresolved project name → `UNRESOLVED_TEMPLATE_VALUE`
+   - `[Rolle]`, `[Modul]`, `[PROJEKTNAME]-playwright` — other template slots → `UNRESOLVED_TEMPLATE_VALUE`
+   - `<!-- PROJECT_AUTHORING_REQUIRED:` — explicit framework marker for project-owned sections (e.g. the Role Model section). The project team must author this content; the framework cannot auto-materialize application roles. Classify as `PROJECT_AUTHORING_REQUIRED`. Remove the comment when the section is complete.
+   - `<!-- TODO: Projektspezifische Rollen` — legacy role authoring TODO (old template format). Classify as `PROJECT_AUTHORING_REQUIRED` (same ownership as the new marker).
    - `<!-- TODO:` generally — identify if it is a framework template marker or project-authored TODO
    - Classify each as: `UNRESOLVED_TEMPLATE_VALUE` | `PROJECT_AUTHORING_REQUIRED` | `PROJECT_AUTHORED`
+   - **`UNRESOLVED_TEMPLATE_VALUE`** requires re-running setup — the framework materializes these automatically from `mxagile-project.yaml.name`. **`PROJECT_AUTHORING_REQUIRED`** requires direct project-team authoring; the framework has no canonical data source for this content.
    - Do NOT flag general project-authored TODOs as framework defects.
 
 3. **Encoding corruption detection** (conservative — safety net, not repair):
@@ -455,10 +457,9 @@ Files to check: `skillssource/AGENTS.md`, `projekt.md`, `AGENTS.md`, `AGENT.md`
    - Primary fix is re-running setup from the current distribution (encoding reads are now correct).
 
 4. **Legacy framework path references** — scan for obsolete framework path prefixes in instruction files:
-   - `.dfc-ai/` — pre-MxAgile DFC-AI framework paths
-   - If found: report as `LEGACY_REFERENCE` with the file and line
-   - Where a safe canonical MxAgile equivalent exists (e.g., `.dfc-ai/policies/test-workflow.md` → `.mxagile/policies/test-workflow.md`), note the replacement but do NOT auto-repair project-owned prose.
-   - If ambiguous: report as migration debt for manual review.
+   - `.dfc-ai/policies/` — **AUTO_MIGRATED** by setup in `skillssource/AGENTS.md`. If still present in that file after a re-run, the reference is in project-authored prose that was not touched; report `LEGACY_REFERENCE` for manual review.
+   - `.dfc-ai/modules/` — **DETECTED_ONLY**. No deterministic MxAgile equivalent exists for this path. Always report as `LEGACY_REFERENCE`; do not guess at a canonical replacement. Manual review required.
+   - Other `.dfc-ai/` paths — report as `LEGACY_REFERENCE` with the file and line. Note the `.mxagile/` equivalent where obvious; do NOT auto-repair project-authored prose.
 
 **Classification taxonomy:**
 - `UNRESOLVED_TEMPLATE_VALUE` — a framework template slot not yet replaced by project identity
