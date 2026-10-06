@@ -166,8 +166,12 @@ The lifecycle for obtaining a testable local application session is:
    Do NOT proceed to runtime start until required credentials are PRESENT
 
 4. START LOCAL RUNTIME WITH DECLARED CONFIGURATION
-   Apply local_runtime.db_type, db_name, constant_overrides, app_port
-   Report the effective configuration (non-secret values only) before starting
+   Apply local_runtime profile using canonical hyphenated CLI flags:
+     --db-type <local_runtime.db_type>   (when declared; valid: hsqldb, postgresql, sqlserver)
+     --db-name <local_runtime.db_name>   (when declared; overrides mxcli .mpr-derived name)
+   Omit flags that have no project-declared value — do not default or guess.
+   Apply constant_overrides as --constant "<name>=<value>" flags.
+   Report the effective configuration (non-secret values only) before starting.
 
 5. WAIT FOR APPLICATION READINESS
    Track pipeline stages (see Runtime Pipeline State Model below)

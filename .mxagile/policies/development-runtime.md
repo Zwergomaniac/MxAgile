@@ -160,11 +160,27 @@ Apply in this order:
 1. **`local_runtime.db_type` / `db_name` in `mxagile-project.yaml`** — authoritative when present
 2. **Normal `mxcli run --local` behavior** — mxcli-derived database name from `.mpr` filename
 3. **Supported provisioning options** — `--ensure-db` where the environment supports it
-4. **Supported fallback options** — `--db-type` alternatives
+4. **Supported fallback options** — `--db-type` / `--db-name` flags
 5. **Explicit developer decision** — only when genuinely required
 
 Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environments
 (native Windows, devcontainer, CI) have different database availability.
+
+### Command Construction with Project-Declared Database Profile
+
+When `mxagile-project.yaml` declares `local_runtime.db_type` and/or `local_runtime.db_name`,
+expand the canonical command with explicit hyphenated flags:
+
+```
+mxcli run --local -p <project>.mpr --watch --db-type <db_type> --db-name <db_name>
+```
+
+Use `--db-type` and `--db-name` (hyphenated). Valid `--db-type` values: `hsqldb`,
+`postgresql`, `sqlserver` (matching the `db_type` enum in `mxagile-project.schema.json`).
+
+Omit `--db-type` and `--db-name` when the project profile does not declare them.
+Without a declaration, let mxcli derive the database name from the `.mpr` filename.
+Do not infer or guess DB parameters that are not explicitly declared in the project profile.
 
 If runtime startup fails with a database error: first perform credential discovery per
 `policies/credential-discovery.md` before asking the developer. Use mxcli-supported

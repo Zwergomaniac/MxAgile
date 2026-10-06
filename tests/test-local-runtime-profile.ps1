@@ -229,6 +229,43 @@ Assert-FileNotContains "O.4 development-runtime.md does not default to Docker" $
 
 # ---------------------------------------------------------------------------
 Write-Host ""
+Write-Host "TEST P: Canonical DB CLI flag names are pinned (no ambiguous --dbtype/--dbname)" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+# Regression: guards against using the non-canonical abbreviated flag forms
+# --dbtype / --dbname (no hyphen) or truncated enum value "hsql" instead of "hsqldb".
+
+Assert-FileContains "P.1 development-runtime.md pins --db-type (hyphenated) in command construction" `
+    $DevRuntime '(?i)--db-type'
+
+Assert-FileContains "P.2 development-runtime.md pins --db-name (hyphenated) in command construction" `
+    $DevRuntime '(?i)--db-name'
+
+Assert-FileContains "P.3 development-runtime.md shows expanded command example with db flags" `
+    $DevRuntime '(?i)--db-type.*--db-name|--db-name.*--db-type|mxcli run --local.*--db'
+
+Assert-FileNotContains "P.4 development-runtime.md does not use non-canonical --dbtype (no hyphen)" `
+    $DevRuntime '(?i)--dbtype\b'
+
+Assert-FileNotContains "P.5 development-runtime.md does not use non-canonical --dbname (no hyphen)" `
+    $DevRuntime '(?i)--dbname\b'
+
+Assert-FileNotContains "P.6 development-runtime.md does not use truncated enum value hsql (must be hsqldb)" `
+    $DevRuntime '(?i)\bhsql\b(?!db)'
+
+Assert-FileContains "P.7 local-runtime-profile.md pins --db-type in bootstrap login step 4" `
+    $LocalProf '(?i)--db-type'
+
+Assert-FileContains "P.8 local-runtime-profile.md pins --db-name in bootstrap login step 4" `
+    $LocalProf '(?i)--db-name'
+
+Assert-FileNotContains "P.9 local-runtime-profile.md does not use non-canonical --dbtype (no hyphen)" `
+    $LocalProf '(?i)--dbtype\b'
+
+Assert-FileNotContains "P.10 local-runtime-profile.md does not use non-canonical --dbname (no hyphen)" `
+    $LocalProf '(?i)--dbname\b'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
 Write-Host "=" * 60
 $total = $PassCount + $FailCount
 Write-Host "RESULTS: $PassCount passed, $FailCount failed out of $total tests"
