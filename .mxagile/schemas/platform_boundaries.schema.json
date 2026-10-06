@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Platform Boundaries",
+  "description": "Canonical schema for the platform boundaries manifest. Located at planning/platform-boundaries.yaml. Declares which functionalities are delivered by platform modules rather than the application itself, and what rules apply to them during UI parity, discovery, and acceptance. See WP-10 and policies/mockup-lifecycle.md § Platform Boundary Scope Rule.",
+  "type": "object",
+  "required": ["platform_boundaries"],
+  "additionalProperties": false,
+  "properties": {
+    "platform_boundaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "provider", "responsibilities", "parity_rule", "implementation_rule", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier for this boundary, e.g. PLATFORM-MB-SSO."
+          },
+          "provider": {
+            "type": "string",
+            "description": "Name of the platform module or external system providing this functionality, e.g. MB_SSO."
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of functional responsibilities delivered by this platform module. E.g. ['authentication', 'password-management', 'session-management']."
+          },
+          "mockup_behavior": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Rules for how this boundary is represented in mockups. E.g. 'no productive login screen', 'demo role switcher is test-only'."
+          },
+          "parity_rule": {
+            "type": "string",
+            "enum": ["EXCLUDE_FROM_UI_PARITY", "INCLUDE_IN_UI_PARITY", "VERIFY_NAVIGATION_ONLY"],
+            "description": "EXCLUDE_FROM_UI_PARITY: screens owned by this platform module are not verified in app UI parity campaigns. INCLUDE_IN_UI_PARITY: platform-provided screens ARE verified (rare). VERIFY_NAVIGATION_ONLY: only verify that navigation to/from this boundary works correctly."
+          },
+          "implementation_rule": {
+            "type": "string",
+            "enum": ["REUSE_PLATFORM_MODULE", "EXTEND_PLATFORM_MODULE", "IMPLEMENT_SEPARATELY"],
+            "description": "REUSE_PLATFORM_MODULE: use the module as-is. EXTEND_PLATFORM_MODULE: use the module with an extension (do not fork the original). IMPLEMENT_SEPARATELY: boundary is the application's own responsibility."
+          },
+          "role_source_rule": {
+            "type": "string",
+            "description": "How roles defined by this boundary relate to fachliche roles. E.g. 'business roles remain independently relevant regardless of MB_SSO authentication'."
+          },
+          "modification_rule": {
+            "type": "string",
+            "enum": ["DO_NOT_MODIFY_PLATFORM_MODULE", "MAY_CONFIGURE_PLATFORM_MODULE", "MAY_EXTEND_PLATFORM_MODULE"],
+            "description": "Whether agents and developers may modify this platform module."
+          },
+          "excluded_screens": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "PAGE-NNN identifiers of screens that belong to this platform boundary and are excluded from fachliche scope."
+          },
+          "decision_ref": {
+            "type": ["string", "null"],
+            "pattern": "^(DEC-[0-9]{3,})?$",
+            "description": "DEC-NNN that formally confirmed this platform boundary decision."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["CONFIRMED", "PROPOSED", "UNDER_REVIEW"],
+            "description": "CONFIRMED: boundary decision is final and authoritative. PROPOSED: boundary is proposed but not yet confirmed. UNDER_REVIEW: boundary decision is being reconsidered."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional additional context for this platform boundary."
+          }
+        }
+      }
+    }
+  }
+}

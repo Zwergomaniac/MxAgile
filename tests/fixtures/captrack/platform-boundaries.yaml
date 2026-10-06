@@ -1,0 +1,53 @@
+# CapTrack Platform Boundary Fixture
+# Regression fixture for CapTrack project — DO NOT MODIFY APPLICATION LOGIC
+# Used by: test-captrack-regression.ps1 as static validation reference
+# Purpose: Verifies that MB_SSO authentication is correctly classified as a
+#          platform boundary, not as a fachliche CapTrack requirement.
+#
+# CapTrack Business Rule (verbatim):
+#   "Login, Anmeldung, Passwortverwaltung, Initialpasswörter are NOT fachliche
+#    CapTrack requirements. MB_SSO handles authentication."
+
+platform_boundaries:
+  - id: PLATFORM-MB-SSO
+    provider: MB_SSO
+    responsibilities:
+      - authentication
+      - sign-in
+      - password-management
+      - initial-password-setup
+      - session-management
+    mockup_behavior:
+      - "No productive login screen in CapTrack UI"
+      - "Demo Role Switcher is test-only mechanism — not productive login"
+      - "Password reset, Passwortverwaltung not app-level concern"
+    parity_rule: EXCLUDE_FROM_UI_PARITY
+    implementation_rule: REUSE_PLATFORM_MODULE
+    role_source_rule: >-
+      Business roles (AppAdmin, E2, Center Koordinator, CeKo Vertreter, E3 Eintragung,
+      E3 Eintragung Vertreter, E3 Überprüfung, E4 Eintragung, E4 Überprüfung) remain
+      independently valid regardless of MB_SSO authentication mechanism.
+    modification_rule: DO_NOT_MODIFY
+    excluded_screens:
+      - SCREEN-LOGIN
+      - SCREEN-ANMELDUNG
+      - SCREEN-PASSWORT-RESET
+      - SCREEN-NUTZERVERWALTUNG
+      - SCREEN-DEMO-ROLE-SWITCHER
+    decision_ref: DEC-PLATFORM-001
+    status: CONFIRMED
+    notes: >-
+      Demo Role Switcher (SCREEN-DEMO-ROLE-SWITCHER) is a test mechanism.
+      It is platform_boundary: true and excluded from UI parity.
+      It is NOT productive user management. It is NOT a login screen.
+      App-eigene Nutzerverwaltung is NOT user-facing within CapTrack.
+
+# Screens that must never generate fachliche REQ-NNN or SPEC-NNN:
+excluded_screen_rule:
+  summary: "REQ-NNN MUST NOT be generated from any screen with platform_boundary: true."
+  details:
+    - "REQ-NNN requirements — must not originate from platform boundary screens"
+    - "SPEC-NNN specifications — must not originate from platform boundary screens"
+    - "TASK-NNN implementation tasks — only REMOVE/CONFIGURE platform module allowed"
+    - "UI-Parity test cases — excluded from parity scope"
+  required: "DEC-NNN with decision_type: platform_boundary when deviation detected"

@@ -26,8 +26,8 @@
     },
     "type": {
       "type": "string",
-      "enum": ["entity", "module", "microflow", "nanoflow", "page", "security", "navigation", "integration", "other"],
-      "description": "Primary Mendix artifact category this task creates or modifies."
+      "enum": ["entity", "module", "microflow", "nanoflow", "page", "security", "navigation", "integration", "repair", "other"],
+      "description": "Primary Mendix artifact category this task creates or modifies. Use 'repair' for GAP Verification & Repair tasks (type: repair)."
     },
     "action": {
       "type": "string",
@@ -82,6 +82,87 @@
         "expect": {
           "type": "string",
           "description": "Expected model structure or logic."
+        }
+      }
+    },
+    "repair": {
+      "type": "object",
+      "description": "Repair-specific fields. Only present when type=repair. Captures the full GAP Verification & Repair context per WP-14.",
+      "additionalProperties": false,
+      "properties": {
+        "gap_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "IDs of the GAPs being repaired (e.g. GAP-ABTEILUNG-EXPAND)."
+        },
+        "gap_classifications": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["IMPLEMENTATION_GAP", "UI_PARITY_GAP", "INTERACTION_GAP", "ROLE_COVERAGE_GAP", "PLATFORM_BOUNDARY_VIOLATION", "REQUIREMENT_CHANGE", "DECISION_REQUIRED", "NOT_REPRODUCIBLE"]
+          }
+        },
+        "source_feedback": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": { "type": "string" },
+            "source": { "type": "string" },
+            "observed_at": { "type": "string" },
+            "observed_role": { "type": "string" },
+            "observed_viewport": { "type": "string" },
+            "evidence": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "target_reference": {
+          "type": "object",
+          "description": "Binding reference to the active target mockup used as the expected state for this repair.",
+          "additionalProperties": false,
+          "properties": {
+            "mockup_id": { "type": "string" },
+            "target_revision": { "type": "string" },
+            "target_hash": { "type": ["string", "null"] },
+            "requirements": { "type": "array", "items": { "type": "string" } },
+            "decisions": { "type": "array", "items": { "type": "string" } },
+            "screens": { "type": "array", "items": { "type": "string" } },
+            "interactions": { "type": "array", "items": { "type": "string" } },
+            "roles": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "expected": { "type": "string" },
+        "actual": { "type": "string" },
+        "affected_mendix_artifacts": { "type": "array", "items": { "type": "string" } },
+        "platform_constraints": { "type": "array", "items": { "type": "string" } },
+        "implementation_status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "done"],
+          "default": "pending"
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "model_checks": { "type": "array", "items": { "type": "string" } },
+            "quality_gate": { "type": "string", "enum": ["pending", "pass", "fail"], "default": "pending" },
+            "ui_parity": { "type": "string", "enum": ["pending", "pass", "fail"], "default": "pending" },
+            "acceptance_journeys": { "type": "array", "items": { "type": "string" } },
+            "regression_journeys": { "type": "array", "items": { "type": "string" } },
+            "evidence": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "completion": {
+          "type": "object",
+          "description": "All fields must be true before setting task status to done.",
+          "additionalProperties": false,
+          "properties": {
+            "original_gap_fixed": { "type": "boolean", "default": false },
+            "no_new_consistency_errors": { "type": "boolean", "default": false },
+            "affected_roles_verified": { "type": "boolean", "default": false },
+            "interactions_verified": { "type": "boolean", "default": false },
+            "critical_preservation_verified": { "type": "boolean", "default": false },
+            "active_target_used": { "type": "boolean", "default": false },
+            "artifacts_consistent": { "type": "boolean", "default": false }
+          }
         }
       }
     },

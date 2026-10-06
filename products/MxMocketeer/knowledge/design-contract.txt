@@ -18,16 +18,22 @@ Preserve stable IDs and unrelated confirmed knowledge during refinement.
 ## Top-Level Structure
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "mockup": {
     "id": "MOCKUP-EXAMPLE",
-    "revision": 1,
-    "previous_revision": null,
+    "revision": 2,
+    "previous_revision": 1,
+    "lifecycle_status": "REFINED_TARGET",
+    "refinement_status": "PROPOSED",
+    "active_target": false,
     "title": "Example",
     "language": "en",
     "updated_at": "YYYY-MM-DD",
-    "change_scope": ["SCREEN-001"]
+    "change_scope": "Removed login screen — platform-module boundary. Role model preserved."
   },
+  "revision_history": [],
+  "revision_delta": {},
+  "preservation": {},
   "project": {},
   "sources": [],
   "roles": [],
@@ -38,6 +44,8 @@ Preserve stable IDs and unrelated confirmed knowledge during refinement.
   "data_semantics": [],
   "screens": [],
   "flows": [],
+  "platform_boundaries": [],
+  "role_coverage": [],
   "permissions": [],
   "assumptions": [],
   "open_questions": [],
@@ -52,6 +60,8 @@ Preserve stable IDs and unrelated confirmed knowledge during refinement.
   "traceability": []
 }
 ```
+
+`schema_version: "1.1"` adds: `lifecycle_status`, `refinement_status`, `active_target`, structured `change_scope`, `revision_history`, `revision_delta`, `preservation`, `platform_boundaries`, `role_coverage`, and `effects` on screens/states. Existing `schema_version: "1.0"` contracts remain valid and are read as-is.
 
 ## Common Fields
 Where applicable, entries use:
@@ -115,6 +125,51 @@ Business rules are business-verifiable rules. Calculations include meaning, form
 ## Screens, Flows, and States
 Screens contain: purpose, roles, relevant elements, requirements/decisions, states, and responsive intent. Flows contain: start, steps, alternatives, result, and error paths. States at minimum where relevant: loading, empty, normal, warning, error, success, disabled, read_only, no_permission.
 
+## Platform Boundaries
+```json
+{
+  "platform_boundaries": [
+    {
+      "id": "PLATFORM-AUTH-001",
+      "provider": "AUTH_PLATFORM",
+      "responsibilities": ["authentication", "sign-in", "password-management"],
+      "mockup_behavior": [
+        "no productive login screen",
+        "demo role switcher is test-only mechanism"
+      ],
+      "parity_rule": "EXCLUDE_FROM_UI_PARITY",
+      "implementation_rule": "REUSE_PLATFORM_MODULE",
+      "role_source_rule": "Business roles remain independently relevant regardless of platform authentication",
+      "modification_rule": "DO_NOT_MODIFY_PLATFORM_MODULE",
+      "excluded_screens": ["SCREEN-LOGIN"],
+      "decision_ref": "DEC-001",
+      "status": "CONFIRMED"
+    }
+  ]
+}
+```
+Platform boundaries declare which functions are delivered by platform modules (e.g. an authentication platform module) rather than the application. Excluded screens are not fachliche pages and must not generate REQ-NNN, SPEC-NNN, or implementation tasks. The role model is independent of platform boundaries.
+
+## Role Coverage
+```json
+{
+  "role_coverage": [
+    {
+      "role_id": "ROLE-E4-EINTRAGUNG",
+      "role_name": "E4 Eintragung",
+      "contract_present": true,
+      "runtime_present": true,
+      "demo_mode_present": true,
+      "representative_scope_present": false,
+      "required_scope": "team",
+      "status": "COVERAGE_GAP",
+      "gap_description": "Role defined but no representative Team scope context in demo mode."
+    }
+  ]
+}
+```
+Role coverage tracks whether every fachliche role is representable and testable. A missing demo identity or scope is a `COVERAGE_GAP`, not an infrastructure gap.
+
 ## Permissions
 Permissions can express cross-role rules:
 ```json
@@ -146,6 +201,57 @@ Candidates only — never unconfirmed technical fact. Possible categories: modul
   "business_rule_refs": []
 }
 ```
+
+## Contract Migration (v1.0 → v1.1)
+
+`schema_version: "1.0"` contracts are valid as-is and are read without modification. When the author explicitly requests an upgrade, or when a new refinement is produced, the contract should be migrated to v1.1.
+
+### Migration Object
+
+Add a `migration` object at the top level to record the upgrade:
+```json
+{
+  "migration": {
+    "from_schema_version": "1.0",
+    "migrated_at": "YYYY-MM-DD",
+    "migrated_by": "MxMocketeer",
+    "migration_notes": "Upgraded to v1.1: lifecycle fields, revision ledger, platform boundaries, role coverage added with SOURCE defaults.",
+    "migrated_fields": [
+      "mockup.lifecycle_status",
+      "mockup.refinement_status",
+      "mockup.active_target",
+      "mockup.change_scope",
+      "revision_history",
+      "revision_delta",
+      "preservation",
+      "platform_boundaries",
+      "role_coverage"
+    ]
+  }
+}
+```
+
+### Default Values When Migrating from v1.0
+
+| Field | Default on Migration | Reason |
+|---|---|---|
+| `mockup.lifecycle_status` | `"SOURCE"` | First known revision — founding source |
+| `mockup.refinement_status` | `"ACCEPTED"` | Source is accepted by definition |
+| `mockup.active_target` | `true` | Only revision — is the active target |
+| `mockup.change_scope` | `""` | No prior revision to compare against |
+| `mockup.previous_revision` | `null` | No predecessor known |
+| `revision_history` | `[]` | No prior ledger available |
+| `revision_delta` | `null` | Source revision has no delta |
+| `preservation` | `null` | No baseline to compare against |
+| `platform_boundaries` | `[]` | To be assessed during Discovery |
+| `role_coverage` | `[]` | To be assessed during Discovery |
+
+### Migration Rules
+
+- **Preserve all existing IDs.** No REQ-*, DEC-*, ROLE-*, SCREEN-*, FLOW-* IDs are changed or renumbered.
+- **Do not remove existing fields.** All v1.0 top-level arrays (requirements, decisions, roles, screens, etc.) are carried forward unchanged.
+- **schema_version upgrades to `"1.1"` only when confirmed by the author/developer.** MxMocketeer proposes; the developer confirms.
+- **The migration object is omitted on freshly-created v1.1 contracts.** It is only present when an existing v1.0 contract was upgraded.
 
 ## Preservation Contract
 During refinement:

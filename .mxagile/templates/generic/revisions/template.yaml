@@ -1,0 +1,94 @@
+# MxAgile Revision Manifest
+# Schema: .mxagile/schemas/revision.schema.json
+# Location: planning/revisions/REV-NNN.yaml (or embedded in ui-inventory)
+# Created by: scripts/create_revision.py — DO NOT CREATE MANUALLY without the script.
+#
+# A Revision Manifest records a single accepted mockup revision.
+# The active REFINED_TARGET revision is referenced by all Page YAMLs in scope.
+
+revision_id: REV-001             # REV-NNN pattern — stable identifier
+mockup_id: MOCKUP-EXAMPLE
+revision: 1                      # Integer — increments per accepted revision
+previous_revision: null          # Integer | null
+
+lifecycle_status: SOURCE         # SOURCE | REFINED_TARGET | SUPERSEDED_TARGET
+refinement_status: ACCEPTED      # PROPOSED | ACCEPTED | REJECTED
+active_target: true              # Exactly ONE revision per mockup may be true at any time
+
+change_scope: ""                 # Description of what changed in this revision (empty for SOURCE)
+
+artifact_path: null              # Relative path to the mockup HTML file (e.g. input-resources/ui-ux/mockup-rev1.html)
+artifact_hash: null              # SHA-256 hex of the artifact file (null if no artifact)
+
+accepted_by: null                # Developer name/role who accepted this revision
+accepted_at: null                # ISO date of acceptance (YYYY-MM-DD)
+
+# Revision Delta — present for revision >= 2; null for SOURCE revision
+revision_delta: null
+# For revision >= 2, use:
+# revision_delta:
+#   from_revision: 1
+#   to_revision: 2
+#   mockup_refined: true
+#   visuals_refined: false
+#   interactions_refined: true
+#   requirements_refined: false
+#   decisions_refined: true
+#   roles_refined: false
+#   permissions_refined: false
+#   platform_boundaries_refined: false
+#   affected_ids:
+#     - SCREEN-LOGIN
+#     - DEC-001
+#   effects:
+#     - effect_id: EFF-DELTA-001
+#       type: PLATFORM_BOUNDARY
+#       target: SCREEN-LOGIN
+#       change: REMOVE
+#       description: "Login screen removed — MB_SSO handles authentication"
+#       required_action: REMOVE_AS_SUPERSEDED
+#       source_ids: [DEC-001]
+#       downstream_artifacts: []
+#       affected_roles: []
+#       affected_screens: [SCREEN-LOGIN]
+#       status: OPEN
+
+# Revision History — append-only ledger (copy ALL prior entries when creating new revision)
+revision_history:
+  - revision: 1
+    previous_revision: null
+    date: "YYYY-MM-DD"
+    status: ACTIVE_TARGET        # ACTIVE_TARGET | SUPERSEDED
+    artifact_available: false
+    artifact_path: null
+    change_summary:
+      - "[First known revision — SOURCE]"
+    changed_requirements: []
+    changed_decisions: []
+    changed_roles: []
+    changed_screens: []
+    changed_interactions: []
+    changed_platform_boundaries: []
+    affected_stories: []
+    preserved_ids: []
+    superseded_ids: []
+    removed_ids: []
+    accepted_by: null
+    evidence: []
+
+# Preservation Evidence — null for SOURCE revision
+preservation: null
+# For revision >= 2:
+# preservation:
+#   status: VERIFIED             # VERIFIED | VERIFIED_WITH_LEDGER | PARTIAL_EVIDENCE | FAILED
+#   baseline_revision: 1
+#   compared_revision: 2
+#   evidence_sources:
+#     - "inline comparison"
+#   preserved_ids:
+#     - REQ-001
+#   expected_superseded_ids:
+#     - SCREEN-LOGIN
+#   unexpected_missing_ids: []
+#   unexpected_changed_ids: []
+#   notes: []

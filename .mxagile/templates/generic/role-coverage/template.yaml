@@ -1,0 +1,36 @@
+# MxAgile Role Coverage Assessment
+# Schema: .mxagile/schemas/role_coverage.schema.json
+# Location: planning/role-coverage/<wave-id>-role-coverage.yaml
+# Produced by: Discovery-Agent (initial) or Acceptance-Agent (gate check)
+#
+# Tracks whether every fachliche role defined in the Design Contract
+# is representable, testable, and scope-adequate for the current wave.
+# A COVERAGE_GAP blocks the role campaign acceptance gate.
+
+wave_id: W01
+mockup_id: MOCKUP-EXAMPLE
+target_revision: REV-001          # Active REFINED_TARGET revision assessed against
+assessed_at: "YYYY-MM-DD"
+assessed_by: "[Discovery-Agent | Acceptance-Agent | Developer]"
+overall_status: COVERED           # COVERED | COVERAGE_GAP | PRESERVATION_FAILURE
+
+roles:
+  - role_id: ROLE-APPROLE
+    role_name: "[Role name from Design Contract]"
+    contract_present: true         # Role defined in mocketeer-spec roles[]
+    requirements_present: true     # At least one REQ-NNN references this role
+    runtime_present: false         # Role exists in Mendix security model
+    demo_mode_present: false       # Demo user / role-switcher entry exists for this role
+    representative_scope_present: false  # Representative data exists for this role's scope
+    required_scope: null           # null | app | center | abteilung | team
+    ui_inventory_present: false    # Role appears in at least one Page YAML
+    story_coverage_present: false  # Role appears in at least one Story Spec
+    task_coverage_present: false   # Role appears in at least one Task
+    acceptance_coverage_present: false  # Role appears in at least one Test Contract
+    status: COVERED                # COVERED | COVERAGE_GAP | PRESERVATION_FAILURE
+    gap_description: null          # Required when status != COVERED
+    evidence: []                   # Evidence paths (e.g. fixtures, screenshots, test results)
+
+# Add one entry per role defined in the Design Contract.
+# Minimum mandatory check: contract_present, demo_mode_present, representative_scope_present.
+# COVERAGE_GAP when: demo_mode_present=false OR representative_scope_present=false for a CONFIRMED role.

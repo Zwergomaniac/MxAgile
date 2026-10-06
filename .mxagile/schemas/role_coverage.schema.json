@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Role Coverage Report",
+  "description": "Structured role coverage assessment for a wave or discovery cycle. Located at planning/role-coverage/<wave-id>-role-coverage.yaml. Produced by the Discovery Agent and checked by Gate-to-Refinement and Acceptance Agent. See WP-09.",
+  "type": "object",
+  "required": ["wave_id", "assessed_at", "roles"],
+  "additionalProperties": false,
+  "properties": {
+    "wave_id": {
+      "type": "string",
+      "description": "Wave identifier, e.g. W01."
+    },
+    "mockup_id": {
+      "type": ["string", "null"],
+      "description": "Design Contract mockup ID this coverage was derived from."
+    },
+    "target_revision": {
+      "type": ["string", "null"],
+      "description": "REV-NNN of the active target mockup revision at the time of this assessment."
+    },
+    "assessed_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "assessed_by": {
+      "type": "string",
+      "description": "Agent or person who performed this assessment."
+    },
+    "overall_status": {
+      "type": "string",
+      "enum": ["COVERED", "COVERAGE_GAP", "PRESERVATION_FAILURE"],
+      "description": "Aggregate status. COVERED: all roles have at least COVERED status. COVERAGE_GAP: one or more roles have COVERAGE_GAP. PRESERVATION_FAILURE: a previously confirmed role was unexpectedly lost."
+    },
+    "roles": {
+      "type": "array",
+      "description": "Per-role coverage assessment.",
+      "items": {
+        "type": "object",
+        "required": ["role_id", "role_name", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "description": "Stable role identifier from the Design Contract (e.g. ROLE-E3-EINTRAGUNG) or canonical role model."
+          },
+          "role_name": {
+            "type": "string",
+            "description": "Human-readable role name (e.g. 'E3 Eintragung')."
+          },
+          "contract_present": {
+            "type": "boolean",
+            "description": "Role is present in the Design Contract roles[] array."
+          },
+          "requirements_present": {
+            "type": "boolean",
+            "description": "Role appears in at least one Requirement's target_users or acceptance_criteria."
+          },
+          "runtime_present": {
+            "type": "boolean",
+            "description": "Role has a usable demo identity or role-switcher mode in the executable mockup."
+          },
+          "demo_mode_present": {
+            "type": "boolean",
+            "description": "Role is selectable via demo Role Switcher or test identity in the mockup runtime."
+          },
+          "representative_scope_present": {
+            "type": "boolean",
+            "description": "For scoped roles: a representative scope context exists (e.g. a Center for E2, a Team for E4)."
+          },
+          "required_scope": {
+            "type": ["string", "null"],
+            "description": "Required scope type for this role: 'app', 'center', 'abteilung', 'team', or null for global roles."
+          },
+          "ui_inventory_present": {
+            "type": "boolean",
+            "description": "Role appears in at least one page YAML roles[] entry."
+          },
+          "story_coverage_present": {
+            "type": "boolean",
+            "description": "Role is covered in at least one Story-Spec."
+          },
+          "task_coverage_present": {
+            "type": "boolean",
+            "description": "Role is referenced in at least one Implementation Task or acceptance journey."
+          },
+          "acceptance_coverage_present": {
+            "type": "boolean",
+            "description": "Role is covered by at least one active Test Contract proof point."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["COVERED", "COVERAGE_GAP", "PRESERVATION_FAILURE"],
+            "description": "COVERED: role is fachlich present, representable in mockup, has scope, has at least one acceptance journey. COVERAGE_GAP: role is fachlich confirmed but lacks testable identity, scope, story coverage, or journey. PRESERVATION_FAILURE: role was previously confirmed and has been unexpectedly removed."
+          },
+          "gap_description": {
+            "type": ["string", "null"],
+            "description": "Human-readable description of the gap when status is COVERAGE_GAP or PRESERVATION_FAILURE."
+          },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "References to evidence sources (Contract IDs, story IDs, test contract IDs, etc.)."
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes about the overall coverage assessment."
+    }
+  }
+}

@@ -1,0 +1,47 @@
+# Canonical MxAgile Decision
+# Schema: .mxagile/schemas/decision.schema.json
+# Location: planning/decisions/DEC-NNN.yml
+# ID must match filename stem exactly (DEC-001.yml -> ID: DEC-001).
+#
+# Use for: business, technical, scope, role/permission, mockup-refinement,
+#           platform-boundary, ux-interaction, data-model, gap-repair decisions.
+
+ID: DEC-001
+title: "[Short decision title]"
+status: PROPOSED   # PROPOSED | CONFIRMED | REJECTED | SUPERSEDED
+decision_type: business   # business | technical | scope | role_permission | mockup_refinement | platform_boundary | ux_interaction | data_model | gap_repair
+
+topic: "[What is being decided?]"
+decision_text: "[The decision: what was chosen or ruled out.]"
+rationale: "[Why this option was chosen over alternatives.]"
+
+rejected_alternatives:
+  - "[Alternative 1 considered but not chosen, and why]"
+
+owner: "[Product Owner | Developer | Architect | Stakeholder]"
+source: stakeholder   # design_contract | stakeholder | developer | agent | requirement_conflict | gap_analysis
+
+created_at: "YYYY-MM-DD"
+confirmed_at: null    # Set when status changes to CONFIRMED
+confirmed_by: null    # Name or role of the person confirming
+
+superseded_by: null   # DEC-NNN of the superseding decision, if applicable
+
+# Traceability
+affected_requirements:
+  - REQ-001
+affected_screens: []
+  # - PAGE-001
+affected_mockup_revisions: []
+  # - REV-002
+affected_specs: []
+  # - SPEC-001
+
+# Design Contract link (when this decision originates from a mocketeer-spec)
+design_contract_source_id: null    # DEC-NNN from the Design Contract
+design_contract_ref: null          # e.g. "MOCKUP-CAPTRACK@revision=2"
+
+# GAP link (when this decision resolves a GAP classification)
+gap_ref: null    # e.g. "GAP-CAPTRACK-EXPAND-001"
+
+notes: ""

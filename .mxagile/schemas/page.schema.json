@@ -44,6 +44,11 @@
             "type": "string",
             "description": "Human-readable reason for the last target mockup change. e.g. 'Refined after round-1 parity findings — content labels corrected'."
         },
+        "platform_boundary": {
+            "type": "boolean",
+            "description": "True if this page belongs to a platform module (e.g. MB_SSO authentication). Platform-boundary pages are NOT derived as fachliche application pages. They do not generate REQ-NNN, SPEC-NNN, or tasks. They are excluded from UI-parity campaigns. See policies/mockup-lifecycle.md § Platform Boundary Scope Rule.",
+            "default": false
+        },
         "layout_reference": {
             "type": "string",
             "description": "Path to the canonical reference screenshot for this page. Set by UI-Agent Analyze. Used by Implementation-Agent and UI-Agent Verify."
@@ -151,7 +156,7 @@
         },
         "interaction_states": {
             "type": "array",
-            "description": "Meaningful UI states captured during mockup analysis (e.g., empty state, error state, loading, expanded tab).",
+            "description": "Meaningful UI states captured during mockup analysis (e.g., empty state, error state, loading, expanded tab). Each state may carry a list of effects describing what happens when that state is entered or triggered.",
             "items": {
                 "type": "object",
                 "properties": {
@@ -163,13 +168,219 @@
                         "type": "string",
                         "description": "Human-readable description of what this state represents."
                     },
+                    "interaction_type": {
+                        "type": "string",
+                        "enum": [
+                            "expandable_area",
+                            "modal",
+                            "popup",
+                            "snippet",
+                            "filter",
+                            "hover_state",
+                            "keyboard",
+                            "read_only",
+                            "disabled",
+                            "validation",
+                            "success_feedback",
+                            "error_feedback",
+                            "loading",
+                            "empty",
+                            "role_dependent",
+                            "other"
+                        ],
+                        "description": "Semantic classification of this interaction state. Used by downstream agents to categorise and verify interactions systematically. expandable_area: collapsible sections (e.g. CapTrack Gesamtübersicht Abteilungsbereiche, Zielkarten). modal: full overlay dialog. popup: inline or anchored overlay. snippet: embedded content revealed on another page context. filter: filter/search applied. hover_state: content visible only on hover. keyboard: keyboard-triggered state. read_only: view-only mode for normally editable content. disabled: control present but non-interactive. validation: form validation error state. success_feedback: positive action confirmation. error_feedback: negative action result. loading: async loading in progress. empty: no data available. role_dependent: state differs by authenticated role. other: does not fit a defined type."
+                    },
                     "trigger": {
                         "type": "string",
-                        "description": "What causes this state (e.g., 'no records found', 'Name field left empty and Save clicked')."
+                        "description": "What causes this state (e.g., 'no records found', 'Name field left empty and Save clicked', 'user clicks Abteilung expand arrow')."
                     },
                     "screenshot": {
                         "type": "string",
                         "description": "Path to mockup screenshot of this state under .concord/screenshots/mockup/."
+                    },
+                    "trigger": {
+                        "type": "object",
+                        "description": "Structured trigger descriptor for this interaction state.",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["click", "hover", "focus", "blur", "change", "submit", "keyboard", "load", "timer", "drag", "drop"]
+                            },
+                            "key": {
+                                "type": ["string", "null"],
+                                "description": "Keyboard key name when type=keyboard, e.g. 'Enter', 'Space', 'Escape', 'ArrowUp', 'ArrowDown'. Null otherwise."
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": "Free-text description of the trigger for human readability, e.g. 'User clicks Expand arrow on Abteilung row'."
+                            }
+                        }
+                    },
+                    "initial_state": {
+                        "type": "string",
+                        "description": "Description of the UI state before this interaction is triggered."
+                    },
+                    "resulting_state": {
+                        "type": "string",
+                        "description": "Description of the UI state after this interaction is triggered."
+                    },
+                    "visual_feedback": {
+                        "type": "string",
+                        "description": "Observable visual change (e.g., 'Expand arrow rotates 90°, section slides open')."
+                    },
+                    "data_effect": {
+                        "type": "string",
+                        "description": "Effect on data — saved, discarded, loaded, filtered, etc."
+                    },
+                    "navigation_effect": {
+                        "type": "string",
+                        "description": "Navigation that occurs as part of this state (e.g., 'Navigates to PAGE-ZIELMANAGEMENT')."
+                    },
+                    "permission_effect": {
+                        "type": "string",
+                        "description": "How role/permission affects this state (e.g., 'Only visible for E3 and above')."
+                    },
+                    "focus_effect": {
+                        "type": "string",
+                        "description": "Where focus moves after this interaction (e.g., 'Focus moves to first input in dialog')."
+                    },
+                    "persistence": {
+                        "type": "string",
+                        "enum": ["none", "local", "session", "persisted"],
+                        "description": "Whether the resulting state persists across navigations. none=resets on navigate. local=preserved in local storage. session=preserved for session. persisted=saved to backend.",
+                        "default": "none"
+                    },
+                    "loading_state": { "type": ["string", "null"] },
+                    "empty_state": { "type": ["string", "null"] },
+                    "disabled_state": { "type": ["string", "null"] },
+                    "read_only_state": { "type": ["string", "null"] },
+                    "no_permission_state": { "type": ["string", "null"] },
+                    "validation_state": { "type": ["string", "null"] },
+                    "error_state": { "type": ["string", "null"] },
+                    "success_state": { "type": ["string", "null"] },
+                    "suggested_mendix_mechanisms": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Proposed Mendix implementation approaches — candidates only, not confirmed requirements."
+                    },
+                    "source_ids": { "type": "array", "items": { "type": "string" } },
+                    "affected_roles": { "type": "array", "items": { "type": "string" } },
+                    "status": {
+                        "type": "string",
+                        "enum": ["CONFIRMED", "DERIVED", "PROPOSED", "OPEN"],
+                        "default": "CONFIRMED"
+                    },
+                    "platform_boundary": {
+                        "type": "boolean",
+                        "description": "True if this screen belongs to a platform module (e.g. MB_SSO). Platform-boundary screens are excluded from fachliche page derivation and UI parity campaigns.",
+                        "default": false
+                    },
+                    "effects": {
+                        "type": "array",
+                        "description": "Machine-readable list of UI effects that occur when this state is triggered. Effects describe observable changes to the UI — not internal implementation details.",
+                        "items": {
+                            "type": "object",
+                            "required": ["effect_id", "effect_type", "description"],
+                            "additionalProperties": false,
+                            "properties": {
+                                "effect_id": {
+                                    "type": "string",
+                                    "pattern": "^EFF-[A-Z0-9_-]+$",
+                                    "description": "Stable identifier for this effect, e.g. EFF-ABTEILUNG-EXPAND."
+                                },
+                                "effect_type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "expand",
+                                        "collapse",
+                                        "show",
+                                        "hide",
+                                        "modal_open",
+                                        "modal_close",
+                                        "popup_open",
+                                        "popup_close",
+                                        "snippet_reveal",
+                                        "snippet_hide",
+                                        "disable",
+                                        "enable",
+                                        "set_readonly",
+                                        "clear_readonly",
+                                        "show_validation_error",
+                                        "clear_validation_error",
+                                        "show_success",
+                                        "show_error",
+                                        "start_loading",
+                                        "stop_loading",
+                                        "filter_apply",
+                                        "filter_clear",
+                                        "navigate",
+                                        "highlight",
+                                        "scroll_to"
+                                    ],
+                                    "description": "Type of observable UI effect."
+                                },
+                                "target": {
+                                    "type": "string",
+                                    "description": "The UI element or area affected by this effect. Reference a component id, section id, or descriptive label (e.g. 'SEC-ABTEILUNG-BODY', 'COMP-ZIELKARTE-DETAILS', 'Mitarbeitermatrix')."
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Human-readable description of what this effect does and what becomes visible or hidden."
+                                },
+                                "reversible": {
+                                    "type": "boolean",
+                                    "description": "True if the effect can be undone by re-triggering (e.g. collapse re-hides expanded content). False for one-way effects (e.g. form submission navigates away).",
+                                    "default": true
+                                },
+                                "precondition": {
+                                    "type": "string",
+                                    "description": "Optional: condition that must hold for this effect to apply (e.g. 'only when user has role E3 or higher', 'only when Basisjahr is expanded first')."
+                                },
+                                "derived_page": {
+                                    "type": "boolean",
+                                    "description": "Explicit marker that this effect does NOT require a separate Mendix page. Set to false when the content appears as an inline expandable area, snippet, or popup on the current page — prevents automatic page derivation by downstream agents.",
+                                    "default": false
+                                },
+                                "required_action": {
+                                    "type": "string",
+                                    "enum": [
+                                        "UPDATE_REQUIRED",
+                                        "NEW_IMPLEMENTATION",
+                                        "REMOVE_AS_SUPERSEDED",
+                                        "REGRESSION_REQUIRED",
+                                        "DISCOVERY_REQUIRED",
+                                        "DECISION_REQUIRED",
+                                        "NO_ACTION"
+                                    ],
+                                    "description": "Action required by downstream agents (Refinement, Implementation, Acceptance) when this effect is present. UPDATE_REQUIRED: modify existing artifact; NEW_IMPLEMENTATION: create new artifact (developer confirmation required); REMOVE_AS_SUPERSEDED: mark/remove superseded artifact; REGRESSION_REQUIRED: no model change but test must re-run; DISCOVERY_REQUIRED: block until discovery complete; DECISION_REQUIRED: block until developer decides; NO_ACTION: no change needed."
+                                },
+                                "downstream_artifacts": {
+                                    "type": "array",
+                                    "items": { "type": "string" },
+                                    "description": "IDs of downstream artifacts affected by this effect (e.g. REQ-NNN, SPEC-NNN, TASK-NNN)."
+                                },
+                                "affected_roles": {
+                                    "type": "array",
+                                    "items": { "type": "string" },
+                                    "description": "Role IDs affected by this effect (e.g. ROLE-E3-EINTRAGUNG). Empty = all roles."
+                                },
+                                "affected_screens": {
+                                    "type": "array",
+                                    "items": { "type": "string" },
+                                    "description": "Screen/page IDs affected by this effect."
+                                },
+                                "source_ids": {
+                                    "type": "array",
+                                    "items": { "type": "string" },
+                                    "description": "IDs of requirements or decisions that require this effect."
+                                },
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["OPEN", "IN_PROGRESS", "DONE", "BLOCKED"],
+                                    "description": "Implementation status of this effect."
+                                }
+                            }
+                        }
                     }
                 },
                 "required": ["state_id", "description"]

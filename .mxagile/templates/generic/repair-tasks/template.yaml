@@ -1,0 +1,91 @@
+# Canonical MxAgile Repair Task
+# Schema: .mxagile/schemas/task.schema.json (type: repair)
+# Location: planning/tasks/TASK-NNN.yml
+# ID must match filename stem exactly.
+#
+# Use for: GAP Verification & Repair tasks per .mxagile/policies/gap-verification-repair.md
+# A repair task is ONLY done when ALL completion fields are true (Steps 8-13 verified).
+
+ID: TASK-001
+spec: SPEC-001          # Parent spec — creates IMPLEMENTED_BY edge in artifact index
+req:
+  - REQ-001
+type: repair
+action: "Repair [GAP description] on [PageName]"
+detail: >-
+  GAP repair for [GAP-ID]. Expected: [target state from active mockup].
+  Actual: [what is implemented]. Affected Mendix artifacts: [list].
+status: pending   # pending | in_progress | done | failed | blocked | deferred
+
+depends_on: []
+
+test:
+  role: "[Mendix role used to test]"
+  steps:
+    - open: "[PageName]"
+    - click: "[Element triggering the gap interaction]"
+  expected: "[What the repaired behavior looks like]"
+
+repair:
+  gap_ids:
+    - "GAP-EXAMPLE-001"
+
+  gap_classifications:
+    - INTERACTION_GAP   # IMPLEMENTATION_GAP | UI_PARITY_GAP | INTERACTION_GAP | ROLE_COVERAGE_GAP | PLATFORM_BOUNDARY_VIOLATION | REQUIREMENT_CHANGE | DECISION_REQUIRED | NOT_REPRODUCIBLE
+
+  source_feedback:
+    description: "[Exact feedback text or observation that identified the gap]"
+    source: "[User feedback | Acceptance campaign | Parity verification | Developer observation]"
+    observed_at: "YYYY-MM-DD"
+    observed_role: "[Mendix role active when gap observed]"
+    observed_viewport: "[desktop | mobile | tablet]"
+    evidence:
+      - "[path/to/screenshot.png or description of evidence]"
+
+  target_reference:
+    mockup_id: MOCKUP-EXAMPLE
+    target_revision: REV-001         # MUST be the active REFINED_TARGET revision
+    target_hash: null                # SHA-256 of target mockup bundle (when available)
+    requirements:
+      - REQ-001
+    decisions:
+      - DEC-001
+    screens:
+      - PAGE-001
+    interactions:
+      - STATE-001
+    roles:
+      - "[Role name from Design Contract]"
+
+  expected: "[Exact expected behavior from target mockup, Requirement AC, or Design Contract]"
+  actual: "[Exact actual behavior observed in Mendix model or browser]"
+
+  affected_mendix_artifacts:
+    - "[Module.PageName]"
+    - "[Module.MicroflowName]"
+
+  platform_constraints:
+    - "[Any platform constraints that affect the repair]"
+
+  implementation_status: pending   # pending | in_progress | done
+
+  verification:
+    model_checks:
+      - "[mxcli check result or model consistency evidence]"
+    quality_gate: pending          # pending | pass | fail
+    ui_parity: pending             # pending | pass | fail
+    acceptance_journeys:
+      - "[Journey ID or description]"
+    regression_journeys:
+      - "[Journey ID or description of regression scope]"
+    evidence:
+      - "[path/to/evidence.png or report reference]"
+
+  completion:
+    original_gap_fixed: false          # Gap behavior is corrected in the model
+    no_new_consistency_errors: false   # mxcli check passes, no new errors introduced
+    affected_roles_verified: false     # All roles in target_reference.roles verified
+    interactions_verified: false       # All interactions in target_reference.interactions verified
+    critical_preservation_verified: false  # No previously-passing journeys broken
+    active_target_used: false          # target_reference.target_revision is the active REFINED_TARGET
+    artifacts_consistent: false        # Task, Requirement, Decision, Spec, UI-Inventar, Parity Report all consistent

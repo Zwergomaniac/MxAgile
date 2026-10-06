@@ -1,0 +1,132 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Decision",
+  "description": "Canonical schema for a design or business decision. Located at planning/decisions/DEC-NNN.yml. Decisions document deliberate choices that govern requirements, mockups, role permissions, or implementation scope. Every accepted mockup revision must be backed by at least one DEC-NNN entry. See policies/mockup-lifecycle.md.",
+  "type": "object",
+  "required": ["ID", "title", "status", "decision_type", "topic", "decision_text", "owner"],
+  "additionalProperties": false,
+  "properties": {
+    "ID": {
+      "type": "string",
+      "pattern": "^DEC-[0-9]{3,}$",
+      "description": "Stable canonical identifier, e.g. DEC-001. Never reused, even after rejection."
+    },
+    "title": {
+      "type": "string",
+      "description": "Short human-readable title of the decision (max 80 chars)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PROPOSED", "CONFIRMED", "REJECTED", "SUPERSEDED"],
+      "description": "Lifecycle status of this decision. PROPOSED: decision is pending stakeholder or developer confirmation. CONFIRMED: decision has been explicitly accepted and is authoritative. REJECTED: decision was not accepted; a different path was chosen. SUPERSEDED: decision was once CONFIRMED but has been replaced by a newer DEC-NNN (see superseded_by). A SUPERSEDED decision must never be treated as authoritative without explicit re-confirmation."
+    },
+    "decision_type": {
+      "type": "string",
+      "enum": [
+        "business",
+        "technical",
+        "scope",
+        "role_permission",
+        "mockup_refinement",
+        "platform_boundary",
+        "ux_interaction",
+        "data_model",
+        "gap_repair"
+      ],
+      "description": "Classification of this decision. business: business rule or process choice. technical: implementation technique or architecture. scope: what is in vs. out of scope. role_permission: access rights or capability assignment. mockup_refinement: acceptance of a refined target mockup revision. platform_boundary: clarifies which functionality is delivered by a platform module (e.g. MB_SSO) vs. the application. ux_interaction: interaction design choice (modal, inline expand, popup). data_model: entity or attribute design choice. gap_repair: decision authorising a GAP repair without changing the fachliches Soll."
+    },
+    "topic": {
+      "type": "string",
+      "description": "One-line topic summary (e.g. 'Login page scope for CapTrack', 'Role switcher in mockup is test-only')."
+    },
+    "decision_text": {
+      "type": "string",
+      "description": "The actual decision, stated as a clear declarative sentence. Must be unambiguous enough to act on without additional context."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Why this decision was made. Include the driver (stakeholder request, technical constraint, platform boundary, etc.)."
+    },
+    "rejected_alternatives": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Alternative options that were considered and rejected. Each entry is a free-text description of the alternative and briefly why it was not chosen."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Role or name of the person who owns this decision (e.g. 'ProductOwner', 'TechLead', 'Stakeholder:Jane')."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["design_contract", "stakeholder", "developer", "agent", "requirement_conflict", "gap_analysis"],
+      "description": "Origin of this decision. design_contract: imported from a MxMocketeer Design Contract. stakeholder: explicit stakeholder statement. developer: developer architectural decision. agent: proposed by an AI agent (requires developer confirmation to become CONFIRMED). requirement_conflict: resolution of a conflict between requirements or sources. gap_analysis: result of GAP Verification & Repair analysis."
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "ISO date when this decision was first recorded."
+    },
+    "confirmed_at": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$",
+      "description": "ISO date when this decision was confirmed. Null when status is PROPOSED or REJECTED."
+    },
+    "confirmed_by": {
+      "type": ["string", "null"],
+      "description": "Who confirmed this decision. Null when status is not CONFIRMED."
+    },
+    "superseded_by": {
+      "type": ["string", "null"],
+      "pattern": "^(DEC-[0-9]{3,})?$",
+      "description": "DEC-NNN identifier of the decision that supersedes this one. Required when status is SUPERSEDED. Null otherwise."
+    },
+    "affected_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^REQ-[0-9]{3,}$"
+      },
+      "description": "REQ-NNN identifiers of requirements governed or affected by this decision."
+    },
+    "affected_screens": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^PAGE-[A-Z0-9_-]+$"
+      },
+      "description": "PAGE-NNN identifiers of UI screens affected by this decision."
+    },
+    "affected_mockup_revisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^REV-[0-9]{3,}$"
+      },
+      "description": "REV-NNN identifiers of mockup revisions that this decision authorized or that resulted from this decision. For decision_type=mockup_refinement, at least one REV-NNN must be listed."
+    },
+    "affected_specs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^SPEC-[0-9]{3,}$"
+      },
+      "description": "SPEC-NNN identifiers of feature specs that this decision changes or constrains."
+    },
+    "design_contract_source_id": {
+      "type": ["string", "null"],
+      "description": "Source ID from a MxMocketeer Design Contract (e.g. 'DEC-001' within the contract namespace). Only set when source=design_contract. Used for ID namespace guard — this is NOT the same as a canonical DEC-NNN without verified mapping."
+    },
+    "design_contract_ref": {
+      "type": ["string", "null"],
+      "description": "Reference to the originating Design Contract in the form '<mockup-id>@revision=<N>'. Set when source=design_contract."
+    },
+    "gap_ref": {
+      "type": ["string", "null"],
+      "description": "Reference to the GAP that prompted this decision (e.g. 'GAP-CAPTRACK-LOGIN-SCOPE'). Set when decision_type=gap_repair or source=gap_analysis."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional additional context, caveats, or open questions related to this decision."
+    }
+  }
+}

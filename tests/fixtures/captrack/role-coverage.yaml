@@ -1,0 +1,181 @@
+# CapTrack Role Coverage Fixture
+# Regression fixture for CapTrack project — DO NOT MODIFY APPLICATION LOGIC
+# Used by: test-captrack-regression.ps1 as static validation reference
+# Purpose: Documents the mandatory 9 CapTrack fachliche roles with their
+#          scope requirements and known coverage gaps.
+#
+# CapTrack Business Rules (verbatim):
+#   - Mandatory 9 roles: AppAdmin, E2, Center Koordinator, CeKo Vertreter,
+#     E3 Eintragung, E3 Eintragung Vertreter, E3 Überprüfung, E4 Eintragung, E4 Überprüfung
+#   - AppAdmin: app/center scope
+#   - E2/CeKo: center scope
+#   - E3 roles: Abteilungs scope
+#   - E4 roles: Team scope
+#   - Missing E4 test representation = ROLE_GAP
+
+wave_id: W00-FIXTURE
+mockup_id: MOCKUP-CAPTRACK
+target_revision: REV-001
+assessed_at: "2026-10-06"
+assessed_by: fixture
+overall_status: COVERAGE_GAP  # E4 has known COVERAGE_GAP in this fixture
+
+roles:
+  - role_id: ROLE-APPADMIN
+    role_name: AppAdmin
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: app
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-E2
+    role_name: E2
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: center
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-CENTER-KOORDINATOR
+    role_name: Center Koordinator
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: center
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-CEKO-VERTRETER
+    role_name: CeKo Vertreter
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: center
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: false
+    acceptance_coverage_present: false
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-E3-EINTRAGUNG
+    role_name: E3 Eintragung
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: abteilung
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-E3-EINTRAGUNG-VERTRETER
+    role_name: E3 Eintragung Vertreter
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: abteilung
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: false
+    acceptance_coverage_present: false
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-E3-UEBERPRUEFUNG
+    role_name: E3 Überprüfung
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: abteilung
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-E4-EINTRAGUNG
+    role_name: E4 Eintragung
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: false
+    representative_scope_present: false
+    required_scope: team
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: false
+    acceptance_coverage_present: false
+    status: COVERAGE_GAP
+    gap_description: >-
+      ROLE_GAP: E4 Eintragung requires a Team-scoped demo identity but none exists.
+      demo_mode_present=false, representative_scope_present=false.
+      This is a ROLE_GAP, not an infrastructure gap.
+      Missing E4 test representation blocks the role campaign acceptance gate.
+    evidence: []
+
+  - role_id: ROLE-E4-UEBERPRUEFUNG
+    role_name: E4 Überprüfung
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: false
+    representative_scope_present: false
+    required_scope: team
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: false
+    acceptance_coverage_present: false
+    status: COVERAGE_GAP
+    gap_description: >-
+      ROLE_GAP: E4 Überprüfung requires a Team-scoped demo identity but none exists.
+      Blocked by same root cause as E4 Eintragung.
+    evidence: []
+
+# Fixture assertion: overall_status must be COVERAGE_GAP when any role has COVERAGE_GAP.
+# Fix: provide demo users / role-switcher entries for E4 Eintragung and E4 Überprüfung
+#      with representative Team scope context.
+fixture_assertions:
+  - "overall_status == COVERAGE_GAP because E4 roles have no demo identity"
+  - "E4 COVERAGE_GAP is a ROLE_GAP — not an infrastructure gap"
+  - "Demo Role Switcher must include E4 Eintragung and E4 Überprüfung with Team scope"
+  - "MB_SSO authentication does not resolve E4 test identity gap"

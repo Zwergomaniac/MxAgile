@@ -3,13 +3,60 @@
   "title": "MxAgile SPA Mockup Bundle Revision",
   "description": "Immutable manifest for one accepted revision of a SPA mockup bundle. Located at planning/target-mockups/<mockup-name>/_history/REV-NNN/revision.yaml. Created only when a working-target bundle change is explicitly accepted through the Autonomous Refinement acceptance process, backed by a planning/decisions/DEC-NNN entry. See policies/spa-mockup-bundle.md and policies/mockup-lifecycle.md.",
   "type": "object",
-  "required": ["revision_id", "mockup_name", "created_at", "entry_point", "bundle_hash", "lifecycle_trigger", "change_classification", "impact_scope"],
+  "required": ["revision_id", "mockup_name", "created_at", "entry_point", "bundle_hash", "lifecycle_trigger", "change_classification", "impact_scope", "lifecycle_status", "refinement_status"],
   "additionalProperties": false,
   "properties": {
     "revision_id": {
       "type": "string",
       "pattern": "^REV-[0-9]{3,}$",
       "description": "Stable sequential identifier for this revision, e.g. REV-001. Sequential within a mockup bundle. Must match the containing directory name."
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Sequential integer index of this revision within the mockup bundle, matching the numeric suffix of revision_id (e.g. REV-003 → revision: 3). Enables direct arithmetic comparison in impact propagation and Design Contract alignment."
+    },
+    "previous_revision": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Integer index of the direct predecessor revision. Null on the first revision (REV-001). Must equal revision - 1 unless a revision was rejected and skipped. Together with revision_id chain forms the complete immutable revision lineage."
+    },
+    "lifecycle_status": {
+      "type": "string",
+      "enum": ["SOURCE", "REFINED_TARGET", "SUPERSEDED_TARGET"],
+      "description": "Role of this revision in the active mockup lifecycle. SOURCE: this revision IS the source (initial acceptance, no refinement yet). REFINED_TARGET: this is the currently active acceptance target — exactly one revision per mockup may carry this status. SUPERSEDED_TARGET: a previously active target that has been replaced by a newer REFINED_TARGET revision. When a new revision is accepted as REFINED_TARGET, the prior REFINED_TARGET transitions to SUPERSEDED_TARGET atomically."
+    },
+    "refinement_status": {
+      "type": "string",
+      "enum": ["PROPOSED", "ACCEPTED", "REJECTED"],
+      "description": "Acceptance state of this revision proposal. PROPOSED: revision candidate exists but has not yet received developer acceptance. ACCEPTED: developer explicitly accepted this revision (backed by DEC-NNN). REJECTED: revision was explicitly rejected; the prior active target remains active. Only ACCEPTED revisions are stored in _history/. A REJECTED revision must not become active_target."
+    },
+    "active_target": {
+      "type": "boolean",
+      "description": "True if this is the currently active acceptance target for UI implementation and verification. At most ONE revision per mockup bundle may have active_target: true at any time. When this field is true, lifecycle_status must be REFINED_TARGET or SOURCE. Setting active_target: true on a new revision automatically requires setting it to false on the prior active revision (enforced by create_revision.py).",
+      "default": false
+    },
+    "change_scope": {
+      "type": "string",
+      "description": "Human-readable narrative of what changed in this revision. Complements the machine-readable affected_screens and change_classification. Must describe both what changed and why it was accepted. Example: 'Removed login page from CapTrack — authentication via MB_SSO platform module, not app-level UI. Role switcher retained as test-only mechanism.'"
+    },
+    "artifact_path": {
+      "type": ["string", "null"],
+      "description": "Relative path to the archived HTML artifact for this revision (single-file mockups) or the entry-point within the revision directory (SPA bundles). For SPA bundles this duplicates entry_point but makes the field explicit in cross-revision reports. Null when no standalone HTML artifact exists (e.g. revision was documented via change_scope + delta only)."
+    },
+    "artifact_hash": {
+      "type": ["string", "null"],
+      "pattern": "^(sha256:[a-f0-9]{64})?$",
+      "description": "SHA-256 hash of the complete HTML artifact file (single-file mockups) or the full bundle hash (SPA bundles, identical to bundle_hash in that case). Null when artifact_path is null. For SPA bundles, prefer bundle_hash as the canonical hash; this field is a convenience alias."
+    },
+    "accepted_by": {
+      "type": ["string", "null"],
+      "description": "Identifier of the person or agent that accepted this revision. For human acceptance: name or role (e.g. 'ProductOwner:Jane'). For agent-proposed acceptance: agent ID (e.g. 'ui-agent'). Null when refinement_status is PROPOSED or REJECTED."
+    },
+    "accepted_at": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z?)?)?$",
+      "description": "ISO date or datetime when this revision was accepted. Null when refinement_status is PROPOSED or REJECTED."
     },
     "mockup_name": {
       "type": "string",
@@ -89,6 +136,137 @@
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$",
       "description": "Optional: SHA-256 hash of the source bundle (input-resources/ui-ux/<mockup-name>/) at the time this revision was created. Enables source-target comparison."
+    },
+    "revision_delta": {
+      "type": "object",
+      "description": "Machine-readable delta between this revision and its predecessor. Required when revision > 1. Absent on the first revision. Describes what changed, which artifact types were affected, and what downstream action is required. See WP-05.",
+      "additionalProperties": false,
+      "properties": {
+        "from_revision": {
+          "type": "integer",
+          "description": "Predecessor revision integer (must match previous_revision)."
+        },
+        "to_revision": {
+          "type": "integer",
+          "description": "This revision integer (must match revision)."
+        },
+        "mockup_refined": { "type": "boolean" },
+        "visuals_refined": { "type": "boolean" },
+        "interactions_refined": { "type": "boolean" },
+        "requirements_refined": { "type": "boolean" },
+        "decisions_refined": { "type": "boolean" },
+        "roles_refined": { "type": "boolean" },
+        "permissions_refined": { "type": "boolean" },
+        "user_stories_refined": { "type": "boolean" },
+        "business_rules_refined": { "type": "boolean" },
+        "platform_boundaries_refined": { "type": "boolean" },
+        "affected_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All stable IDs affected by this delta. Must not point to IDs that do not exist or were removed without documentation."
+        },
+        "effects": {
+          "type": "array",
+          "description": "Typed list of effects produced by this revision. Each effect describes one observable change and its required downstream action.",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "target", "change", "description", "required_action"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "description": "Stable effect identifier, e.g. EFF-DELTA-001." },
+              "type": {
+                "type": "string",
+                "enum": ["UI", "INTERACTION", "NAVIGATION", "REQUIREMENT", "DECISION", "ROLE", "PERMISSION", "DATA", "BUSINESS_RULE", "STORY", "SPEC", "IMPLEMENTATION", "TEST", "PLATFORM_BOUNDARY"],
+                "description": "Semantic type of this effect. Used for impact routing."
+              },
+              "target": { "type": "string", "description": "ID or path of the affected artifact or element." },
+              "change": {
+                "type": "string",
+                "enum": ["ADD", "UPDATE", "REMOVE", "SUPERSEDE", "NO_CHANGE"],
+                "description": "Nature of the change."
+              },
+              "description": { "type": "string" },
+              "required_action": {
+                "type": "string",
+                "enum": ["UPDATE_REQUIRED", "NEW_IMPLEMENTATION", "REMOVE_AS_SUPERSEDED", "REGRESSION_REQUIRED", "DISCOVERY_REQUIRED", "DECISION_REQUIRED", "NO_ACTION"],
+                "description": "What downstream agents must do in response to this effect."
+              },
+              "source_ids": { "type": "array", "items": { "type": "string" } },
+              "downstream_artifacts": { "type": "array", "items": { "type": "string" } },
+              "affected_roles": { "type": "array", "items": { "type": "string" } },
+              "affected_screens": { "type": "array", "items": { "type": "string" } },
+              "status": {
+                "type": "string",
+                "enum": ["OPEN", "PLANNED", "APPLIED", "VERIFIED", "BLOCKED"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "revision_history": {
+      "type": "array",
+      "description": "Append-only ledger of all accepted revisions for this mockup bundle. Each entry records what changed, which IDs were affected, and what evidence is available. Agents must never rewrite existing entries — corrections are added as new entries. See WP-03.",
+      "items": {
+        "type": "object",
+        "required": ["revision", "date", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "revision": { "type": "integer" },
+          "previous_revision": { "type": ["integer", "null"] },
+          "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE_TARGET", "SUPERSEDED", "REJECTED"],
+            "description": "Status of this revision at the time the ledger was written. ACTIVE_TARGET at write time; SUPERSEDED once a newer revision is accepted."
+          },
+          "artifact_available": { "type": "boolean", "description": "True if a full HTML or bundle snapshot exists for this revision." },
+          "artifact_path": { "type": ["string", "null"] },
+          "artifact_hash": { "type": ["string", "null"] },
+          "change_summary": { "type": "array", "items": { "type": "string" } },
+          "changed_requirements": { "type": "array", "items": { "type": "string" } },
+          "changed_decisions": { "type": "array", "items": { "type": "string" } },
+          "changed_roles": { "type": "array", "items": { "type": "string" } },
+          "changed_permissions": { "type": "array", "items": { "type": "string" } },
+          "changed_screens": { "type": "array", "items": { "type": "string" } },
+          "changed_navigation": { "type": "array", "items": { "type": "string" } },
+          "changed_interactions": { "type": "array", "items": { "type": "string" } },
+          "changed_business_rules": { "type": "array", "items": { "type": "string" } },
+          "changed_platform_boundaries": { "type": "array", "items": { "type": "string" } },
+          "affected_stories": { "type": "array", "items": { "type": "string" } },
+          "affected_specs": { "type": "array", "items": { "type": "string" } },
+          "affected_tasks": { "type": "array", "items": { "type": "string" } },
+          "affected_ui_inventories": { "type": "array", "items": { "type": "string" } },
+          "required_regression_tests": { "type": "array", "items": { "type": "string" } },
+          "open_questions_added": { "type": "array", "items": { "type": "string" } },
+          "open_questions_resolved": { "type": "array", "items": { "type": "string" } },
+          "preserved_ids": { "type": "array", "items": { "type": "string" } },
+          "superseded_ids": { "type": "array", "items": { "type": "string" } },
+          "removed_ids": { "type": "array", "items": { "type": "string" } },
+          "accepted_by": { "type": ["string", "null"] },
+          "evidence": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "preservation": {
+      "type": "object",
+      "description": "Evidence-based preservation verification result for this revision. Replaces a simple binary pass. See WP-04.",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["VERIFIED", "VERIFIED_WITH_LEDGER", "PARTIAL_EVIDENCE", "FAILED"],
+          "description": "VERIFIED: full baseline available, no unexpected losses. VERIFIED_WITH_LEDGER: ledger covers revision path, no unexplained losses. PARTIAL_EVIDENCE: some history unavailable; cannot fully prove preservation. FAILED: unexpected loss detected — do not accept this revision."
+        },
+        "baseline_revision": { "type": ["integer", "null"] },
+        "compared_revision": { "type": "integer" },
+        "evidence_sources": { "type": "array", "items": { "type": "string" } },
+        "preserved_ids": { "type": "array", "items": { "type": "string" } },
+        "expected_superseded_ids": { "type": "array", "items": { "type": "string" } },
+        "unexpected_missing_ids": { "type": "array", "items": { "type": "string" } },
+        "unexpected_changed_ids": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
     }
   }
 }

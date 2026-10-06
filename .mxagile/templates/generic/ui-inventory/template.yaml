@@ -1,0 +1,107 @@
+# MxAgile UI Inventory — Page YAML
+# Schema: .mxagile/schemas/page.schema.json
+# Location: planning/ui-inventory/PAGE-NNN.yaml
+# One file per screen/page in the UI inventory.
+#
+# Fill in after UI-Agent Analyze mode. This file is the binding reference
+# for Implementation-Agent (ui_driven=true) and Acceptance-Agent UI-Parity.
+
+page_id: PAGE-001
+page_name: "[Mendix page name, e.g. Customer_Overview]"
+title: "[Human-readable page title]"
+mockup_id: MOCKUP-EXAMPLE
+target_revision: REV-001      # Active target revision (lifecycle_status: REFINED_TARGET)
+bundle_hash: null             # SHA-256 of the active target mockup bundle
+platform_boundary: false      # true = MB_SSO or other platform module — exclude from UI parity
+
+source_mockup: "input-resources/ui-ux/customer-overview.html"
+layout_reference: ".concord/screenshots/mockup/Customer_Overview_default.png"
+
+sections:
+  - section_id: SEC-001
+    title: "[Section heading]"
+    components:
+      fields:
+        - id: FLD-001
+          label: "[Field label]"
+          entity: "[Entity.Attribute]"
+          suggested_mendix_type: TextBox
+          standard_widget: true
+          display_mode: edit    # edit | display
+          required: false
+          visible_to_roles: []  # empty = all roles
+      actions:
+        - id: ACT-001
+          label: "[Button label]"
+          visual_priority: primary   # primary | secondary | tertiary | destructive
+          suggested_mendix_type: MicroflowButton
+
+navigation:
+  - target: "[PageName or flow destination]"
+    trigger: "[What causes this navigation — button click, breadcrumb, etc.]"
+    roles: []   # empty = all roles can navigate here
+
+interaction_states:
+  - state_id: STATE-001
+    interaction_type: expandable_area   # expandable_area | modal | popup | snippet | filter | hover_state | keyboard | read_only | disabled | validation | success_feedback | error_feedback | loading | empty | role_dependent | other
+    description: "[What this state represents]"
+    status: CONFIRMED   # CONFIRMED | DERIVED | PROPOSED | OPEN
+    platform_boundary: false
+
+    trigger:
+      type: click   # click | hover | focus | blur | change | submit | keyboard | load | timer | drag | drop
+      key: null     # For keyboard triggers: key name (e.g. "Enter")
+      label: "[What the user does, e.g. 'Click expand control']"
+
+    initial_state: "[System state before trigger]"
+    resulting_state: "[System state after trigger]"
+    visual_feedback: "[What the user sees change]"
+    data_effect: null
+    navigation_effect: null
+    permission_effect: null
+    focus_effect: null
+
+    persistence: none   # none | local | session | persisted
+
+    # Optional nullable states
+    loading_state: null
+    empty_state: null
+    disabled_state: null
+    read_only_state: null
+    no_permission_state: null
+    validation_state: null
+    error_state: null
+    success_state: null
+
+    suggested_mendix_mechanisms:
+      - "[e.g. ConditionalVisibility on container, Microflow toggle, JavascriptAction]"
+
+    source_ids:
+      - REQ-001
+
+    affected_roles: []   # empty = all roles
+
+    effects:
+      - effect_id: EFF-001-EXPAND
+        effect_type: expand   # expand | collapse | show | hide | modal_open | modal_close | popup_open | popup_close | snippet_reveal | snippet_hide | disable | enable | set_readonly | clear_readonly | show_validation_error | clear_validation_error | show_success | show_error | start_loading | stop_loading | filter_apply | filter_clear | navigate | highlight | scroll_to
+        target: "[UI element or container ID being affected]"
+        description: "[What happens to the target element]"
+        reversible: true
+        precondition: null
+        derived_page: false   # CRITICAL: false for all snippet/popup/expandable effects — they do NOT derive new Mendix pages
+
+      - effect_id: EFF-001-COLLAPSE
+        effect_type: collapse
+        target: "[same UI element as above]"
+        description: "[What happens when the interaction is reversed]"
+        reversible: true
+        precondition: null
+        derived_page: false
+
+roles:
+  - role: "[Role name]"
+    can_access: true
+    notes: ""
+
+requirements:
+  - REQ-001
