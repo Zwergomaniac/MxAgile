@@ -37,6 +37,9 @@ bevor die Implementierung freigegeben wird.
 Wenn ein aktives Target Mockup im Wave-Scope vorhanden ist, sind diese Checks
 **zusätzliche Gate-Bedingungen** — Failure ist ein Gate-Blocker:
 
+- [ ] **Aktives Target vorhanden:** Genau eine Revision im Mockup-Bundle hat `active_target: true`.
+  Fehlt es oder gibt es mehrere: Gate-Blocker — `create_revision.py` ausführen oder
+  Duplikate melden. Ready-Phase setzt ein eindeutig bestimmtes aktives Target voraus.
 - [ ] **Alle betroffenen Requirements refined:** Alle REQ-NNN, die in `revision_delta.affected_ids`
   referenziert werden, haben `revision_status` gesetzt (NEW / REFINED / PRESERVED / SUPERSEDED).
   REQ-NNN ohne `revision_status` nach einem angenommenen REV-NNN sind ein Gate-Blocker.

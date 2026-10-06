@@ -42,7 +42,10 @@ Some screens represent platform-module functionality (e.g. platform authenticati
 - Never remove a role due to platform-module login — provide a testable demo identity for every role.
 
 ## Interaction States and Effects
-Capture machine-readable effects for every material interaction. See knowledge file for full JSON schema.
+Capture machine-readable effects for every material interaction. See knowledge file for typed effect schema and `required_action` values.
+
+Every effect MUST include `required_action` (UPDATE_REQUIRED / NEW_IMPLEMENTATION / REMOVE_AS_SUPERSEDED / REGRESSION_REQUIRED / DISCOVERY_REQUIRED / DECISION_REQUIRED / NO_ACTION). Omitting `required_action` is invalid.
+Populate `downstream_artifacts`, `affected_roles`, `source_ids` when known; `status: OPEN` by default.
 
 Mandatory interaction_type values: expandable_area, modal, popup, snippet, filter, hover_state, keyboard, read_only, disabled, validation, success_feedback, error_feedback, loading, empty, role_dependent.
 

@@ -125,6 +125,87 @@ Business rules are business-verifiable rules. Calculations include meaning, form
 ## Screens, Flows, and States
 Screens contain: purpose, roles, relevant elements, requirements/decisions, states, and responsive intent. Flows contain: start, steps, alternatives, result, and error paths. States at minimum where relevant: loading, empty, normal, warning, error, success, disabled, read_only, no_permission.
 
+## Interaction States and Typed Effects
+
+Interaction states are machine-readable entries in the `interaction_states` array of a screen entry.
+Each state records one triggerable UI condition and its observable effects.
+
+```json
+{
+  "state_id": "STATE-ABTEILUNG-EXPANDED",
+  "description": "Abteilungsbereich expanded — detail rows visible.",
+  "interaction_type": "expandable_area",
+  "trigger": "Header row click",
+  "reversible": true,
+  "derived_page": false,
+  "effects": [
+    {
+      "effect_id": "EFF-ABTEILUNG-EXPAND",
+      "description": "Expand Abteilungsbereich — reveal Mitarbeiter rows.",
+      "required_action": "UPDATE_REQUIRED",
+      "downstream_artifacts": ["SPEC-012"],
+      "affected_roles": ["ROLE-E3-EINTRAGUNG", "ROLE-E3-UEBERPRUEFUNG"],
+      "affected_screens": ["PAGE-GESAMTUEBERSICHT"],
+      "source_ids": ["REQ-014"],
+      "status": "OPEN"
+    }
+  ]
+}
+```
+
+### `required_action` Values
+
+| Value | Meaning |
+|---|---|
+| `UPDATE_REQUIRED` | Modify an existing downstream artifact |
+| `NEW_IMPLEMENTATION` | Create a new artifact (developer confirmation required before creating REQ/SPEC/TASK) |
+| `REMOVE_AS_SUPERSEDED` | Mark or remove a superseded artifact |
+| `REGRESSION_REQUIRED` | No model change; re-run existing tests |
+| `DISCOVERY_REQUIRED` | Block downstream action until an OPEN discovery question is resolved |
+| `DECISION_REQUIRED` | Block downstream action until developer makes an explicit decision |
+| `NO_ACTION` | No downstream action needed |
+
+Rules:
+- `required_action` is **required** on every effect. Never omit it.
+- `derived_page: false` — inline content (expandable_area, snippet, popup on existing page): always set to prevent automatic page derivation.
+- `downstream_artifacts` — REQ-NNN, SPEC-NNN, TASK-NNN IDs this effect propagates to.
+- `affected_roles` — ROLE-* IDs. Empty array = all roles.
+- `source_ids` — REQ-NNN or DEC-NNN requiring this effect to exist.
+- `status` — OPEN (default for new effects), IN_PROGRESS, DONE, BLOCKED.
+
+## Revision Delta Effects
+
+The `revision_delta` object records typed effects of a refinement in `revision_delta.effects`.
+Delta effects use the same `required_action` enum as page interaction effects.
+`status` values for delta effects: OPEN, PLANNED, APPLIED, VERIFIED, BLOCKED.
+
+```json
+{
+  "revision_delta": {
+    "from_revision": 1,
+    "to_revision": 2,
+    "affected_ids": ["SCREEN-LOGIN", "DEC-PLATFORM-001"],
+    "effects": [
+      {
+        "id": "EFF-DELTA-001",
+        "type": "PLATFORM_BOUNDARY",
+        "target": "SCREEN-LOGIN",
+        "change": "REMOVE",
+        "description": "Login screen removed — delegated to AUTH_PLATFORM.",
+        "required_action": "REMOVE_AS_SUPERSEDED",
+        "source_ids": ["DEC-PLATFORM-001"],
+        "downstream_artifacts": ["REQ-001"],
+        "affected_roles": [],
+        "affected_screens": ["SCREEN-LOGIN"],
+        "status": "OPEN"
+      }
+    ]
+  }
+}
+```
+
+Delta effect `type` values: UI, INTERACTION, NAVIGATION, REQUIREMENT, DECISION, ROLE, PERMISSION, DATA, BUSINESS_RULE, STORY, SPEC, IMPLEMENTATION, TEST, PLATFORM_BOUNDARY.
+
 ## Platform Boundaries
 ```json
 {
@@ -252,6 +333,18 @@ Add a `migration` object at the top level to record the upgrade:
 - **Do not remove existing fields.** All v1.0 top-level arrays (requirements, decisions, roles, screens, etc.) are carried forward unchanged.
 - **schema_version upgrades to `"1.1"` only when confirmed by the author/developer.** MxMocketeer proposes; the developer confirms.
 - **The migration object is omitted on freshly-created v1.1 contracts.** It is only present when an existing v1.0 contract was upgraded.
+
+### Migration Failure Modes
+
+| Code | Meaning | Agent behavior |
+|---|---|---|
+| `SUCCESS` | All fields migrated cleanly; no conflicts | Proceed; record outcome in `migration_notes` |
+| `CONFLICT` | Existing v1.0 field value contradicts v1.1 semantics | STOP; report conflicting fields to author before outputting |
+| `AMBIGUOUS_SOURCE` | Multiple source revisions; canonical SOURCE cannot be determined | STOP; request author disambiguation |
+| `PRESERVATION_FAILURE` | One or more confirmed IDs (REQ-*, DEC-*, ROLE-*, SCREEN-*) lost during migration | STOP; never output; report every lost ID |
+| `INVALID_RESULT` | Resulting v1.1 contract fails schema validation | STOP; report all validation errors to author |
+
+On any failure mode except SUCCESS: **STOP before outputting the migrated contract.** Report the failure mode, the affected fields or IDs, and the required author action.
 
 ## Preservation Contract
 During refinement:

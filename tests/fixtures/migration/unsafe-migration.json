@@ -1,0 +1,73 @@
+{
+  "_fixture_type": "unsafe_migration",
+  "_fixture_purpose": "This fixture documents scenarios that MUST NOT be silently migrated. Each scenario MUST trigger a failure mode (CONFLICT / PRESERVATION_FAILURE / AMBIGUOUS_SOURCE). Tests verify that the design contract specifies STOP behavior for these cases.",
+
+  "scenarios": [
+    {
+      "id": "UNSAFE-001",
+      "failure_mode": "PRESERVATION_FAILURE",
+      "description": "Migration removes a confirmed REQ-001 without an explicit SUPERSEDED decision.",
+      "input": {
+        "schema_version": "1.0",
+        "mockup": { "id": "MOCKUP-TEST-UNSAFE", "revision": 1 },
+        "requirements": [
+          { "id": "REQ-001", "goal": "View sites", "status": "CONFIRMED_BY_STAKEHOLDER" }
+        ],
+        "decisions": []
+      },
+      "attempted_output": {
+        "schema_version": "1.1",
+        "mockup": { "id": "MOCKUP-TEST-UNSAFE", "revision": 1, "lifecycle_status": "SOURCE" },
+        "requirements": [],
+        "decisions": []
+      },
+      "expected_agent_behavior": "STOP — report PRESERVATION_FAILURE. Lost ID: REQ-001. Never output migrated contract.",
+      "must_not": "Silently drop REQ-001 during migration"
+    },
+    {
+      "id": "UNSAFE-002",
+      "failure_mode": "CONFLICT",
+      "description": "Input has active_target: false explicitly set on only revision — contradicts v1.1 SOURCE default (active_target: true).",
+      "input": {
+        "schema_version": "1.0",
+        "mockup": { "id": "MOCKUP-TEST-CONFLICT", "revision": 1, "active_target": false },
+        "requirements": [],
+        "decisions": []
+      },
+      "expected_agent_behavior": "STOP — report CONFLICT on mockup.active_target. Author must confirm whether SOURCE should be active_target: true or false.",
+      "must_not": "Silently overwrite author-set active_target: false with SOURCE default true"
+    },
+    {
+      "id": "UNSAFE-003",
+      "failure_mode": "AMBIGUOUS_SOURCE",
+      "description": "Contract contains two entries with revision: 1 — cannot determine canonical SOURCE revision.",
+      "input": {
+        "schema_version": "1.0",
+        "mockup": { "id": "MOCKUP-TEST-AMBIGUOUS", "revision": 1 },
+        "revision_history": [
+          { "revision": 1, "date": "2026-01-10", "status": "SOURCE" },
+          { "revision": 1, "date": "2026-01-12", "status": "REFINED_TARGET" }
+        ],
+        "requirements": [],
+        "decisions": []
+      },
+      "expected_agent_behavior": "STOP — report AMBIGUOUS_SOURCE. Cannot determine which revision: 1 entry is canonical. Request author disambiguation.",
+      "must_not": "Pick one of the duplicate revision entries arbitrarily and continue"
+    },
+    {
+      "id": "UNSAFE-004",
+      "failure_mode": "INVALID_RESULT",
+      "description": "Migration introduces schema_version: 1.1 without author confirmation — violates the migration rule.",
+      "expected_agent_behavior": "STOP — report INVALID_RESULT. schema_version upgrade to 1.1 requires explicit author/developer confirmation. MxMocketeer proposes; author confirms.",
+      "must_not": "Unilaterally set schema_version: 1.1 without author confirmation"
+    }
+  ],
+
+  "fixture_assertions": [
+    "PRESERVATION_FAILURE must never produce output — always STOP",
+    "CONFLICT on author-set field must block migration pending author decision",
+    "AMBIGUOUS_SOURCE must STOP — never resolve ambiguity by guessing",
+    "INVALID_RESULT (schema_version auto-upgrade) must STOP",
+    "Silent migration is never acceptable when any failure condition is present"
+  ]
+}

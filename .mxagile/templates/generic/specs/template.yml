@@ -31,3 +31,8 @@ out_of_scope:
 
 open_items: []
 # - "DECISION REQUIRED: ..."
+
+# Revision tracking — set by Refinement-Agent when a new REV-NNN is accepted
+# revision_status: PRESERVED             # NEW | REFINED | PRESERVED | SUPERSEDED
+# refined_in_revision: 1                 # Integer — the revision number where this was last touched
+# implementation_effect: NO_ACTION       # UPDATE_REQUIRED | NEW_IMPLEMENTATION | REMOVE_AS_SUPERSEDED | REGRESSION_REQUIRED | DISCOVERY_REQUIRED | DECISION_REQUIRED | NO_ACTION

@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0",
+  "mockup": {
+    "id": "MOCKUP-MIGRATION-TEST",
+    "revision": 1,
+    "title": "Migration Test Mockup",
+    "language": "de",
+    "updated_at": "2026-01-15",
+    "lifecycle_status": "SOURCE",
+    "refinement_status": "ACCEPTED",
+    "active_target": true,
+    "change_scope": "",
+    "previous_revision": null
+  },
+  "migration": {
+    "from_schema_version": "1.0",
+    "migrated_at": "YYYY-MM-DD",
+    "migrated_by": "MxMocketeer",
+    "migration_notes": "Upgraded to v1.1: lifecycle fields, revision ledger, platform boundaries, role coverage added with SOURCE defaults.",
+    "migrated_fields": [
+      "mockup.lifecycle_status",
+      "mockup.refinement_status",
+      "mockup.active_target",
+      "mockup.change_scope",
+      "revision_history",
+      "revision_delta",
+      "preservation",
+      "platform_boundaries",
+      "role_coverage"
+    ]
+  },
+  "revision_history": [],
+  "revision_delta": null,
+  "preservation": null,
+  "project": {
+    "name": "MigrationTestProject"
+  },
+  "sources": [
+    {
+      "id": "SRC-001",
+      "type": "stakeholder",
+      "description": "Initial requirements document"
+    }
+  ],
+  "roles": [
+    {
+      "id": "ROLE-MANAGER",
+      "name": "Site Manager",
+      "goals": ["Manage sites"],
+      "can": ["CAP-SITE-VIEW"],
+      "cannot": [],
+      "status": "CONFIRMED_BY_STAKEHOLDER"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "actor_role_refs": ["ROLE-MANAGER"],
+      "goal": "View site list",
+      "why": "Maintain site portfolio",
+      "acceptance_criteria": ["Sites are listed with name and status"],
+      "screen_refs": ["SCREEN-001"],
+      "priority": "Must",
+      "status": "CONFIRMED_BY_STAKEHOLDER"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "decision_status": "CONFIRMED",
+      "topic": "List vs detail page",
+      "decision": "Sites shown in a sortable list.",
+      "rationale": "Overview is primary use case.",
+      "alternatives_rejected": ["Card view"],
+      "affected_requirements": ["REQ-001"],
+      "affected_screens": ["SCREEN-001"],
+      "owner": "Product Owner"
+    }
+  ],
+  "screens": [
+    {
+      "id": "SCREEN-001",
+      "title": "Site Overview",
+      "purpose": "List all sites",
+      "role_refs": ["ROLE-MANAGER"],
+      "requirement_refs": ["REQ-001"]
+    }
+  ],
+  "platform_boundaries": [],
+  "role_coverage": [],
+  "flows": [],
+  "assumptions": [],
+  "open_questions": [],
+  "out_of_scope": []
+}
