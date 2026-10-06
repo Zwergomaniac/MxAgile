@@ -77,7 +77,7 @@ For each REQ-NNN in the wave scope:
 5. Execute per layer in order: MODEL → BUILD → RUNTIME → FRONTEND.
 6. After each layer:
    - Record pass/fail.
-   - On FAIL: classify per `policies/test-defect-protection.md` (APPLICATION_DEFECT / TEST_DEFECT / INFRASTRUCTURE_GAP).
+   - On FAIL: classify per `policies/test-defect-protection.md` (APPLICATION_DEFECT / TEST_DEFECT / TEST_ADAPTER_GAP / TEST_INFRASTRUCTURE_GAP).
    - On APPLICATION_DEFECT: record, continue remaining proof points, route to Implementing at end.
    - On TEST_DEFECT: STOP this proof point, raise DECISION_REQUIRED, do not change model.
    - On INFRASTRUCTURE_GAP: record as gap, continue with available layers.
@@ -154,13 +154,25 @@ For operation-aware proof points with `authorization_disposition: EXPLICITLY_FOR
 For every failed proof point, before any action:
 
 1. Is the claim consistent with the current AC text?
-   - YES → APPLICATION_DEFECT or INFRASTRUCTURE_GAP (proceed to step 2)
+   - YES → proceed to step 2
    - NO → TEST_DEFECT: raise DECISION_REQUIRED, do not change model, stop this proof point
    - UNCLEAR → `BUSINESS_EXPECTATION_UNKNOWN`: raise DECISION_REQUIRED, no action
 
-2. Did the test runner complete?
-   - YES → APPLICATION_DEFECT
-   - NO → TEST_INFRASTRUCTURE_GAP
+2. Did the test runner complete execution?
+   - YES → proceed to step 3
+   - NO → TEST_INFRASTRUCTURE_GAP (stop; fix infrastructure; do not change model or test contract)
+
+3. Did the test implementation use a forbidden adapter?
+   (window.mx.data.*, window.mx.ui.*, mx.ui.openForm, runtimeOperation IDs, XAS calls —
+   see `skills/test-generate.md` Forbidden Adapters section)
+   - YES → TEST_ADAPTER_GAP: regenerate using approved adapters (Playwright user journey or
+           RUNTIME runtime_check:); do NOT reclassify as TEST_INFRASTRUCTURE_GAP; no DECISION_REQUIRED
+   - NO → proceed to step 4
+
+4. Did the test fail due to a locator/step/setup issue (stale locator, wrong step sequence,
+   outdated test data) rather than an actual application behavior difference?
+   - YES → TECHNICAL_TEST_DEFECT: repair/regenerate test via `skills/test-generate.md`; no DECISION_REQUIRED
+   - NO → APPLICATION_DEFECT: record, continue remaining proof points, route to Implementing at end
 
 Record `defect_classification` in the campaign result.
 

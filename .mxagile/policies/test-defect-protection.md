@@ -57,6 +57,33 @@ The regenerated test must be validated against the canonical claim before re-run
 - The claim itself is still correct.
 - Classification: TECHNICAL_TEST_DEFECT → repair locator, re-run. No DECISION_REQUIRED.
 
+#### TEST_ADAPTER_GAP
+
+**Definition:** The generated test implementation used a **forbidden or unsupported execution
+adapter** — specifically, Mendix-internal browser APIs (`window.mx.data.*`, `window.mx.ui.*`,
+`mx.ui.openForm`, `runtimeOperation` IDs, undocumented XAS calls) instead of real Playwright
+user journeys or approved model inspection. The proof point obligation is correct. The failure is
+caused by the wrong adapter choice, not by a missing infrastructure capability or an application
+defect.
+
+**Action:** Regenerate the test using approved adapters per `skills/test-generate.md` Forbidden
+Adapters section:
+- Replace Mendix JS API calls with real Playwright user journeys (`navigate`, `click`, `fill`,
+  visible-state assertions).
+- Replace FRONTEND authorization checks with RUNTIME `runtime_check:` blocks where appropriate.
+- DECISION_REQUIRED is NOT required — the canonical expectation (TC claim, AC) is unchanged.
+- Do **NOT** classify the Proof Point as `TEST_INFRASTRUCTURE_GAP` until all approved adapter
+  alternatives (Playwright journey, RUNTIME layer) have been assessed and found genuinely
+  unavailable for the required evidence.
+
+**Example:**
+- Proof point: "ROLE-MANAGER cannot delete a site record they do not own."
+- Generated test calls `window.mx.data.remove(...)` and inspects the return value.
+- Application behavior may be correct; the adapter is forbidden.
+- Classification: TEST_ADAPTER_GAP → regenerate using `await page.click(...)` + assert server
+  rejection, or a `runtime_check:` with `action: delete_entity`.
+  No DECISION_REQUIRED. Do NOT reclassify as TEST_INFRASTRUCTURE_GAP.
+
 ---
 
 ### TEST_INFRASTRUCTURE_GAP
@@ -70,6 +97,13 @@ database not seeded, RUNTIME layer not available.
 **Action:** Fix the infrastructure gap. Neither the model nor the test contract is changed.
 Record as a gap in the verification plan. Acceptance gate remains `pending` until resolved.
 
+**Guard — TEST_ADAPTER_GAP is NOT TEST_INFRASTRUCTURE_GAP:**
+A test that used a forbidden adapter (`window.mx.data.*`, `window.mx.ui.*`, etc.) and failed
+is a `TEST_ADAPTER_GAP`, not a `TEST_INFRASTRUCTURE_GAP`. Classify as `TEST_INFRASTRUCTURE_GAP`
+only after all supported adapter alternatives (Playwright user journey, RUNTIME `runtime_check:`)
+have been assessed and found genuinely unavailable for the required evidence. Do not use
+`TEST_INFRASTRUCTURE_GAP` as a default when a forbidden adapter was the actual cause.
+
 ---
 
 ## Classification Protocol
@@ -82,12 +116,19 @@ When a proof point fails, classify before acting:
    YES → continue to step 2
 
 2. Is the proof point claim consistent with the current AC text?
-   YES → APPLICATION_DEFECT (route to Implementing)
+   YES → continue to step 3
    NO  → CANONICAL_EXPECTATION_CHANGE (DECISION_REQUIRED; no model change)
    UNCLEAR → BUSINESS_EXPECTATION_UNKNOWN (DECISION_REQUIRED; no action)
 
-3. [Alternative path if YES at step 2] Did the test fail due to a locator/step/setup issue
-   rather than an actual application behavior difference?
+3. Did the test use a forbidden adapter?
+   (window.mx.data.*, window.mx.ui.*, runtimeOperation IDs, XAS calls —
+   see skills/test-generate.md Forbidden Adapters section)
+   YES → TEST_ADAPTER_GAP (regenerate with approved adapter; do NOT classify as
+         TEST_INFRASTRUCTURE_GAP without first assessing Playwright / RUNTIME alternatives)
+   NO  → continue to step 4
+
+4. Did the test fail due to a locator/step/setup issue (stale locator, wrong step sequence,
+   outdated test data setup) rather than an actual application behavior difference?
    YES → TECHNICAL_TEST_DEFECT (repair/regenerate test; no DECISION_REQUIRED)
    NO  → APPLICATION_DEFECT (route to Implementing)
 ```
@@ -101,6 +142,9 @@ When a proof point fails, classify before acting:
 3. **TECHNICAL_TEST_DEFECT may be repaired** (regenerate locators/steps) without DECISION_REQUIRED.
 4. **APPLICATION_DEFECT routes to Implementing** via the standard return routing in `lifecycle.yaml`.
 5. **TEST_INFRASTRUCTURE_GAP does not route anywhere** — it is an infrastructure task, not a code defect.
+   **TEST_ADAPTER_GAP is NOT TEST_INFRASTRUCTURE_GAP** — a forbidden adapter is a generation error,
+   not a missing infrastructure capability. Always assess Playwright / RUNTIME alternatives before
+   concluding the evidence path is unavailable.
 6. **Model must NOT be changed based on a TEST_DEFECT** (either sub-type) before classification is confirmed.
 
 ## Evidence Preservation
