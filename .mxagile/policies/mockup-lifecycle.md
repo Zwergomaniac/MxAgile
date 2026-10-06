@@ -12,6 +12,51 @@ For full SPA bundle contract, see `policies/spa-mockup-bundle.md`.
 | **Source mockup** | Original artifact as provided by the project/customer, or generated and approved in the UI-Agent Generate cycle | IMMUTABLE — never modified after acceptance |
 | **Target mockup** | The active acceptance target used for verification — may be the source or a refined/updated version | UPDATABLE under explicit decision process |
 
+## Lifecycle Status Model
+
+Every revision (SPA bundle) and every named mockup target (single-file) carries a `lifecycle_status`:
+
+| `lifecycle_status` | Meaning |
+|---|---|
+| `SOURCE` | This revision IS the source (first revision, no accepted refinement yet). The source mockup and target mockup are identical. |
+| `REFINED_TARGET` | This is the currently **active** acceptance target. Exactly ONE revision per mockup may carry this status at any time. |
+| `SUPERSEDED_TARGET` | A previously active target that has been replaced by a newer `REFINED_TARGET`. Retained for audit; never used for new verification. |
+
+**Transition rules (atomic):**
+1. At project start: first revision gets `lifecycle_status: SOURCE` and `active_target: true`.
+2. When a refinement is accepted: new revision gets `lifecycle_status: REFINED_TARGET` and `active_target: true`. The previously active revision transitions to `lifecycle_status: SUPERSEDED_TARGET` and `active_target: false`. Both changes happen atomically (enforced by `create_revision.py`).
+3. The original `SOURCE` revision is never re-labeled; it remains `SOURCE` and `active_target: false` once superseded.
+4. A `REJECTED` revision is never stored in `_history/`. It never receives a `lifecycle_status`.
+
+**Active Target Invariant:** At any point in time, exactly ONE revision per mockup bundle may have `active_target: true`. Violating this invariant is a SCHEMA ERROR, not a recoverable state.
+
+## Refinement Status Model
+
+A proposed refinement goes through the following `refinement_status` states:
+
+| `refinement_status` | Meaning |
+|---|---|
+| `PROPOSED` | Refinement candidate exists (working bundle changed or single-file target proposed). Not yet developer-accepted. |
+| `ACCEPTED` | Developer explicitly accepted this revision (backed by DEC-NNN entry). Only ACCEPTED revisions are archived in `_history/`. |
+| `REJECTED` | Developer explicitly rejected this revision. The prior active target remains active. Rejected proposals are NOT stored in `_history/`. |
+
+An agent MAY propose a refinement. An agent MUST NOT claim a revision is ACCEPTED without an explicit developer confirmation backed by a `planning/decisions/DEC-NNN.yml` entry.
+
+## Platform Boundary Scope Rule
+
+Not all screens visible in a source mockup represent fachliche application pages.
+
+**Authentication and session management** are typically delivered by platform modules (e.g. MB_SSO in Mendix). A mockup may contain login, password, or initial-setup screens purely as navigational scaffolding or demo entry points.
+
+**Rules:**
+1. Any screen identified as an authentication, password management, or session management page MUST be classified as `platform_boundary: true` in the UI inventory.
+2. A `platform_boundary: true` screen is NOT derived as a fachliche application page.
+3. A `platform_boundary: true` screen does NOT generate a REQ-NNN, SPEC-NNN, or implementation task.
+4. Demo role-switcher screens are classified `platform_boundary: true` — they are test-only mechanisms, not productive login or user management.
+5. The project's `source_authority` config may override this classification for specific concerns. Document the override as a DEC-NNN with `decision_type: platform_boundary`.
+
+**CapTrack example:** Login, Anmeldung, Passwort-Reset, and Nutzer­verwaltungs­seiten from the CapTrack mockup are `platform_boundary: true`. The fachliche role model (AppAdmin, E2, Center Koordinator, CeKo Vertreter, E3 Eintragung, E3 Eintragung Vertreter, E3 Überprüfung, E4 Eintragung, E4 Überprüfung) remains fully valid and must be preserved in the Design Contract, requirements, and test contracts.
+
 ## Artifact Locations
 
 ### Single-File Legacy Mockups

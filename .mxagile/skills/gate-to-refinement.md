@@ -27,6 +27,43 @@ Prueft ob die Discovery-Phase vollstaendig abgeschlossen ist bevor Refinement be
       Kein DECISION REQUIRED aus reiner Concern-Trennung: Mockup bestimmt Layout,
       Requirements bestimmen Pflichtfeld-Logik — das ist kein Widerspruch.
 
+## Mockup Revision Checks (WP-21)
+
+Wenn ein Mockup (`input-resources/ui-ux/`) im Wave-Scope vorhanden ist, sind diese Checks
+**zusätzliche Gate-Bedingungen** — Failure ist ein Gate-Blocker:
+
+- [ ] **Aktives Target eindeutig:** Genau eine Revision hat `lifecycle_status: REFINED_TARGET` und
+  `active_target: true`. Kein doppeltes `active_target: true` zulässig. Bei Fehlen eines
+  akzeptierten Targets: WORKING_TARGET_UNACCEPTED_DEVIATION — `create_revision.py` ausführen.
+- [ ] **Revision gültig:** `revision.yaml` der aktiven Revision validiert gegen
+  `revision.schema.json` (kein Schema-Fehler).
+- [ ] **Contract gültig:** `mocketeer-spec` JSON-Block im aktiven Target-HTML ist valides JSON
+  und enthält `schema_version` sowie alle Pflichtfelder (`mockup.id`, `mockup.revision`,
+  `mockup.lifecycle_status`).
+- [ ] **Ledger vorhanden oder Migration dokumentiert:** `revision_history` im Contract enthält
+  mindestens einen Eintrag ODER ein Migration-Dokument (`planning/migrations/`) belegt explizit,
+  warum der Ledger für diesen Contract leer ist.
+- [ ] **Revision Delta vorhanden:** `revision_delta` Objekt mit `from_revision` und `to_revision`
+  ist im Contract vorhanden. Fehlt es bei einer Revision ≥ 2: Gate-Blocker.
+- [ ] **Effects referenziell gültig:** Alle `effect_id`-Einträge (EFF-*) im `revision_delta.effects`
+  referenzieren existierende Einträge in den `interaction_states` der betroffenen Page-YAMLs.
+  Verwaiste EFF-*-IDs sind ein Gate-Blocker.
+- [ ] **Rollen-Coverage bewertet:** `planning/role-coverage/<wave-id>-role-coverage.yaml` existiert
+  ODER alle fehlenden Rollen sind als `ROLE_GAP` in der Story-Spec dokumentiert.
+  Unbewertet mit fehlendem Nachweis ist ein Gate-Blocker.
+- [ ] **Interaction-Coverage bewertet:** Alle `interaction_states` im UI-Inventar mit
+  `status: CONFIRMED` haben mindestens einen Effect-Eintrag. Bestätigte States ohne Effects
+  sind `INTERACTION_GAP` — müssen dokumentiert sein (blockierend wenn Severity CRITICAL/MATERIAL).
+- [ ] **Plattformgrenzen bekannt:** `planning/platform-boundaries.yaml` existiert ODER
+  `platform_boundaries: []` im Contract ist explizit und korrekt leer (keine unerkannten
+  Plattformfunktionen). Fehlt die Datei ohne Begründung: Gate-Blocker.
+- [ ] **Offene Entscheidungen scoped:** Alle offenen `DECISION_REQUIRED`-Items (in Story-Spec oder
+  Contract) haben `affected_screens` oder `affected_requirements` gesetzt — kein unscoped
+  DECISION_REQUIRED darf verbleiben. Unscoped Items blockieren das Gate.
+
+Diese Checks werden im selben Arbeitsschritt wie die Vorbedingungen ausgeführt und unter
+`waves.<Wave>.gates.gate_to_refinement_revision_checks` in `process-state.yaml` protokolliert.
+
 ## Pruefung
 
 Fuer jede Vorbedingung: existiert das Artefakt und ist es inhaltlich plausibel?

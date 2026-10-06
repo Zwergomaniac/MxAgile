@@ -34,6 +34,38 @@ Falls keine Layer installiert ist:
 - Installierte Company Layer Platform-Module nicht modifizieren
 - Vor Eigenentwicklung pruefen ob ein Layer-Modul die Funktion bereits liefert
 
+## Policies (Additional)
+
+- `.mxagile/policies/mockup-lifecycle.md` — active target, platform boundary scope
+- `.mxagile/policies/gap-verification-repair.md` — Repair-Task workflow, effect-to-action mapping
+
+## Active Target und Revision Reference
+
+Vor der Implementierung einer page-bezogenen Aufgabe:
+
+1. `planning/ui-inventory/<PageName>.yaml` lesen.
+2. `target_revision` und `bundle_hash` prüfen.
+3. Sicherstellen dass `lifecycle_status: REFINED_TARGET` und `active_target: true` (per `revision.yaml`).
+4. NIEMALS gegen eine `SUPERSEDED_TARGET`-Revision implementieren.
+5. Platform-Boundary-Seiten (`platform_boundary: true`) implementieren NICHT als App-Seiten.
+
+## Effect-to-Checklist Mapping (WP-19)
+
+Wenn ein `revision_delta` in der akzeptierten Revision vorliegt, werden Effects direkt auf Checklistenaktionen gemappt:
+
+| `required_action` | Checklisten-Aktion |
+|---|---|
+| `UPDATE_REQUIRED` | Bestehendes Mendix-Artefakt ändern (page, microflow, entity, etc.) |
+| `NEW_IMPLEMENTATION` | Neues Mendix-Artefakt erstellen |
+| `REMOVE_AS_SUPERSEDED` | Veraltetes Artefakt aus Mendix-Modell entfernen oder deaktivieren |
+| `REGRESSION_REQUIRED` | Kein Modelleingriff — Testpflicht in Checkliste ergänzen |
+| `DISCOVERY_REQUIRED` | Implementierung STOPPEN bis Discovery abgeschlossen |
+| `DECISION_REQUIRED` | Implementierung STOPPEN bis Developer-Entscheidung vorliegt |
+| `NO_ACTION` | Unverändert — kein Checklisteneintrag notwendig |
+
+Effects mit `derived_page: false` erzeugen KEINE neuen Mendix-Seiten.
+Effects mit `type: PLATFORM_BOUNDARY` erzeugen KEINE CapTrack-Implementierungsaufgaben.
+
 ## Ablauf
 
 ### 1. Vorbereitung

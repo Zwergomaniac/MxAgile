@@ -190,19 +190,83 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
     ```
     Nur direkt beobachtbare Navigation aufnehmen. Bedingungen als `condition` notieren
     wenn erkennbar. Nicht spekulative Navigationspfade erfinden.
-7.  **Interaction-States erfassen:** Relevante UI-Zustaende dokumentieren:
+7.  **Interaction-States erfassen (inkl. Effects und Platform-Boundary-Klassifikation):**
+
+    **Platform-Boundary-Check ZUERST:**
+    Bevor eine Seite als fachliche Seite inventarisiert wird:
+    - Pruefe ob die Seite eine Authentifizierungs-, Passwort- oder Session-Management-Seite ist.
+    - Pruefe ob die Seite ein Demo Role Switcher oder Test-Login ist.
+    - Wenn ja: setze `platform_boundary: true` im Page YAML.
+    - Eine `platform_boundary: true`-Seite erzeugt KEIN REQ-NNN, KEIN SPEC-NNN, keine Tasks.
+    - Siehe `policies/mockup-lifecycle.md` § Platform Boundary Scope Rule.
+
+    **Expandierbare Bereiche und Snippet-Inhalte — Neue-Seiten-Regel:**
+    - Ausklappbare Bereiche (expand/collapse) sind KEIN Grund fuer eine eigenstaendige Seite.
+    - Snippet- oder Popup-Inhalte, die auf einer bestehenden Seite erscheinen, werden als
+      `interaction_type: snippet` oder `interaction_type: popup` im Interaction State erfasst.
+    - Das Feld `derived_page: false` im Effect MUSS gesetzt werden wenn kein eigenstaendiger
+      Mendix-Page-Kandidat daraus abzuleiten ist.
+
+    **Vollstaendige Interaction-State-Erfassung inkl. Effects:**
     ```yaml
     interaction_states:
       - state_id: STATE-CUSTOMER-EMPTY
+        interaction_type: empty
         description: "Formular initial leer, alle Felder ohne Eingabe"
         trigger: "Seite wird geoeffnet"
         screenshot: .concord/screenshots/mockup/Customer_NewEdit_empty.png
+        effects: []
       - state_id: STATE-CUSTOMER-VALIDATION-ERROR
+        interaction_type: validation
         description: "Pflichtfeld-Fehler nach Speichern ohne Name"
         trigger: "Speichern-Button geklickt, Name leer"
         screenshot: .concord/screenshots/mockup/Customer_NewEdit_validation.png
+        effects:
+          - effect_id: EFF-CUSTOMER-VALIDATION-SHOW
+            effect_type: show_validation_error
+            target: FIELD-CUSTOMER-NAME
+            description: "Roter Fehlerhinweis unterhalb des Namensfeldes wird sichtbar"
+            reversible: true
+            derived_page: false
+      - state_id: STATE-ABTEILUNG-EXPANDED
+        interaction_type: expandable_area
+        description: "Abteilungsbereich ausgeklappt — Mitarbeiterdaten sichtbar"
+        trigger: "Klick auf Expand-Pfeil neben Abteilungsbezeichnung"
+        screenshot: .concord/screenshots/mockup/Gesamtuebersicht_Abteilung_expanded.png
+        effects:
+          - effect_id: EFF-ABTEILUNG-EXPAND
+            effect_type: expand
+            target: SEC-ABTEILUNG-BODY
+            description: "Abteilungs-Detailbereich wird sichtbar — Mitarbeitermatrix, Zielfortschritt"
+            reversible: true
+            derived_page: false
+          - effect_id: EFF-ABTEILUNG-COLLAPSE
+            effect_type: collapse
+            target: SEC-ABTEILUNG-BODY
+            description: "Abteilungs-Detailbereich wird ausgeblendet bei erneutem Klick"
+            reversible: true
+            derived_page: false
     ```
-    Alle fachlich relevanten Varianten (Tabs, Rollen, Filter, Dialogzustaende) aktiv ausloesen.
+
+    **Pflicht-Interaction-Types fuer CapTrack und vergleichbare Projekte:**
+    Folgende Interaction Types MUESSEN aktiv ausgeloest und erfasst werden:
+    - `expandable_area`: Alle ausklappbaren Bereiche (Abteilungen, Zielkarten, Basisjahr, Folgejahre)
+    - `modal`: Alle Dialogfenster (Bestaetigungen, Eingabedialoge)
+    - `popup`: Alle Inline-Overlays, Tooltips mit fachlichem Inhalt
+    - `snippet`: Inhalte aus anderen Kontexten die eingebettet erscheinen
+    - `filter`: Aktive Filter/Suche-Zustaende
+    - `hover_state`: Hover-Inhalte mit fachlicher Relevanz (z.B. Detailpopup auf Hover)
+    - `disabled`: Deaktivierte Controls mit erkennbarem Grund
+    - `read_only`: Anzeigemodus fuer normalerweise editierbare Felder
+    - `validation`: Alle Validierungsfehler-Zustaende
+    - `success_feedback`: Positive Rueckmeldungen nach Aktionen
+    - `error_feedback`: Fehlermeldungen nach fehlgeschlagenen Aktionen
+    - `loading`: Ladezustaende bei async-Operationen
+    - `empty`: Leere Listenzustaende (keine Daten vorhanden)
+    - `role_dependent`: Zustaende die sich je nach aktiver Rolle unterscheiden
+
+    Fuer `expandable_area`, `modal` und `popup` MUSS je ein EFF-* Eintrag fuer expand/open
+    UND ein EFF-* Eintrag fuer collapse/close erfasst werden.
 8.  **Reference Screenshot:** Hauptzustand jeder Seite als `layout_reference` Screenshot
     unter `.concord/screenshots/mockup/{PageName}_default.png` speichern.
     Diesen Pfad im Page YAML als `layout_reference` eintragen.
@@ -324,15 +388,26 @@ Lies aus `planning/ui-inventory/{PageName}.yaml`:
 **SPA-Bundle (bevorzugt):** Falls `mockup_name` gesetzt:
 1. Prüfe `target_revision` — wenn gesetzt (z.B. `REV-003`), ist der akzeptierte Revision-Pfad:
    `planning/target-mockups/<mockup_name>/_history/<target_revision>/`
-2. Prüfe `bundle_hash` — wenn vorhanden, gegen den Hash des aktiven Working-Target vergleichen.
+2. Verifiziere `lifecycle_status` der Revision aus `revision.yaml`:
+   - `REFINED_TARGET` mit `active_target: true` → valides aktives Target ✓
+   - `SUPERSEDED_TARGET` → STALE REFERENCE — Target wurde ersetzt; ermittle die aktuelle `REFINED_TARGET`-Revision
+   - `SOURCE` mit `active_target: true` → kein Refinement erfolgt; Source = Target ✓
+3. Prüfe `bundle_hash` — wenn vorhanden, gegen den Hash des aktiven Working-Target vergleichen.
    Wenn Working-Target-Hash ≠ `bundle_hash`: WORKING_TARGET_UNACCEPTED_DEVIATION — Gate blockiert.
    Die Abweichung kann nur durch `python scripts/create_revision.py` aufgelöst werden.
-3. Verwende den akzeptierten Revision-Pfad als Referenz. Nie den Working Target direkt als Referenz.
+4. Verwende den akzeptierten Revision-Pfad als Referenz. Nie den Working Target direkt als Referenz.
+5. NIEMALS gegen eine `SUPERSEDED_TARGET`-Revision verifizieren — das ist veraltetes Soll.
 
 **Single-File-Legacy (Rückfall):**
 - Falls `target_mockup` gesetzt: verwende dieses als Referenz.
 - Falls `target_mockup` fehlt: verwende `source_mockup` als Target.
 - Nie gegen ein veraltetes `source_mockup` verifizieren wenn ein aktuelles `target_mockup` existiert.
+
+**Platform-Boundary-Seiten im Verify-Modus:**
+- Seiten mit `platform_boundary: true` werden im Verify-Modus NICHT verifikationsiert.
+- Sie erzeugen kein Parity-Ergebnis.
+- Wenn eine `platform_boundary: true`-Seite in der laufenden App erscheint und nicht erwartet wurde:
+  → Klassifiziere als `PLATFORM_BOUNDARY_GAP` per `policies/gap-verification-repair.md`.
 
 Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-bundle.md`.
 

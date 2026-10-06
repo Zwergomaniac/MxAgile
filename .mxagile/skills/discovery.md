@@ -40,6 +40,30 @@ neuen Arbeitspaket.
 5. **Mockup analysieren** (falls vorhanden) — gemaess `.mxagile/policies/mockup-analysis.md`.
    UI-Agent Analyze laeuft parallel — diese Pruefung haelt nur fest ob ein Mockup vorliegt.
 
+   **Platform-Boundary-Klassifikation (PFLICHT vor Seiteninventarisierung):**
+   Pruefe fuer jede gefundene HTML-Seite:
+   - Ist es eine Login/Passwort/Session-Management-Seite? → `platform_boundary: true`
+   - Ist es ein Demo Role Switcher? → `platform_boundary: true`
+   - Ist es eine Plattformmodul-Seite (z.B. MB_SSO)? → `platform_boundary: true`
+   Platform-Boundary-Seiten werden NICHT als fachliche Discovery-Ergebnisse erfasst.
+   Das Rollenmodell aus dem Contract bleibt vollstaendig erhalten.
+
+   **Interaction-State- und Effects-Discovery (PFLICHT wenn Mockup vorhanden):**
+   Nach Abschluss des UI-Agent Analyze, pruefe das erzeugte UI-Inventar:
+   - Alle `interaction_states` auf vollstaendige `interaction_type`-Klassifikation pruefen.
+   - Alle States vom Typ `expandable_area`, `modal`, `popup`, `snippet` auf Effects pruefen.
+   - Fehlende Effects als `INTERACTION_GAP` markieren.
+   - Snippet/Popup-Inhalte: Feld `derived_page: false` bei allen Effects pruefen.
+     Falls `derived_page` nicht gesetzt und Inhalt als Popup/Snippet erkennbar ist:
+     → explizit `derived_page: false` nachtragen — keine automatische Seiten-Ableitung.
+
+   **Rollen-Coverage-Check (PFLICHT nach Mockup-Intake):**
+   Pruefe fuer jede Rolle aus `roles[]` im Design Contract:
+   - Im ausfuehrbaren Mockup repraesentierbar?
+   - Testbarer Rollenmodus vorhanden (Role-Switcher oder Demo-Login)?
+   - Fuer scoped Rollen: repraesentativer Scope-Kontext vorhanden?
+   Fehlende Testrepraesentation → `ROLE_GAP` in der Story-Spec.
+
 6. **Bestehendes Modell lesen** — Welche Entities, Microflows, Pages existieren
    bereits im betroffenen Modul? Falls eine Company Layer installiert ist (.mxagile/layers/),
    in `.mxagile/layers/<layer-id>/platform-modules.yml` pruefen welche Plattformmodule

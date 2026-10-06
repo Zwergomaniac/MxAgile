@@ -98,6 +98,40 @@ Alle drei Verbote gelten unabhängig voneinander. Keine Kombination hebt sie auf
 
 Vollständiger Vertrag: `.mxagile/policies/impact-resolution.md`
 
+## Revised Mockup Handling — Revision Delta und Effects konsumieren
+
+Wenn eine neue Mockup-Revision (REV-NNN) akzeptiert wurde und ein `revision_delta` vorliegt:
+
+1. **Revision Delta lesen** aus `revision.yaml` des akzeptierten REV-NNN.
+2. **Affected IDs identifizieren** — welche Requirements, Decisions, Roles, Screens sind betroffen?
+3. **Effects auswerten** — für jeden Effect den `required_action` anwenden:
+
+| `required_action` | Refinement-Aktion |
+|---|---|
+| `UPDATE_REQUIRED` | Bestehendes Artefakt (REQ-NNN / SPEC-NNN) aktualisieren — ID behalten |
+| `NEW_IMPLEMENTATION` | Neues Artefakt erzeugen — nur nach Developer-Bestätigung |
+| `REMOVE_AS_SUPERSEDED` | Veraltetes Artefakt als SUPERSEDED markieren + `superseded_by` setzen |
+| `REGRESSION_REQUIRED` | Keine inhaltliche Änderung — Test Contract als NEEDS_RERUN markieren |
+| `DISCOVERY_REQUIRED` | Nicht implementieren bis Discovery abgeschlossen — DECISION_REQUIRED setzen |
+| `DECISION_REQUIRED` | Betroffenen Scope blockieren — Developer-Entscheidung anfordern |
+| `NO_ACTION` | Artefakt unverändert erhalten |
+
+4. **Requirement Revision-Status ergänzen** wenn ein REQ-NNN durch die Revision berührt wird:
+   ```yaml
+   revision_status: REFINED      # NEW | REFINED | PRESERVED | SUPERSEDED
+   refined_in_revision: 3        # akzeptierte Revisionsnummer
+   implementation_effect: UPDATE_REQUIRED
+   test_effect: REGRESSION_REQUIRED
+   ```
+
+5. **Stabile IDs erhalten** — eine ID darf nicht geändert werden, wenn nur der Inhalt sich verfeinert.
+
+6. **Nicht betroffene IDs nicht anfassen** — `NO_ACTION`-Effects und unerwähnte IDs bleiben erhalten.
+
+7. **Snipet/Popup-Regeln:** Effects mit `derived_page: false` erzeugen KEIN neues REQ-NNN für eine eigenständige Seite.
+
+8. **Platform-Boundary-Effects:** Effects mit `type: PLATFORM_BOUNDARY` erzeugen keine fachlichen Requirements. Sie werden in `planning/platform-boundaries.yaml` und als DEC-NNN dokumentiert.
+
 ## Design Contract Source-to-Canonical Mapping
 
 Falls die Story-Spec ein `design_contract_provenance.id_map` enthaelt, bist **du der Eigentuemer

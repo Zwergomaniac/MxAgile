@@ -32,6 +32,42 @@ bevor die Implementierung freigegeben wird.
       `source_mockup`, `ui_inventory` und `layout_reference` verfuegbar und werden
       als bindende Referenz-Felder in die Checkliste uebernommen
 
+## Mockup Revision & Effects Checks (WP-21)
+
+Wenn ein aktives Target Mockup im Wave-Scope vorhanden ist, sind diese Checks
+**zusätzliche Gate-Bedingungen** — Failure ist ein Gate-Blocker:
+
+- [ ] **Alle betroffenen Requirements refined:** Alle REQ-NNN, die in `revision_delta.affected_ids`
+  referenziert werden, haben `revision_status` gesetzt (NEW / REFINED / PRESERVED / SUPERSEDED).
+  REQ-NNN ohne `revision_status` nach einem angenommenen REV-NNN sind ein Gate-Blocker.
+- [ ] **Decisions konsistent:** Alle DEC-NNN, die in `revision_delta` oder `effects` referenziert
+  werden, haben `status: CONFIRMED`. Ein DEC-NNN mit `status: PROPOSED` blockiert das Gate —
+  Developer-Bestätigung einholen.
+- [ ] **Stories und Specs aktualisiert:** Die Story-Spec referenziert die aktive Revisionsnummer
+  (`target_revision`). SPEC-NNN-Dateien für affected_ids sind nicht stale (kein `stale`-Marker).
+- [ ] **Tasks aktualisiert:** Alle Repair-Tasks (`type: repair`) im Wave-Scope haben
+  `target_reference.target_revision` auf die aktive Revision gesetzt (nicht auf eine
+  SUPERSEDED_TARGET-Revision).
+- [ ] **Regressionen geplant:** Für jeden Effect mit `required_action: REGRESSION_REQUIRED`
+  existiert ein Test Contract (TC-NNN) oder ein Checklist-Item mit `testability: TESTABLE_AUTO`
+  oder `TESTABLE_MANUAL`. Ungeplante Regressionen sind ein Gate-Blocker.
+- [ ] **Keine unerklärten affected_ids:** Alle IDs in `revision_delta.affected_ids` sind in
+  scope-Artefakten (`requirements/*.yml`, `planning/decisions/DEC-NNN.yml`) aufgelöst. Keine
+  ID darf im `affected_ids`-Array stehen, ohne dass ein entsprechendes Artefakt existiert.
+- [ ] **Keine unerwarteten Rollenverluste:** Rollenvergleich zwischen aktiver Revision und
+  `previous_revision` — jeder Rollenverlust (fehlende Role-ID im neuen Contract) muss durch
+  ein DEC-NNN mit `decision_type: role_permission` oder `scope` begründet sein.
+  Unbegründeter Rollenverlust ist ein Gate-Blocker.
+- [ ] **Keine blockierenden Interaction Coverage Gaps:** In `planning/role-coverage/<wave-id>-role-coverage.yaml`
+  dürfen für Rollen im aktuellen Wave-Scope keine Einträge mit `status: COVERAGE_GAP` vorliegen,
+  es sei denn das Gap ist als DEFERRED mit DEC-NNN dokumentiert.
+- [ ] **Aktive Target-Revision in Checklisten referenziert:** Alle Page-Items (type: page) in der
+  `W*-implementation-checklist.yaml` haben `target_revision` auf die aktive Revision gesetzt.
+  Ein Page-Item mit fehlender oder veralteter `target_revision` blockiert das Gate.
+
+Diese Checks werden im selben Arbeitsschritt wie die Vorbedingungen ausgeführt und unter
+`waves.<Wave>.gates.gate_to_ready_revision_checks` in `process-state.yaml` protokolliert.
+
 ## Pflichtausgabe: implementation-checklist.yaml (D37)
 
 Dieses Gate erzeugt die konsolidierte Checkliste aus zwei Quellen:

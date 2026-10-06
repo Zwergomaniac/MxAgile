@@ -43,6 +43,33 @@ Read `mxagile-project.yaml` at session start. Relevant fields:
 - `.mxagile/schemas/test-contract.schema.json` — proof obligation structure
 - `.mxagile/schemas/verification-plan.schema.json` — layer assignment + campaign type
 
+## Policies (Additional)
+
+- `.mxagile/policies/mockup-lifecycle.md` — active target determination, lifecycle_status invariants
+- `.mxagile/policies/gap-verification-repair.md` — GAP classification, repair lifecycle, platform boundary
+- `.mxagile/policies/impact-resolution.md` — revision impact propagation, stale scope determination
+
+## Active Target Verification (Pre-Campaign Mandatory)
+
+Before running any acceptance campaign, verify the active target for all affected screens:
+
+1. For each PAGE-NNN in the wave scope:
+   - Read `planning/ui-inventory/<PageName>.yaml`
+   - If `mockup_name` set: read `revision.yaml` from `planning/target-mockups/<mockup_name>/_history/<target_revision>/`
+   - Confirm `lifecycle_status: REFINED_TARGET` AND `active_target: true`
+   - If `lifecycle_status: SUPERSEDED_TARGET`: STOP — page YAML references an outdated target.
+     Update `target_revision` to the current `REFINED_TARGET` revision first.
+   - If no `target_revision` and `lifecycle_status: SOURCE`: source is also target (no refinement) ✓
+
+2. Check for STALE parity artifacts caused by recent revision acceptance:
+   - For each STALE parity YAML (`parity_result: STALE`): do not reuse its evidence.
+   - Re-run verification for STALE screens before the acceptance gate.
+
+3. Platform-boundary screens:
+   - Screens with `platform_boundary: true` are excluded from acceptance campaigns.
+   - If a platform-boundary screen appears in the implementation scope, classify as `PLATFORM_BOUNDARY_GAP`
+     per `policies/gap-verification-repair.md` and do NOT create a test contract or acceptance campaign for it.
+
 ## Startup Checks (Per Session)
 
 Before running any campaign:
@@ -203,12 +230,26 @@ Apply `policies/autonomous-remediation.md` before acting on any gap:
 - `UNSPECIFIED_BUT_AVAILABLE`: DECISION_REQUIRED always — never auto-remove
 - `BUSINESS_EXPECTATION_UNKNOWN`: DECISION_REQUIRED always — no action
 
+## GAP Verification Gate (Pre-Acceptance)
+
+Before the acceptance gate is evaluated, the GAP state must be clean:
+
+1. Run `policies/gap-verification-repair.md` DETECT phase for all pages in scope.
+2. All CRITICAL and MATERIAL GAPs must be in state `VERIFIED` or `REPAIR_ACCEPTED`.
+3. All ROLE_GAPs for triggered role campaigns must be resolved.
+4. COSMETIC GAPs may be `DEFERRED` with a DEC-NNN entry.
+
+If any unresolved CRITICAL or MATERIAL GAP exists: acceptance gate is BLOCKED.
+Do NOT pass the gate over unresolved implementation gaps by adjusting test expectations.
+
 ## Acceptance Gate
 
 The acceptance gate passes when:
 - All REQUIREMENT campaigns for the wave: `status: PASS`
 - All triggered ROLE campaigns: `status: PASS` (only when trigger conditions were met)
 - All RISK_CHANGE_IMPACT campaigns for regression scope: `status: PASS` (when applicable)
+- Active Target Verification complete for all screens in scope (no SUPERSEDED_TARGET references)
+- All CRITICAL and MATERIAL GAPs for wave scope: `VERIFIED` or explicitly `DEFERRED`
 - No open `DECISION_REQUIRED` items
 - No proof point has unresolved `remediation_state` in {UNSPECIFIED_BUT_AVAILABLE, BUSINESS_EXPECTATION_UNKNOWN}
 

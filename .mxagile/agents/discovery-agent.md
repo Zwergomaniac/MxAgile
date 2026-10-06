@@ -47,6 +47,45 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
 10. Wenn `development.ui_driven = true`: **UI-Driven Runtime Readiness Gate** pruefen (siehe unten)
 11. Pruefe am Ende die Vorbedingungen aus `.mxagile/skills/gate-to-refinement.md`
 
+## Platform Boundary Classification (Pflicht vor Seiteninventarisierung)
+
+Bevor eine HTML-Seite als fachliche Seite inventarisiert wird, pruefe:
+
+1. **Authentication/Session Boundary:** Ist die Seite eine Login-Seite, Passwort-Seite,
+   Initialpasswort-Seite, oder Session-Management-Seite?
+   → `platform_boundary: true`. Kein REQ-NNN, kein SPEC-NNN, keine Tasks ableiten.
+
+2. **Demo Role Switcher:** Ist die Seite oder Komponente ein Demo Role Switcher oder Test-Login?
+   → `platform_boundary: true`. Rein fuer Testzwecke — kein produktiver Login, keine Nutzerverwaltung.
+   → Das Rollenmodell selbst bleibt davon unberuehrt und vollstaendig erhalten.
+
+3. **Plattformmodul-Seite:** Wird die Funktion von einem Plattformmodul (z.B. MB_SSO) geliefert
+   statt von der Applikation selbst?
+   → `platform_boundary: true`. Kein Implementierungsauftrag ableiten.
+
+Dokumentiere jede `platform_boundary: true`-Klassifikation als DEC-NNN mit
+`decision_type: platform_boundary` wenn sie neu und noch nicht entschieden ist.
+
+## Rollenmtodell-Coverage-Check (Pflicht nach Mockup-Intake)
+
+Nach dem vollstaendigen Mockup-Intake, pruefe ob jede fachliche Rolle:
+
+1. Im Design Contract vorhanden ist (Feld `roles[]`)
+2. In den Requirements oder im Rollenkonzept nachvollziehbar ist
+3. Im ausfuehrbaren Mockup repraesentierbar ist (Role-Switcher oder Testmodus)
+4. Einen testbaren Rollenmodus hat
+
+Wenn eine Rolle fehlt oder nicht testbar ist → `ROLE_GAP` in die Story-Spec als
+offenen Punkt aufnehmen und als Coverage-Gap markieren.
+
+**Scoped Rollen brauchen repraesentative Scopes:**
+- AppAdmin: App-/Centerverwaltungsscope (Zugriff auf alle Center/Abteilungen)
+- E2, CeKo, CeKo Vertreter: Centerscope (repraesentativer Center erforderlich)
+- E3 Eintragung, E3 Eintragung Vertreter, E3 Ueberprüfung: Abteilungsscope
+- E4 Eintragung, E4 Ueberprüfung: Teamscope
+
+Eine fehlende E4-Testrepraesentation ist ein `ROLE_GAP`, kein Infrastruktur-GAP.
+
 ## Mocketeer Design Contract Intake (WP2 Extension)
 
 When an HTML mockup is found under `input-resources/ui-ux/`, check for an embedded Design Contract:
@@ -103,6 +142,28 @@ Deine Aufgabe: Specs, Modell und Board analysieren. Der UI-Agent liefert das
 Feldinventar. Beide Ergebnisse fliessen im Gate-to-Refinement zusammen.
 
 Falls keine Mockups vorhanden: dokumentiere das als Luecke, kein Blocker.
+
+### Interaction-Typen aus UI-Inventar uebernehmen
+
+Nach Abschluss der UI-Agent Analyse: Lies das erzeugte Inventar und uebernehme
+`interaction_states` mit `interaction_type` und `effects` in die Story-Spec.
+
+**Regeln fuer Snippet/Popup-Inhalte:**
+- Inhalte die als `interaction_type: snippet` oder `interaction_type: popup` klassifiziert
+  wurden, erscheinen als eingebettete Inhalte auf bestehenden Fachseiten.
+- Aus einem Snippet oder Popup darf KEIN eigenstaendiger Mendix-Page-Kandidat abgeleitet werden.
+- Pruefe das Feld `derived_page: false` im Effect-Eintrag — wenn gesetzt, ist eine
+  eigenstaendige Seite explizit ausgeschlossen.
+
+**Regeln fuer ausklappbare Bereiche (expandable_area):**
+- `interaction_type: expandable_area` bedeutet: Bereich ist fachlich relevant, aber
+  kein eigenstaendiger Page-Kandidat.
+- Die Effects (`expand` / `collapse`) sind Anforderungen an das Implementierungs-Widget.
+- Erfasse jede `expandable_area` als Interaction-Anforderung in der Story-Spec.
+
+**Impact-Vollstaendigkeit:** Wenn ein Interaction-State im Inventar keinen Effect hat
+und der State nicht `empty` oder `loading` ist → als `INTERACTION_GAP` markieren
+(fehlende Effect-Beschreibung = fehlende Verifikationsgrundlage).
 
 ## UI-Driven Runtime Readiness Gate
 

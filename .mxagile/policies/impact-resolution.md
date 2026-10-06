@@ -246,6 +246,105 @@ A difference between mockup and Requirement across DIFFERENT concerns: NOT a con
 
 ---
 
+## Mockup Revision Impact Propagation
+
+When a new mockup revision is accepted (`refinement_status: ACCEPTED`, `lifecycle_status: REFINED_TARGET`),
+the framework must propagate the impact to all affected downstream artifacts.
+
+### Trigger
+
+A new `REV-NNN` entry in `planning/target-mockups/<mockup-name>/_history/` with `refinement_status: ACCEPTED`.
+
+### Propagation Algorithm
+
+```
+RECEIVE: new REV-NNN acceptance event
+
+STEP 1 — Identify change scope from revision manifest
+  Read revision.yaml:
+    change_classification: material | non_material | unknown
+    impact_scope: targeted | cross_cutting | full | unknown
+    affected_screens: [PAGE-NNN, ...]
+    change_scope: (human description)
+    requirements: [REQ-NNN, ...] (populated by create_revision.py)
+
+STEP 2 — Determine artifact staleness scope
+  If change_classification == non_material AND confirmed by developer:
+    → No staleness propagation. Update bundle_hash in affected page YAMLs only.
+  If change_classification == material OR unknown:
+    → Apply staleness per impact_scope:
+      targeted: mark parity STALE only for affected_screens
+      cross_cutting: mark parity STALE for affected_screens + any screens sharing nav/layout
+      full OR unknown: mark ALL parity results for this mockup_name as STALE
+
+STEP 3 — Propagate to parity artifacts
+  For each STALE screen:
+    Set parity-verification YAML: parity_result: STALE, target_revision: <new REV-NNN>
+    Record reason: "Revision <REV-NNN> accepted with change_classification: <value>"
+
+STEP 4 — Propagate to test contracts and verification plans
+  For each REQ-NNN in revision.requirements[]:
+    If acceptance criteria changed per change_scope narrative:
+      Mark TC-NNN for that REQ as IMPACTED per policies/test-staleness.md
+    If acceptance criteria unchanged but screen content changed:
+      Mark TC-NNN as NEEDS_RERUN (not IMPACTED — contract is still valid)
+
+STEP 5 — Propagate to implementation tasks
+  For each affected PAGE-NNN:
+    Identify TASK-NNN items with inspect targets on that page
+    Mark as needs_re-verification: true
+
+STEP 6 — Record propagation event
+  Append entry to .concord/scratch/process-state.yaml:
+    revision_propagation:
+      revision_id: REV-NNN
+      propagated_at: <ISO datetime>
+      stale_screens: [PAGE-NNN, ...]
+      stale_tc_count: N
+      needs_rerun_tc_count: N
+      propagated_by: <agent-id>
+```
+
+### Non-Material Change Shortcut
+
+When `change_classification: non_material` is confirmed by the developer AND a DEC-NNN entry
+documents the confirmation, the agent may skip full parity re-run and perform a focused
+visual spot-check only. The `evidence_upgrade` field in the parity verification YAML records
+the scope of the spot-check.
+
+An agent MUST NOT classify `non_material` autonomously for a change that affects:
+- Role visibility or permissions
+- Navigation structure
+- Form fields or their presence/absence
+- Required interaction states
+
+These require developer confirmation or result in `change_classification: material`.
+
+### Revision-Aware Resolver Extension
+
+```bash
+python scripts/resolve_impact.py --path <project_root> --revision REV-003
+```
+
+Outputs:
+- List of STALE parity artifacts for REV-003's affected_screens
+- List of IMPACTED or NEEDS_RERUN test contracts
+- List of affected planning tasks
+- Recommended propagation action per artifact
+
+### Active Target Invariant during Propagation
+
+Propagation MUST update all affected page YAMLs to reference the new active revision:
+```yaml
+target_revision: REV-003      # was: REV-002
+bundle_hash: sha256:abc123    # new accepted bundle hash
+```
+
+After propagation, no page YAML for this mockup_name may still reference a
+`lifecycle_status: SUPERSEDED_TARGET` revision as its `target_revision`.
+
+---
+
 ## Backward Compatibility
 
 Projects without `screens[]` populated in Requirements can still use Priority 2 and 3.
