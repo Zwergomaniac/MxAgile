@@ -333,9 +333,13 @@ Technische Pruefung — muss bestehen bevor UI/Acceptance starten:
 - `mxcli check --references` ohne Fehler
 - `mxcli lint` ohne kritische Findings
 - `mxcli docker check` ohne CE-Fehler (Konsistenzpruefung, kein Docker-Build)
-- Applikation laeuft und ist erreichbar — bevorzugt `mxcli run --local --watch` (Level 3);
-  Docker nur wenn Container-Paritaet benoetigt oder lokaler Runtime nicht moeglich
-  (vollstaendige Eskalationsregeln: `policies/runtime-strategy.md`)
+- Applikation laeuft und ist erreichbar — bevorzugt `mxcli run --local` im autonomen Modus
+  (ohne `--watch`, Level 3); `--watch` wird im Verifying nicht benoetigt
+  (vollstaendige Modi: `policies/development-runtime.md` § Runtime Modes;
+  Eskalationsregeln: `policies/runtime-strategy.md`)
+- Readiness Gate: APPLICATION_REACHABLE per HTTP-Poll bestaetigt bevor
+  UI-Agent und Acceptance-Agent starten
+- Runtime-Startup-Fehler → TEST_INFRASTRUCTURE_GAP, nicht APPLICATION_DEFECT
 - Security Level mindestens Prototype (wenn Security-Pass ausgefuehrt)
 
 ### Schritt 2: UI-Agent + Acceptance-Agent (parallel)

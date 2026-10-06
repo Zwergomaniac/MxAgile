@@ -182,9 +182,17 @@ The lifecycle for obtaining a testable local application session is:
 
 4. START LOCAL RUNTIME WITH RESOLVED CONFIGURATION
    DB identity MUST be resolved per development-runtime.md — DB Identity Resolution.
-   Canonical autonomous effective command (when --db-name is supported by installed mxcli):
+   Select the runtime mode per development-runtime.md — Runtime Modes:
+   - Interactive Implementation (Implementing, warm loop): include `--watch`
+   - Autonomous Verification (Verifying, Discovery browser evidence): omit `--watch`
+
+   Canonical effective command — Interactive (when --db-name is supported):
 
      mxcli run --local -p <project>.mpr --watch --db-name <resolved_db_name>
+
+   Canonical effective command — Autonomous (when --db-name is supported):
+
+     mxcli run --local -p <project>.mpr --db-name <resolved_db_name>
 
    where <resolved_db_name> is resolved per the autonomous precedence
    (Core default: "default" unless overridden by session or project declaration).
@@ -192,7 +200,7 @@ The lifecycle for obtaining a testable local application session is:
    Do NOT use mxcli's .mpr-derived db_name for autonomous execution.
    If --db-name is not supported: classify DB_IDENTITY_CONTROL_UNAVAILABLE; do not start.
    Report effective_db_name, source (MXAGILE_CORE_DEFAULT / SESSION_OVERRIDE /
-   PROJECT_DECLARED), and non-secret config before starting.
+   PROJECT_DECLARED), runtime_mode, and non-secret config before starting.
 
 5. WAIT FOR APPLICATION READINESS
    Track pipeline stages (see Runtime Pipeline State Model below)
@@ -277,9 +285,12 @@ Record the achieved pipeline stage in `prerequisite_state.runtime_pipeline_stage
 
 ## Watch-Mode Startup Semantics
 
-`mxcli run --local --watch` is the canonical warm local development loop.
+`mxcli run --local --watch` is the canonical warm local **interactive** development loop.
+`mxcli run --local` (without `--watch`) is the canonical **autonomous** verification startup.
 
-The intended startup semantics are:
+See `policies/development-runtime.md` — Runtime Modes for the full mode contract.
+
+### Interactive Mode Startup Sequence
 
 ```
 1. Cold start: mxcli dependency sync + mxbuild compilation + runtime boot
@@ -287,6 +298,16 @@ The intended startup semantics are:
 3. BROWSER_RENDERED confirmed (Playwright loads application)
 4. AUTHENTICATED_SESSION_READY confirmed (bootstrap login validated)
 5. Watch loop active: mxcli detects model changes and applies them without full restart
+```
+
+### Autonomous Mode Startup Sequence
+
+```
+1. Cold start: mxcli dependency sync + mxbuild compilation + runtime boot
+2. APPLICATION_REACHABLE confirmed (HTTP response)
+3. BROWSER_RENDERED confirmed (Playwright loads application)
+4. AUTHENTICATED_SESSION_READY confirmed (bootstrap login validated)
+5. Ready for verification — no watch loop; runtime serves requests until terminated
 ```
 
 Agents MUST NOT begin Playwright interaction until BROWSER_RENDERED is confirmed.

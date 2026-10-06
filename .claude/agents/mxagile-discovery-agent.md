@@ -143,8 +143,11 @@ DB-Identitaet muss bekannt sein bevor der Runtime gestartet wird.
 Vollstaendiger Vertrag: `policies/development-runtime.md` — DB Identity Resolution.
 
 ### Schritt 2: Runtime-Start
-`mxcli run --local --watch` starten wenn Credentials verfuegbar und Profil aufgeloest.
-Effektiven Befehl per `policies/development-runtime.md` konstruieren — nicht den Basis-Befehl direkt ausfuehren.
+`mxcli run --local` im autonomen Modus starten (ohne `--watch`) wenn Credentials verfuegbar
+und Profil aufgeloest. Discovery-Browser-Evidenz aendert das Modell nicht — `--watch` ist
+nicht erforderlich. Effektiven Befehl per `policies/development-runtime.md` § Runtime Modes
+konstruieren — nicht den Basis-Befehl direkt ausfuehren.
+Readiness Gate abwarten: APPLICATION_REACHABLE per HTTP-Poll bestaetigen bevor Playwright startet.
 
 Bei Fehler: gemaess Fehlerklassifikation aus `policies/credential-discovery.md` vorgehen.
 Kein `ALTER USER` oder Passwort-Reset.

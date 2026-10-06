@@ -341,17 +341,21 @@ melden. Fehlende Geschaeftsentscheidungen NICHT still erfinden.
 
 ## Runtime-Zustand ist Transient
 
-Die Warm-Local-Development-Runtime (`mxcli run --local --watch`) ist session-lokal und transient.
+Die lokale Runtime (`mxcli run --local`, im interaktiven Modus mit `--watch` oder
+im autonomen Modus ohne `--watch`) ist session-lokal und transient.
 
 `runtime_running: true` NICHT als Lifecycle-Wahrheit persistieren.
 
 Beim Resuming: tatsaechlichen Runtime-Zustand durch Inspektion der Umgebung bestimmen,
-nicht aus gespeichertem Zustand lesen.
+nicht aus gespeichertem Zustand lesen. Ownership-Klassifikation durchfuehren bevor
+ein bestehender Prozess wiederverwendet oder beendet wird
+(siehe `policies/development-runtime.md` § Runtime Ownership Model).
 
 | Dimension | Eigenschaft |
 |---|---|
 | Lifecycle-Zustand (Phase, Gates) | Persistent, autoritativ |
 | Runtime-Zustand (running_warm, stopped, failed) | Transient, session-lokal |
+| Runtime-Ownership (owned, reusable, stale_owned, ...) | Transient, bei Resume neu bestimmen |
 
 Runtime-Zustandsaenderungen loesen KEINEN Phasenwechsel aus.
 

@@ -21,8 +21,8 @@ explicitly targets a higher-level environment.
 | Level | Mechanism | When to Use |
 |---|---|---|
 | **1** | Static / model validation | Syntax, references, lint, consistency (`mxcli check`, `mxcli lint`, `mxcli docker check`) |
-| **2** | Warm local runtime | `mxcli run --local --watch` — iterative development feedback, UI iteration |
-| **3** | Browser / Playwright against local runtime | Visual inspection, UI verification, acceptance tests — where local runtime is valid |
+| **2** | Warm local runtime | `mxcli run --local --watch` — interactive iterative development feedback, UI iteration |
+| **3** | Browser / Playwright against local runtime | Visual inspection, UI verification, acceptance tests — autonomous mode (`mxcli run --local` without `--watch`) for unattended verification |
 | **4** | Isolated Docker / container verification | Container-environment parity, deployable-build validation, CI without local runtime |
 | **5** | Deployment / environment-specific verification | PAD, container deployment, environment-specific configuration |
 
@@ -140,8 +140,9 @@ Existing projects without a `runtime` section receive `local_first` behavior aut
 |---|---|---|
 | Model validation | `mxcli check`, `mxcli lint` | n/a |
 | Consistency check | `mxcli docker check` (no build) | n/a |
-| Fast implementation loop | `mxcli run --local --watch` | n/a |
-| UI iteration | `mxcli run --local --watch` | n/a |
+| Fast implementation loop | `mxcli run --local --watch` (interactive mode) | n/a |
+| UI iteration | `mxcli run --local --watch` (interactive mode) | n/a |
+| Autonomous verification | `mxcli run --local` (autonomous mode, no `--watch`) | local runtime fails |
 | Browser inspection | local runtime | local runtime fails |
 | Mockup comparison | local runtime + browser | local runtime fails |
 | Role verification | local runtime where valid | container-specific role config |

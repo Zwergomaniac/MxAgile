@@ -286,10 +286,13 @@ Sie sind wertvolle Spezifikationsgrundlage, aber KEIN Runtime- oder Browser-Nach
 
 Trigger: Phase ist `verifying` und Applikation laeuft und per Browser erreichbar.
 
-Die Applikation laeuft bevorzugt als warmer lokaler Runtime (`mxcli run --local --watch`,
-Level 3). Docker (Level 4) wird nur verwendet wenn Container-Paritaet benoetigt oder
-der lokale Runtime keine valide Verifikationsevidenz liefern kann.
+Die Applikation laeuft bevorzugt als lokaler Runtime im autonomen Modus
+(`mxcli run --local` ohne `--watch`, Level 3). `--watch` wird im Verifying-Modus
+nicht benoetigt — die Verifikation aendert das Modell nicht. Docker (Level 4)
+wird nur verwendet wenn Container-Paritaet benoetigt oder der lokale Runtime keine
+valide Verifikationsevidenz liefern kann.
 Vollstaendige Eskalationsregeln: `.mxagile/policies/runtime-strategy.md`.
+Runtime-Modi-Vertrag: `.mxagile/policies/development-runtime.md` § Runtime Modes.
 
 **Evidenz-Level: BROWSER** — Verify-Modus erzeugt Browser-Evidenz (hoechster Level).
 Voraussetzung: laufende Applikation + repraesentativer Daten-Zustand + korrekte Benutzerrolle.

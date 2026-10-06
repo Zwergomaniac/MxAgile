@@ -21,7 +21,10 @@ Implementing ist kein Verifikationsnachweis (siehe `policies/development-runtime
 4. **Konsistenz** — `mxcli docker check -p <project>.mpr` — keine CE-Fehler
    (bei CE0066 → Update security, siehe `.mxagile/policies/consistency-check.md`)
 5. **Runtime** — Applikation laeuft und ist erreichbar (per Runtime-Strategie):
-   - Standard: `mxcli run --local --watch` (Level 3 — warmer lokaler Runtime)
+   - Standard: `mxcli run --local` im autonomen Verifikationsmodus (ohne `--watch`)
+     — siehe `policies/development-runtime.md` § Runtime Modes
+   - Readiness Gate: APPLICATION_REACHABLE muss per HTTP-Poll bestaetigt sein bevor
+     UI-Agent und Acceptance-Agent starten (keine Playwright-Interaktion vor Readiness)
    - Fallback auf Docker nur wenn Level 3 nicht moeglich oder Container-Paritaet
      explizit benoetigt — Begruendung angeben (siehe `policies/runtime-strategy.md`)
 6. **Security** — Security Level mindestens Prototype wenn Security-Pass ausgefuehrt (D48)

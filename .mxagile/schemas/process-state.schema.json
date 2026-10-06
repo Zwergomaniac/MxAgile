@@ -70,6 +70,20 @@
               "enum": ["not_checked", "discovered", "incomplete", "user_input_required", "configured", "validation_failed", "ready"],
               "description": "Credential/config discovery status. discovered=source found but not all keys present; incomplete=source missing; user_input_required=bootstrap prepared, awaiting developer input; configured=all keys present; ready=validated successfully."
             },
+            "runtime_mode": {
+              "type": "string",
+              "enum": ["interactive", "autonomous", "none"],
+              "description": "Active runtime mode. interactive=warm development loop with --watch (Implementing). autonomous=unattended verification without --watch (Verifying, Discovery browser evidence). none=no runtime started. See policies/development-runtime.md — Runtime Modes."
+            },
+            "runtime_ownership": {
+              "type": "string",
+              "enum": ["owned", "reusable", "foreign", "stale_owned", "unknown", "none"],
+              "description": "Ownership classification of the current/detected runtime. owned=started by this session. reusable=compatible existing runtime. foreign=belongs to another project/session. stale_owned=previously owned, lifecycle inactive. unknown=cannot determine. none=no runtime detected. See policies/development-runtime.md — Runtime Ownership Model."
+            },
+            "runtime_owner_pid": {
+              "type": "integer",
+              "description": "PID of the owned or detected runtime process. Used for ownership verification and safe cleanup."
+            },
             "runtime_pipeline_stage": {
               "type": "string",
               "enum": [

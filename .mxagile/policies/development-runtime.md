@@ -21,6 +21,71 @@ The runtime mechanism for formal verification follows the escalation model in
 `policies/runtime-strategy.md`: local runtime preferred (Level 3); Docker only when
 container-parity is required or local runtime cannot provide valid evidence.
 
+## Runtime Modes
+
+MxAgile distinguishes two runtime invocation modes. Both use `mxcli run --local`
+but differ in `--watch` usage and lifecycle semantics.
+
+### Interactive Implementation Mode
+
+Used during Implementing when a developer/agent is actively iterating on model changes.
+
+| Property | Value |
+|---|---|
+| `--watch` | PREFERRED |
+| Purpose | Hot-apply model changes, avoid full restarts |
+| Lifecycle | Foreground/interactive, remains running across iterations |
+| Termination | Developer/agent-initiated or session end |
+| Phase | Implementing |
+
+Interactive base command:
+
+```
+mxcli run --local -p <project>.mpr --watch
+```
+
+### Autonomous Verification Mode
+
+Used when an agent needs unattended runtime startup for verification, testing, or
+evidence collection. The runtime starts, becomes reachable, serves requests, and
+is terminated after verification completes.
+
+| Property | Value |
+|---|---|
+| `--watch` | NOT_USED |
+| Purpose | Start → ready → serve → test → terminate |
+| Lifecycle | Background/unattended, no interactive model watching |
+| Termination | After verification complete or on failure |
+| Phase | Verifying (also used for autonomous Discovery browser evidence) |
+
+Autonomous base command:
+
+```
+mxcli run --local -p <project>.mpr
+```
+
+`--watch` is omitted in autonomous mode because:
+1. Autonomous verification does not modify the model during the runtime lifecycle
+2. `--watch` monitors for file changes and may not complete unattended cold-start
+   reliably in all background execution contexts
+3. The verification loop is start → ready → test, not edit → apply → inspect
+
+### Mode Selection
+
+The runtime mode is determined by the agent's current purpose, not the lifecycle phase:
+
+| Agent / Context | Mode |
+|---|---|
+| Implementation-Agent iterating on model changes | Interactive |
+| Quality Gate runtime check (Verifying) | Autonomous |
+| UI-Agent Verify mode | Autonomous |
+| Acceptance-Agent campaigns | Autonomous |
+| Discovery-Agent browser evidence | Autonomous |
+| Developer explicitly requesting `--watch` | Interactive |
+
+Both modes are subject to the same DB Identity Resolution, Credential Discovery,
+and Configuration Precedence rules. Only the `--watch` flag and lifecycle semantics differ.
+
 ## Default Inner Development Loop
 
 For runtime-relevant iterative implementation, prefer the warm local development loop:
@@ -196,20 +261,34 @@ Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environmen
 
 ### Base Command vs. Effective Command
 
-The *base command* is the minimal invocation form:
+The *base command* depends on the runtime mode (see § Runtime Modes above):
+
+**Interactive Implementation base command:**
 
 ```
 mxcli run --local -p <project>.mpr --watch
+```
+
+**Autonomous Verification base command:**
+
+```
+mxcli run --local -p <project>.mpr
 ```
 
 The *effective command* is the base command expanded with resolved profile flags.
 Agents MUST NOT execute the base command without first completing full profile
 resolution — see `policies/local-runtime-profile.md`.
 
-**Canonical autonomous effective command** (when `--db-name` is supported):
+**Canonical effective command — Interactive Implementation** (when `--db-name` is supported):
 
 ```
 mxcli run --local -p <project>.mpr --watch --db-name default
+```
+
+**Canonical effective command — Autonomous Verification** (when `--db-name` is supported):
+
+```
+mxcli run --local -p <project>.mpr --db-name default
 ```
 
 where `default` is the resolved db_name (Core default unless overridden — see § DB Identity
@@ -353,6 +432,146 @@ Runtime state MUST NOT cause a lifecycle transition.
 
 A developer saying "start the app" or "show me the page" during Implementing is a
 legitimate development observation request — it does not change lifecycle state.
+
+## Runtime Ownership Model
+
+Before starting, reusing, or terminating a runtime, classify it:
+
+| Classification | Evidence | Action |
+|---|---|---|
+| `OWNED_RUNTIME` | PID recorded by this MxAgile session; project path matches; ports match | Safe to manage (reuse, monitor, terminate) |
+| `REUSABLE_RUNTIME` | Compatible project/config/db; ownership positively identified | Reuse when safe; do not restart unnecessarily |
+| `FOREIGN_RUNTIME` | Belongs to another project/session/user | Do NOT terminate; classify and report |
+| `STALE_OWNED_RUNTIME` | Previously owned by MxAgile; ownership provable; lifecycle no longer active | May terminate autonomously with evidence |
+| `UNKNOWN_RUNTIME` | mxcli process exists but ownership cannot be established | Do NOT terminate; classify and report |
+
+### Ownership Evidence
+
+Sufficient ownership evidence requires at least TWO of:
+
+- PID recorded in process-state by this MxAgile session
+- Command-line arguments match expected project path
+- Runtime/app/admin ports match expected configuration
+- Process start time is consistent with this session's lifecycle
+
+### Termination Rules
+
+Never blindly execute `pkill mxcli`, `killall mxcli`, or arbitrary PID termination.
+
+Before terminating ANY mxcli process:
+
+1. Classify it using the table above
+2. Verify ownership evidence (minimum TWO matching signals)
+3. Only `STALE_OWNED_RUNTIME` may be terminated autonomously
+4. `FOREIGN_RUNTIME` and `UNKNOWN_RUNTIME`: classify and report, do not kill
+5. Record termination evidence in process-state
+
+A process MUST NOT be terminated merely because:
+- Its executable is mxcli
+- It is old
+- A port is occupied
+- It appears idle
+
+### Stale Process Detection Before Startup
+
+Before starting a new runtime:
+
+1. Check for existing mxcli processes matching the project path
+2. Classify each: OWNED / REUSABLE / FOREIGN / STALE_OWNED / UNKNOWN
+3. If REUSABLE: assess compatibility (project path, db_name, app_port)
+4. If compatible REUSABLE: reuse instead of starting new
+5. If STALE_OWNED: terminate with evidence before starting new
+6. If FOREIGN or UNKNOWN: report and choose alternate port or escalate
+
+Record runtime ownership in process-state:
+
+```yaml
+prerequisite_state:
+  runtime_ownership: owned | reusable | none
+  runtime_owner_pid: <PID>
+```
+
+## Readiness Gate Contract
+
+A mandatory readiness gate separates runtime startup from any consumer interaction
+(Playwright, test execution, authenticated operations).
+
+### Gate Levels
+
+| Level | Meaning | Required Before |
+|---|---|---|
+| `APPLICATION_REACHABLE` | HTTP endpoint responds with valid page/login | Playwright navigation, any HTTP interaction |
+| `BROWSER_RENDERED` | Playwright browser has loaded the application | Any DOM interaction, screenshot, selector query |
+| `AUTHENTICATED_SESSION_READY` | Bootstrap login complete, role/page confirmed | Role scenario execution, authenticated tests |
+
+### Prohibited Inferences
+
+Tests MUST NOT infer application readiness from:
+
+- mxcli process existence
+- Shell start command returning
+- Build compilation succeeding (`BUILD_SUCCEEDED` is not readiness)
+- Port number expectation (e.g. 8080)
+- Fixed sleep/delay
+
+### Readiness Validation Sequence
+
+Before any Playwright or test interaction:
+
+1. Wait for `APPLICATION_REACHABLE` — HTTP poll until valid response
+2. Wait for `BROWSER_RENDERED` — Playwright page load confirmed
+3. Wait for `AUTHENTICATED_SESSION_READY` — login + role verification (when auth required)
+4. Only then: begin test execution
+
+If readiness is not achieved within `startup_timeout_seconds`:
+- Classify as `RUNTIME_STARTUP_FAILURE`
+- Do NOT fail application proof points
+- Record as `TEST_INFRASTRUCTURE_GAP`
+
+### Startup Timeout
+
+Default: `startup_timeout_seconds` from `local_runtime` profile (default: 120s).
+The timeout covers the full pipeline from start to `APPLICATION_REACHABLE`.
+Individual stages have no separate timeout; the overall pipeline timeout governs.
+
+## Test Failure Classification (Runtime Infrastructure)
+
+When a test fails, classify the root cause before attributing the failure:
+
+| Classification | Evidence | Correct Action |
+|---|---|---|
+| `RUNTIME_STARTUP_FAILURE` | Application never reached `APPLICATION_REACHABLE` | Record as infrastructure gap; proof points remain UNEXECUTED |
+| `RUNTIME_READINESS_FAILURE` | chrome-error://, connection refused, timeout before page load | Record as infrastructure gap; proof points remain UNEXECUTED |
+| `AUTHENTICATION_INFRASTRUCTURE_FAILURE` | Login page loaded but authentication mechanism failed (not credentials) | Record as infrastructure gap |
+| `TEST_INFRASTRUCTURE_GAP` | Test tooling failure unrelated to application behavior | Record as gap; do not attribute to application |
+| `APPLICATION_DEFECT` | Application reachable + authenticated + test exercised correct path = unexpected result | Route to Implementing |
+
+### Mandatory Classification Before Attribution
+
+This failure mode MUST NOT occur:
+
+```
+runtime not ready → Playwright gets chrome-error:// → application PP fails
+```
+
+Instead:
+
+```
+runtime not ready → TEST_INFRASTRUCTURE_GAP / RUNTIME_STARTUP_FAILURE → application PP remains UNEXECUTED
+```
+
+Demo-user switch failures caused solely by an unavailable application MUST NOT be
+classified as demo-user/application defects. The runtime must be confirmed operational
+before application behavior is evaluated.
+
+## Watch-Mode Decision
+
+| Context | `--watch` | Reason |
+|---|---|---|
+| Interactive Implementation | PREFERRED | Enables hot-apply of model changes during iterative development |
+| Autonomous Verification | NOT_USED | Verification does not modify models; `--watch` may not complete unattended cold-start in background contexts |
+| Background Execution | NOT_USED | Use `mxcli run --local` without `--watch`; wait for `APPLICATION_REACHABLE` via readiness gate |
+| Developer-Requested Watch | PREFERRED | Explicit developer request overrides default mode selection |
 
 ## Development Runtime vs. Test Runtime
 

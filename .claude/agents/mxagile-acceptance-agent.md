@@ -54,7 +54,10 @@ Before running any campaign:
 2. **Infrastructure assessment** — Document which layers are available NOW (post-implementation):
    - MODEL: always (mxcli present)
    - BUILD: semantic build validation capability available in this environment?
-   - RUNTIME: app running via `mxcli run --local --watch`?
+   - RUNTIME: app running via `mxcli run --local` (autonomous mode, no `--watch`)?
+     See `policies/development-runtime.md` § Runtime Modes.
+     Readiness Gate: APPLICATION_REACHABLE must be confirmed before any Playwright interaction.
+     Runtime startup failure → TEST_INFRASTRUCTURE_GAP, not APPLICATION_DEFECT.
    - FRONTEND: Playwright installed and RUNTIME available?
 
 3. **VPL creation/refresh** — For each TC-NNN in scope:

@@ -86,7 +86,7 @@ Examples:
 - mxcli runtime logs without critical errors
 
 Properties:
-- Requires `mxcli run --local --watch` (or equivalent) to be running
+- Requires `mxcli run --local` (interactive with `--watch` or autonomous without) to be running
 - Requires credentials/database to be configured and accessible
 - Requires mock/seed data for non-empty scenarios
 - Does NOT require a browser session — verifies runtime viability

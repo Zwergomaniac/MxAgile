@@ -883,5 +883,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Static checks on .mxagile/skills/test-generate.md, .mxagile/policies/test-defect-protection.md, .mxagile/agents/acceptance-agent.md, .mxagile/policies/verification-layers.md. Verifies: Forbidden Adapters section forbids window.mx.*, mx.ui.openForm, runtimeOperation, XAS calls; FRONTEND uses Playwright user journeys; authorization proofs use RUNTIME layer; TEST_ADAPTER_GAP defined and not conflated with TEST_INFRASTRUCTURE_GAP; acceptance-agent classification protocol includes TEST_ADAPTER_GAP step; VISIBILITY dimension does not satisfy AUTHORIZATION proof. Pure read-only static check."
+  },
+  {
+    "File": "test-runtime-orchestration.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static checks on runtime orchestration contracts: interactive vs autonomous mode separation, runtime ownership model, readiness gate, test failure classification, no blind process killing, generated projections carry corrected contracts, DB-default preserved. Pure read-only policy and schema validation."
   }
 ]

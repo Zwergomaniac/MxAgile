@@ -60,7 +60,7 @@ semantics, navigation reachability). Do not silently treat a passing MODEL check
 
 ### RUNTIME
 
-Source: Running application state via `mxcli run --local --watch`.
+Source: Running application state via `mxcli run --local` (autonomous mode for verification, interactive with `--watch` for development).
 
 Use for:
 - Application startup without errors

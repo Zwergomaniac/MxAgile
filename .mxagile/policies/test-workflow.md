@@ -9,9 +9,11 @@ Playwright und Browser-Verifikation erfordern KEINE Docker-Umgebung.
 Sie erfordern eine laufende, per Browser erreichbare Applikation.
 
 Der bevorzugte Ablauf fuer Verifying ist Level 3 (lokaler Runtime):
-1. `mxcli run --local --watch` starten (falls nicht bereits laufend)
-2. Playwright gegen `http://localhost:<port>` ausfuehren
-3. Ergebnis dokumentieren
+1. `mxcli run --local` im autonomen Modus starten (ohne `--watch`, falls nicht bereits laufend)
+   — siehe `policies/development-runtime.md` § Runtime Modes
+2. Readiness Gate abwarten: APPLICATION_REACHABLE per HTTP-Poll bestaetigen
+3. Playwright gegen `http://localhost:<port>` ausfuehren
+4. Ergebnis dokumentieren
 
 Docker-Eskalation (Level 4, `scripts/run-docker-isolated.ps1`) ist nur angemessen wenn:
 - Container-Umgebungs-Paritaet benoetigt wird

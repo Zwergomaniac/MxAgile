@@ -119,7 +119,11 @@ lifecycle:
         Validate implementation against requirements across four dimensions:
         technical quality (quality-gate), UI fidelity (ui-agent), functional
         acceptance (acceptance-agent via Test Contracts), and acceptance gate.
-        A wave is complete only when all four pass.
+        A wave is complete only when all four pass. The local runtime is started
+        in autonomous mode (mxcli run --local, without --watch) — verification
+        does not modify the model. APPLICATION_REACHABLE must be confirmed before
+        any Playwright interaction. Runtime startup failure is classified as
+        TEST_INFRASTRUCTURE_GAP, not APPLICATION_DEFECT.
         Acceptance Agent runs structured campaigns (REQUIREMENT, ROLE, RISK_CHANGE_IMPACT)
         derived from Test Contracts and Verification Plans. Evidence is classified by layer
         (MODEL/BUILD/RUNTIME/FRONTEND) and security dimension
