@@ -121,8 +121,15 @@ Ergebnis klassifizieren — KEIN Default-Fallback; KEINE Credential-Mutation:
 - Alle benoetigt: CONTINUE
 - Fehlende Keys: Bootstrap-Flow aus `policies/credential-discovery.md` ausfuehren
 
+### Schritt 1b: Local-Runtime-Profil lesen
+Vor dem Runtime-Start: `local_runtime`-Profil aus `mxagile-project.yaml` lesen (falls vorhanden).
+Relevante Felder: `db_name`, `db_type`, `constant_overrides`, `app_port`.
+DB-Identitaet muss bekannt sein bevor der Runtime gestartet wird.
+Vollstaendiger Vertrag: `policies/development-runtime.md` — DB Identity Resolution.
+
 ### Schritt 2: Runtime-Start
-`mxcli run --local --watch` starten wenn Credentials verfuegbar.
+`mxcli run --local --watch` starten wenn Credentials verfuegbar und Profil aufgeloest.
+Effektiven Befehl per `policies/development-runtime.md` konstruieren — nicht den Basis-Befehl direkt ausfuehren.
 
 Bei Fehler: gemaess Fehlerklassifikation aus `policies/credential-discovery.md` vorgehen.
 Kein `ALTER USER` oder Passwort-Reset.

@@ -114,6 +114,43 @@ Alle drei Verbote gelten unabhängig voneinander. Keine Kombination hebt sie auf
 
 Vollständiger Vertrag: `.mxagile/policies/impact-resolution.md`
 
+## Design Contract Source-to-Canonical Mapping
+
+Falls die Story-Spec ein `design_contract_provenance.id_map` enthaelt, bist **du der Eigentuemer
+der Mapping-Vervollstaendigung**. Vollstaendiger Vertrag: `policies/design-contract-intake.md`.
+
+**PENDING-Eintraege reconcilieren:**
+- Semantisch mit kanonischen Artefakten (`requirements/`, `planning/decisions/`) abgleichen
+- Semantische Identitaet bestaetigt → `mapping_status: DIRECT`, `canonical_id` eintragen
+- Gleiche ID, andere Semantik → `mapping_status: COLLISION` (nicht DIRECT), naechster Schritt
+- **KEIN DIRECT ohne bestaettige semantische Aequivalenz** — gleiche IDs sind kein Beweis
+
+**COLLISION-Eintraege aufloesen:**
+- Neue kanonische ID vergeben (Quell-ID wird NICHT umbenannt)
+- `canonical_id` eintragen, `mapping_status: MAPPED`
+- Vorhandenes kanonisches Artefakt mit gleicher ID bleibt unveraendert
+
+**Bestaettigte Quell-Entscheidungen canonisieren:**
+Jeder `id_map`-Eintrag mit `source_type: decision` und `source_status: CONFIRMED_BY_STAKEHOLDER`
+oder `CONFIRMED_BY_SOURCE` der ein kanonisches Requirement materiell bestimmt — muss EINE
+der folgenden Dispositionen erhalten:
+- A: DIRECT — semantisch identisches kanonisches Decision-Artefakt bereits vorhanden
+- B: MAPPED — neues `planning/decisions/DEC-NNN.md` erstellen
+- C: EXCLUDED — explizite Begruendung, kein unaufgeloester Referenz verbleibt
+
+Ein `PENDING`-Eintrag fuer eine bestaettigte materielle Entscheidung blockiert das Gate.
+
+**Quell-Beziehungen in kanonische Beziehungen aufloesen:**
+Nach vollstaendiger Mapping-Vervollstaendigung: `source_superseded_by` und `source_governs`
+in `id_map` in kanonische Felder uebersetzen (nur kanonische IDs schreiben).
+Quell-Felder in `id_map` belassen — nie loeschen.
+
+**Gate-Blockierung — Refinement-Gate darf NICHT bestanden werden wenn:**
+- Ein bestaettigtes materielles Decision-Entry `mapping_status: PENDING` hat
+- Ein COLLISION-Eintrag kein `canonical_id` eingetragen hat
+- Ein kanonisches Referenzfeld einen Quell-ID enthaelt
+- Eine kanonische Beziehung auf ein unaufgeloestes Mapping zeigt
+
 ## Einschraenkungen
 
 - Read-only: Du aenderst kein Mendix-Modell

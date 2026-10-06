@@ -86,7 +86,8 @@ Siehe `.mxagile/policies/development-runtime.md` fuer vollstaendige Regeln.
 Microflow-Verhalten, Validierungen, UI-Iteration). Nicht pauschal zu Beginn
 jeder Implementing-Phase.
 
-**Bevorzugter Befehl:**
+**Basis-Befehl** (Profil-Aufloesung vor Ausfuehrung erforderlich — vollstaendige Regeln:
+`policies/development-runtime.md` § DB Identity Resolution und § Base Command vs. Effective Command):
 
 ```
 mxcli run --local -p <project>.mpr --watch

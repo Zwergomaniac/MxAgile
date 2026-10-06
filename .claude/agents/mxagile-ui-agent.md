@@ -40,6 +40,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/verification-scenario.md` — Material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy, parallelism safety
 - `.mxagile/policies/evidence-contract.md` — Temporary vs. canonical evidence, screenshot promotion contract, evidence manifest
 - `.mxagile/policies/project-knowledge.md` — Canonical artifact map, Git-tracked locations, gitignore contract, fresh clone test
+- `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
 - Company Layer UI documentation (if installed): `.mxagile/layers/*/modules/` fuer UI-Komponenten-Referenzen
 
 ## Evidence Level
@@ -359,6 +360,9 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
       - App-Screenshot unter `.concord/screenshots/app/{PageName}_visual.png`
       - Vergleich Layout, Farben, Spacing, visuelle Hierarchie
       - Abweichungen in `deviations` mit `dimension: visual`
+      - Fuer Abweichungen mit SCSS-Ursache: Concern vor Uebergabe an Implementation-Agent
+        klassifizieren (Komponente? Seite? Layout?), damit der Implementation-Agent den
+        richtigen Partial-Ort bestimmt. Vollstaendiger Vertrag: `policies/scss-engineering.md`.
 
    **b. CONTENT dimension** — DOM-Text-Extraktion (PFLICHT — Screenshot allein reicht nicht):**
       - Navigationsgruppenbezeichnungen via CSS-Selector extrahieren
@@ -376,12 +380,12 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
       - Komponenten-Typen: Wird der im Inventar angegebene `widget_candidate` verwendet?
         (z.B. Dropdown erwartet per Inventar, TextBox implementiert — STRUCTURE deviation)
 
-   **d. STATE dimension** — Interaction-State-Ausloesung:
+   **d. STATE dimension** — Interaction-State-Pruefung:
       - Alle `interaction_states` aus dem UI-Inventar ausloesen
       - Pro State: Screenshot unter `.concord/screenshots/app/{PageName}_{State}.png`
       - Pruefen ob der State wie im Inventar beschrieben eintritt
 
-   **e. INTERACTION dimension** — Navigation und Aktionen:
+   **e. INTERACTION dimension** — Navigations-Pruefung:
       - Alle `navigation`-Eintraege aus dem Inventar ausfuehren
       - Action ausloesen → pruefen ob erwartete Zielseite geladen wird
       - Formular-Submission, Cancel, Zurueck-Navigation pruefen
@@ -398,7 +402,12 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
       - Pruefen: Edit-Controls vs. Display-Components rollenrichtig
       - Pruefen: Rollenspezifische Navigation-Items fehlen wo erwartet
 
-5. Dimensionalen Parity-Report erzeugen gemaess Schema
+5. **Fidelity-Pruefung (Gesamtergebnis):** Semantischen Vergleich der gesamten
+   Seitenstruktur-Gruppen gegen das Ziel-Mockup durchfuehren.
+   `ui_fidelity` fasst das Gesamtergebnis aller Dimensionen zusammen.
+   Standard: `PASS` wenn alle required-Dimensionen PASS, sonst `FAIL`.
+
+6. Dimensionalen Parity-Report erzeugen gemaess Schema
    `.mxagile/schemas/parity-verification.schema.json`:
 
 ```yaml
@@ -466,18 +475,19 @@ dimensions:
     required: true
     note: "Admin-Rolle noch nicht geprueft"
 overall_result: FAIL
+ui_fidelity: FAIL
 ```
 
-`overall_result` Aggregation (gemaess `policies/ui-parity.md`):
+`overall_result` / `ui_fidelity` Aggregation (gemaess `policies/ui-parity.md`):
 - `PASS`: alle required-Dimensionen sind PASS
 - `FAIL`: mindestens eine required-Dimension ist FAIL
 - `PARTIAL`: keine FAIL, aber mind. eine PARTIAL oder CONFLICT
 - `NOT_VERIFIED`: keine Browser-Verifizierung erfolgt
 
-6. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
+7. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
    auf `status: failed` setzen.
-7. Parity-Report unter `planning/parity/{PageName}_parity.yaml` ablegen.
-8. Rueckwaertskompatibilitaet: bestehende `{PageName}_comparison.yaml` bleibt als
+8. Parity-Report unter `planning/parity/{PageName}_parity.yaml` ablegen.
+9. Rueckwaertskompatibilitaet: bestehende `{PageName}_comparison.yaml` bleibt als
    Legacy-Artefakt erhalten. Neue Dimensionsergebnisse ersetzen es NICHT retroaktiv.
 
 ### Wann ist eine Abweichung "material"?

@@ -29,6 +29,9 @@ For runtime-relevant iterative implementation, prefer the warm local development
 mxcli run --local -p <project>.mpr --watch
 ```
 
+This is the *base command*. The effective command is constructed after full profile resolution.
+See § Base Command vs. Effective Command and § DB Identity Resolution below.
+
 `--watch` enables the runtime to detect and apply model changes automatically,
 avoiding full restart cycles between iterations.
 
@@ -157,30 +160,45 @@ database type.
 
 Apply in this order:
 
-1. **`local_runtime.db_type` / `db_name` in `mxagile-project.yaml`** — authoritative when present
-2. **Normal `mxcli run --local` behavior** — mxcli-derived database name from `.mpr` filename
+1. **`local_runtime.db_name` / `db_type` in `mxagile-project.yaml`** — authoritative when present;
+   `db_name` protects against `.mpr`-rename silently changing the active database
+2. **Normal `mxcli run --local` behavior** — mxcli derives the database name from the `.mpr` filename
 3. **Supported provisioning options** — `--ensure-db` where the environment supports it
-4. **Supported fallback options** — `--db-type` / `--db-name` flags
+4. **mxcli fallback flags** — verify flag names via `mxcli run --local --help` before use;
+   do NOT infer flag names from schema field names or naming conventions
 5. **Explicit developer decision** — only when genuinely required
 
 Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environments
 (native Windows, devcontainer, CI) have different database availability.
 
-### Command Construction with Project-Declared Database Profile
+### Base Command vs. Effective Command
 
-When `mxagile-project.yaml` declares `local_runtime.db_type` and/or `local_runtime.db_name`,
-expand the canonical command with explicit hyphenated flags:
+The *base command* is the minimal invocation form:
 
 ```
-mxcli run --local -p <project>.mpr --watch --db-type <db_type> --db-name <db_name>
+mxcli run --local -p <project>.mpr --watch
 ```
 
-Use `--db-type` and `--db-name` (hyphenated). Valid `--db-type` values: `hsqldb`,
-`postgresql`, `sqlserver` (matching the `db_type` enum in `mxagile-project.schema.json`).
+The *effective command* is the base command expanded with flags for the resolved runtime
+profile. Agents MUST NOT execute the base command without first completing full profile
+resolution — see `policies/local-runtime-profile.md`.
 
-Omit `--db-type` and `--db-name` when the project profile does not declare them.
-Without a declaration, let mxcli derive the database name from the `.mpr` filename.
-Do not infer or guess DB parameters that are not explicitly declared in the project profile.
+### DB Identity Resolution (Required Before Autonomous Start)
+
+Before an autonomous agent starts a local runtime, it MUST determine which database
+will be used. Autonomous execution without confirmed DB identity is unsafe.
+
+```
+1. Read local_runtime.db_name from mxagile-project.yaml
+   PRESENT  → use it; record in prerequisite_state.runtime_config.db_name
+   ABSENT   → derive from .mpr filename per mxcli convention
+              REPORT the derived name before starting
+              Classify: DB_IDENTITY_UNCONFIRMED until developer explicitly confirms
+```
+
+A `.mpr` filename change MUST NOT silently alter the active database. When `local_runtime.db_name`
+is declared, it survives project renames. When absent, surface the derived name and require
+confirmation before autonomous startup.
 
 If runtime startup fails with a database error: first perform credential discovery per
 `policies/credential-discovery.md` before asking the developer. Use mxcli-supported

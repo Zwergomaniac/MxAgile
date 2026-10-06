@@ -23,8 +23,9 @@ beginnt.
 
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang-Hierarchie
 - `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
-- `.mxagile/policies/evidence-levels.md` — Evidenz-Level-Klassifikation (STATIC/MODEL/RUNTIME/BROWSER)
+- `.mxagile/policies/evidence-levels.md` — Evidenz-Level-Klassifikation (STATIC/MODEL/BUILD/RUNTIME/FRONTEND)
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/policies/design-contract-intake.md` — Mocketeer Design Contract v1 intake (WP2)
 
 ## Projektkonfiguration
 
@@ -61,6 +62,55 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
 10. Wenn `development.ui_driven = true`: **UI-Driven Runtime Readiness Gate** pruefen (siehe unten)
 11. Pruefe am Ende die Vorbedingungen aus `.mxagile/skills/gate-to-refinement.md`
 
+## Mocketeer Design Contract Intake (WP2 Extension)
+
+When an HTML mockup is found under `input-resources/ui-ux/`, check for an embedded Design Contract:
+
+1. **Detect** `<script type="application/json" id="mocketeer-spec">` in the HTML `<head>`.
+   If absent: no Design Contract; proceed with standard mockup analysis.
+
+2. **Run intake** per `policies/design-contract-intake.md`:
+   - Parse and validate JSON structure.
+   - Map statuses to intake dispositions.
+   - Record `design_contract_provenance` in the story specification.
+
+3. **Role intake:** For each role in `roles[]`:
+   - Record role ID, label, `can[]` list (positive authorization candidates), `cannot[]` list
+     (negative authorization requirements — become negative proof points in the test contract).
+   - Do not infer permissions beyond what the Design Contract states.
+
+4. **Requirement intake:** Map Design Contract `requirements[]` to story spec entries with
+   `source: design_contract` and `design_contract_ref: <mockup.id>@revision=<N>`.
+
+   **ID NAMESPACE GUARD (critical):** Design Contract source IDs (`REQ-NNN`, `DEC-NNN`, `ROLE-NNN`)
+   are syntactically identical to canonical MxAgile IDs but live in a separate namespace.
+   A source `REQ-066` is NOT the same as canonical `requirements/REQ-066.yml` unless a validated
+   mapping in `design_contract_provenance.id_map` explicitly establishes semantic identity.
+
+   - DO: record each DC element in `id_map` with its full source identity and `mapping_status: PENDING`.
+   - DO: resolve source relationships through `id_map` — write canonical IDs only after mapping is confirmed.
+   - DO: check for collisions — if a DC source ID matches an existing canonical ID that covers different
+     content, set `mapping_status: COLLISION` and do NOT treat equal IDs as semantic identity.
+   - DO NOT: copy DC source IDs directly into canonical reference fields (`requirement_ids`,
+     `derivedFrom`, `acceptance_decisions`, or any invented field like `related_decisions`).
+
+   For confirmed decisions (`CONFIRMED_BY_STAKEHOLDER` or `CONFIRMED_BY_SOURCE`) that materially
+   govern imported requirements: record in `id_map` and ensure the decision is dispositioned
+   (mapped, imported, or explicitly excluded) before reporting intake `COMPLETE`.
+   See `policies/design-contract-intake.md` — DECISION IMPORT COMPLETENESS.
+
+5. **Test Contract signal:** After COMPLETE or PARTIAL-with-roles intake, record in the story spec:
+   ```yaml
+   test_contract_signal:
+     design_contract_ref: <mockup.id>@revision=<N>
+     roles_available: [ROLE-NNN, ...]
+     negative_proof_points_required: [ROLE-NNN, ...]  # from cannot[] entries
+   ```
+   This signals `skills/test-contract.md` during Refinement that Design Contract data is available.
+
+6. **Mendix Candidates:** Confirmed candidates (`confirmed: true`) → add to model analysis scope.
+   Unconfirmed → record as `ASSUMPTION [evidence:static]`, flag for DECISION REQUIRED.
+
 ## Mockup-Analyse
 
 Die Mockup-Analyse wird vom **UI-Agent** parallel durchgefuehrt — nicht von dir.
@@ -86,8 +136,15 @@ Ergebnis klassifizieren — KEIN Default-Fallback; KEINE Credential-Mutation:
 - Alle benoetigt: CONTINUE
 - Fehlende Keys: Bootstrap-Flow aus `policies/credential-discovery.md` ausfuehren
 
+### Schritt 1b: Local-Runtime-Profil lesen
+Vor dem Runtime-Start: `local_runtime`-Profil aus `mxagile-project.yaml` lesen (falls vorhanden).
+Relevante Felder: `db_name`, `db_type`, `constant_overrides`, `app_port`.
+DB-Identitaet muss bekannt sein bevor der Runtime gestartet wird.
+Vollstaendiger Vertrag: `policies/development-runtime.md` — DB Identity Resolution.
+
 ### Schritt 2: Runtime-Start
-`mxcli run --local --watch` starten wenn Credentials verfuegbar.
+`mxcli run --local --watch` starten wenn Credentials verfuegbar und Profil aufgeloest.
+Effektiven Befehl per `policies/development-runtime.md` konstruieren — nicht den Basis-Befehl direkt ausfuehren.
 
 Bei Fehler: gemaess Fehlerklassifikation aus `policies/credential-discovery.md` vorgehen.
 Kein `ALTER USER` oder Passwort-Reset.

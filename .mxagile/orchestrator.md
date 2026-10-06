@@ -292,7 +292,9 @@ Vollstaendige Evidenz-Level-Definitionen: `policies/evidence-levels.md`
 
 Fuer runtime-relevante iterative Implementierung (Pages, Navigation, Microflow-Verhalten,
 Validierungen, UI-Iteration) bevorzugt der Implementation-Agent den warmen lokalen
-Entwicklungsloop:
+Entwicklungsloop.
+
+Basis-Befehl (Profil-Aufloesung per `policies/development-runtime.md` vor Ausfuehrung — DB-Identitaet muss bekannt sein):
 
 ```
 mxcli run --local -p <project>.mpr --watch

@@ -229,40 +229,43 @@ Assert-FileNotContains "O.4 development-runtime.md does not default to Docker" $
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "TEST P: Canonical DB CLI flag names are pinned (no ambiguous --dbtype/--dbname)" -ForegroundColor Cyan
+Write-Host "TEST P: DB identity safety, base vs effective command, and unverified flag protection" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
-# Regression: guards against using the non-canonical abbreviated flag forms
-# --dbtype / --dbname (no hyphen) or truncated enum value "hsql" instead of "hsqldb".
+# Replaces 87f008b TEST P which tested for specific unverified CLI flag strings.
+# These tests validate behavioral contracts:
+#   - Base command is a starting point, not an execution-ready command
+#   - DB identity must be resolved before autonomous start
+#   - No unverified mxcli flag is stated as canonical in policy
 
-Assert-FileContains "P.1 development-runtime.md pins --db-type (hyphenated) in command construction" `
-    $DevRuntime '(?i)--db-type'
+Assert-FileContains "P.1 policy defines base command concept" `
+    $DevRuntime '(?i)base command'
 
-Assert-FileContains "P.2 development-runtime.md pins --db-name (hyphenated) in command construction" `
-    $DevRuntime '(?i)--db-name'
+Assert-FileContains "P.2 policy defines effective command concept" `
+    $DevRuntime '(?i)effective command'
 
-Assert-FileContains "P.3 development-runtime.md shows expanded command example with db flags" `
-    $DevRuntime '(?i)--db-type.*--db-name|--db-name.*--db-type|mxcli run --local.*--db'
+Assert-FileContains "P.3 policy prohibits executing base command without profile resolution" `
+    $DevRuntime '(?i)MUST NOT execute the base command'
 
-Assert-FileNotContains "P.4 development-runtime.md does not use non-canonical --dbtype (no hyphen)" `
-    $DevRuntime '(?i)--dbtype\b'
+Assert-FileContains "P.4 policy defines DB_IDENTITY_UNCONFIRMED state for absent db_name" `
+    $DevRuntime '(?i)DB_IDENTITY_UNCONFIRMED'
 
-Assert-FileNotContains "P.5 development-runtime.md does not use non-canonical --dbname (no hyphen)" `
-    $DevRuntime '(?i)--dbname\b'
+Assert-FileContains "P.5 policy documents .mpr-rename risk (MUST NOT silently alter DB)" `
+    $DevRuntime '(?i)\.mpr.*filename change MUST NOT|MUST NOT silently alter'
 
-Assert-FileNotContains "P.6 development-runtime.md does not use truncated enum value hsql (must be hsqldb)" `
-    $DevRuntime '(?i)\bhsql\b(?!db)'
+Assert-FileContains "P.6 policy requires mxcli --help flag verification before use" `
+    $DevRuntime '(?i)mxcli run --local --help'
 
-Assert-FileContains "P.7 local-runtime-profile.md pins --db-type in bootstrap login step 4" `
-    $LocalProf '(?i)--db-type'
+Assert-FileNotContains "P.7 policy does not assert --db-type as a verified canonical flag" `
+    $DevRuntime '(?i)--db-type\b'
 
-Assert-FileContains "P.8 local-runtime-profile.md pins --db-name in bootstrap login step 4" `
-    $LocalProf '(?i)--db-name'
+Assert-FileNotContains "P.8 policy does not assert --db-name as a verified canonical flag" `
+    $DevRuntime '(?i)--db-name\b'
 
-Assert-FileNotContains "P.9 local-runtime-profile.md does not use non-canonical --dbtype (no hyphen)" `
-    $LocalProf '(?i)--dbtype\b'
+Assert-FileContains "P.9 local-runtime-profile step 4 requires verified flag construction" `
+    $LocalProf '(?i)mxcli-verified flags|consult.*mxcli run --local --help'
 
-Assert-FileNotContains "P.10 local-runtime-profile.md does not use non-canonical --dbname (no hyphen)" `
-    $LocalProf '(?i)--dbname\b'
+Assert-FileContains "P.10 schema db_type field is preserved (legitimate project metadata)" `
+    $Schema '"db_type"'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

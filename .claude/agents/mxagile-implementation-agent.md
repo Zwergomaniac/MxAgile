@@ -27,6 +27,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
 - `.mxagile/policies/development-runtime.md` — Warm Local Development Loop
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
 
 ## Company Layer Platform Constraints
 
@@ -101,7 +102,8 @@ Siehe `.mxagile/policies/development-runtime.md` fuer vollstaendige Regeln.
 Microflow-Verhalten, Validierungen, UI-Iteration). Nicht pauschal zu Beginn
 jeder Implementing-Phase.
 
-**Bevorzugter Befehl:**
+**Basis-Befehl** (Profil-Aufloesung vor Ausfuehrung erforderlich — vollstaendige Regeln:
+`policies/development-runtime.md` § DB Identity Resolution und § Base Command vs. Effective Command):
 
 ```
 mxcli run --local -p <project>.mpr --watch
@@ -191,6 +193,41 @@ Kein stilles Abweichen von der konfigurierten Fidelity-Anforderung.
 Geschaeftsregeln und Daten-Constraints folgen weiterhin der konfigurierten `source_authority`
 aus `mxagile-project.yaml` — typischerweise `requirements`.
 
+## SCSS-Implementierung
+
+Vollstaendiges Regelwerk: `.mxagile/policies/scss-engineering.md`
+
+Vor jeder SCSS-Aenderung:
+
+1. **Ownership pruefen** — Ist die Zieldatei project-owned oder protected?
+   - Protected (NICHT modifizieren): `themesource/atlas_core/`, `themesource/atlas_web_content/`, Marketplace-Module, Company-Layer-Module
+   - Project-owned (sicher zu modifizieren): `themesource/{ProjectModule}/web/`, `theme/web/custom-variables.scss`
+
+2. **Concern klassifizieren** — Handelt es sich um:
+   - Komponente (z.B. `.kpi-card`, `.status-badge`)
+   - Seite (z.B. `.overview-page`, `.customer-form`)
+   - Layout (z.B. `.sidebar`, `.content-wrapper`)
+   - Feature (z.B. `.hr-import`, `.budget-period`)
+   - Utility / Responsive
+
+3. **Bestehendes Partial pruefen:**
+   - Existiert bereits ein geeignetes Partial fuer diesen Concern? → dort ergaenzen
+   - Kein passendes Partial vorhanden? → Neues Partial erstellen (z.B. `scss/components/_kpi-card.scss`)
+
+4. **main.scss ist Kompositions-Root — KEIN Implementierungs-Ziel:**
+   - `main.scss` enthaelt `@import`/`@use`/`@forward`-Deklarationen, keine Implementierung
+   - Neue Styling-Bloecke NICHT direkt in main.scss schreiben
+   - Sicherstellen dass main.scss das neue Partial einbindet
+
+5. **Naming:** Partial-Namen beschreiben das UI, nicht die Agenten-Session:
+   - Korrekt: `_overview.scss`, `_kpi-card.scss`, `_sidebar.scss`
+   - Verboten: `_fix.scss`, `_parity-fix.scss`, `_temp.scss`, `_claude-changes.scss`
+
+Diese Regel gilt auch fuer Parity-Fixes und Mockup-Korrekturen.
+Bestehende main.scss-Inhalte NICHT automatisch refaktorisieren — nur den aktuellen Concern behandeln.
+
+---
+
 ## Technische Arbeit vs. DECISION REQUIRED
 
 **TECHNISCHE ARBEIT** (autonom ausfuehren wenn das Zielverhalten ausreichend definiert ist):
@@ -200,7 +237,7 @@ aus `mxagile-project.yaml` — typischerweise `requirements`.
 | Neuer Microflow benoetigt | TECHNISCHE ARBEIT |
 | Neuer Nanoflow benoetigt | TECHNISCHE ARBEIT |
 | Seiten-Layout anpassen | TECHNISCHE ARBEIT |
-| SCSS-Klasse hinzufuegen | TECHNISCHE ARBEIT |
+| SCSS-Klasse hinzufuegen (gemaess scss-engineering.md) | TECHNISCHE ARBEIT |
 | Entity-Attribut hinzufuegen | TECHNISCHE ARBEIT |
 | Rollen-Mapping setzen | TECHNISCHE ARBEIT |
 | Test-Daten-Setup benoetigt | TECHNISCHE ARBEIT |

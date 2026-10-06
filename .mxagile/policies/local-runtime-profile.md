@@ -165,12 +165,12 @@ The lifecycle for obtaining a testable local application session is:
    If MISSING or EMPTY: enter SECRET_INPUT_REQUIRED state per credential-discovery.md
    Do NOT proceed to runtime start until required credentials are PRESENT
 
-4. START LOCAL RUNTIME WITH DECLARED CONFIGURATION
-   Apply local_runtime profile using canonical hyphenated CLI flags:
-     --db-type <local_runtime.db_type>   (when declared; valid: hsqldb, postgresql, sqlserver)
-     --db-name <local_runtime.db_name>   (when declared; overrides mxcli .mpr-derived name)
-   Omit flags that have no project-declared value — do not default or guess.
-   Apply constant_overrides as --constant "<name>=<value>" flags.
+4. START LOCAL RUNTIME WITH RESOLVED CONFIGURATION
+   DB identity MUST be resolved per development-runtime.md — DB Identity Resolution.
+   Construct the effective command from the resolved profile:
+   - Apply db_name and db_type using mxcli-verified flags (consult `mxcli run --local --help`)
+   - Apply constant_overrides as --constant "<name>=<value>" flags
+   - Omit any flag whose profile field is not declared; never guess or default
    Report the effective configuration (non-secret values only) before starting.
 
 5. WAIT FOR APPLICATION READINESS
