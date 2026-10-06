@@ -80,8 +80,8 @@ Write-Host "TEST A: Project-declared db_name overrides .mpr-derived default" -Fo
 
 Assert-FileContains "A.1 schema has db_name field" $Schema '"db_name"'
 Assert-FileContains "A.2 schema db_name description mentions .mpr override" $Schema '\.mpr'
-Assert-FileContains "A.3 local-runtime-profile.md states db_name wins over derived name" $LocalProf 'MUST NOT override'
-Assert-FileContains "A.4 development-runtime.md states project config wins over mxcli derived" $DevRuntime 'authoritative when present'
+Assert-FileContains "A.3 local-runtime-profile.md defines autonomous db_name precedence (Core default 'default')" $LocalProf '(?i)Core autonomous default.*default|autonomous default.*default'
+Assert-FileContains "A.4 development-runtime.md states project declaration wins over Core default" $DevRuntime '(?i)project-declared override|PROJECT_DECLARED'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -246,26 +246,96 @@ Assert-FileContains "P.2 policy defines effective command concept" `
 Assert-FileContains "P.3 policy prohibits executing base command without profile resolution" `
     $DevRuntime '(?i)MUST NOT execute the base command'
 
-Assert-FileContains "P.4 policy defines DB_IDENTITY_UNCONFIRMED state for absent db_name" `
-    $DevRuntime '(?i)DB_IDENTITY_UNCONFIRMED'
+Assert-FileContains "P.4 policy defines MxAgile Core autonomous DB default (MXAGILE_CORE_DEFAULT)" `
+    $DevRuntime '(?i)MXAGILE_CORE_DEFAULT'
 
-Assert-FileContains "P.5 policy documents .mpr-rename risk (MUST NOT silently alter DB)" `
-    $DevRuntime '(?i)\.mpr.*filename change MUST NOT|MUST NOT silently alter'
+Assert-FileContains "P.5 policy documents .mpr-rename safety (MUST NOT silently alter autonomous DB)" `
+    $DevRuntime '(?i)\.mpr.*rename MUST NOT|MUST NOT silently alter'
 
 Assert-FileContains "P.6 policy requires mxcli --help flag verification before use" `
     $DevRuntime '(?i)mxcli run --local --help'
 
-Assert-FileNotContains "P.7 policy does not assert --db-type as a verified canonical flag" `
-    $DevRuntime '(?i)--db-type\b'
+Assert-FileContains "P.7 policy prohibits emitting --db-type as autonomous runtime flag" `
+    $DevRuntime '(?i)do NOT emit.*--db-type|NOT.*--db-type.*autonomous'
 
-Assert-FileNotContains "P.8 policy does not assert --db-name as a verified canonical flag" `
-    $DevRuntime '(?i)--db-name\b'
+Assert-FileContains "P.8 policy uses verified --db-name flag (framework decision)" `
+    $DevRuntime '(?i)--db-name.*default|--db-name.*verified|verified.*--db-name'
 
-Assert-FileContains "P.9 local-runtime-profile step 4 requires verified flag construction" `
-    $LocalProf '(?i)mxcli-verified flags|consult.*mxcli run --local --help'
+Assert-FileContains "P.9 local-runtime-profile step 4 defines canonical effective command" `
+    $LocalProf '(?i)canonical autonomous effective command|DB_IDENTITY_CONTROL_UNAVAILABLE'
 
 Assert-FileContains "P.10 schema db_type field is preserved (legitimate project metadata)" `
     $Schema '"db_type"'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST Q: Framework autonomous DB default is 'default'" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+# Behavioral regression tests proving the MxAgile Core autonomous DB contract.
+# Each assertion validates observable policy/schema content, not implementation guesses.
+
+# Q.A: autonomous runtime with no user override resolves db_name to "default"
+Assert-FileContains "Q.A policy states Core autonomous default is 'default'" `
+    $DevRuntime '(?i)Core autonomous default.*default|MXAGILE_CORE_DEFAULT'
+
+# Q.B: effective command contains verified --db-name and value "default"
+Assert-FileContains "Q.B policy defines canonical effective command with --db-name default" `
+    $DevRuntime '(?i)--db-name default'
+
+# Q.C: bare base command is never a complete autonomous command
+Assert-FileContains "Q.C policy prohibits executing base command without profile resolution" `
+    $DevRuntime '(?i)MUST NOT execute the base command'
+
+# Q.D: .mpr rename does not change effective DB identity
+Assert-FileContains "Q.D policy states .mpr rename MUST NOT alter autonomous DB identity" `
+    $DevRuntime '(?i)\.mpr.*rename MUST NOT|rename.*MUST NOT.*database'
+
+# Q.E: explicit user/session override takes precedence and is reported
+Assert-FileContains "Q.E policy defines SESSION_OVERRIDE source classification" `
+    $DevRuntime '(?i)SESSION_OVERRIDE'
+
+Assert-FileContains "Q.E2 policy requires reporting source before startup" `
+    $DevRuntime '(?i)source.*SESSION_OVERRIDE|SESSION_OVERRIDE.*PROJECT_DECLARED'
+
+# Q.F: project/folder/display names do not silently override "default"
+Assert-FileContains "Q.F policy prohibits project folder/display name as DB identity source" `
+    $DevRuntime '(?i)folder name|display name|naming convention.*NOT'
+
+# Q.G: no unsupported --db-type option is emitted
+Assert-FileContains "Q.G policy prohibits emitting --db-type as autonomous runtime flag" `
+    $DevRuntime '(?i)do NOT emit.*--db-type|NOT.*--db-type.*autonomous'
+
+# Q.H: no hsqldb assumption in autonomous runtime
+Assert-FileNotContains "Q.H policy does not assume hsqldb for autonomous execution" `
+    $DevRuntime '(?i)autonomous.*hsqldb|hsqldb.*autonomous|default.*hsqldb'
+
+# Q.I: mxcli version without --db-name → DB_IDENTITY_CONTROL_UNAVAILABLE, no autonomous start
+Assert-FileContains "Q.I policy defines DB_IDENTITY_CONTROL_UNAVAILABLE state" `
+    $DevRuntime '(?i)DB_IDENTITY_CONTROL_UNAVAILABLE'
+
+Assert-FileContains "Q.I2 policy prohibits autonomous start when --db-name unavailable" `
+    $DevRuntime '(?i)DB_IDENTITY_CONTROL_UNAVAILABLE.*do NOT start|do NOT start.*DB_IDENTITY_CONTROL_UNAVAILABLE'
+
+# Q.J: generated agents and skills carry or reference the corrected contract
+Assert-FileContains "Q.J implementation-agent references canonical DB identity policy" `
+    (Join-Path $ScriptDir ".mxagile/agents/implementation-agent.md") '(?i)development-runtime'
+
+Assert-FileContains "Q.J2 discovery-agent references DB identity resolution" `
+    (Join-Path $ScriptDir ".mxagile/agents/discovery-agent.md") '(?i)development-runtime.*DB Identity|DB Identity Resolution'
+
+# Q.K: Local First / Docker by Need remains intact
+Assert-FileContains "Q.K runtime-strategy still contains LOCAL FIRST principle" `
+    (Join-Path $ScriptDir ".mxagile/policies/runtime-strategy.md") '(?i)LOCAL FIRST'
+
+Assert-FileContains "Q.K2 development-runtime still references local warm loop" `
+    $DevRuntime '(?i)mxcli run --local.*--watch'
+
+# Q.L: no destructive DB provisioning introduced automatically
+Assert-FileContains "Q.L policy prohibits automatically creating another database" `
+    $DevRuntime '(?i)NOT.*automatically.*create.*database|do NOT.*create.*database|NOT.*silently.*create'
+
+Assert-FileNotContains "Q.L2 policy does not automatically add --ensure-db" `
+    $DevRuntime '(?i)automatically.*--ensure-db|--ensure-db.*automatically'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

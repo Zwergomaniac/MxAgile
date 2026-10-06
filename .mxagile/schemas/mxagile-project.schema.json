@@ -89,11 +89,11 @@
         "db_type": {
           "type": "string",
           "enum": ["hsqldb", "postgresql", "sqlserver"],
-          "description": "Database type for local runtime. Overrides the mxcli default. Required when the project uses a db type that differs from the mxcli-derived default."
+          "description": "Database type for local runtime. Project metadata and provisioning input. Its CLI flag form for mxcli run --local must be verified via mxcli run --local --help — do NOT assume a flag name from this field name. Used for --ensure-db provisioning context."
         },
         "db_name": {
           "type": "string",
-          "description": "Database name for local runtime. Overrides the name mxcli derives from the .mpr filename. Use when the Studio Pro local database was created with a different name than the .mpr file implies."
+          "description": "Explicit project override for the database name. MxAgile Core autonomous default is 'default'. Declare this field only when the project uses a database name that differs from the Core default. When absent, MxAgile uses 'default' — not a mxcli-derived name."
         },
         "db_host": {
           "type": "string",

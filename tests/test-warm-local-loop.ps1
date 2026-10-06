@@ -240,8 +240,8 @@ Assert-FileNotContains "policy: no hardcoded postgresql default" `
 Assert-FileContains "policy: preference order for database" `
     $policyPath '(?i)preference.*order|projekt.*konfiguration|project.*configuration'
 
-Assert-FileContains "policy: supports fallback options" `
-    $policyPath '(?i)fallback|--db-type'
+Assert-FileContains "policy: defines MxAgile autonomous DB default (not hardcoded type)" `
+    $policyPath '(?i)MXAGILE_CORE_DEFAULT|Core autonomous default'
 
 Write-Host ""
 

@@ -53,7 +53,21 @@ local_runtime:
 
 ## Configuration Precedence
 
-When multiple sources specify the same local runtime parameter, the authoritative order is:
+**For `db_name` (autonomous execution)**, a short 3-level precedence applies:
+
+```
+1. Explicit user/session CLI override  (highest priority)
+        |
+2. mxagile-project.yaml local_runtime.db_name  (explicit project override)
+        |
+3. MxAgile Core autonomous default: "default"
+```
+
+The mxcli-derived-from-`.mpr`-filename behavior is NOT part of the autonomous `db_name`
+precedence. MxAgile does not delegate database identity to mxcli naming conventions.
+Full contract: `policies/development-runtime.md` — DB Identity Resolution.
+
+**For all other parameters** (app_port, constant_overrides, db_host, etc.):
 
 ```
 1. Explicit CLI argument (session-scoped, highest priority)
@@ -62,39 +76,40 @@ When multiple sources specify the same local runtime parameter, the authoritativ
         |
 3. Company Layer local runtime defaults (.mxagile/layers/<id>/runtime-defaults.yml)
         |
-4. mxcli-derived defaults (e.g., db_name from .mpr filename, app port 8080)
+4. mxcli-derived defaults (e.g., app_port 8080 — but NOT db_name)
         |
 5. MxAgile Core fallback defaults (lowest priority)
 ```
 
-**Critical rule:** An mxcli-derived default (level 4) MUST NOT override an explicit project-local
-configuration (level 2). If `db_name: default` is declared in `mxagile-project.yaml`, that value
-is authoritative. The name mxcli would derive from the `.mpr` filename is irrelevant.
-
-Do not silently fall through to a lower-precedence level if a higher-precedence source exists.
+Do not silently fall through to a lower-precedence source when a higher-precedence source exists.
 
 ---
 
 ## Studio Pro Local Database Compatibility
 
-mxcli derives a database name from the `.mpr` filename (e.g., `MyApp.mpr` → database `myapp`).
-An existing Studio Pro local project may use a different database name (commonly `default`).
+MxAgile's Core autonomous default (`default`) aligns with Studio Pro's typical local database
+name. For most Studio Pro projects, MxAgile's autonomous default will connect to the correct
+local database without any project configuration.
 
-**Do NOT generalize that every Studio Pro database is named `default`.**
+Projects that use a non-default database name must declare it explicitly:
 
-Apply the following contract:
+```yaml
+local_runtime:
+  db_name: <actual-database-name>
+```
 
-1. **Explicit `local_runtime.db_name` in `mxagile-project.yaml`** — use it, no further analysis needed.
-2. **No explicit declaration, but existing Studio Pro evidence is discoverable** — inspect available
-   non-secret metadata (project-level settings, mxcli config, `.mendix/` files) to identify the
-   likely database name. Report the selected configuration. Do not guess destructively.
-3. **No explicit declaration, no discoverable evidence** — use documented mxcli behavior (derived
-   from `.mpr` filename). Validate reachability. Report the selected configuration.
-4. **Multiple plausible databases exist and evidence is ambiguous** — do not pick one without
-   reporting the ambiguity. Request developer input only when ambiguity materially blocks progress.
+**Do NOT let MxAgile autonomously probe, guess, or derive an alternative database name.**
 
-When a database connection fails after using the derived name, check whether `local_runtime.db_name`
-should be declared in `mxagile-project.yaml` before diagnosing the connection further.
+If `"default"` cannot be reached at startup:
+1. Perform credential and configuration discovery per `policies/credential-discovery.md`
+2. Classify the actual failure precisely (credential error, DB not found, etc.)
+3. Do NOT switch to a project-derived or mxcli-derived database to make startup succeed
+4. If the project was previously used with Studio Pro under a non-default database name,
+   ask the developer to declare `local_runtime.db_name` explicitly
+5. Do NOT mutate credentials or create a new database without explicit authorization
+
+The old heuristic of trying to guess or derive the Studio Pro database name is superseded
+by the MxAgile Core default. Explicit declaration is the resolution path for non-default names.
 
 ---
 
@@ -167,11 +182,17 @@ The lifecycle for obtaining a testable local application session is:
 
 4. START LOCAL RUNTIME WITH RESOLVED CONFIGURATION
    DB identity MUST be resolved per development-runtime.md — DB Identity Resolution.
-   Construct the effective command from the resolved profile:
-   - Apply db_name and db_type using mxcli-verified flags (consult `mxcli run --local --help`)
-   - Apply constant_overrides as --constant "<name>=<value>" flags
-   - Omit any flag whose profile field is not declared; never guess or default
-   Report the effective configuration (non-secret values only) before starting.
+   Canonical autonomous effective command (when --db-name is supported by installed mxcli):
+
+     mxcli run --local -p <project>.mpr --watch --db-name <resolved_db_name>
+
+   where <resolved_db_name> is resolved per the autonomous precedence
+   (Core default: "default" unless overridden by session or project declaration).
+   Apply constant_overrides as --constant "<name>=<value>" flags.
+   Do NOT use mxcli's .mpr-derived db_name for autonomous execution.
+   If --db-name is not supported: classify DB_IDENTITY_CONTROL_UNAVAILABLE; do not start.
+   Report effective_db_name, source (MXAGILE_CORE_DEFAULT / SESSION_OVERRIDE /
+   PROJECT_DECLARED), and non-secret config before starting.
 
 5. WAIT FOR APPLICATION READINESS
    Track pipeline stages (see Runtime Pipeline State Model below)

@@ -114,19 +114,26 @@ Key fields: `db_type`, `db_name`, `db_host`, `app_port`, `constant_overrides`,
 
 ## Configuration Precedence
 
-Apply runtime configuration in this explicit order (highest wins):
+For **database name** (autonomous execution), the precedence is:
 
 ```
-1. Explicit CLI argument (session-scoped)
+1. Explicit user/session CLI override
+2. mxagile-project.yaml  local_runtime.db_name  (project-declared override)
+3. MxAgile Core autonomous default:  db_name = "default"
+```
+
+mxcli's `.mpr`-derived database name is NOT part of the autonomous db_name precedence.
+MxAgile does not delegate database identity to mxcli filename conventions.
+
+For **other parameters** (app_port, constant_overrides, etc.):
+
+```
+1. Explicit user/session CLI override  (session-scoped)
 2. mxagile-project.yaml  local_runtime section
 3. Company Layer runtime defaults
-4. mxcli-derived defaults (e.g., db_name from .mpr filename)
+4. mxcli-derived defaults  (e.g., app_port 8080 — but NOT db_name)
 5. MxAgile Core fallback defaults
 ```
-
-An mxcli-derived database name (level 4) MUST NOT override an explicit `local_runtime.db_name`
-declaration (level 2). If the project declares `db_name: default`, use `default`. Do NOT
-silently let mxcli re-derive a different name from the `.mpr` filename.
 
 ## Credential and Configuration Discovery Before Runtime Start
 
@@ -155,18 +162,34 @@ Complete credential discovery contract: `policies/credential-discovery.md`
 
 ## Database
 
-Local runtime may have database prerequisites. MxAgile does not prescribe a universal
-database type.
+### Database Identity (Autonomous Execution)
 
-Apply in this order:
+For autonomous local runtime execution, MxAgile resolves the database name per the
+Configuration Precedence above. The Core autonomous default is `"default"`.
 
-1. **`local_runtime.db_name` / `db_type` in `mxagile-project.yaml`** — authoritative when present;
-   `db_name` protects against `.mpr`-rename silently changing the active database
-2. **Normal `mxcli run --local` behavior** — mxcli derives the database name from the `.mpr` filename
-3. **Supported provisioning options** — `--ensure-db` where the environment supports it
-4. **mxcli fallback flags** — verify flag names via `mxcli run --local --help` before use;
-   do NOT infer flag names from schema field names or naming conventions
-5. **Explicit developer decision** — only when genuinely required
+Report before startup:
+
+```
+effective_db_name: default
+source: MXAGILE_CORE_DEFAULT   (or: SESSION_OVERRIDE / PROJECT_DECLARED)
+```
+
+Do NOT derive the database name from the `.mpr` filename for autonomous execution.
+Do NOT use the project folder name, display name, or any naming convention as the DB
+identity source. A hidden derived identity is not acceptable.
+
+If the resolved effective_db_name does not exist or cannot be reached:
+- Perform credential and configuration discovery per `policies/credential-discovery.md`
+- Classify the actual failure precisely
+- Do NOT switch to a project-derived database to make startup succeed
+- Do NOT automatically create another database unless the canonical provisioning
+  contract explicitly allows it
+
+### Database Type
+
+`db_type` is project metadata and provisioning input. It is NOT an autonomous-runtime flag.
+Do NOT emit `--db-type` for `mxcli run --local` unless its CLI flag form is independently
+verified for the installed mxcli version via `mxcli run --local --help`.
 
 Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environments
 (native Windows, devcontainer, CI) have different database availability.
@@ -179,36 +202,66 @@ The *base command* is the minimal invocation form:
 mxcli run --local -p <project>.mpr --watch
 ```
 
-The *effective command* is the base command expanded with flags for the resolved runtime
-profile. Agents MUST NOT execute the base command without first completing full profile
+The *effective command* is the base command expanded with resolved profile flags.
+Agents MUST NOT execute the base command without first completing full profile
 resolution — see `policies/local-runtime-profile.md`.
+
+**Canonical autonomous effective command** (when `--db-name` is supported):
+
+```
+mxcli run --local -p <project>.mpr --watch --db-name default
+```
+
+where `default` is the resolved db_name (Core default unless overridden — see § DB Identity
+Resolution). Additional constant_overrides and profile flags are appended after DB resolution.
+
+**When `--db-name` is not supported by the installed mxcli:**
+Do NOT start autonomously. Classify: `DB_IDENTITY_CONTROL_UNAVAILABLE`.
+Report the exact capability gap. Do NOT fall back to `.mpr`-derived database name.
 
 ### DB Identity Resolution (Required Before Autonomous Start)
 
-Before an autonomous agent starts a local runtime, it MUST determine which database
-will be used. Autonomous execution without confirmed DB identity is unsafe.
+Before an autonomous agent starts a local runtime, it MUST resolve the effective database
+identity. Autonomous execution without a confirmed, explicitly-sourced DB identity is unsafe.
 
 ```
-1. Read local_runtime.db_name from mxagile-project.yaml
-   PRESENT  → use it; record in prerequisite_state.runtime_config.db_name
-   ABSENT   → derive from .mpr filename per mxcli convention
-              REPORT the derived name before starting
-              Classify: DB_IDENTITY_UNCONFIRMED until developer explicitly confirms
+1. Explicit user/session CLI override present?
+   YES  → use it; source: SESSION_OVERRIDE
+
+2. local_runtime.db_name declared in mxagile-project.yaml?
+   YES  → use it; source: PROJECT_DECLARED
+
+3. Neither present → apply MxAgile Core autonomous default
+        db_name = "default"
+        source: MXAGILE_CORE_DEFAULT
 ```
 
-A `.mpr` filename change MUST NOT silently alter the active database. When `local_runtime.db_name`
-is declared, it survives project renames. When absent, surface the derived name and require
-confirmation before autonomous startup.
+Do NOT derive the database name from the `.mpr` filename.
+Do NOT use project folder name, display name, or any naming convention.
+These are NOT acceptable sources for autonomous DB identity.
 
-If runtime startup fails with a database error: first perform credential discovery per
-`policies/credential-discovery.md` before asking the developer. Use mxcli-supported
-diagnostics and options. A DB-AUTH failure after correct credential discovery is a
-diagnostic matter — not authorization for credential mutation.
+Record before startup in `prerequisite_state.runtime_config`:
 
-When no `local_runtime.db_name` is declared and startup fails with a database-not-found error,
-consider whether the Studio Pro local database was created with a different name than mxcli
-derives from the `.mpr` filename. Inspect available non-secret metadata before prompting the
-developer. Full contract: `policies/local-runtime-profile.md — Studio Pro Local Database Compatibility`.
+```
+effective_db_name: <resolved>
+source: SESSION_OVERRIDE | PROJECT_DECLARED | MXAGILE_CORE_DEFAULT
+```
+
+A `.mpr` filename rename MUST NOT silently alter the autonomous MxAgile runtime database
+identity. Before and after any rename, the autonomous effective db_name remains `"default"`
+unless the user explicitly overrides it (source: SESSION_OVERRIDE or PROJECT_DECLARED).
+
+If `--db-name` is not available in the installed mxcli:
+- Classify: `DB_IDENTITY_CONTROL_UNAVAILABLE`
+- Report the exact capability gap
+- Do NOT start autonomously
+- Do NOT fall back to `.mpr`-derived name
+
+If runtime startup fails with a database error after correct credential discovery:
+This is a diagnostic matter — not authorization for credential mutation.
+Diagnose using mxcli-supported tools. Do NOT switch to a different database to make
+startup succeed. Full contract: `policies/local-runtime-profile.md — Studio Pro Local
+Database Compatibility`.
 
 ## Runtime Pipeline State Model
 
@@ -300,3 +353,17 @@ Runtime state MUST NOT cause a lifecycle transition.
 
 A developer saying "start the app" or "show me the page" during Implementing is a
 legitimate development observation request — it does not change lifecycle state.
+
+## Development Runtime vs. Test Runtime
+
+`mxcli run --local` is the **development runtime** — used for warm local development feedback
+during Implementing (governed by this policy).
+
+`mxcli test --local` is a **distinct test runtime** contract, if supported by mxcli.
+
+The MxAgile Core autonomous default (`db_name = "default"`) applies to `mxcli run --local`
+autonomous execution. A separate verified test-runtime contract governs test-database
+identity independently. Do NOT conflate these two contexts.
+
+Do NOT apply development-runtime DB defaults to test-runtime commands or vice versa.
+The boundary is: this policy owns `mxcli run --local` database identity.
