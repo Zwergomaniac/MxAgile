@@ -92,6 +92,14 @@ Wenn `revision > 1` (Verfeinerung eines bestehenden Contracts):
    - Neue Requirements: → neue REQ-NNN als Kandidaten anlegen (Developer-Bestaetigungspflicht)
    - Neue Decisions: → DEC-NNN aus `decisions[]` importieren mit `source: design_contract`
    - Superseded Decisions: → bestehendes DEC-NNN als SUPERSEDED markieren, `superseded_by` setzen
+   - **Business Flow Delta (flows[]):**
+     - Stable IDs: `FLOW-NNN` (flow level) und `FLOWSTEP-NNN` (step level) werden NIEMALS umbenannt. Bei Umbenennung → STOP: `STABILITY_VIOLATION`.
+     - Neue Flows: pruefen ob `status: STRUCTURED` — wenn ja, FLOW-NNN und step_ids, screen_refs und req_refs inventarisieren.
+     - Geaenderte Flows: pruefen ob FLOW-NNN und step_ids stabil (nie umbenannt). Geaenderte IDs → STOP: `STABILITY_VIOLATION`.
+     - Narrative Flows (keine step_id in steps[]): DIM-BUSINESS_FLOWS als PARTIAL erfassen.
+     - Strukturierte Flows ohne req_refs auf Schritt-Ebene: als `MISSING_REQ_REFS` (HIGH priority) melden.
+     - Strukturierte Flows ohne screen_ref auf Schritt-Ebene: als `MISSING_SCREEN_REF` (HIGH priority) melden.
+     - Superseded Flows: `status: SUPERSEDED` setzen — ID nie loeschen fuer Rueckwaertsreferenz-Integritaet.
 
 3. **Preservation Check:** Bestaetige fuer JEDEN entfernten oder geaenderten Contract-Eintrag
    dass entweder:
@@ -129,6 +137,14 @@ Wenn `revision > 1` (Verfeinerung eines bestehenden Contracts):
 Nach Akzeptanz: siehe `policies/impact-resolution.md` § Mockup Revision Impact Propagation.
 
 Ausgabe: Propagations-Event in `.concord/scratch/process-state.yaml`.
+
+**Graph-Refresh nach Akzeptanz:**
+Nach erfolgter Revision-Akzeptanz (Phase 4 Schritt 3) den Artifact Graph aktualisieren:
+```
+python scripts/graph_capability.py --path . refresh
+```
+Das ist optional — Graph-Fehler blockieren NICHT die Revision-Akzeptanz.
+Graph-Status nach Refresh pruefen: wenn FAILED, als Warning loggen (kein Stopp).
 
 ## Einschraenkungen
 

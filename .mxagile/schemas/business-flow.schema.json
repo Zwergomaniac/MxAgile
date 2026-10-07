@@ -1,0 +1,143 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Schema for structured Business Flow entries in a MxMocketeer Design Contract (mocketeer-spec JSON). Business Flows are embedded in Design Contract HTML files and extracted by build_artifact_index.py for graph indexing. Flows are NOT canonical YAML artifacts — they are part of the Design Contract and have Design Contract provenance. Canonical YAML always has higher authority.",
+  "type": "object",
+  "title": "Business Flow Entry",
+  "required": ["id", "name", "steps"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^FLOW-[A-Z0-9_-]+$",
+      "description": "Stable unique identifier for this flow. Format: FLOW-NNN or FLOW-DOMAIN-VERB. Never renamed after assignment; use status SUPERSEDED instead."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name for this flow (e.g. 'User Registration', 'Order Submission')."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional narrative description of the flow's business purpose."
+    },
+    "trigger": {
+      "type": "string",
+      "description": "What initiates this flow (e.g. user action, system event, external call)."
+    },
+    "result": {
+      "type": "string",
+      "description": "The expected business outcome when this flow completes successfully."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["DRAFT", "OPEN", "STRUCTURED", "SUPERSEDED"],
+      "description": "DRAFT: narrative only, not yet structured. OPEN: structuring in progress (steps[] may be incomplete). STRUCTURED: all steps have step_id and transitions. SUPERSEDED: replaced by another flow — keep id for backward traceability.",
+      "default": "DRAFT"
+    },
+    "role_refs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Role IDs from roles[] that participate in this flow."
+    },
+    "req_refs": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^REQ-[0-9]+" },
+      "description": "Top-level requirement IDs that this flow addresses. Step-level req_refs take precedence for graph edges."
+    },
+    "steps": {
+      "type": "array",
+      "description": "Ordered list of flow steps. Each step with a step_id is a structured step eligible for graph indexing. Steps without step_id are narrative placeholders.",
+      "items": { "$ref": "#/definitions/flow_step" }
+    },
+    "error_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "step_ids of error_node steps that represent terminal failure states for this flow."
+    }
+  },
+  "definitions": {
+    "flow_step": {
+      "type": "object",
+      "title": "Flow Step",
+      "required": ["step_id", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "step_id": {
+          "type": "string",
+          "pattern": "^FLOWSTEP-[A-Z0-9_-]+$",
+          "description": "Stable unique identifier for this step within the flow. Format: FLOWSTEP-NNN. Never renamed after assignment. Composite graph node ID: {FLOW-NNN}:{FLOWSTEP-NNN}."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "user_action",
+            "system_action",
+            "decision_node",
+            "integration_call",
+            "ui_state",
+            "end_node",
+            "error_node"
+          ],
+          "description": "Semantic type of the step. Drives Mermaid shape selection and downstream graph semantics."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what happens at this step."
+        },
+        "screen_ref": {
+          "type": "string",
+          "description": "Page ID (from planning/ui-inventory) where this step is visible. Produces a STEP_SHOWN_ON graph edge."
+        },
+        "req_refs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^REQ-[0-9]+" },
+          "description": "Requirement IDs that this step implements or relates to. Produces STEP_PARTICIPATES_IN graph edges."
+        },
+        "decision_refs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^DEC-[0-9]+" },
+          "description": "Decision IDs that govern the behavior at this step. Produces STEP_GOVERNED_BY graph edges."
+        },
+        "role_refs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Roles from roles[] that act at this step."
+        },
+        "transitions": {
+          "type": "array",
+          "description": "Outgoing transitions from this step.",
+          "items": { "$ref": "#/definitions/transition" }
+        },
+        "integration_ref": {
+          "type": "string",
+          "description": "For integration_call steps: identifier of the external system or microflow."
+        },
+        "effects": {
+          "type": "array",
+          "description": "Typed effect IDs from effects[] that are triggered at this step.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "title": "Step Transition",
+      "required": ["to"],
+      "additionalProperties": false,
+      "properties": {
+        "to": {
+          "type": "string",
+          "pattern": "^FLOWSTEP-[A-Z0-9_-]+$",
+          "description": "step_id of the target step. Must be a step_id within the same flow's steps[]."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional human-readable label for this transition (shown on Mermaid arrows)."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Optional machine-readable condition expression (e.g. 'user.role == admin')."
+        }
+      }
+    }
+  }
+}

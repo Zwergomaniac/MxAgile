@@ -389,6 +389,46 @@ Diese Invarianten gelten unabhaengig vom Runtime-Zustand waehrend Implementing:
 
 ---
 
+## Graph-Assisted Orientation
+
+Der MxAgile Artifact Graph (`.mxagile/state/artifact-index.json`) ist ein optionales
+Orientierungsmittel waehrend Re-Sync. Er ist KEIN Ersatz fuer kanonische Lifecycle-Artefakte.
+
+### Graph-Nutzung waehrend Orientation
+
+1. **Pruefe Graph-Zustand**: lies `.mxagile/state/graph-state.yaml`.
+   - `READY` → Graph kann fuer Orientierung genutzt werden (queries, neighbors, affected).
+   - `STALE` → Rufe `python scripts/graph_capability.py --path . refresh` vor der Nutzung.
+   - `MISSING` / `FAILED` / `DISABLED` → Graph ignorieren; direkte YAML-Traversierung nutzen.
+   - Wenn `auto_refresh_on_resync: true` in `.mxagile/config.yaml`: automatisch refreshen.
+
+2. **Graph-Queries bei Orientation** (nur als Kandidaten-Lieferant, nicht autoritativ):
+   - `python scripts/graph_capability.py --path . query --type requirement` — Requirement-Inventar
+   - `python scripts/graph_capability.py --path . affected PAGE-XYZ` — Impact-Kandidaten
+   - `python scripts/graph_capability.py --path . neighbors REQ-001` — Abhängigkeiten
+
+3. **Graph-Ergebnisse validieren**:
+   - Jeden Kandidaten aus dem Graph gegen das kanonische YAML-Artefakt verifizieren.
+   - Fehlende Graph-Kanten sind KEIN Beweis fuer fehlende Auswirkung (Absence-not-proof).
+   - DECLARED-Kanten (aus expliziten YAML-Feldern) sind vertrauenswürdig.
+   - DERIVED/INFERRED-Kanten sind Hinweise, keine Fakten.
+
+4. **Graph-Unavailability**:
+   - Graph nicht verfügbar → normale Re-Sync-Prozedur ohne Graph fortsetzen.
+   - Graph-Fehler NICHT als Blocker behandeln.
+   - Graph-Fehler NICHT ins process-state.yaml schreiben.
+
+### Impact-Analyse nach Änderungen
+
+Wenn der Scope einer Änderung (CHANGE-Interrupt) ermittelt wird:
+
+1. `python scripts/resolve_impact.py --path . <identifier>` — YAML-basierter Impact (autoritativ)
+2. Ergänzend: `python scripts/graph_capability.py --path . affected <identifier>` — Graph-Kandidaten
+3. Differenz: im Graph gefundene Kandidaten gegen kanonische Artefakte prüfen
+4. Nur YAML-verifizierte Auswirkungen als IMPACT_REVIEW_REQUIRED markieren
+
+---
+
 ## Regression-Referenzfall (Reality Test — Scope-Grenzen)
 
 **Szenario:** Agent gestartet mit CWD = `MxAi-Dev-System/.testing-greenfield-rt4/`

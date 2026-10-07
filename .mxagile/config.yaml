@@ -1,0 +1,21 @@
+# MxAgile Framework Configuration
+# Managed by: MxAgile Core (scripts/install-core.ps1)
+# Project-level overrides may extend this file; do not remove existing keys.
+
+# ---------------------------------------------------------------------------
+# Knowledge Graph
+# Provider options:
+#   artifact-index  — default, built deterministically from canonical YAML
+#   none            — disables the graph entirely (graph-state.yaml: DISABLED)
+# Phase 3 option (not yet active):
+#   graphify        — optional Graphify integration; requires Graphify to be
+#                     installed and configured separately
+# ---------------------------------------------------------------------------
+knowledge_graph:
+  provider: artifact-index
+
+  # Maximum BFS depth for affected() queries
+  max_affected_depth: 10
+
+  # If true, refresh() is called automatically before lifecycle re-sync orientation
+  auto_refresh_on_resync: true

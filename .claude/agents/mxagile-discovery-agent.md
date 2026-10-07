@@ -55,6 +55,13 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
       Pages ohne Requirements-Traceability (leere `all_requirements`) als `COVERAGE_GAP` markieren.
       Coverage-Gaps in die Story-Spec als offene Punkte aufnehmen — sie sind kein Blocker,
       aber PFLICHT-Input fuer den Discovery-Agent und das Gate-to-Refinement.
+   f. **Graph-Assisted Orientation (optional, nicht blockierend):**
+      Pruefe `.mxagile/state/graph-state.yaml` — Status READY oder STALE?
+      Wenn STALE: `python scripts/graph_capability.py --path . refresh` (optional — bei Fehler: ignorieren).
+      Wenn READY: `python scripts/graph_capability.py --path . affected PAGE-NNN` fuer neue Pages ausfuehren.
+      Graph-Kandidaten ergaenzen den Coverage-Gap-Check — sie ersetzen ihn NICHT.
+      Fehlende Graph-Kanten sind kein Beweis fuer fehlende Auswirkung (Absence-not-proof).
+      Graph-Unavailability ist kein Blocker fuer die Discovery-Phase.
 6. Analysiere die Rang-1-Quellen: Requirements-Dokument und Mockup (falls vorhanden)
 7. Analysiere das bestehende Mendix-Modell via mxcli
 8. Lies Board-Stories als Kontext (falls Board konfiguriert)

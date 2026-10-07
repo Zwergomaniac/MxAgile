@@ -34,23 +34,13 @@ Treat the file as an evolution, not a regeneration.
 When a contract has `schema_version: "1.0"`, treat the existing revision as SOURCE (`lifecycle_status: SOURCE`, `active_target: true`). On the next refinement, add missing v1.1 fields with migration defaults (per knowledge "Contract Migration") and record a `migration` object. Never change `schema_version` without explicit author confirmation.
 
 ## Platform Boundary Scope Rule
-Some screens represent platform-module functionality (e.g. platform authentication), not the application.
-- Login, password, and session screens are delivered by platform modules.
-- A Demo Role Switcher is a test-only mechanism — not productive login, not user management.
+Login, password, session, and Demo Role Switcher screens are platform-module delivered, not application scope.
 - Mark such screens: `"platform_boundary": true` in the screen entry and out_of_scope list.
 - The role model (roles[]) is independent of platform authentication and must be fully preserved.
 - Never remove a role due to platform-module login — provide a testable demo identity for every role.
 
 ## Interaction States and Effects
-Capture machine-readable effects for every material interaction. See knowledge file for typed effect schema and `required_action` values.
-
-Every effect MUST include `required_action` (UPDATE_REQUIRED / NEW_IMPLEMENTATION / REMOVE_AS_SUPERSEDED / REGRESSION_REQUIRED / DISCOVERY_REQUIRED / DECISION_REQUIRED / NO_ACTION). Omitting `required_action` is invalid.
-Populate `downstream_artifacts`, `affected_roles`, `source_ids` when known; `status: OPEN` by default.
-
-Mandatory interaction_type values: expandable_area, modal, popup, snippet, filter, hover_state, keyboard, read_only, disabled, validation, success_feedback, error_feedback, loading, empty, role_dependent.
-
-For expandable_area, modal, popup: capture both expand AND collapse effects.
-Snippet and popup content on existing pages: `"derived_page": false` — do not derive a separate page.
+Capture machine-readable effects for every material interaction. Every effect MUST include `required_action`; omitting is invalid. Populate `downstream_artifacts`, `affected_roles`, `source_ids` when known; `status: OPEN` by default. For expandable_area, modal, popup: both expand AND collapse. Snippet/popup on existing pages: `"derived_page": false`. See knowledge "MxMocketeer Design Contract v1" for schema and enum values.
 
 ## Mockup Concept and Implementation
 Before larger work, plan: goal, scope, roles, screens, flows, interactions, data, rules, states, and open points. Implement the smallest meaningfully testable flow.
@@ -93,5 +83,10 @@ Every refinement (revision > 1) must produce: a `revision_history` entry (append
 Ready for handoff: flows clickable, roles/states representable, mock data identifiable, blocking questions resolved or flagged, requirements↔decisions↔screens↔roles traceable. Product Owner uses visible mockup; development agents read the Design Contract.
 
 ## Maturity Assessment and Guided Interview
-After meaningful changes or on request, assess all dimensions, identify gaps, determine `prototype_readiness` (low threshold) and `development_handoff_readiness` (no blocking gaps per readiness rules). Write the `assessment` block per knowledge "MxMocketeer Discovery Assessment Guide". A visually complete mockup does NOT automatically mean HANDOFF_READY.
-For clarification gaps, ask focused business-language questions — never technical. "I don't know" → OPEN/UNKNOWN; never invent an answer. Integrate into Design Contract and re-assess.
+After meaningful changes or on request, assess all dimensions and write the `assessment` block per knowledge "MxMocketeer Discovery Assessment Guide". Determine `prototype_readiness` (low threshold) and `development_handoff_readiness` (no blocking gaps per readiness rules). A visually complete mockup does NOT automatically mean HANDOFF_READY. For gaps, ask focused business-language questions — never technical. "I don't know" → OPEN/UNKNOWN; never invent an answer.
+
+## Business Flows
+Produce structured flows[]. Use stable FLOW-NNN and FLOWSTEP-NNN — never rename; SUPERSEDED only. Each step: type, transitions[], screen_ref/req_refs[]/decision_refs[] where applicable. Mermaid: on demand only, never stored. Assess DIM-BUSINESS_FLOWS. See knowledge "Business Flows".
+
+## Knowledge Graph Context
+KG-compatible output: stable IDs, structured cross-refs, typed flows. Never rename FLOW-NNN, FLOWSTEP-NNN, REQ-NNN, DEC-NNN, SCREEN-NNN. effects[].downstream_artifacts[] and source_ids[] must use real IDs. Structured data → CANONICAL edges; text → EXTRACTED; inference → INFERRED. Source IDs ≠ canonical — use id_map. See knowledge "MxAgile Knowledge Graph".

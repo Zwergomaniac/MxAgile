@@ -21,7 +21,58 @@
       "title": "Site Registry — golden reference",
       "language": "en",
       "updated_at": "2026-10-05",
-      "change_scope": ["assessment", "ROLE-DEPTMGR"]
+      "lifecycle_status": "REFINED_TARGET",
+      "refinement_status": "PROPOSED",
+      "active_target": false,
+      "change_scope": "Added ROLE-DEPTMGR; added maturity assessment block; added structured FLOW-001 with FLOWSTEP-NNN steps"
+    },
+    "revision_history": [
+      {
+        "revision": 1,
+        "date": "2026-09-30",
+        "author": "MxMocketeer",
+        "change_scope": "Initial Site Registry mockup — ROLE-MANAGER and ROLE-VIEWER flows; SCREEN-001 site list"
+      },
+      {
+        "revision": 2,
+        "date": "2026-10-05",
+        "author": "MxMocketeer",
+        "change_scope": "Added ROLE-DEPTMGR; maturity assessment; structured FLOW-001 with 5 FLOWSTEP-NNN steps"
+      }
+    ],
+    "preservation": {
+      "result": "VERIFIED",
+      "checked_at": "revision:2",
+      "preserved": ["SCREEN-001", "ROLE-MANAGER", "ROLE-VIEWER", "REQ-001", "REQ-002", "REQ-003", "DEC-001"],
+      "changed": ["mockup.change_scope", "roles[]", "flows[]", "assessment"],
+      "removed": []
+    },
+    "revision_delta": {
+      "revision": 2,
+      "previous_revision": 1,
+      "affected_ids": ["ROLE-DEPTMGR", "FLOW-001", "FLOWSTEP-001", "FLOWSTEP-002", "FLOWSTEP-003", "FLOWSTEP-004", "FLOWSTEP-ERR"],
+      "effects": [
+        {
+          "id": "EFF-001",
+          "interaction_type": "user_action",
+          "source_ids": ["FLOW-001", "FLOWSTEP-002"],
+          "description": "Site creation flow structured with FLOWSTEP-NNN; step FLOWSTEP-002 captures the Add Site form submission",
+          "required_action": "NEW_IMPLEMENTATION",
+          "downstream_artifacts": ["REQ-003", "SPEC-CREATE-SITE"],
+          "affected_roles": ["ROLE-MANAGER"],
+          "status": "OPEN"
+        },
+        {
+          "id": "EFF-002",
+          "interaction_type": "error_feedback",
+          "source_ids": ["FLOW-001", "FLOWSTEP-ERR"],
+          "description": "Validation error path (FLOWSTEP-ERR) from missing site name must be implemented as inline error",
+          "required_action": "NEW_IMPLEMENTATION",
+          "downstream_artifacts": ["REQ-003"],
+          "affected_roles": ["ROLE-MANAGER"],
+          "status": "OPEN"
+        }
+      ]
     },
     "project": {
       "name": "Golden Reference",
@@ -166,17 +217,59 @@
       {
         "id": "FLOW-001",
         "name": "Create site",
-        "start_screen_ref": "SCREEN-001",
-        "role_refs": ["ROLE-MANAGER"],
-        "steps": [
-          "Click Add Site button to open dialog",
-          "Enter name (required) and select region",
-          "Click Save"
-        ],
+        "trigger": "Manager clicks Add Site",
         "result": "New site appears in the list",
-        "error_paths": ["Missing name — validation error shown inline (BR-001)"]
+        "status": "STRUCTURED",
+        "role_refs": ["ROLE-MANAGER"],
+        "req_refs": ["REQ-003"],
+        "steps": [
+          {
+            "step_id": "FLOWSTEP-001",
+            "type": "ui_state",
+            "description": "Site list page — Add Site button visible",
+            "screen_ref": "SCREEN-001",
+            "req_refs": ["REQ-003"],
+            "role_refs": ["ROLE-MANAGER"],
+            "transitions": [{"to": "FLOWSTEP-002", "label": "click Add Site"}]
+          },
+          {
+            "step_id": "FLOWSTEP-002",
+            "type": "user_action",
+            "description": "Manager fills in site name (required) and selects region",
+            "screen_ref": "SCREEN-001",
+            "req_refs": ["REQ-003"],
+            "decision_refs": ["DEC-001"],
+            "transitions": [
+              {"to": "FLOWSTEP-003", "label": "click Save"},
+              {"to": "FLOWSTEP-ERR", "label": "missing name"}
+            ]
+          },
+          {
+            "step_id": "FLOWSTEP-003",
+            "type": "system_action",
+            "description": "System validates input and saves the new site",
+            "req_refs": ["REQ-003"],
+            "transitions": [{"to": "FLOWSTEP-004"}]
+          },
+          {
+            "step_id": "FLOWSTEP-004",
+            "type": "end_node",
+            "description": "New site appears in site list — success",
+            "screen_ref": "SCREEN-001",
+            "transitions": []
+          },
+          {
+            "step_id": "FLOWSTEP-ERR",
+            "type": "error_node",
+            "description": "Inline validation error — required field missing (BR-001)",
+            "screen_ref": "SCREEN-001",
+            "transitions": [{"to": "FLOWSTEP-002", "label": "correct and resubmit"}]
+          }
+        ],
+        "error_paths": ["FLOWSTEP-ERR"]
       }
     ],
+    "_flows_note": "Mermaid diagrams are generated on demand from steps[] — never stored here. Run: python scripts/mermaid_generator.py <html_path> FLOW-001",
     "permissions": [
       {
         "id": "PERM-001",

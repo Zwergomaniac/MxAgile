@@ -4,12 +4,14 @@
 Copy the complete content of `system-prompt.md` into the **Instructions** field.
 
 ## Knowledge Files
-Upload all five files from `knowledge/` as knowledge:
-1. `knowledge/design-contract.txt` — Design Contract v1 schema, maturity assessment schema, preservation rules
-2. `knowledge/discovery-assessment.txt` — assessment dimensions, gap taxonomy, interview strategy, readiness rules
+Upload all seven files from `knowledge/` as knowledge:
+1. `knowledge/design-contract.txt` — Design Contract v1 schema, structured flows schema, maturity assessment schema, preservation rules
+2. `knowledge/discovery-assessment.txt` — assessment dimensions (incl. DIM-BUSINESS_FLOWS), gap taxonomy, interview strategy, readiness rules
 3. `knowledge/golden-mockuphtml.txt` — golden reference for output format and iterative refinement
 4. `knowledge/mendix-design-guide.txt` — curated Mendix design knowledge
-5. `knowledge/mxagile-handoff.txt` — handoff guidance to development / MxAgile, maturity integration
+5. `knowledge/mxagile-handoff.txt` — handoff guidance to development / MxAgile, Business Flow mapping, Knowledge Graph handoff
+6. `knowledge/business-flows.txt` — Business Flow schema, step types, FLOW-NNN/FLOWSTEP-NNN IDs, Mermaid generation, flow revision impact, flow-to-verification traceability
+7. `knowledge/knowledge-graph.txt` — provider-neutral Knowledge Graph contract, provenance classes, graph operations, freshness/fallback, KG-compatible output rules
 
 The instructions contain the mandatory MUST-behavior rules. Knowledge supplies details and examples. Critical rules are deliberately kept in the instructions because knowledge retrieval must not be treated as guaranteed program execution.
 

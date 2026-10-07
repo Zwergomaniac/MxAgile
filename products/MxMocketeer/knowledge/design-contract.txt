@@ -123,7 +123,31 @@ Where applicable, entries use:
 Business rules are business-verifiable rules. Calculations include meaning, formula or pseudo-logic, unit, rounding, data source, and scope. Never invent a formula.
 
 ## Screens, Flows, and States
-Screens contain: purpose, roles, relevant elements, requirements/decisions, states, and responsive intent. Flows contain: start, steps, alternatives, result, and error paths. States at minimum where relevant: loading, empty, normal, warning, error, success, disabled, read_only, no_permission.
+Screens contain: purpose, roles, relevant elements, requirements/decisions, states, and responsive intent. States at minimum where relevant: loading, empty, normal, warning, error, success, disabled, read_only, no_permission.
+
+Flows contain structured step entries (see "Business Flows" knowledge file for full schema).
+Each flow entry:
+- `id`: stable FLOW-NNN or FLOW-DOMAIN-VERB identifier — never renamed
+- `steps[]`: typed step entries with `step_id` (FLOWSTEP-NNN), `type`, `transitions[]`
+- `role_refs`: ROLE-* IDs of participating roles
+- `req_refs`: REQ-* IDs the flow primarily demonstrates (flow-level)
+- `result`: step_id of the terminal success step
+- `error_paths`: step_ids of error terminal steps
+
+Step types: `user_action`, `system_action`, `decision_node`, `integration_call`,
+`ui_state`, `end_node`, `error_node`.
+
+Each step may carry:
+- `screen_ref`: SCREEN-* ID → creates SHOWN_ON graph edge (FLOW → PAGE)
+- `req_refs[]`: REQ-* IDs → creates PARTICIPATES_IN graph edges (REQ → FLOW)
+- `decision_refs[]`: DEC-* IDs → creates DECIDED_BY graph edges (FLOW → DEC)
+
+Mermaid diagrams are generated from structured steps on demand. Never store Mermaid text
+in the Design Contract. Structured data is canonical; Mermaid is a derived visualization.
+
+Backward compatibility: flows with only narrative fields (start, alternatives, result prose)
+remain valid. Structured fields are additive — presence of structured steps enables graph
+edges and Mermaid generation; absence means the flow is narrative-only.
 
 ## Interaction States and Typed Effects
 

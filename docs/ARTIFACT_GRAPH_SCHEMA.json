@@ -1,67 +1,142 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "description": "Canonical schema for the Artifact Trace Index, representing the single source of truth for the structure of the consolidated index.",
+  "description": "Canonical schema for the MxAgile Artifact Index. Built deterministically from canonical YAML artifacts by build_artifact_index.py. Source of truth for cross-artifact relationship traversal, impact analysis, and lifecycle re-sync. This index is derived and rebuildable — canonical YAML artifacts are always authoritative.\n\nProvenance terminology: DECLARED (deterministic from explicit YAML ref fields, highest authority), DERIVED (observed in artifacts not via dedicated ref fields), INFERRED (semantic/provider suggestion, lowest authority). Precedence: DECLARED > DERIVED > INFERRED.",
   "type": "object",
+  "required": ["nodes", "edges", "source_fingerprint", "generated_at"],
+  "additionalProperties": false,
   "properties": {
     "nodes": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "A stable, path-based identifier for the artifact."
-          },
-          "type": {
-            "type": "string",
-            "enum": ["Mockup", "Requirement", "FeatureSpec", "Plan", "Task", "MendixArtifact", "PageYAML"],
-            "description": "The type of the artifact."
-          },
-          "hash": {
-            "type": "string",
-            "description": "SHA256 hash of the artifact's content."
-          },
-          "status": {
-            "type": "string",
-            "enum": ["Active", "Stale"],
-            "description": "The status of the artifact."
-          }
-        },
-        "required": ["id", "type", "hash", "status"]
-      }
+      "description": "All indexed canonical artifacts. Each node represents one artifact file.",
+      "items": { "$ref": "#/definitions/node" }
     },
     "edges": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "from": {
-            "type": "string",
-            "description": "The ID of the source node."
-          },
-          "to": {
-            "type": "string",
-            "description": "The ID of the target node."
-          },
-          "provenance": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": ["DECLARED", "DERIVED", "INFERRED"],
-                "description": "The type of relationship."
-              },
-              "source": {
-                "type": "string",
-                "description": "The file path where the relationship was found."
-              }
-            },
-            "required": ["type", "source"]
-          }
-        },
-        "required": ["from", "to", "provenance"]
-      }
+      "description": "All cross-artifact relationships. Edges are directed (from -> to). Type encodes semantic relationship. Provenance encodes how the relationship was established.",
+      "items": { "$ref": "#/definitions/edge" }
+    },
+    "source_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 fingerprint of all indexed source files at build time. Consumers compare against current files to detect staleness."
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "ISO 8601 UTC timestamp when this index was built."
     }
   },
-  "required": ["nodes", "edges"]
+  "definitions": {
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "path", "hash"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable artifact identifier matching the canonical ID field or filename stem. Examples: REQ-001, SPEC-002, PAGE-CALENDAR, TC-001, FLOW-ORDER-SUBMIT."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "requirement",
+            "spec",
+            "task",
+            "page",
+            "scenario",
+            "test_contract",
+            "verification_plan",
+            "decision",
+            "revision",
+            "business_flow",
+            "flow_step"
+          ],
+          "description": "Artifact type. Determines which canonical path and schema apply."
+        },
+        "path": {
+          "type": "string",
+          "description": "Repo-relative path to the artifact file, forward-slashes."
+        },
+        "hash": {
+          "type": ["string", "null"],
+          "description": "SHA-256 hash of the artifact file content. Null when artifact is synthetic (e.g. design-contract-extracted flow)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Active", "Stale"],
+          "description": "Index staleness marker. Set by propagate_stale.py. Not the artifact's own lifecycle status.",
+          "default": "Active"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Human-readable label for tooling and reports."
+        },
+        "content": {
+          "type": "object",
+          "description": "Full parsed artifact content for in-process consumers. Omitted in lightweight index variants.",
+          "additionalProperties": true
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["from", "to", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "ID of the source node."
+        },
+        "to": {
+          "type": "string",
+          "description": "ID of the target node."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "DERIVED_FROM",
+            "APPLIES_TO",
+            "IMPLEMENTED_BY",
+            "DEPENDS_ON",
+            "TRACES_TO",
+            "COVERS",
+            "COVERS_SPEC",
+            "DEPENDS_ON_SCN",
+            "VERIFIED_BY",
+            "PLANS",
+            "GOVERNS",
+            "GOVERNS_SCREEN",
+            "SUPERSEDED_BY",
+            "AUTHORIZED_BY",
+            "IMPACTS",
+            "AFFECTS_SCREEN",
+            "DERIVED_FROM_DC",
+            "CONTAINS_STEP",
+            "STEP_PARTICIPATES_IN",
+            "STEP_SHOWN_ON",
+            "STEP_GOVERNED_BY",
+            "STEP_USES_INTERACTION",
+            "STEP_PRODUCES_EFFECT"
+          ],
+          "description": "Semantic relationship type. See edge-types section in docs/schemas.md for full semantics."
+        },
+        "provenance": {
+          "type": "object",
+          "required": ["type", "source"],
+          "additionalProperties": false,
+          "description": "How this edge was established. DECLARED edges are authoritative; DERIVED and INFERRED are supplemental.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["DECLARED", "DERIVED", "INFERRED"],
+              "description": "DECLARED: derived deterministically from an explicit canonical YAML ref field (equivalent to CANONICAL in policy docs). DERIVED: observed in artifact text/content outside dedicated ref fields (equivalent to EXTRACTED). INFERRED: semantic/provider suggestion. Precedence: DECLARED > DERIVED > INFERRED."
+            },
+            "source": {
+              "type": "string",
+              "description": "The canonical field name or file path where this relationship was found. Examples: 'requirement.derivedFrom', 'spec.requirements[]', 'planning/test-contracts/TC-001.yaml'."
+            }
+          }
+        }
+      }
+    }
+  }
 }

@@ -151,6 +151,170 @@ traceability:
     Assert-Condition ($fp1 -eq $fp2) "source_fingerprint changed between runs with no file changes."
     Write-Host "[PASS] source_fingerprint"
 
+    # --- Test 11: Edge provenance field present on DECLARED edges ---
+    Write-Host "[TEST] Running: Edge provenance field"
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $sampleEdge = $indexJson.edges | Where-Object { $_.type -eq 'IMPLEMENTED_BY' } | Select-Object -First 1
+    Assert-Condition ($null -ne $sampleEdge) "No IMPLEMENTED_BY edge found for provenance test."
+    Assert-Condition ($null -ne $sampleEdge.provenance) "Edge provenance field is missing."
+    Assert-Condition ($sampleEdge.provenance.type -eq 'DECLARED') "Edge provenance.type expected DECLARED, got: $($sampleEdge.provenance.type)"
+    Assert-Condition ($sampleEdge.provenance.source -ne '') "Edge provenance.source is empty."
+    Write-Host "[PASS] Edge provenance field"
+
+    # --- Test 12: graph-state.yaml written after build ---
+    Write-Host "[TEST] Running: graph-state.yaml written after build"
+    $stateFilePath = Join-Path $TestDir ".mxagile\state\graph-state.yaml"
+    Assert-Condition (Test-Path $stateFilePath) "graph-state.yaml was not written after build."
+    $stateContent = Get-Content $stateFilePath -Raw
+    Assert-Condition ($stateContent -match 'status: READY') "graph-state.yaml does not contain status: READY"
+    Assert-Condition ($stateContent -match 'provider: artifact-index') "graph-state.yaml missing provider"
+    Assert-Condition ($stateContent -match 'sha256:') "graph-state.yaml missing source_fingerprint"
+    Write-Host "[PASS] graph-state.yaml written after build"
+
+    # --- Test 13: DEPENDS_ON edge (task -> task) ---
+    Write-Host "[TEST] Running: DEPENDS_ON Edge (task -> task)"
+    $TaskDir = Join-Path $TestDir "planning\tasks"
+    New-Item -ItemType Directory -Path $TaskDir -Force | Out-Null
+    $task1Path = Join-Path $TaskDir "TASK-01.yml"
+    $task2Path = Join-Path $TaskDir "TASK-02.yml"
+    Set-Content -Path $task1Path -Value "ID: TASK-01`naction: First task`nspec: SPEC-02"
+    $task2Content = @"
+ID: TASK-02
+action: Second task
+spec: SPEC-02
+depends_on: [TASK-01]
+"@
+    Set-Content -Path $task2Path -Value $task2Content
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $depEdge = $indexJson.edges | Where-Object { $_.from -eq 'TASK-02' -and $_.to -eq 'TASK-01' -and $_.type -eq 'DEPENDS_ON' }
+    Assert-Condition ($depEdge) "DEPENDS_ON edge from TASK-02 to TASK-01 was not created."
+    Assert-Condition ($depEdge.provenance.type -eq 'DECLARED') "DEPENDS_ON edge should be DECLARED."
+    Write-Host "[PASS] DEPENDS_ON Edge"
+
+    # --- Test 14: TRACES_TO edge (task -> req) ---
+    Write-Host "[TEST] Running: TRACES_TO Edge (task -> req)"
+    $task3Path = Join-Path $TaskDir "TASK-03.yml"
+    $task3Content = @"
+ID: TASK-03
+action: Third task
+spec: SPEC-02
+req: [REQ-01]
+"@
+    Set-Content -Path $task3Path -Value $task3Content
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $tracesEdge = $indexJson.edges | Where-Object { $_.from -eq 'TASK-03' -and $_.to -eq 'REQ-01' -and $_.type -eq 'TRACES_TO' }
+    Assert-Condition ($tracesEdge) "TRACES_TO edge from TASK-03 to REQ-01 was not created."
+    Write-Host "[PASS] TRACES_TO Edge"
+
+    # --- Test 15: test_contract node + COVERS (TC->REQ) and PLANS (VPL->TC) edges ---
+    Write-Host "[TEST] Running: TestContract + VerificationPlan nodes and edges"
+    $TCDir  = Join-Path $TestDir "planning\test-contracts"
+    $VPLDir = Join-Path $TestDir "planning\verification-plans"
+    New-Item -ItemType Directory -Path $TCDir  -Force | Out-Null
+    New-Item -ItemType Directory -Path $VPLDir -Force | Out-Null
+    $tcContent = @"
+ID: TC-001
+title: Calendar TC
+requirement_ids: [REQ-01]
+"@
+    $vplContent = @"
+ID: VPL-001
+title: Calendar VPL
+test_contract_id: TC-001
+"@
+    Set-Content -Path (Join-Path $TCDir  "TC-001.yaml")  -Value $tcContent
+    Set-Content -Path (Join-Path $VPLDir "VPL-001.yaml") -Value $vplContent
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $tcNode  = $indexJson.nodes | Where-Object { $_.id -eq 'TC-001' }
+    Assert-Condition ($tcNode) "TC-001 node not found in index."
+    Assert-Condition ($tcNode.type -eq 'test_contract') "TC-001 type expected test_contract, got: $($tcNode.type)"
+    $coversTC = $indexJson.edges | Where-Object { $_.from -eq 'TC-001' -and $_.to -eq 'REQ-01' -and $_.type -eq 'COVERS' }
+    Assert-Condition ($coversTC) "COVERS edge from TC-001 to REQ-01 was not created."
+    $plansEdge = $indexJson.edges | Where-Object { $_.from -eq 'VPL-001' -and $_.to -eq 'TC-001' -and $_.type -eq 'PLANS' }
+    Assert-Condition ($plansEdge) "PLANS edge from VPL-001 to TC-001 was not created."
+    Write-Host "[PASS] TestContract + VerificationPlan nodes and edges"
+
+    # --- Test 16: Decision node + GOVERNS and GOVERNS_SCREEN edges ---
+    Write-Host "[TEST] Running: Decision node + GOVERNS edges"
+    $DecDir = Join-Path $TestDir "planning\decisions"
+    New-Item -ItemType Directory -Path $DecDir -Force | Out-Null
+    $decContent = @"
+ID: DEC-001
+title: Calendar visibility
+affected_requirements: [REQ-01]
+affected_screens: [PAGE-CALENDAR]
+"@
+    Set-Content -Path (Join-Path $DecDir "DEC-001.yml") -Value $decContent
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $decNode = $indexJson.nodes | Where-Object { $_.id -eq 'DEC-001' }
+    Assert-Condition ($decNode) "DEC-001 node not found in index."
+    Assert-Condition ($decNode.type -eq 'decision') "DEC-001 type expected decision, got: $($decNode.type)"
+    $govEdge  = $indexJson.edges | Where-Object { $_.from -eq 'DEC-001' -and $_.to -eq 'REQ-01' -and $_.type -eq 'GOVERNS' }
+    Assert-Condition ($govEdge) "GOVERNS edge from DEC-001 to REQ-01 was not created."
+    $govScrEdge = $indexJson.edges | Where-Object { $_.from -eq 'DEC-001' -and $_.to -eq 'PAGE-CALENDAR' -and $_.type -eq 'GOVERNS_SCREEN' }
+    Assert-Condition ($govScrEdge) "GOVERNS_SCREEN edge from DEC-001 to PAGE-CALENDAR was not created."
+    Write-Host "[PASS] Decision node + GOVERNS edges"
+
+    # --- Test 17: COVERS_SPEC edge (scenario -> spec) ---
+    Write-Host "[TEST] Running: COVERS_SPEC Edge (scenario -> spec)"
+    $scen2FilePath = Join-Path $ScenDir "SCEN-02.yaml"
+    $scen2Content = @"
+scenario_id: SCEN-02
+screen_id: PAGE-CALENDAR
+traceability:
+  requirements: [REQ-01]
+  specs: [SPEC-02]
+"@
+    Set-Content -Path $scen2FilePath -Value $scen2Content
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $covSpecEdge = $indexJson.edges | Where-Object { $_.from -eq 'SCEN-02' -and $_.to -eq 'SPEC-02' -and $_.type -eq 'COVERS_SPEC' }
+    Assert-Condition ($covSpecEdge) "COVERS_SPEC edge from SCEN-02 to SPEC-02 was not created."
+    Write-Host "[PASS] COVERS_SPEC Edge"
+
+    # --- Test 18: DEPENDS_ON_SCN edge (scenario -> scenario) ---
+    Write-Host "[TEST] Running: DEPENDS_ON_SCN Edge"
+    $scen3FilePath = Join-Path $ScenDir "SCEN-03.yaml"
+    $scen3Content = @"
+scenario_id: SCEN-03
+screen_id: PAGE-CALENDAR
+prerequisites:
+  depends_on_scenarios: [SCEN-01]
+traceability:
+  requirements: [REQ-01]
+"@
+    Set-Content -Path $scen3FilePath -Value $scen3Content
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $depScnEdge = $indexJson.edges | Where-Object { $_.from -eq 'SCEN-03' -and $_.to -eq 'SCEN-01' -and $_.type -eq 'DEPENDS_ON_SCN' }
+    Assert-Condition ($depScnEdge) "DEPENDS_ON_SCN edge from SCEN-03 to SCEN-01 was not created."
+    Write-Host "[PASS] DEPENDS_ON_SCN Edge"
+
+    # --- Test 19: SUPERSEDED_BY edge (decision -> decision) ---
+    Write-Host "[TEST] Running: SUPERSEDED_BY Edge"
+    $dec2Content = @"
+ID: DEC-002
+title: Calendar visibility v2
+superseded_by: DEC-001
+"@
+    Set-Content -Path (Join-Path $DecDir "DEC-002.yml") -Value $dec2Content
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $supEdge = $indexJson.edges | Where-Object { $_.from -eq 'DEC-002' -and $_.to -eq 'DEC-001' -and $_.type -eq 'SUPERSEDED_BY' }
+    Assert-Condition ($supEdge) "SUPERSEDED_BY edge from DEC-002 to DEC-001 was not created."
+    Write-Host "[PASS] SUPERSEDED_BY Edge"
+
+    # --- Test 20: validate_edge_coverage.py passes ---
+    Write-Host "[TEST] Running: Edge coverage validator"
+    $ValidatorPath = Join-Path $PSScriptRoot "..\scripts\validate_edge_coverage.py"
+    & python $ValidatorPath --path (Split-Path $BuilderScriptPath -Parent | Split-Path -Parent)
+    Assert-Condition ($LASTEXITCODE -eq 0) "validate_edge_coverage.py reported failures (edge/schema drift detected)."
+    Write-Host "[PASS] Edge coverage validator"
+
 } catch {
     Write-Error "A test failed: $_"
     exit 1

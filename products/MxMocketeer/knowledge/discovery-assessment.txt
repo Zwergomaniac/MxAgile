@@ -86,7 +86,9 @@ All of the following must be SUFFICIENT or STRONG; none may be BLOCKED or CONFLI
 
 The following dimensions may be PARTIAL or UNEXPLORED without blocking handoff
 (unless they contain a high-priority blocking gap):
-  DIM-ACCESSIBILITY, DIM-NON_FUNCTIONAL, DIM-UX_NAVIGATION (minor aesthetic detail)
+  DIM-ACCESSIBILITY, DIM-NON_FUNCTIONAL, DIM-UX_NAVIGATION (minor aesthetic detail),
+  DIM-BUSINESS_FLOWS (structured flows are valuable but not mandatory for initial handoff;
+  PARTIAL acceptable when critical journeys are at least navigable in the mockup)
 
 ---
 
@@ -121,7 +123,8 @@ Prioritization factors:
   2. Security/privacy uncertainty — elevated attention; HIGH when materially affecting authorization, privacy, or sensitive data
   3. Business rule / calculation ambiguity — high if financial or legal impact
   4. Role/data scope uncertainty — high when it affects access control
-  5. Flow/validation gaps — medium
+  5. Flow/validation gaps — medium; Business Flow structural gaps elevated to HIGH when
+     the flow drives authorization, error handling, or multi-role handoff logic
   6. Visual/aesthetic preferences — low
 
 ---

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Schema for .mxagile/state/graph-state.yaml — tracks the current state of the MxAgile Artifact Knowledge Graph index. Written by build_artifact_index.py after each build. Read by graph_capability.py and lifecycle re-sync to determine freshness.",
+  "type": "object",
+  "required": ["schema_version", "provider", "status", "last_built", "node_count", "edge_count", "source_fingerprint"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "description": "Schema version for forward compatibility. Current: 1.",
+      "enum": [1]
+    },
+    "provider": {
+      "type": "string",
+      "description": "Which provider produced this index. Matches knowledge_graph.provider in .mxagile/config.yaml.",
+      "enum": ["artifact-index", "graphify", "none"]
+    },
+    "status": {
+      "type": "string",
+      "description": "Current graph availability state. DISABLED: provider=none. MISSING: index file not found. BUILDING: currently being built. READY: index is current and valid. STALE: source fingerprint mismatch. FAILED: last build errored.",
+      "enum": ["DISABLED", "MISSING", "BUILDING", "READY", "STALE", "FAILED"]
+    },
+    "last_built": {
+      "type": "string",
+      "description": "ISO 8601 UTC timestamp of the last successful build."
+    },
+    "node_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of artifact nodes in the last successful build."
+    },
+    "edge_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of cross-artifact edges in the last successful build."
+    },
+    "source_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 fingerprint of all indexed source files at build time. Used to detect staleness."
+    },
+    "build_duration_s": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Wall-clock seconds taken for the last build."
+    }
+  }
+}

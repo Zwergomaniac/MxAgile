@@ -53,13 +53,20 @@ def _compute_current_fingerprint(project_root):
     """
     Compute the source fingerprint of the current canonical artifact files.
     Used to detect whether the stored index is stale.
+
+    Must stay in sync with the same algorithm in:
+      scripts/build_artifact_index.py  compute_source_fingerprint()
+      scripts/graph_capability.py      _compute_current_fingerprint()
     """
     artifact_locations = [
-        ('requirements', '*.yml'),
-        ('specs', '*.yml'),
-        ('planning/tasks', '*.yml'),
-        ('planning/ui-inventory', '*.yaml'),
-        ('planning/scenarios', '*.yaml'),
+        ('requirements',                '*.yml'),
+        ('specs',                       '*.yml'),
+        ('planning/tasks',              '*.yml'),
+        ('planning/ui-inventory',       '*.yaml'),
+        ('planning/scenarios',          '*.yaml'),
+        ('planning/test-contracts',     '*.yaml'),
+        ('planning/verification-plans', '*.yaml'),
+        ('planning/decisions',          '*.yml'),
     ]
     entries = []
     root = Path(project_root)
@@ -70,6 +77,20 @@ def _compute_current_fingerprint(project_root):
                 rel = str(f.relative_to(root)).replace('\\', '/')
                 sha = hashlib.sha256(f.read_bytes()).hexdigest()
                 entries.append((rel, sha))
+
+    # Revision artifacts
+    target_dir = root / 'planning' / 'target-mockups'
+    if target_dir.exists():
+        for mockup_dir in sorted(target_dir.iterdir()):
+            history_dir = mockup_dir / '_history'
+            if history_dir.exists():
+                for rev_dir in sorted(history_dir.iterdir()):
+                    rev_file = rev_dir / 'revision.yaml'
+                    if rev_file.exists():
+                        rel = str(rev_file.relative_to(root)).replace('\\', '/')
+                        sha = hashlib.sha256(rev_file.read_bytes()).hexdigest()
+                        entries.append((rel, sha))
+
     entries.sort(key=lambda x: x[0])
     manifest = '\n'.join(f'{p}:{h}' for p, h in entries)
     fp = hashlib.sha256(manifest.encode('utf-8')).hexdigest()
