@@ -1,0 +1,28 @@
+{
+  "transformation_spec": {
+    "spec_id": "TXSPEC-NEG-IDMISS",
+    "change_class": "LOCAL_EDIT",
+    "source_revision": 11,
+    "target_revision": 12,
+    "intent": "Change year in StickyHeader for screen SCREEN-NONEXISTENT (does not exist in fixture)",
+    "operations": [
+      {
+        "op_id": "OP-001",
+        "operation": "TEXT_REPLACE",
+        "target_selector": "[data-mx-component='StickyHeader']",
+        "target_ids": ["SCREEN-NONEXISTENT"],
+        "scope": "TEXT_CONTENT",
+        "precondition": "2024",
+        "replacement": "2025",
+        "match_constraint": { "min": 1, "max": 1 }
+      }
+    ],
+    "preservation_scope": "ALL_EXCEPT_TARGETED",
+    "affected_contract_ids": [],
+    "affected_flows": [],
+    "affected_screens": [],
+    "business_flow_impact": "NONE",
+    "rollback_on_failure": true,
+    "handoff_target": "file-capable-agent"
+  }
+}

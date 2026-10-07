@@ -113,3 +113,85 @@ After each iteration verify:
 - [ ] READ and UPDATE operations treated independently for roles
 - [ ] No overall percentage score used as the authoritative maturity measure
 - [ ] Detailed assessment lives in knowledge file, not duplicated in system prompt
+
+---
+
+## Targeted Transformation Sequence Test (Sequence 3)
+
+Validates safe large-artifact refinement via the CROSS_CUTTING_EDIT / LOCAL_EDIT path.
+This sequence requires a Revision 11+ mockup with multiple StickyHeader components.
+
+### Preparation
+Upload a multi-screen mockup (Revision 11+) where StickyHeader components display "2024".
+Use the suggested prompt "Refine an existing mockup".
+
+### Transformation Iteration 1 — Cross-cutting year change
+Input: "Apply the year change consistently to all StickyHeaders — change 2024 to 2025."
+
+Expected:
+- Change classified as CROSS_CUTTING_EDIT (NOT FULL_REGENERATION)
+- MxMocketeer identifies all StickyHeader targets via component selector
+- One of two paths (both valid):
+  a. **In-context execution**: complete modified HTML output with transformation applied; embedded `transformation_spec` in Design Contract for audit trail.
+  b. **Handoff**: machine-readable `mocketeer-transformation-spec` JSON block output; MxMocketeer does NOT attempt unsafe full reconstruction; handoff contains complete transformation intent.
+- `change_class: CROSS_CUTTING_EDIT` stated in output summary
+- `business_flow_impact: NONE` — year in header is presentation-only
+- `revision_delta.effects[]` contains UI entries for affected screens only; NO FLOW/STORY/IMPLEMENTATION entries
+- Unrelated screens, requirements, decisions, roles, flows remain unchanged
+
+### Transformation Iteration 2 — Local edit (single element)
+Input: "Change the 'Submit' button label to 'Save & Submit' on the Registration screen only."
+
+Expected:
+- Change classified as LOCAL_EDIT
+- Only Registration screen's Submit button label changed
+- All other screens and elements preserved
+- `revision_delta.effects[]` has one UI entry for the Registration screen
+- `preservation.result: VERIFIED`
+
+### Transformation Iteration 3 — Fail-closed: missing target
+Input: "Change the year in all TopBar navigation components."
+
+Expected (when no TopBar components exist):
+- MxMocketeer reports: target selector matched 0 elements (fail-closed)
+- No revision created
+- No content modified
+- Clear message about which target was not found
+
+### Transformation Iteration 4 — Fail-closed: precondition mismatch
+Input: "Change all StickyHeaders from 2023 to 2024."
+
+Expected (when StickyHeaders already show 2025, not 2023):
+- MxMocketeer reports: precondition "2023" not found at target elements
+- No revision created
+- No content modified
+
+### Transformation Iteration 5 — Explicit FULL_REGENERATION (justified)
+Input: "Redesign the entire mockup to add a multi-step wizard flow replacing all current screens."
+
+Expected:
+- Change classified as FULL_REGENERATION (complete structural change)
+- If file size is manageable: complete HTML output with all existing IDs superseded/updated
+- If file too large: MxMocketeer explicitly states FULL_REGENERATION is unsafe and explains why — does NOT silently produce a CROSS_CUTTING_EDIT or partial output
+- Classification and reasoning stated in output
+
+## Verification Checklist for Targeted Transformation Sequence
+After each iteration verify:
+- [ ] Change classification (LOCAL_EDIT / CROSS_CUTTING_EDIT / STRUCTURAL_REFACTOR / FULL_REGENERATION) explicitly stated in output
+- [ ] CROSS_CUTTING_EDIT: multiple targets identified via selector, not one-by-one
+- [ ] CROSS_CUTTING_EDIT: revision_delta has no FLOW/STORY/IMPLEMENTATION effects for presentation-only changes
+- [ ] In-context execution: complete HTML output with transformation_spec embedded
+- [ ] Handoff path: mocketeer-transformation-spec JSON block present; HTML not output; handoff includes source_revision, target_revision, intent, operations[]
+- [ ] Fail-closed: no revision created when target not found or precondition mismatches
+- [ ] Fail-closed: explicit error message with specific reason (which target, which precondition)
+- [ ] Preservation: non-target content byte-identical to previous revision
+- [ ] Revision metadata correct: revision incremented, previous_revision set, lifecycle_status: REFINED_TARGET, refinement_status: PROPOSED, active_target: false
+- [ ] Business flow preservation: unrelated FLOW-NNN/FLOWSTEP-NNN IDs remain unchanged
+
+## Abort Criterion for Targeted Transformation Sequence
+Do not release to broad use if MxMocketeer, when processing a CROSS_CUTTING_EDIT:
+- attempts full file reconstruction of a large existing mockup without explicit justification
+- produces output where non-targeted content is changed or missing
+- claims FULL_REGENERATION on a change that is clearly deterministic and bounded
+- produces a handoff that loses the original refinement intent (user must re-explain)
+- silently applies a global find-replace without verifying scope constraints

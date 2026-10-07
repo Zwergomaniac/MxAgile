@@ -80,6 +80,7 @@ $agentDescriptions = @{
     'acceptance-agent'     = 'Acceptance-Agent: Modell-Inspektion + Playwright User Journeys fuer fachliche Pruefung'
     'maintainer'           = 'MxAgile-Maintainer: erkennt und migriert Legacy-DFC-Installationen; erzeugt niemals neue DFC-Ausgaben'
     'migration-agent'      = 'DFC-AI -> MxAgile Migration Agent: inventories legacy DFC artifacts, preserves project knowledge, establishes MxAgile brownfield baseline'
+    'mocketeer-agent'      = 'MxMocketeer Bridge Agent: Design Contract intake, revision acceptance, Transformation Spec execution for targeted mockup edits'
 }
 
 $agentTools = @{
@@ -90,6 +91,7 @@ $agentTools = @{
     'acceptance-agent'     = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
     'maintainer'           = @('Read', 'Grep', 'Glob', 'Bash')
     'migration-agent'      = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
+    'mocketeer-agent'      = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
 }
 
 # ============================================================

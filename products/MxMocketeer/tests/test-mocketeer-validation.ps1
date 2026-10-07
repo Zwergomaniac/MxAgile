@@ -451,6 +451,60 @@ Assert ($setupBound -notmatch '^\d+\.\s.*knowledge-graph\.txt') `
     'M365 package: knowledge-graph.txt not in numbered upload list'
 
 # ──────────────────────────────────────────────────────────────
+# 15  Transformation spec capability — edit classification present
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[15] Transformation spec capability"
+
+$rtPath  = Join-Path $ProductRoot 'knowledge/refinement-transformations.txt'
+$rtFile  = if (Test-Path $rtPath) { Get-Content $rtPath -Raw -Encoding UTF8 } else { '' }
+$abPath  = Join-Path $ProductRoot 'agent-builder-setup.md'
+$abFile  = if (Test-Path $abPath) { Get-Content $abPath -Raw -Encoding UTF8 } else { '' }
+
+# New knowledge file exists and is non-empty
+Assert (Test-Path $rtPath)          'knowledge/refinement-transformations.txt exists'
+Assert ($rtFile.Length -gt 500)     'refinement-transformations.txt non-trivial content'
+
+# Agent builder setup references the new file
+Assert ($abFile -match 'refinement-transformations\.txt') 'agent-builder-setup.md references refinement-transformations.txt'
+Assert ($abFile -match 'seven|7')                         'agent-builder-setup.md updated to seven knowledge files'
+
+# All four edit classes defined
+foreach ($class in @('LOCAL_EDIT', 'CROSS_CUTTING_EDIT', 'STRUCTURAL_REFACTOR', 'FULL_REGENERATION')) {
+    Assert ($rtFile -match $class) "Edit class $class defined in refinement-transformations.txt"
+}
+
+# System prompt references the classification
+Assert ($sp2 -match 'LOCAL_EDIT')                     'System prompt references LOCAL_EDIT classification'
+Assert ($sp2 -match 'CROSS_CUTTING_EDIT')             'System prompt references CROSS_CUTTING_EDIT classification'
+Assert ($sp2 -match 'Refinement Transformations')     'System prompt references knowledge "Refinement Transformations"'
+Assert ($sp2 -match 'Transformation Spec')            'System prompt references Transformation Spec'
+
+# Key safety invariant present in system prompt
+Assert ($sp2 -match 'no unsafe reconstruction|unsafe reconstruction|do NOT attempt unsafe') 'System prompt: unsafe reconstruction prohibition present'
+
+# Classification invariant: CROSS_CUTTING_EDIT must not become FULL_REGENERATION
+Assert ($sp2 -match 'Never.*CROSS_CUTTING.*FULL_REGENERATION|CROSS_CUTTING.*FULL_REGENERATION.*numerous' -or
+        $rtFile -match 'Never.*CROSS_CUTTING.*FULL_REGENERATION') 'CROSS_CUTTING_EDIT → FULL_REGENERATION misclassification prevented'
+
+# Transformation Spec schema complete
+Assert ($rtFile -match '"spec_id"')         'Transformation Spec defines spec_id field'
+Assert ($rtFile -match '"change_class"')    'Transformation Spec defines change_class field'
+Assert ($rtFile -match '"operations"')      'Transformation Spec defines operations array'
+Assert ($rtFile -match '"precondition"')    'Transformation Spec defines precondition field'
+Assert ($rtFile -match '"match_constraint"') 'Transformation Spec defines match_constraint'
+
+# Handoff format defined (machine-readable for file-capable agent)
+Assert ($rtFile -match 'Handoff Format|handoff.*format') 'Handoff Format section defined'
+Assert ($rtFile -match 'mocketeer-transformation-spec') 'Handoff uses mocketeer-transformation-spec element'
+
+# Preservation validation documented
+Assert ($rtFile -match 'TARGET REGION|NON.TARGET REGION')  'Preservation target/non-target regions defined'
+Assert ($rtFile -match 'VERIFIED.*VERIFIED_WITH_LEDGER|PARTIAL_EVIDENCE') 'Preservation result classes defined'
+
+# StickyHeader fixture present as canonical cross-cutting case
+Assert ($rtFile -match 'StickyHeader')     'StickyHeader year-change fixture present'
+
+# ──────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n========================================"

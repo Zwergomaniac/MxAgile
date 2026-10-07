@@ -1,0 +1,28 @@
+{
+  "transformation_spec": {
+    "spec_id": "TXSPEC-LOCAL-001",
+    "change_class": "LOCAL_EDIT",
+    "source_revision": 11,
+    "target_revision": 12,
+    "intent": "Change year label from 2024 to 2025 in Dashboard StickyHeader only",
+    "operations": [
+      {
+        "op_id": "OP-001",
+        "operation": "TEXT_REPLACE",
+        "target_selector": "[data-mx-component='StickyHeader']",
+        "target_ids": ["SCREEN-DASH"],
+        "scope": "TEXT_CONTENT",
+        "precondition": "2024",
+        "replacement": "2025",
+        "match_constraint": { "min": 1, "max": 1 }
+      }
+    ],
+    "preservation_scope": "ALL_EXCEPT_TARGETED",
+    "affected_contract_ids": [],
+    "affected_flows": [],
+    "affected_screens": ["SCREEN-DASH"],
+    "business_flow_impact": "NONE",
+    "rollback_on_failure": true,
+    "handoff_target": "file-capable-agent"
+  }
+}

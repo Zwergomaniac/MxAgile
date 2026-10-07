@@ -1,0 +1,28 @@
+{
+  "transformation_spec": {
+    "spec_id": "TXSPEC-NEG-PRECOND",
+    "change_class": "CROSS_CUTTING_EDIT",
+    "source_revision": 11,
+    "target_revision": 12,
+    "intent": "Change year from 2023 to 2024 in all StickyHeaders (precondition 2023 not found — fixture has 2024)",
+    "operations": [
+      {
+        "op_id": "OP-001",
+        "operation": "TEXT_REPLACE",
+        "target_selector": "[data-mx-component='StickyHeader']",
+        "target_ids": [],
+        "scope": "TEXT_CONTENT",
+        "precondition": "2023",
+        "replacement": "2024",
+        "match_constraint": { "min": 1, "max": null }
+      }
+    ],
+    "preservation_scope": "ALL_EXCEPT_TARGETED",
+    "affected_contract_ids": [],
+    "affected_flows": [],
+    "affected_screens": [],
+    "business_flow_impact": "NONE",
+    "rollback_on_failure": true,
+    "handoff_target": "file-capable-agent"
+  }
+}

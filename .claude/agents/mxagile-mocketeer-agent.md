@@ -1,11 +1,13 @@
 ---
 model: sonnet
-description: "MxAgile-seitig verantwortlicher Agent fuer den Empfang, die Verarbeitung und die"
+description: "MxMocketeer Bridge Agent: Design Contract intake, revision acceptance, Transformation Spec execution for targeted mockup edits"
 tools:
   - Read
   - Grep
   - Glob
   - Bash
+  - Edit
+  - Write
 ---
 
 # GENERATED - DO NOT EDIT - Source: .mxagile/
@@ -160,9 +162,73 @@ python scripts/graph_capability.py --path . refresh
 Das ist optional — Graph-Fehler blockieren NICHT die Revision-Akzeptanz.
 Graph-Status nach Refresh pruefen: wenn FAILED, als Warning loggen (kein Stopp).
 
+### Phase 6 — Transformation Spec Execution
+
+Dieser Agent ist der EINZIGE autorisierte Weg, eine Mockup-HTML-Datei
+auf Basis einer Transformation Spec zu mutieren.
+
+Eine Transformation Spec liegt vor, wenn M365 MxMocketeer kein vollstaendiges
+HTML-Artefakt ausgeben konnte und stattdessen ein `mocketeer-transformation-spec`
+JSON-Block als Handoff geliefert hat.
+
+**Vorbedingungen (alle muessen erfuellt sein):**
+1. Eine validierte `transformation_spec` mit `change_class: LOCAL_EDIT` oder `CROSS_CUTTING_EDIT` liegt vor.
+2. Die Quell-HTML-Datei (`source_revision` entspricht vorhandener Datei) ist vorhanden und lesbar.
+3. Ein Entwickler hat die Transformation Spec geprueft und freigegeben.
+
+**Ablauf:**
+
+1. **Spec einlesen:** `transformation_spec` aus dem Handoff-Block extrahieren und validieren:
+   - Pflichtfelder vorhanden: `spec_id`, `change_class`, `source_revision`, `target_revision`, `operations[]`
+   - `change_class` ist `LOCAL_EDIT` oder `CROSS_CUTTING_EDIT`
+   - Alle `operations[]` haben `op_id`, `operation`, `target_selector` oder `target_ids`, `precondition`, `match_constraint`
+
+2. **Ziele auflösen:** Fuer jede Operation die Zielelemente im HTML bestimmen:
+   - Alle Treffer gegen `target_selector` ermitteln (CSS-Selektor oder data-Attribut-Pattern).
+   - Anzahl pruefen gegen `match_constraint.min` und `match_constraint.max`.
+   - `precondition`-Inhalt an jedem Treffer verifizieren.
+   - Bei Abweichung: **STOP** — Fehlermeldung mit betroffener Operation und erwartetem vs. gefundenem Inhalt.
+
+3. **Fail-closed Checks (STOP bei jedem Fehler):**
+   - `match_count < match_constraint.min` → kein Ziel gefunden
+   - `match_count > match_constraint.max` (wenn gesetzt) → unerwartete Treffer
+   - `precondition` stimmt nicht → Source-Precondition-Mismatch
+   - Transformation wuerde nicht-adressierte Inhalte ausserhalb `target_selector` aendern → Scope-Verletzung
+   - Stable ID in `target_ids` nicht im Dokument vorhanden → Missing Target
+
+4. **Transformation anwenden:** Nur Zielelemente gemaess Operation mutieren:
+   - `TEXT_REPLACE`: Textinhalt der Zielelemente ersetzen (Scope: TEXT_CONTENT).
+   - `ATTRIBUTE_SET`: Attributwert setzen/aktualisieren.
+   - `ELEMENT_REMOVE`: Element entfernen (nur mit expliziter `affected_contract_ids` Angabe).
+   - `ELEMENT_ADD`: Element an Zielposition einfuegen.
+   - Kein anderer Teil der HTML-Datei wird angefasst.
+
+5. **Preservation validieren:**
+   - Alle stabilen IDs aus dem Nicht-Ziel-Bereich noch vorhanden?
+   - Kein Nicht-Ziel-Textinhalt geaendert?
+   - Bei FAILED: Transformation rueckgaengig machen (Datei unveraendert lassen), STOP melden.
+   - Ergebnis: VERIFIED, VERIFIED_WITH_LEDGER, PARTIAL_EVIDENCE, oder FAILED.
+
+6. **Revision erzeugen:** Nur wenn Preservation VERIFIED oder VERIFIED_WITH_LEDGER:
+   - Design Contract in der HTML-Datei aktualisieren: `revision` = `target_revision`, `previous_revision` = `source_revision`, `lifecycle_status: REFINED_TARGET`, `refinement_status: PROPOSED`, `active_target: false`.
+   - `change_scope` aus Spec-`intent` uebernehmen.
+   - `revision_history`-Eintrag anhaengen: nur tatsaechlich geaenderte IDs eintragen.
+   - `revision_delta.effects[]` befuellen: nur Screens/Elemente die sich geaendert haben.
+   - `preservation`-Block mit Ergebnis und Evidenz schreiben.
+   - Fuer `business_flow_impact: NONE`: keine Flow-/Story-/Implementation-Effekte in `revision_delta`.
+   - `transformation_spec` als Unter-Objekt im Design Contract fuer Audit-Trail einbetten.
+   - Datei speichern.
+
+7. **Phase 4 (Revision Acceptance) ausfuehren:** Der Developer muss die neue Revision explizit akzeptieren (DEC-NNN erforderlich). Das Ergebnis von Phase 6 ist `refinement_status: PROPOSED`, nicht ACCEPTED.
+
+**Einschraenkungen Phase 6:**
+- Phase 6 darf NICHT fuer `change_class: FULL_REGENERATION` oder `STRUCTURAL_REFACTOR` ausgefuehrt werden.
+- Phase 6 darf KEINE HTML-Dateien ohne valide Transformation Spec aendern.
+- Phase 6 darf KEINE Revision als ACCEPTED markieren.
+
 ## Einschraenkungen
 
-- Dieser Agent erstellt und editiert KEINE Mockup-HTML-Dateien.
+- Dieser Agent erstellt KEINE Mockup-HTML-Dateien eigenstaendig und editiert sie NICHT ausserhalb von Phase 6 (Transformation Spec Execution).
 - Dieser Agent bestaetigt KEINE Revision eigenstaendig — immer Developer-Genehmigung erforderlich.
 - Dieser Agent mutiert KEINE bestehenden REQ-NNN ohne explizite Developer-Bestaetigung.
 - Dieser Agent darf KEIN `ACCEPTED` auf eine Revision setzen ohne vorhandenes DEC-NNN.

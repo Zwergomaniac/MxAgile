@@ -1,0 +1,266 @@
+# MxMocketeer Refinement Transformations
+
+## Edit Classification
+
+Every refinement request must be classified before execution. The classification
+determines the execution path — it is based on execution characteristics, not change size.
+
+### LOCAL_EDIT
+Bounded change at one uniquely-identified target element or section.
+The target is reachable via a stable ID or unambiguous selector.
+Execution: apply the change to that element and output the complete HTML file.
+Preservation: all other content unchanged by construction.
+Examples: change a button label on one specific screen, update one requirement text,
+         correct a single field's placeholder value.
+
+### CROSS_CUTTING_EDIT
+Same deterministic transformation applied at multiple known targets.
+Targets share an observable, stable pattern: component type, stable ID prefix, or
+attribute value. The transformation is identical at every target — not screen-specific.
+Execution: produce a Transformation Spec (see below). If the transformation can be
+applied safely in context (small file, direct access), apply it and output the complete
+HTML file. Otherwise output the Transformation Spec as a machine-readable handoff.
+Do NOT attempt full reconstruction merely because targets are numerous.
+Examples: update the year in every StickyHeader, change a status label across all screens,
+         add a consistent tooltip attribute to every role-gated button.
+
+### STRUCTURAL_REFACTOR
+Structural reorganization where a substantial portion of existing content must be preserved.
+The shape of the document changes but most content remains.
+Execution: full HTML output with careful preservation. Fail closed if preservation
+cannot be guaranteed after the structural change.
+Examples: navigation hierarchy change, screen merge, flow restructuring, layout migration.
+
+### FULL_REGENERATION
+Complete artifact regeneration is necessary and the agent can safely guarantee preservation.
+Safe when: new or small mockup, or the vast majority of content must change.
+Unsafe when: large existing mockup where regeneration risks accidental invention or omission.
+The agent must explicitly justify FULL_REGENERATION for an existing large mockup.
+Never classify a CROSS_CUTTING_EDIT as FULL_REGENERATION merely because targets are numerous.
+
+---
+
+## Transformation Spec Schema
+
+When a LOCAL_EDIT or CROSS_CUTTING_EDIT requires a structured handoff, produce a
+Transformation Spec. The spec is a machine-readable artifact.
+
+When the transformation is executed directly (in context), embed the spec in the
+Design Contract as `transformation_spec` for audit purposes.
+
+When the transformation requires a file-capable agent (full handoff), output the spec
+as a standalone JSON block after the output summary (see Handoff Format below).
+
+### Required Fields
+
+```json
+{
+  "transformation_spec": {
+    "spec_id": "TXSPEC-001",
+    "change_class": "CROSS_CUTTING_EDIT",
+    "source_revision": 11,
+    "target_revision": 12,
+    "intent": "Change year from 2024 to 2025 in all StickyHeader components",
+    "operations": [
+      {
+        "op_id": "OP-001",
+        "operation": "TEXT_REPLACE",
+        "target_selector": "[data-mx-component='StickyHeader']",
+        "target_ids": [],
+        "target_pattern": null,
+        "scope": "TEXT_CONTENT",
+        "precondition": "2024",
+        "replacement": "2025",
+        "match_constraint": {
+          "min": 1,
+          "max": null
+        }
+      }
+    ],
+    "preservation_scope": "ALL_EXCEPT_TARGETED",
+    "affected_contract_ids": [],
+    "affected_flows": [],
+    "affected_screens": [],
+    "business_flow_impact": "NONE",
+    "validation_rules": [
+      "every operation must match at least match_constraint.min targets",
+      "no operation may affect content outside its target_selector scope",
+      "revision_delta must list only IDs where content actually changed"
+    ],
+    "rollback_on_failure": true,
+    "handoff_target": "file-capable-agent"
+  }
+}
+```
+
+### operation values
+TEXT_REPLACE    Replace text content at matched targets (precondition → replacement).
+ATTRIBUTE_SET   Set or update an HTML attribute value at matched targets.
+ELEMENT_REMOVE  Remove matched elements entirely (affects_contract_ids must be explicit).
+ELEMENT_ADD     Insert an element at matched targets; provide full element content.
+
+### scope values
+TEXT_CONTENT    Affect only the visible text content of the matched element.
+ATTRIBUTE       Affect only the specified attribute of the matched element.
+INNER_HTML      Affect the full inner HTML of the matched element (use with caution).
+
+### business_flow_impact values
+NONE            Presentation-only change; flow semantics unchanged. No flow effects in revision_delta.
+INFORMATIONAL   Step descriptions or requirement references updated. Record in revision_delta effects.
+STRUCTURAL      Flow structure, transitions, or steps changed. Full delta analysis required.
+
+---
+
+## Safe Target Resolution
+
+A transformation MUST FAIL CLOSED under any of these conditions:
+
+1. NO TARGETS FOUND
+   match_count < match_constraint.min
+   → STOP. Report: "Target selector matched 0 elements (min required: N)"
+
+2. UNEXPECTED MATCH COUNT
+   match_constraint.max is set AND match_count > match_constraint.max
+   → STOP. Report: "Target selector matched M elements (max allowed: N)"
+
+3. PRECONDITION MISMATCH
+   The precondition content is absent at one or more matched targets.
+   → STOP on first mismatch. Report which target ID or selector position failed.
+
+4. PROTECTED CONTENT AFFECTED
+   The operation would alter content outside the declared target_selector scope
+   (e.g. a TEXT_REPLACE would also match content in a requirements section).
+   → STOP. Report: "Operation would affect protected non-target content"
+
+5. STABLE ID NOT FOUND
+   target_ids lists a specific stable ID that is not present in the document.
+   → STOP. Report: "Stable ID <id> not found in source revision"
+
+6. SCOPE VIOLATION
+   A TEXT_CONTENT operation would alter HTML structure rather than text nodes.
+   → STOP. Report the specific element where the violation occurs.
+
+DO NOT silently apply a global string replacement merely because a value is repeated.
+If "2024" appears in both StickyHeaders AND requirements text, scope the operation
+to the StickyHeader selector only — never use an unscoped find-replace.
+
+---
+
+## Preservation Validation
+
+For a targeted transformation, two regions are defined:
+
+TARGET REGION: elements matching the operation target_selector — expected to change.
+NON-TARGET REGION: all other content — expected to remain byte-for-byte unchanged
+                   (modulo deterministic whitespace normalization).
+
+### Validation steps (in-context execution)
+1. Before applying: extract all target elements, record their content.
+2. Before applying: record the set of all stable IDs present in the document.
+3. Apply the transformation to target elements only.
+4. After applying: verify each targeted element changed as specified.
+5. After applying: verify all non-targeted stable IDs remain present.
+6. After applying: verify no non-target text content was modified.
+7. Whitespace normalization is permitted — semantic content must match.
+
+### Validation steps (file-capable agent execution)
+Same as above. Additionally:
+- Compute SHA-256 of the non-target regions before and after; require equality.
+- If a hash cannot be computed, use ID set comparison + structural diff as fallback.
+
+### Preservation result classes
+VERIFIED               Target changed; non-target hash or ID set matches exactly.
+VERIFIED_WITH_LEDGER   Non-target spot-check passed; full hash not available.
+PARTIAL_EVIDENCE       Structural comparison only; no baseline hash.
+FAILED                 Unexpected change in non-target region — STOP, do not create revision.
+
+When preservation result is FAILED, the transformation must be rolled back.
+Report the specific non-target content that was unexpectedly changed.
+
+---
+
+## Handoff Format
+
+When M365 MxMocketeer cannot safely execute the transformation (large file, no direct
+file mutation capability), output the following handoff after the normal output summary:
+
+```
+<!-- MXMOCKETEER TRANSFORMATION HANDOFF
+     This transformation spec requires a file-capable agent to execute.
+     Do not apply manually. Use the MxAgile MxMocketeer Agent or repository
+     transformation tooling with the spec below.
+     source_revision: N
+     target_revision: N+1
+-->
+<script type="application/json" id="mocketeer-transformation-spec">
+{ ... transformation_spec ... }
+</script>
+```
+
+The handoff:
+- Preserves the complete refinement intent; the user need not re-explain the change.
+- Is machine-readable by the repository MxMocketeer Agent (Phase 6).
+- Includes the updated Design Contract fields (revision, change_scope, affected IDs)
+  even though the HTML file itself is not yet updated.
+- Does NOT claim the revision is complete — refinement_status remains PROPOSED until
+  the file-capable agent applies the spec and the developer accepts the result.
+
+### What the handoff output must contain
+1. Summary of the classified change (change_class, intent).
+2. The complete Transformation Spec JSON block.
+3. Updated Design Contract delta: affected_contract_ids, affected_screens,
+   new revision number, change_scope, revision_delta skeleton.
+4. Explicit instruction: "Apply using the MxAgile MxMocketeer Agent."
+
+---
+
+## Revision Lifecycle Integration
+
+A transformation (whether applied directly or via handoff) creates a legitimate next revision
+through the standard lifecycle. No second mechanism is introduced.
+
+Upon successful execution:
+- mockup.revision incremented (source_revision + 1)
+- mockup.previous_revision set to source_revision
+- lifecycle_status: REFINED_TARGET
+- refinement_status: PROPOSED (ACCEPTED only on developer confirmation + DEC-NNN)
+- active_target: false (set to true by MxAgile MxMocketeer Agent on acceptance)
+- revision_history entry appended (only actually-changed IDs recorded)
+- revision_delta.effects[] contains only actual changes (not all targeted elements
+  if their content was already correct or if they were no-op matches)
+- preservation block records the result with targeted evidence
+- transformation_spec object embedded for audit trail
+
+### revision_delta for a presentation-only CROSS_CUTTING_EDIT
+When business_flow_impact is NONE, the revision_delta:
+- MUST NOT contain effects with type FLOW, STORY, or IMPLEMENTATION.
+- MUST contain effects with type UI for each affected screen.
+- affected_ids lists only screen IDs where the HTML actually changed.
+
+---
+
+## StickyHeader Year-Change: Canonical Fixture
+
+This scenario is the primary fixture proving the CROSS_CUTTING_EDIT capability.
+
+Source: Revision 11, StickyHeader components display "2024".
+Request: "Apply the year change consistently to all StickyHeaders."
+
+Classification: CROSS_CUTTING_EDIT
+  — same deterministic change (TEXT_REPLACE "2024" → "2025")
+  — at all known target pattern (data-mx-component='StickyHeader')
+  — not a structural change; not FULL_REGENERATION
+
+Expected execution path:
+  1. Identify all StickyHeader elements via target_selector.
+  2. Verify precondition "2024" present in each target's TEXT_CONTENT.
+  3. Build Transformation Spec (TXSPEC-NNN, OP-001 TEXT_REPLACE).
+  4. If safe in context: apply, output complete HTML, embed spec in Design Contract.
+     If not safe in context: output Transformation Spec handoff.
+  5. Build revision_delta: effects[] with type UI for each affected screen.
+     business_flow_impact: NONE (year in header is presentation-only).
+  6. Build preservation evidence: non-target IDs unchanged.
+  7. Set revision_history entry with changed_screens listing only affected screens.
+
+This fixture must NOT hard-code StickyHeader or year changes as a special case.
+The CROSS_CUTTING_EDIT path is generic; StickyHeader proves it works.

@@ -4,13 +4,14 @@
 Copy the complete content of `system-prompt.md` into the **Instructions** field.
 
 ## Knowledge Files
-Upload all six files from `knowledge/` as knowledge:
+Upload all seven files from `knowledge/` as knowledge:
 1. `knowledge/design-contract.txt` — Design Contract v1 schema, structured flows schema, maturity assessment schema, preservation rules
 2. `knowledge/discovery-assessment.txt` — assessment dimensions (incl. DIM-BUSINESS_FLOWS), gap taxonomy, interview strategy, readiness rules
 3. `knowledge/golden-mockuphtml.txt` — golden reference for output format and iterative refinement
 4. `knowledge/mendix-design-guide.txt` — curated Mendix design knowledge
 5. `knowledge/mxagile-handoff.txt` — handoff guidance to development / MxAgile, Business Flow producer obligations, revision delta, stable ID contract
 6. `knowledge/business-flows.txt` — Business Flow schema, step types, FLOW-NNN/FLOWSTEP-NNN IDs, Mermaid generation, flow revision impact, flow-to-verification traceability
+7. `knowledge/refinement-transformations.txt` — edit classification (LOCAL_EDIT, CROSS_CUTTING_EDIT, STRUCTURAL_REFACTOR, FULL_REGENERATION), Transformation Spec schema, safe target resolution, preservation validation, machine-readable handoff format
 
 Note: `knowledge/knowledge-graph.txt` is NOT uploaded to M365. It is MxAgile repository/framework documentation for pipeline agents. See `docs/mxagile-knowledge-graph.md`.
 

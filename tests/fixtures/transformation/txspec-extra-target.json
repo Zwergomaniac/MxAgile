@@ -1,0 +1,28 @@
+{
+  "transformation_spec": {
+    "spec_id": "TXSPEC-NEG-EXTRA",
+    "change_class": "CROSS_CUTTING_EDIT",
+    "source_revision": 11,
+    "target_revision": 12,
+    "intent": "Change year in at most 2 StickyHeaders (fixture has 3 — exceeds max)",
+    "operations": [
+      {
+        "op_id": "OP-001",
+        "operation": "TEXT_REPLACE",
+        "target_selector": "[data-mx-component='StickyHeader']",
+        "target_ids": [],
+        "scope": "TEXT_CONTENT",
+        "precondition": "2024",
+        "replacement": "2025",
+        "match_constraint": { "min": 1, "max": 2 }
+      }
+    ],
+    "preservation_scope": "ALL_EXCEPT_TARGETED",
+    "affected_contract_ids": [],
+    "affected_flows": [],
+    "affected_screens": [],
+    "business_flow_impact": "NONE",
+    "rollback_on_failure": true,
+    "handoff_target": "file-capable-agent"
+  }
+}

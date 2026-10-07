@@ -1,0 +1,37 @@
+{
+  "handoff_type": "mocketeer-transformation-spec",
+  "handoff_version": "1.0",
+  "produced_by": "MxMocketeer M365",
+  "produced_at": "2026-10-07",
+  "original_request": "Change the year from 2024 to 2025 in all StickyHeader components",
+  "classification": "CROSS_CUTTING_EDIT",
+  "execution_boundary": "file-capable-agent",
+  "reason_for_handoff": "Direct execution unsafe in M365 context: file size exceeds safe reconstruction threshold",
+  "transformation_spec": {
+    "spec_id": "TXSPEC-M365-001",
+    "change_class": "CROSS_CUTTING_EDIT",
+    "source_revision": 11,
+    "target_revision": 12,
+    "intent": "Change year label from 2024 to 2025 in all StickyHeader components (M365 handoff path)",
+    "operations": [
+      {
+        "op_id": "OP-001",
+        "operation": "TEXT_REPLACE",
+        "target_selector": "[data-mx-component='StickyHeader']",
+        "target_ids": [],
+        "target_pattern": null,
+        "scope": "TEXT_CONTENT",
+        "precondition": "2024",
+        "replacement": "2025",
+        "match_constraint": { "min": 1, "max": null }
+      }
+    ],
+    "preservation_scope": "ALL_EXCEPT_TARGETED",
+    "affected_contract_ids": [],
+    "affected_flows": [],
+    "affected_screens": [],
+    "business_flow_impact": "NONE",
+    "rollback_on_failure": true,
+    "handoff_target": "file-capable-agent"
+  }
+}

@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Annual Reporting System — Revision 11 Fixture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .sticky-header {
+      position: sticky; top: 0; z-index: 100;
+      background: #1a3a5c; color: #fff; padding: 0 1.5rem;
+    }
+    .sticky-header .brand-row {
+      display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
+    .sticky-header .app-name { font-size: 1.1rem; font-weight: 700; }
+    .sticky-header .year-badge {
+      background: rgba(255,255,255,0.2); border-radius: 4px;
+      padding: 0.15rem 0.5rem; font-size: 0.85rem; font-weight: 600;
+    }
+    .sticky-header nav { display: flex; gap: 0.25rem; padding: 0.5rem 0; }
+    .sticky-header nav a {
+      color: rgba(255,255,255,0.75); padding: 0.4rem 0.8rem;
+      border-radius: 4px; text-decoration: none; font-size: 0.9rem;
+    }
+    .sticky-header nav a.active { background: rgba(255,255,255,0.2); color: #fff; }
+    .page-header {
+      background: #fff; border-bottom: 1px solid #e0e0e0;
+      padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem;
+    }
+    .page-header .page-title { font-size: 1.1rem; font-weight: 600; color: #333; }
+    .page-header .page-subtitle { font-size: 0.85rem; color: #666; }
+    .content { padding: 1.5rem; max-width: 1100px; }
+    .card { background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; padding: 1.25rem; margin-bottom: 1rem; }
+    .card h3 { font-size: 0.95rem; font-weight: 600; color: #444; margin-bottom: 0.75rem; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .kpi-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; text-align: center; }
+    .kpi-card .kpi-value { font-size: 2rem; font-weight: 700; color: #1a3a5c; }
+    .kpi-card .kpi-label { font-size: 0.8rem; color: #666; margin-top: 0.25rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #f0f0f0; padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; border-bottom: 2px solid #ddd; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #eee; }
+    tr:hover td { background: #fafafa; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .badge-green { background: #d4edda; color: #155724; }
+    .badge-yellow { background: #fff3cd; color: #856404; }
+    .badge-red { background: #f8d7da; color: #721c24; }
+    .form-row { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+    .form-row label { width: 180px; font-size: 0.9rem; color: #555; font-weight: 500; }
+    .form-row input, .form-row select {
+      flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc;
+      border-radius: 4px; font-size: 0.9rem;
+    }
+    .btn { padding: 0.5rem 1.25rem; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; }
+    .btn-primary { background: #1a3a5c; color: #fff; }
+    .btn-secondary { background: #e0e0e0; color: #333; }
+    .report-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .report-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem;
+    }
+    .report-item .report-meta { display: flex; gap: 1.5rem; font-size: 0.85rem; color: #666; }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- SCREEN 1: Dashboard                                          -->
+<!-- ============================================================ -->
+<section class="screen active" id="screen-dashboard" data-mx-screen="SCREEN-DASH">
+
+  <div class="sticky-header" data-mx-component="StickyHeader" data-mx-screen="SCREEN-DASH">
+    <div class="brand-row">
+      <span class="app-name">Annual Reporting</span>
+      <span class="year-badge">2024</span>
+    </div>
+    <nav>
+      <a href="#" class="active" data-mx-action="nav-dashboard">Dashboard</a>
+      <a href="#" data-mx-action="nav-sites">Sites</a>
+      <a href="#" data-mx-action="nav-reports">Reports</a>
+      <a href="#" data-mx-action="nav-settings">Settings</a>
+    </nav>
+  </div>
+
+  <div class="content">
+    <h2 style="margin-bottom:1rem;">Dashboard Overview</h2>
+
+    <div class="kpi-grid">
+      <div class="kpi-card" data-mx-req="REQ-001">
+        <div class="kpi-value">142</div>
+        <div class="kpi-label">Total Sites (2024)</div>
+      </div>
+      <div class="kpi-card" data-mx-req="REQ-001">
+        <div class="kpi-value">89%</div>
+        <div class="kpi-label">Compliance Rate</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">7</div>
+        <div class="kpi-label">Reports Pending</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Recent Activity</h3>
+      <table>
+        <thead>
+          <tr><th>Site</th><th>Action</th><th>Date</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr data-mx-req="REQ-002">
+            <td>North Plant</td><td>Compliance Check</td><td>2026-09-30</td>
+            <td><span class="badge badge-green">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>East Depot</td><td>Report Submitted</td><td>2026-09-28</td>
+            <td><span class="badge badge-yellow">Pending</span></td>
+          </tr>
+          <tr>
+            <td>West Hub</td><td>Annual Review</td><td>2026-09-25</td>
+            <td><span class="badge badge-red">Non-Compliant</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Fiscal Year Summary</h3>
+      <p style="font-size:0.9rem;color:#555;">
+        Annual reporting cycle for the current fiscal year.
+        See the site registry for per-site compliance details.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 2: Site Registry                                      -->
+<!-- ============================================================ -->
+<section class="screen" id="screen-sites" data-mx-screen="SCREEN-SITES">
+
+  <div class="sticky-header" data-mx-component="StickyHeader" data-mx-screen="SCREEN-SITES">
+    <div class="brand-row">
+      <span class="app-name">Site Registry</span>
+      <span class="year-badge">2024</span>
+    </div>
+    <nav>
+      <a href="#" data-mx-action="nav-dashboard">Dashboard</a>
+      <a href="#" class="active" data-mx-action="nav-sites">Sites</a>
+      <a href="#" data-mx-action="nav-reports">Reports</a>
+      <a href="#" data-mx-action="nav-settings">Settings</a>
+    </nav>
+  </div>
+
+  <div class="content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2>Site Registry</h2>
+      <div style="display:flex;gap:0.5rem;">
+        <select style="padding:0.4rem;border:1px solid #ccc;border-radius:4px;font-size:0.9rem;" data-mx-req="REQ-002">
+          <option>All Regions</option>
+          <option>North</option>
+          <option>East</option>
+          <option>West</option>
+        </select>
+        <select style="padding:0.4rem;border:1px solid #ccc;border-radius:4px;font-size:0.9rem;" data-mx-req="REQ-002">
+          <option>All Statuses</option>
+          <option>Compliant</option>
+          <option>Non-Compliant</option>
+          <option>Pending</option>
+        </select>
+        <button class="btn btn-secondary" data-mx-action="export-csv" data-mx-req="REQ-003">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;">
+      <table>
+        <thead>
+          <tr>
+            <th>Site ID</th><th>Name</th><th>Region</th>
+            <th>Compliance</th><th>Last Report</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-mx-site="SITE-001">
+            <td>SITE-001</td><td>North Plant Alpha</td><td>North</td>
+            <td><span class="badge badge-green">Compliant</span></td>
+            <td>2026-09-15</td>
+            <td><button class="btn btn-secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;">View</button></td>
+          </tr>
+          <tr data-mx-site="SITE-002">
+            <td>SITE-002</td><td>East Depot</td><td>East</td>
+            <td><span class="badge badge-yellow">Pending</span></td>
+            <td>2026-08-30</td>
+            <td><button class="btn btn-secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;">View</button></td>
+          </tr>
+          <tr data-mx-site="SITE-003">
+            <td>SITE-003</td><td>West Hub Central</td><td>West</td>
+            <td><span class="badge badge-red">Non-Compliant</span></td>
+            <td>2026-07-10</td>
+            <td><button class="btn btn-secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;">View</button></td>
+          </tr>
+          <tr data-mx-site="SITE-004">
+            <td>SITE-004</td><td>South Facility B</td><td>South</td>
+            <td><span class="badge badge-green">Compliant</span></td>
+            <td>2026-09-20</td>
+            <td><button class="btn btn-secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;">View</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 3: Annual Reports                                     -->
+<!-- ============================================================ -->
+<section class="screen" id="screen-reports" data-mx-screen="SCREEN-REPORTS">
+
+  <div class="sticky-header" data-mx-component="StickyHeader" data-mx-screen="SCREEN-REPORTS">
+    <div class="brand-row">
+      <span class="app-name">Annual Reports</span>
+      <span class="year-badge">2024</span>
+    </div>
+    <nav>
+      <a href="#" data-mx-action="nav-dashboard">Dashboard</a>
+      <a href="#" data-mx-action="nav-sites">Sites</a>
+      <a href="#" class="active" data-mx-action="nav-reports">Reports</a>
+      <a href="#" data-mx-action="nav-settings">Settings</a>
+    </nav>
+  </div>
+
+  <div class="content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2>Annual Reports</h2>
+      <button class="btn btn-primary" data-mx-action="new-report" data-mx-req="REQ-003">New Report</button>
+    </div>
+
+    <div class="card">
+      <h3>Scheduled Exports</h3>
+      <p style="font-size:0.9rem;color:#555;margin-bottom:0.75rem;" data-mx-req="REQ-004">
+        Schedule automated exports of report archives.
+      </p>
+      <div class="form-row">
+        <label>Export Format</label>
+        <select><option>CSV</option><option>Excel</option><option>PDF</option></select>
+      </div>
+      <div class="form-row">
+        <label>Schedule</label>
+        <select data-mx-req="REQ-004">
+          <option>Monthly</option><option>Quarterly</option><option>Annually</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary" data-mx-action="save-schedule">Save Schedule</button>
+    </div>
+
+    <div class="card" style="padding:0;padding-top:1.25rem;">
+      <div style="padding:0 1.25rem 0.75rem;"><h3>Report Archive</h3></div>
+      <div class="report-list" style="padding:0 1.25rem 1.25rem;">
+        <div class="report-item" data-mx-report="RPT-001">
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;">Compliance Summary Report</div>
+            <div class="report-meta">
+              <span>Period: Jan–Dec 2026</span>
+              <span>Sites: 142</span>
+              <span>Created: 2026-09-01</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-secondary" data-mx-action="download-report" data-mx-req="REQ-003">Download</button>
+            <span class="badge badge-green">Published</span>
+          </div>
+        </div>
+        <div class="report-item" data-mx-report="RPT-002">
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;">Q3 Quarterly Review</div>
+            <div class="report-meta">
+              <span>Period: Jul–Sep 2026</span>
+              <span>Sites: 98</span>
+              <span>Created: 2026-10-01</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-secondary" data-mx-action="download-report" data-mx-req="REQ-003">Download</button>
+            <span class="badge badge-yellow">Draft</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 4: Settings (uses PageHeader, NOT StickyHeader)       -->
+<!-- ============================================================ -->
+<section class="screen" id="screen-settings" data-mx-screen="SCREEN-SETTINGS">
+
+  <div class="page-header" data-mx-component="PageHeader" data-mx-screen="SCREEN-SETTINGS">
+    <div>
+      <div class="page-title">Settings Panel</div>
+      <div class="page-subtitle">System configuration — updated 2024</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <h2 style="margin-bottom:1rem;">User Preferences</h2>
+
+    <div class="card">
+      <h3>Notification Settings</h3>
+      <div class="form-row">
+        <label>Email Notifications</label>
+        <select><option>Enabled</option><option>Disabled</option></select>
+      </div>
+      <div class="form-row">
+        <label>Report Digest</label>
+        <select><option>Weekly</option><option>Monthly</option><option>Off</option></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Display Settings</h3>
+      <div class="form-row">
+        <label>Language</label>
+        <select><option>English</option><option>Dutch</option><option>German</option></select>
+      </div>
+      <div class="form-row">
+        <label>Timezone</label>
+        <select><option>Europe/Amsterdam</option><option>UTC</option></select>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+      <button class="btn btn-primary" data-mx-action="save-settings">Save Settings</button>
+      <button class="btn btn-secondary" data-mx-action="cancel-settings">Cancel</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- DESIGN CONTRACT                                              -->
+<!-- ============================================================ -->
+<script type="application/json" id="mocketeer-spec">
+{
+  "schema_version": "1.1",
+  "mockup": {
+    "id": "MOCKUP-TXTEST-FIXTURE",
+    "revision": 11,
+    "previous_revision": 10,
+    "lifecycle_status": "REFINED_TARGET",
+    "refinement_status": "ACCEPTED",
+    "active_target": true,
+    "change_scope": "Added export scheduling and report archive screens"
+  },
+  "revision_history": [
+    {
+      "revision": 1,
+      "date": "2026-01-10",
+      "status": "SOURCE",
+      "change_summary": ["Initial mockup — dashboard and site registry"]
+    },
+    {
+      "revision": 11,
+      "date": "2026-08-20",
+      "status": "ACTIVE_TARGET",
+      "change_summary": ["Added export scheduling", "Added report archive screen"]
+    }
+  ],
+  "revision_delta": {
+    "from_revision": 10,
+    "to_revision": 11,
+    "affected_ids": ["SCREEN-REPORTS"],
+    "effects": [
+      {
+        "type": "UI",
+        "change": "ADD",
+        "required_action": "IMPLEMENT",
+        "source_ids": ["REQ-004"],
+        "downstream_artifacts": ["PAGE-REPORTS"]
+      }
+    ]
+  },
+  "preservation": {
+    "result": "VERIFIED",
+    "checked_at": "revision:11",
+    "preserved": ["SCREEN-DASH", "SCREEN-SITES", "SCREEN-SETTINGS", "FLOW-001", "REQ-001", "REQ-002", "REQ-003", "DEC-001", "DEC-002", "ROLE-ADMIN", "ROLE-VIEWER"],
+    "changed": ["SCREEN-REPORTS", "REQ-004"],
+    "removed": []
+  },
+  "project": {
+    "name": "Annual Reporting System",
+    "description": "Manages fiscal year 2024 reporting and site compliance tracking"
+  },
+  "roles": [
+    {
+      "id": "ROLE-ADMIN",
+      "name": "Report Administrator",
+      "description": "Full access to create, edit, and publish annual reports",
+      "can": ["create_report", "edit_report", "publish_report", "manage_sites", "export_data"],
+      "cannot": []
+    },
+    {
+      "id": "ROLE-VIEWER",
+      "name": "Site Viewer",
+      "description": "Read-only access to dashboard and site registry",
+      "can": ["view_dashboard", "view_sites", "view_reports"],
+      "cannot": ["create_report", "edit_report", "delete_report"]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "The system shall display a fiscal year 2024 summary on the dashboard",
+      "status": "CONFIRMED",
+      "source": "design_contract"
+    },
+    {
+      "id": "REQ-002",
+      "text": "The site registry shall support filtering by region and compliance status",
+      "status": "CONFIRMED",
+      "source": "design_contract"
+    },
+    {
+      "id": "REQ-003",
+      "text": "Report Administrators can export site data to CSV",
+      "status": "CONFIRMED",
+      "source": "design_contract"
+    },
+    {
+      "id": "REQ-004",
+      "text": "The system shall support scheduled export of Q3 2024 report archives",
+      "status": "CANDIDATE",
+      "source": "design_contract"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "text": "Use StickyHeader component to display year label in all main screens",
+      "decision_status": "CONFIRMED",
+      "rationale": "Consistent branding requirement confirmed in Q3 2024 stakeholder review",
+      "source": "design_contract"
+    },
+    {
+      "id": "DEC-002",
+      "text": "Settings screen uses PageHeader instead of StickyHeader for visual separation",
+      "decision_status": "CONFIRMED",
+      "rationale": "Settings page has different navigation context requiring distinct header style",
+      "source": "design_contract"
+    }
+  ],
+  "screens": [
+    {
+      "id": "SCREEN-DASH",
+      "name": "Dashboard",
+      "description": "Annual reporting overview showing fiscal year 2024 KPIs",
+      "lifecycle_status": "ACTIVE_TARGET"
+    },
+    {
+      "id": "SCREEN-SITES",
+      "name": "Site Registry",
+      "description": "Registry of monitored sites with compliance tracking",
+      "lifecycle_status": "ACTIVE_TARGET"
+    },
+    {
+      "id": "SCREEN-REPORTS",
+      "name": "Annual Reports",
+      "description": "Report creation, archive, and scheduled exports",
+      "lifecycle_status": "ACTIVE_TARGET"
+    },
+    {
+      "id": "SCREEN-SETTINGS",
+      "name": "Settings",
+      "description": "User preferences and system configuration",
+      "lifecycle_status": "ACTIVE_TARGET"
+    }
+  ],
+  "flows": [
+    {
+      "id": "FLOW-001",
+      "name": "Annual Report Submission",
+      "description": "Process for creating and submitting 2024 annual compliance reports",
+      "status": "STRUCTURED",
+      "steps": [
+        {
+          "id": "FLOWSTEP-001",
+          "name": "Initiate Report",
+          "screen_ref": "SCREEN-REPORTS",
+          "req_refs": ["REQ-003", "REQ-004"],
+          "actor": "ROLE-ADMIN",
+          "action": "Admin navigates to Annual Reports and clicks New Report"
+        },
+        {
+          "id": "FLOWSTEP-002",
+          "name": "Select Sites",
+          "screen_ref": "SCREEN-SITES",
+          "req_refs": ["REQ-002"],
+          "actor": "ROLE-ADMIN",
+          "action": "Admin selects sites to include in the compliance report"
+        },
+        {
+          "id": "FLOWSTEP-003",
+          "name": "Review Dashboard Summary",
+          "screen_ref": "SCREEN-DASH",
+          "req_refs": ["REQ-001"],
+          "actor": "ROLE-ADMIN",
+          "action": "Admin reviews the fiscal year 2024 KPI summary before submission"
+        },
+        {
+          "id": "FLOWSTEP-004",
+          "name": "Submit and Export",
+          "screen_ref": "SCREEN-REPORTS",
+          "req_refs": ["REQ-003"],
+          "actor": "ROLE-ADMIN",
+          "action": "Admin submits the report and triggers CSV export for archive"
+        }
+      ]
+    }
+  ],
+  "traceability": [
+    { "req_id": "REQ-001", "screen_refs": ["SCREEN-DASH"], "decision_refs": ["DEC-001"], "flow_refs": ["FLOWSTEP-003"] },
+    { "req_id": "REQ-002", "screen_refs": ["SCREEN-SITES"], "flow_refs": ["FLOWSTEP-002"] },
+    { "req_id": "REQ-003", "screen_refs": ["SCREEN-REPORTS"], "flow_refs": ["FLOWSTEP-001", "FLOWSTEP-004"] },
+    { "req_id": "REQ-004", "screen_refs": ["SCREEN-REPORTS"], "flow_refs": ["FLOWSTEP-001"] }
+  ]
+}
+</script>
+</body>
+</html>
