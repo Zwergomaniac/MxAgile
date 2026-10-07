@@ -35,3 +35,10 @@ I have feedback from key users or stakeholders on my existing mockup. First read
 
 **Message:**
 What business questions, assumptions, conflicts, or decisions are still open in my current mockup? Explain them clearly and work through them with me in order of importance and impact.
+
+## 7. Show process flows as diagram
+**Title:** Show process flows
+
+**Message:**
+Read my existing mockup and its embedded Design Contract. Identify all key user journeys and process flows in the app and output them as Mermaid flowchart diagrams. Show one diagram per major flow. Use clear labels that match the screen and action names from the mockup.
+
