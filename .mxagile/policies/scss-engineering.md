@@ -20,7 +20,7 @@ An agent MUST NOT write project-specific styling directly into:
 |---|---|
 | Mendix Standard/System modules | `themesource/atlas_core/web/`, `themesource/atlas_web_content/web/` |
 | Marketplace modules | `themesource/datawidgets/web/`, `themesource/communitycommons/web/`, any module fetched from the Mendix Marketplace |
-| Company Layer platform modules | `themesource/MB_UI/web/` or equivalent Layer-managed sources (unless the Layer contract explicitly grants project modification rights) |
+| Company Layer platform modules | `themesource/<company-design-system>/web/` or equivalent Layer-managed sources (unless the Layer contract explicitly grants project modification rights) |
 
 The existence of a technically writable SCSS file does NOT authorize modifying it.
 

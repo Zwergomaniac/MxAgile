@@ -12,7 +12,7 @@ title: "[Human-readable page title]"
 mockup_id: MOCKUP-EXAMPLE
 target_revision: REV-001      # Active target revision (lifecycle_status: REFINED_TARGET)
 bundle_hash: null             # SHA-256 of the active target mockup bundle
-platform_boundary: false      # true = MB_SSO or other platform module — exclude from UI parity
+platform_boundary: false      # true = company platform module (e.g. authentication) — exclude from UI parity
 
 source_mockup: "input-resources/ui-ux/customer-overview.html"
 layout_reference: ".concord/screenshots/mockup/Customer_Overview_default.png"

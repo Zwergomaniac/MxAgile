@@ -104,7 +104,7 @@ Der Entwickler muss den Lifecycle-Abschluss-Aussagen vertrauen koennen.
 Mindest-Voraussetzungen fuer "Migration complete":
 - DFC-Artefakte entfernt (kein `.dfc-ai/`, keine `dfc-`-Praefix-Dateien)
 - MxAgile Core installiert (lifecycle.yaml vorhanden)
-- Flavor-Integritaet: Mercedes-Provenance -> Mercedes Company Layer installiert
+- Flavor-Integritaet: bei Company Layer Flavor (flavor ≠ core) muss der Company Layer installiert sein
 - Phase 6 Validierung: alle Checks bestanden
 - `last_completed_step: validation_passed` in state.yaml
 - Detektor gibt EXISTING_MXAGILE_PROJECT zurueck
@@ -271,8 +271,8 @@ Nach einer Unterbrechung (Entwickler-Eingriff, neuer Turn, neue Instruktion):
     d. Akquiriere Core-Distribution: `git clone --depth 1 --branch <ref> <source> <tempDir>`
        Loesung Unterverzeichnis: falls `core.subdirectory` gesetzt, verwende `<tempDir>/<subdirectory>`
     e. Rufe `install-core.ps1` aus der akquirierten Distribution auf:
-       - flavor=core:     `& "<distRoot>/scripts/install-core.ps1" -ProjectRoot $ProjectRoot`
-       - flavor=mercedes: zusaetzlich `-CompanyLayerSource`, `-CompanyLayerSourceType`, `-CompanyLayerRef`
+       - flavor=core:        `& "<distRoot>/scripts/install-core.ps1" -ProjectRoot $ProjectRoot`
+       - Company Layer Flavor: zusaetzlich `-CompanyLayerSource`, `-CompanyLayerSourceType`, `-CompanyLayerRef`
          aus `company_layer.*` in provenance.yaml
     f. Bereinige das temporaere Clone-Verzeichnis
     g. Aktualisiere `state.yaml`: `last_completed_step: mxagile_installed`

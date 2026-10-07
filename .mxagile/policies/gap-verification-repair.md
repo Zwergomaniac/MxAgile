@@ -30,8 +30,8 @@ Every identified deviation must be classified before repair is authorised:
 | `STRUCTURE_GAP` | Section, component, or navigation element missing or wrong | Two-column layout implemented as one-column |
 | `ROLE_GAP` | A role has incorrect access, missing controls, or is unrepresentable | E4 cannot be tested because role is absent |
 | `STATE_GAP` | An interaction state is not reachable or renders incorrectly | Empty state not shown, loading spinner missing |
-| `SCOPE_GAP` | A screen is present in the implementation but not in the target | Platform module page (MB_SSO) appears as app page |
-| `PLATFORM_BOUNDARY_GAP` | Platform boundary incorrectly represented in the application UI | Login page treated as app page instead of MB_SSO boundary |
+| `SCOPE_GAP` | A screen is present in the implementation but not in the target | Platform module page (e.g. a company authentication module) appears as app page |
+| `PLATFORM_BOUNDARY_GAP` | Platform boundary incorrectly represented in the application UI | Login page treated as app page instead of platform module boundary |
 
 ## GAP Severity
 

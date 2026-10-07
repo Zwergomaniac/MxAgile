@@ -53,7 +53,7 @@ Das Erstellen und Verfeinern von Mockups obliegt dem MxMocketeer-Produkt selbst.
        "lifecycle_status": "REFINED_TARGET",
        "refinement_status": "PROPOSED",
        "active_target": false,
-       "change_scope": "Removed login/password pages — MB_SSO boundary. Role switcher retained as test-only."
+       "change_scope": "Removed login/password pages — company authentication platform boundary. Role switcher retained as test-only."
      }
    }
    ```

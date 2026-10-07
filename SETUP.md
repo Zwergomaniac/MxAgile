@@ -7,8 +7,8 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 
 | Platzhalter | Beispiel (MyApp) | Bekannt ab | Beschreibung |
 |---|---|---|---|
-| `{Projektname}` | `MyApp` | Projektanlage | Anzeigename der App (z.B. in MB_UI.AppName) |
-| `{App}` | `Cap` | MB-Governance-Onboarding | Wert von `MB_SSO.CONST_UserroleAppname` — bestimmt das Rollen-Praefix |
+| `{Projektname}` | `MyApp` | Projektanlage | Anzeigename der App |
+| `{App}` | `Cap` | Company Layer Onboarding | Rollen-Praefix-Konfiguration des Company Layers |
 | `{APP}_` | `CAP_` | MB-Governance-Onboarding | Rollen-Praefix (`{App}` in Grossbuchstaben + Unterstrich) |
 | `{Projektbeschreibung}` | _optional_ | Projektanlage | Kurzbeschreibung fuer `projekt.md`, falls verwendet |
 | `{STORYPREFIX}` | `CAP` | Projektanlage | Praefix fuer Requirement-IDs und Story-Spec-Dateinamen unter `planning/stories/` |
@@ -19,15 +19,13 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 
 | Datei | Stelle |
 |---|---|
-| `.mxagile/modules/MB_UI.md` | `MB_UI.AppName` Default-Wert |
+| Company Layer Konfigurationsdateien (falls vorhanden, siehe Company Layer README) | App-Name-Konfiguration |
 
-### Nach Governance-Onboarding (`{App}`, `{APP}_`)
+### Nach Company Layer Onboarding (`{App}`, `{APP}_`)
 
 | Datei | Stelle |
 |---|---|
-| `.mxagile/modules/MB_SSO.md` | `CONST_UserroleAppname`, Rollen-Schema, Agent-Regeln |
-| `.mxagile/modules/MB_NoAccess.md` | Rollen-Referenzen (3 Stellen) |
-| `.mxagile/modules/MB_Feedback.md` | Role-Mapping-Anweisung |
+| Company Layer Moduldateien (falls vorhanden, siehe Company Layer README) | Rollen-Schema, Agent-Regeln |
 | `.mxagile/agents/discovery-agent.md` | Rollen-Abgleich-Schritt |
 
 ## Vorgehen
@@ -38,7 +36,7 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 4. **`{STORYPREFIX}` ersetzen** — Suche-und-Ersetze im gesamten `.mxagile/` Ordner sowie `planning/`
 5. **`mxcli init` ausfuehren** — Legt `.ai-context/skills/` und `AGENTS.md` an
 6. **CLAUDE.md reparieren** — siehe Abschnitt "Nach mxcli init" unten
-7. **Nach Governance-Onboarding:** `{App}` und `{APP}_` in den 4 betroffenen Dateien ersetzen
+7. **Nach Company Layer Onboarding:** `{App}` und `{APP}_` in Company Layer Moduldateien und `discovery-agent.md` ersetzen (falls Company Layer konfiguriert)
 8. **Diese Datei loeschen** — `SETUP.md` wird im Projekt nicht mehr gebraucht
 
 ## Nach `mxcli init` — CLAUDE.md und settings.json

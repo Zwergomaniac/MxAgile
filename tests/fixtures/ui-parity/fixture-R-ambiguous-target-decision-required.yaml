@@ -9,7 +9,7 @@ conflict:
   requirement_REQ_089_says: "Show trend information for executive visibility"
   interpretation_A: "KPI tiles with trend sparklines added"
   interpretation_B: "Full trend charts replacing KPI tiles"
-  company_layer_guidance: "MBUI supports both patterns — no mandate"
+  company_layer_guidance: "Company Layer supports both patterns — no mandate"
 source_priority_resolution:
   concern: ui_visual
   winner: decision_required

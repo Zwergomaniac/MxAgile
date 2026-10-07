@@ -66,7 +66,7 @@ Bevor eine HTML-Seite als fachliche Seite inventarisiert wird, pruefe:
    → `platform_boundary: true`. Rein fuer Testzwecke — kein produktiver Login, keine Nutzerverwaltung.
    → Das Rollenmodell selbst bleibt davon unberuehrt und vollstaendig erhalten.
 
-3. **Plattformmodul-Seite:** Wird die Funktion von einem Plattformmodul (z.B. MB_SSO) geliefert
+3. **Plattformmodul-Seite:** Wird die Funktion von einem Plattformmodul (z.B. einem SSO-Modul des Company Layers) geliefert
    statt von der Applikation selbst?
    → `platform_boundary: true`. Kein Implementierungsauftrag ableiten.
 

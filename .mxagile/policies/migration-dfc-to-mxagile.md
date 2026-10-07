@@ -94,7 +94,7 @@ may ONLY be used after ALL of the following conditions are verified:
 2. `markers_cleaned` completed
 3. `dfc_artifacts_removed` completed — no `.dfc-ai/` remains, no `dfc-` prefixed agent/skill files
 4. `mxagile_installed` completed — `.mxagile/lifecycle.yaml` exists
-5. Flavor integrity: Mercedes provenance -> Mercedes Company Layer installed
+5. Flavor integrity: if `flavor` ≠ `core` (Company Layer configured), Company Layer is installed
 6. `validation_passed` — Phase 6 validation all checks passed
 7. `detect-project-type.ps1` returns `EXISTING_MXAGILE_PROJECT`
 
@@ -490,11 +490,11 @@ Call `install-core.ps1`, which copies the payload first and then calls `setup-ag
 Read `.mxagile/migration/provenance.yaml`.
 
 Required fields:
-- `installation.flavor`: must be `core` or `mercedes`
+- `installation.flavor`: must be `core` (no Company Layer) or a Company Layer identifier (e.g. `mercedes` for the Mercedes-Benz Company Layer)
 - `installation.core.source`: must be non-empty
 - `installation.core.source_type`: must be `git` or `local`
 - For `source_type: git`: `installation.core.ref` must be non-empty
-- For `flavor: mercedes`: `installation.company_layer.source` and `installation.company_layer.source_type` must be non-empty
+- For a Company Layer flavor (any `flavor` value other than `core`): `installation.company_layer.source` and `installation.company_layer.source_type` must be non-empty
 
 **If any required field is absent, empty, or has an unsupported value: STOP.**
 
@@ -502,7 +502,7 @@ Do NOT:
 - Guess repository URLs
 - Search neighboring directories
 - Use developer-local checkouts
-- Downgrade Mercedes to Core-only
+- Downgrade from Company Layer flavor to Core-only
 - Silently substitute latest/main
 
 Report the exact missing or invalid fields. Instruct the developer to re-run the appropriate
@@ -535,7 +535,7 @@ For `flavor: core`:
 & "$distRoot\scripts\install-core.ps1" -ProjectRoot $ProjectRoot
 ```
 
-For `flavor: mercedes`:
+For a Company Layer flavor (any `flavor` value other than `core`):
 ```powershell
 & "$distRoot\scripts\install-core.ps1" `
     -ProjectRoot            $ProjectRoot `
@@ -697,7 +697,7 @@ After setup completes, verify ALL of the following. Report any failures before d
 - [ ] `.claude/agents/mxagile-migration-agent.md` present
 - [ ] AGENTS.md and CLAUDE.md have `<!-- MXAGILE:MANAGED:START -->` marker
 - [ ] `detect-project-type.ps1` returns `EXISTING_MXAGILE_PROJECT`
-- [ ] Flavor integrity: if `provenance.yaml` shows `flavor: mercedes`, a Company Layer is installed
+- [ ] Flavor integrity: if `provenance.yaml` shows `flavor` ≠ `core`, a Company Layer is installed
 
 After ALL checks pass:
 
@@ -712,7 +712,7 @@ After `validation_passed` is written:
 - Set `status: complete` in `state.yaml`
 - **Only now** inform the developer that migration is complete
 - Confirm what was preserved and what was relocated
-- Confirm flavor: if Mercedes, confirm Company Layer installed
+- Confirm flavor: if a Company Layer flavor is configured, confirm Company Layer installed
 - Suggest running the MxAgile system check:
 
   ```

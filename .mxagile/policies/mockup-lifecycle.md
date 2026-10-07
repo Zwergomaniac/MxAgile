@@ -46,7 +46,7 @@ An agent MAY propose a refinement. An agent MUST NOT claim a revision is ACCEPTE
 
 Not all screens visible in a source mockup represent fachliche application pages.
 
-**Authentication and session management** are typically delivered by platform modules (e.g. MB_SSO in Mendix). A mockup may contain login, password, or initial-setup screens purely as navigational scaffolding or demo entry points.
+**Authentication and session management** are typically delivered by platform modules (e.g. a company authentication module in Mendix). A mockup may contain login, password, or initial-setup screens purely as navigational scaffolding or demo entry points.
 
 **Rules:**
 1. Any screen identified as an authentication, password management, or session management page MUST be classified as `platform_boundary: true` in the UI inventory.

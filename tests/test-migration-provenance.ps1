@@ -141,34 +141,34 @@ try {
     Remove-FixtureDirectory $fixtureA
 }
 
-$fixtureB = New-FixtureDirectory "B-mercedes-flavor"
+$fixtureB = New-FixtureDirectory "B-company-layer-flavor"
 try {
     New-Item -Path (Join-Path $fixtureB "App.mpr") -ItemType File -Force | Out-Null
 
     & $bootstrapScript `
         -ProjectRoot              $fixtureB `
         -CanonicalSource          $canonicalMxAgile `
-        -ProvenanceFlavor         "mercedes" `
+        -ProvenanceFlavor         "demo-corp" `
         -ProvenanceCoreSource     "https://github.com/Zwergomaniac/MxAgile.git" `
         -ProvenanceCoreSourceType "git" `
         -ProvenanceCoreRef        "main" `
-        -CompanyLayerSource       "https://mercedes-benz.ghe.com/DFC-Applikationsentwicklung/MxAgile-CompanyLayer.git" `
+        -CompanyLayerSource       "https://example.com/company-layer.git" `
         -CompanyLayerSourceType   "git" `
         -CompanyLayerRef          "main"
 
     $provenancePath = Join-Path $fixtureB ".mxagile\migration\provenance.yaml"
-    Assert-True "B1: provenance.yaml created for mercedes flavor" `
+    Assert-True "B1: provenance.yaml created for company layer flavor" `
         (Test-Path -LiteralPath $provenancePath) `
         "provenance.yaml not written at $provenancePath"
 
     $pContent = Get-Content -LiteralPath $provenancePath -Raw -ErrorAction SilentlyContinue
-    Assert-True "B2: flavor: mercedes in provenance.yaml" `
-        ($pContent -match 'flavor:\s*mercedes') `
-        "flavor: mercedes not found in provenance.yaml"
+    Assert-True "B2: flavor: demo-corp in provenance.yaml" `
+        ($pContent -match 'flavor:\s*demo-corp') `
+        "flavor: demo-corp not found in provenance.yaml"
 
-    Assert-True "B3: company_layer block present for mercedes" `
+    Assert-True "B3: company_layer block present for company layer flavor" `
         ($pContent -match 'company_layer:') `
-        "company_layer: block missing from mercedes provenance.yaml"
+        "company_layer: block missing from company layer provenance.yaml"
 
 } finally {
     Remove-FixtureDirectory $fixtureB
@@ -213,9 +213,9 @@ try {
 Write-Host ""
 
 # =========================================================================
-# GROUP D: Mercedes company layer block persisted
+# GROUP D: Company layer block persisted
 # =========================================================================
-Write-Host "--- D: Mercedes company layer persisted ---"
+Write-Host "--- D: Company layer source persisted ---"
 
 $fixtureD = New-FixtureDirectory "D-company-layer"
 try {
@@ -224,11 +224,11 @@ try {
     & $bootstrapScript `
         -ProjectRoot              $fixtureD `
         -CanonicalSource          $canonicalMxAgile `
-        -ProvenanceFlavor         "mercedes" `
+        -ProvenanceFlavor         "demo-corp" `
         -ProvenanceCoreSource     "https://github.com/Zwergomaniac/MxAgile.git" `
         -ProvenanceCoreSourceType "git" `
         -ProvenanceCoreRef        "main" `
-        -CompanyLayerSource       "https://mercedes-benz.ghe.com/DFC/Layer.git" `
+        -CompanyLayerSource       "https://example.com/demo-corp-layer.git" `
         -CompanyLayerSourceType   "git" `
         -CompanyLayerRef          "release-1.0"
 
@@ -236,7 +236,7 @@ try {
     $pContent = Get-Content -LiteralPath $provenancePath -Raw -ErrorAction SilentlyContinue
 
     Assert-True "D1: company_layer.source persisted" `
-        ($pContent -match 'source:.*mercedes-benz\.ghe\.com.*Layer\.git') `
+        ($pContent -match 'source:.*example\.com.*demo-corp-layer\.git') `
         "Company layer source not found in provenance.yaml"
 
     Assert-True "D2: company_layer.ref persisted" `

@@ -44,7 +44,7 @@ neuen Arbeitspaket.
    Pruefe fuer jede gefundene HTML-Seite:
    - Ist es eine Login/Passwort/Session-Management-Seite? → `platform_boundary: true`
    - Ist es ein Demo Role Switcher? → `platform_boundary: true`
-   - Ist es eine Plattformmodul-Seite (z.B. MB_SSO)? → `platform_boundary: true`
+   - Ist es eine Plattformmodul-Seite (z.B. ein SSO-Modul des Company Layers)? → `platform_boundary: true`
    Platform-Boundary-Seiten werden NICHT als fachliche Discovery-Ergebnisse erfasst.
    Das Rollenmodell aus dem Contract bleibt vollstaendig erhalten.
 

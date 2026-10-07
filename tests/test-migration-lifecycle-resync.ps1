@@ -289,16 +289,16 @@ Write-Host ""
 # ===========================================================================
 # GROUP L: Mercedes provenance -> resumed migration remains Mercedes
 # ===========================================================================
-Write-Host "--- L: Mercedes provenance preserved through resume ---"
+Write-Host "--- L: Company Layer flavor preserved through resume ---"
 
 Assert-Contains "L1: policy requires flavor integrity check in completion authority" `
-    $policyFile 'Flavor integrity|flavor.*mercedes.*Company Layer'
+    $policyFile 'Flavor integrity'
 
-Assert-Contains "L2: policy completion authority blocks downgrade from Mercedes to core-only" `
-    $policyFile '[Dd]owngrade.*[Cc]ore|[Mm]ercedes.*[Cc]ore.*only|[Cc]ore-only'
+Assert-Contains "L2: policy completion authority blocks downgrade from Company Layer flavor to core-only" `
+    $policyFile '[Dd]owngrade.*[Cc]ore|[Cc]ore-only'
 
-Assert-Contains "L3: policy Phase 7 validation checks Mercedes Company Layer is installed" `
-    $policyFile 'flavor.*mercedes.*Company Layer.*installed|Mercedes.*Company Layer'
+Assert-Contains "L3: policy Phase 7 validation checks Company Layer flavor is installed" `
+    $policyFile 'Company Layer.*installed|flavor.*Company Layer'
 
 Write-Host ""
 

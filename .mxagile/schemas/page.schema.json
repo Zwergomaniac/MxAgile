@@ -46,7 +46,7 @@
         },
         "platform_boundary": {
             "type": "boolean",
-            "description": "True if this page belongs to a platform module (e.g. MB_SSO authentication). Platform-boundary pages are NOT derived as fachliche application pages. They do not generate REQ-NNN, SPEC-NNN, or tasks. They are excluded from UI-parity campaigns. See policies/mockup-lifecycle.md § Platform Boundary Scope Rule.",
+            "description": "True if this page belongs to a platform module (e.g. a company authentication module). Platform-boundary pages are NOT derived as fachliche application pages. They do not generate REQ-NNN, SPEC-NNN, or tasks. They are excluded from UI-parity campaigns. See policies/mockup-lifecycle.md § Platform Boundary Scope Rule.",
             "default": false
         },
         "layout_reference": {
@@ -272,7 +272,7 @@
                     },
                     "platform_boundary": {
                         "type": "boolean",
-                        "description": "True if this screen belongs to a platform module (e.g. MB_SSO). Platform-boundary screens are excluded from fachliche page derivation and UI parity campaigns.",
+                        "description": "True if this screen belongs to a platform module (e.g. a company authentication module). Platform-boundary screens are excluded from fachliche page derivation and UI parity campaigns.",
                         "default": false
                     },
                     "effects": {

@@ -13,7 +13,7 @@ An agent working in a consumer project MUST NOT:
 - Edit `.mxagile/policies/`, `.mxagile/agents/`, `.mxagile/skills/`, `.mxagile/schemas/`
 - Edit `.mxagile/lifecycle.yaml`, `.mxagile/orchestrator.md`, `.mxagile/version.yaml`
 - Edit `.mxagile/README.md` or any other file under `.mxagile/` that originates from the framework distribution
-- Edit `mxagile-setup.ps1`, `mxagile-setup-mercedes.ps1`, `scripts/install-core.ps1`, or any script distributed from the MxAgile dev repository
+- Edit `mxagile-setup.ps1`, any Company Layer bootstrap script (e.g. `mxagile-setup-<company>.ps1`), `scripts/install-core.ps1`, or any script distributed from the MxAgile dev repository
 - Treat any of the above as framework source files that can be improved in-place
 
 These files are installed projections. Changes must originate in the canonical framework

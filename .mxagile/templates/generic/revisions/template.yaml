@@ -45,7 +45,7 @@ revision_delta: null
 #       type: PLATFORM_BOUNDARY
 #       target: SCREEN-LOGIN
 #       change: REMOVE
-#       description: "Login screen removed — MB_SSO handles authentication"
+#       description: "Login screen removed — company authentication platform module handles authentication"
 #       required_action: REMOVE_AS_SUPERSEDED
 #       source_ids: [DEC-001]
 #       downstream_artifacts: []

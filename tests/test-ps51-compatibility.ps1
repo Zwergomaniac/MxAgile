@@ -185,9 +185,9 @@ Assert-Contains "C3: install-core.ps1 PS5.1 nesting-bug comment present" `
 Write-Host ""
 
 # ===========================================================================
-# GROUP D: Mercedes (Company Layer) installation path PS5.1 compatible
+# GROUP D: Company Layer installation path PS5.1 compatible
 # ===========================================================================
-Write-Host "--- D: Mercedes Company Layer installation path PS5.1 compatible ---"
+Write-Host "--- D: Company Layer installation path PS5.1 compatible ---"
 
 Assert-NoMultiSegJoinPath "D1: install-core.ps1 Company Layer section has no 3+-arg Join-Path" `
     $installCore

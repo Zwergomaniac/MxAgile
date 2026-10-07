@@ -15,11 +15,11 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Stable identifier for this boundary, e.g. PLATFORM-MB-SSO."
+            "description": "Stable identifier for this boundary, e.g. PLATFORM-AUTH-SSO."
           },
           "provider": {
             "type": "string",
-            "description": "Name of the platform module or external system providing this functionality, e.g. MB_SSO."
+            "description": "Name of the platform module or external system providing this functionality, e.g. a company authentication module."
           },
           "responsibilities": {
             "type": "array",
@@ -43,7 +43,7 @@
           },
           "role_source_rule": {
             "type": "string",
-            "description": "How roles defined by this boundary relate to fachliche roles. E.g. 'business roles remain independently relevant regardless of MB_SSO authentication'."
+            "description": "How roles defined by this boundary relate to fachliche roles. E.g. 'business roles remain independently relevant regardless of company SSO authentication'."
           },
           "modification_rule": {
             "type": "string",

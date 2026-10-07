@@ -373,7 +373,7 @@ try {
     # Build a minimal pre-WP-10 brownfield project fixture
     $dirs = @(
         ".mxagile\migration",
-        ".mxagile\layers\mercedes-star",
+        ".mxagile\layers\demo-company-layer",
         ".mxagile\state",
         "planning\stories",
         "planning\checklists",
@@ -411,11 +411,11 @@ try {
         'source: DFC-AI'
     ) -join "`n") | Set-Content -LiteralPath (Join-Path $tmpF ".mxagile\state\brownfield-baseline.yaml") -Encoding UTF8
 
-    # Fake Mercedes Company Layer
-    '{"id": "mercedes-star", "name": "Mercedes-Benz Company Layer", "version": "1.0.0"}' |
-        Set-Content -LiteralPath (Join-Path $tmpF ".mxagile\layers\mercedes-star\layer.json") -Encoding UTF8
-    '{"source_type": "Git", "source": "https://mercedes-benz.ghe.com/...", "ref": "main"}' |
-        Set-Content -LiteralPath (Join-Path $tmpF ".mxagile\layers\mercedes-star\provenance.json") -Encoding UTF8
+    # Fake Company Layer (synthetic)
+    '{"id": "demo-company-layer", "name": "Demo Company Layer", "version": "1.0.0"}' |
+        Set-Content -LiteralPath (Join-Path $tmpF ".mxagile\layers\demo-company-layer\layer.json") -Encoding UTF8
+    '{"source_type": "Git", "source": "https://example.com/company-layer.git", "ref": "main"}' |
+        Set-Content -LiteralPath (Join-Path $tmpF ".mxagile\layers\demo-company-layer\provenance.json") -Encoding UTF8
 
     # Brownfield artifacts (must survive update)
     (@(
@@ -456,14 +456,14 @@ try {
         ($stateAfter -match '(?m)^artifact_canonicalization: pending') "Field not added"
     Assert-True "F4: reconciliation reported FIELD_ADDED" `
         ($reconcileResult -eq "FIELD_ADDED") "Got: $reconcileResult"
-    Assert-True "F5: Mercedes Company Layer dir preserved" `
-        (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\mercedes-star")) `
+    Assert-True "F5: Company Layer dir preserved" `
+        (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\demo-company-layer")) `
         "Company Layer dir missing"
-    Assert-True "F6: Mercedes layer.json preserved" `
-        (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\mercedes-star\layer.json")) `
+    Assert-True "F6: Company Layer layer.json preserved" `
+        (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\demo-company-layer\layer.json")) `
         "layer.json missing"
-    Assert-True "F7: Mercedes provenance.json preserved" `
-        (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\mercedes-star\provenance.json")) `
+    Assert-True "F7: Company Layer provenance.json preserved" `
+        (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\demo-company-layer\provenance.json")) `
         "provenance.json missing"
     Assert-True "F8: brownfield baseline preserved" `
         (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\state\brownfield-baseline.yaml")) `
@@ -506,7 +506,7 @@ try {
     $mxH = Join-Path $tmpH ".mxagile"
     foreach ($d in @(
         "skills", "agents", "policies",
-        "layers\mercedes-star", "state", "migration"
+        "layers\demo-company-layer", "state", "migration"
     )) { New-Item -ItemType Directory -Path (Join-Path $mxH $d) -Force | Out-Null }
 
     # Framework-owned content (version A surface)
@@ -515,7 +515,7 @@ try {
     "lifecycle v1" | Set-Content -LiteralPath (Join-Path $mxH "lifecycle.yaml") -Encoding UTF8
 
     # Protected content (must survive retirement)
-    '{"id": "mercedes-star"}' | Set-Content -LiteralPath (Join-Path $mxH "layers\mercedes-star\layer.json") -Encoding UTF8
+    '{"id": "demo-company-layer"}' | Set-Content -LiteralPath (Join-Path $mxH "layers\demo-company-layer\layer.json") -Encoding UTF8
     "state content" | Set-Content -LiteralPath (Join-Path $mxH "state\brownfield.yaml") -Encoding UTF8
     (@('status: complete', 'last_step: done') -join "`n") | Set-Content -LiteralPath (Join-Path $mxH "migration\state.yaml") -Encoding UTF8
 
@@ -526,7 +526,7 @@ try {
     Assert-True "H4: framework dir (skills/) retired" `
         (-not (Test-Path -LiteralPath (Join-Path $mxH "skills"))) "skills/ still present"
     Assert-True "H5: layers/ content preserved during retirement" `
-        (Test-Path -LiteralPath (Join-Path $mxH "layers\mercedes-star\layer.json")) "layer.json missing"
+        (Test-Path -LiteralPath (Join-Path $mxH "layers\demo-company-layer\layer.json")) "layer.json missing"
     Assert-True "H6: state/ content preserved during retirement" `
         (Test-Path -LiteralPath (Join-Path $mxH "state\brownfield.yaml")) "state content missing"
     Assert-True "H7: migration/ content preserved during retirement" `
@@ -543,7 +543,7 @@ try {
     $mxH2 = Join-Path $tmpH2 ".mxagile"
     foreach ($d in @(
         "skills", "agents",
-        "layers\mercedes-star", "migration"
+        "layers\demo-company-layer", "migration"
     )) { New-Item -ItemType Directory -Path (Join-Path $mxH2 $d) -Force | Out-Null }
 
     # Version A surface: files that do NOT exist in the real canonical source
@@ -551,7 +551,7 @@ try {
     "old agent" | Set-Content -LiteralPath (Join-Path $mxH2 "agents\agent-a-only.md") -Encoding UTF8
 
     # Protected content
-    '{"id": "mercedes-star"}' | Set-Content -LiteralPath (Join-Path $mxH2 "layers\mercedes-star\layer.json") -Encoding UTF8
+    '{"id": "demo-company-layer"}' | Set-Content -LiteralPath (Join-Path $mxH2 "layers\demo-company-layer\layer.json") -Encoding UTF8
     "status: complete" | Set-Content -LiteralPath (Join-Path $mxH2 "migration\state.yaml") -Encoding UTF8
 
     # Simulate Core update: Step 1c.1 retirement + Step 1c canonical copy
@@ -570,7 +570,7 @@ try {
 
     # Protected content must survive the full cycle
     Assert-True "H12: Company Layer preserved through full retirement+copy cycle" `
-        (Test-Path -LiteralPath (Join-Path $mxH2 "layers\mercedes-star\layer.json")) "Company Layer lost"
+        (Test-Path -LiteralPath (Join-Path $mxH2 "layers\demo-company-layer\layer.json")) "Company Layer lost"
     Assert-True "H13: migration state preserved through full retirement+copy cycle" `
         (Test-Path -LiteralPath (Join-Path $mxH2 "migration\state.yaml")) "migration state.yaml lost"
 } finally {

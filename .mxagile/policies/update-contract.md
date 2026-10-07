@@ -12,7 +12,7 @@ provenance record at `.mxagile/state/core-provenance.json` with the following ca
 | Field | Semantics |
 |---|---|
 | `schema_version` | Always `"1"` |
-| `flavor` | `"core"` (generic) or `"mercedes"` (Company Layer flavor) |
+| `flavor` | `"core"` (no Company Layer) or a Company Layer identifier (e.g. `"mercedes"` for the Mercedes-Benz Company Layer) |
 | `source` | Distribution URL or local path used during installation |
 | `source_type` | `"git"` or `"local"` |
 | `ref` | Git branch/tag used (e.g. `"main"`); empty for local sources |
@@ -127,7 +127,7 @@ pwsh -File scripts/install-core.ps1 -ProjectRoot <project> -IsUpdate $true
   [+ ProvenanceCoreSource, ProvenanceCoreRef, ProvenanceCoreCommit from setup script]
 ```
 
-The public entry point is `mxagile-setup.ps1` (or `mxagile-setup-mercedes.ps1`), which
+The public entry point is `mxagile-setup.ps1` (or the Company Layer variant), which
 handles distribution acquisition, commit resolution, and invokes `install-core.ps1`.
 
 Do NOT create a second competing update mechanism. Do NOT create a second Core distribution

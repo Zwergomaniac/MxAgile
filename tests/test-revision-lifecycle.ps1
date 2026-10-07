@@ -222,7 +222,7 @@ Assert ($ml -match 'SUPERSEDED_TARGET') 'defines SUPERSEDED_TARGET lifecycle sta
 Assert ($ml -match 'active_target') 'references active_target invariant'
 Assert ($ml -match '[Ee]xactly one|exactly one|genau eine') 'states exactly-one active_target invariant'
 Assert ($ml -match 'Platform Boundary') 'references platform boundary scope rule'
-Assert ($ml -match 'MB_SSO') 'explicitly names MB_SSO as platform boundary'
+Assert ($ml -match 'platform module|Plattformmodul') 'identifies platform module as authentication boundary'
 Assert ($ml -match '[Ll]ogin|[Aa]nmeldung') 'identifies login screens as platform boundary'
 
 # ──────────────────────────────────────────────────────────────

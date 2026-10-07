@@ -208,7 +208,7 @@ Overall: PASS | PASS_WITH_WARNINGS | FAIL
 
 ## J. Core Installation Identity
 - core-provenance.json: PRESENT | MISSING (PROVENANCE_INCOMPLETE)
-- flavor: core | mercedes | UNKNOWN
+- flavor: core | <company-layer-id> | UNKNOWN
 - source: [url or path or UNKNOWN]
 - source_type: git | local | UNKNOWN
 - ref: [ref or UNKNOWN]
@@ -300,7 +300,7 @@ mxagile_system_check:
   core_installation:
     status: PASS | PROVENANCE_INCOMPLETE
     file_present: true | false
-    flavor: core | mercedes | UNKNOWN
+    flavor: core | <company-layer-id> | UNKNOWN
     source: "url or path" | UNKNOWN
     source_type: git | local | UNKNOWN
     ref: "main" | UNKNOWN
@@ -379,7 +379,7 @@ Read `.mxagile/state/core-provenance.json`:
 
 1. If the file is **absent**: report `PROVENANCE_INCOMPLETE`. This is expected for projects installed before this contract was introduced — proceed, but note the gap.
 2. If **present**, read and report:
-   - `flavor` — "core" or "mercedes"
+   - `flavor` — "core" or the installed Company Layer identifier
    - `source` — distribution URL or local path used during install
    - `source_type` — "git" or "local"
    - `ref` — git branch/tag (e.g. "main")
