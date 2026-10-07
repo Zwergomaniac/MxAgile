@@ -396,7 +396,7 @@ try {
         Write-Host "  Result: LAYER_NOT_INSTALLED" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "  Layer '$targetLayerId' is not installed in this project." -ForegroundColor White
-        Write-Host "  To install: run mxagile-setup-mercedes.ps1 (or the appropriate setup script)." -ForegroundColor DarkGray
+        Write-Host "  To install: run the appropriate setup script (mxagile-setup.ps1 or Company Layer variant)." -ForegroundColor DarkGray
         exit 0
     }
 
@@ -511,7 +511,7 @@ try {
             Write-Host "  but the installed Core ($coreVersion) does not satisfy this." -ForegroundColor Yellow
             Write-Host ""
             Write-Host "  Recommended next action:" -ForegroundColor Cyan
-            Write-Host "    1. Update MxAgile Core first (run mxagile-setup-mercedes.ps1)." -ForegroundColor White
+            Write-Host "    1. Update MxAgile Core first (run mxagile-setup.ps1 or the Company Layer setup script)." -ForegroundColor White
             Write-Host "    2. Then re-run this Layer update." -ForegroundColor White
             Write-Host ""
             Write-Host "  No Layer artifacts have been modified." -ForegroundColor DarkGray

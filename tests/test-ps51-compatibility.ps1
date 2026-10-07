@@ -18,7 +18,7 @@
     A - No 3+-segment positional Join-Path in production scripts
     B - install-core.ps1 path construction is PS5.1 compatible
     C - Core installation path PS5.1 compatible
-    D - Mercedes (Company Layer) installation path PS5.1 compatible
+    D - Company Layer installation path PS5.1 compatible
     E - Migration Phase 5 resume path PS5.1 compatible
     F - Canonical .mxagile payload resolution PS5.1 compatible
     G - Company Layer path handling PS5.1 compatible

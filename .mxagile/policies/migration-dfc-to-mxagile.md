@@ -506,7 +506,7 @@ Do NOT:
 - Silently substitute latest/main
 
 Report the exact missing or invalid fields. Instruct the developer to re-run the appropriate
-bootstrap script (`install-mxagile.ps1` or `install-mxagile-mercedes.ps1`) to restore provenance.
+bootstrap script (`install-mxagile.ps1` or the Company Layer setup script) to restore provenance.
 The project remains in `MIGRATION_IN_PROGRESS` safely.
 
 ### 7.2 Acquire Core distribution

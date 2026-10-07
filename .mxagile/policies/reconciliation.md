@@ -30,7 +30,7 @@ Do not perform unnecessary rediscovery, refinement or verification.
 The canonical existing-project flow after a Core UPDATE:
 
 ```
-1. mxagile-setup.ps1 (or mxagile-setup-mercedes.ps1) → Core UPDATE
+1. mxagile-setup.ps1 (or Company Layer setup variant) → Core UPDATE
 2. Lifecycle re-sync (policies/lifecycle-resync.md)
 3. Project structure inventory
 4. Schema/state reconciliation

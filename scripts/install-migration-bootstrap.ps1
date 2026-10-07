@@ -173,7 +173,7 @@ if (-not [string]::IsNullOrWhiteSpace($ProvenanceCoreRef)) {
 if (-not [string]::IsNullOrWhiteSpace($ProvenanceCoreSubdir)) {
     $yamlLines.Add("    subdirectory: " + $ProvenanceCoreSubdir)
 }
-if ($provFlavor -eq "mercedes" -and -not [string]::IsNullOrWhiteSpace($CompanyLayerSource)) {
+if ($provFlavor -ne "core" -and -not [string]::IsNullOrWhiteSpace($CompanyLayerSource)) {
     $yamlLines.Add("")
     $yamlLines.Add("  company_layer:")
     $yamlLines.Add("    source: `"" + $CompanyLayerSource + "`"")

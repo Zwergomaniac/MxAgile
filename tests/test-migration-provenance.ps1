@@ -9,9 +9,9 @@
 
     Test groups:
     A  - Runtime: flavor=core persisted correctly
-    B  - Runtime: flavor=mercedes persisted correctly
+    B  - Runtime: Company Layer flavor persisted correctly
     C  - Runtime: core source and ref persisted
-    D  - Runtime: mercedes company_layer block persisted
+    D  - Runtime: Company Layer source block persisted
     E  - Runtime: provenance.yaml written before bootstrap exits (ordering)
     F  - Static: policy describes provenance-based Phase 5 acquisition
     G  - Static: policy requires validation of provenance fields
@@ -310,7 +310,7 @@ Assert-FileContains "F3: policy references subdirectory resolution" `
     $policyFile 'subdirectory|subdir'
 
 Assert-FileContains "G1: policy requires validation of flavor field" `
-    $policyFile 'flavor.*core.*mercedes|core.*mercedes.*flavor|installation\.flavor'
+    $policyFile 'installation\.flavor|flavor.*core|flavor.*Company Layer'
 
 Assert-FileContains "G2: policy requires validation of core.source" `
     $policyFile 'core\.source|installation\.core\.source'
@@ -337,7 +337,7 @@ Write-Host "--- I,J: Flavor-specific install paths (static checks) ---"
 Assert-FileContains "I1: policy shows core-only install-core.ps1 invocation" `
     $policyFile 'flavor.*core.*install-core|install-core.*flavor.*core|For.*flavor.*core'
 
-Assert-FileContains "I2: policy shows mercedes install-core.ps1 invocation with company layer" `
+Assert-FileContains "I2: policy shows Company Layer install-core.ps1 invocation" `
     $policyFile 'company_layer|CompanyLayer|CompanyLayerSource'
 
 Assert-FileContains "J1: agent references provenance.yaml in step 9" `
@@ -388,8 +388,8 @@ Write-Host "--- L,M: Missing/malformed provenance stops safely (static) ---"
 Assert-FileContains "L1: policy STOP instruction on missing fields" `
     $policyFile 'STOP|STOPP'
 
-Assert-FileContains "L2: policy says not to downgrade mercedes to core-only" `
-    $policyFile '[Dd]owngrade.*[Cc]ore|[Mm]ercedes.*[Cc]ore.*only|[Cc]ore-only'
+Assert-FileContains "L2: policy says not to downgrade Company Layer flavor to core-only" `
+    $policyFile '[Dd]owngrade.*[Cc]ore|[Cc]ore-only'
 
 Assert-FileContains "M1: policy instructs re-running bootstrap to restore provenance" `
     $policyFile 'install-mxagile\.ps1|bootstrap.*restore|re-run.*bootstrap'

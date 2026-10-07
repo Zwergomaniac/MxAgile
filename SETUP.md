@@ -9,7 +9,7 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 |---|---|---|---|
 | `{Projektname}` | `MyApp` | Projektanlage | Anzeigename der App |
 | `{App}` | `Cap` | Company Layer Onboarding | Rollen-Praefix-Konfiguration des Company Layers |
-| `{APP}_` | `CAP_` | MB-Governance-Onboarding | Rollen-Praefix (`{App}` in Grossbuchstaben + Unterstrich) |
+| `{APP}_` | `CAP_` | Company Layer Onboarding | Rollen-Praefix (`{App}` in Grossbuchstaben + Unterstrich) |
 | `{Projektbeschreibung}` | _optional_ | Projektanlage | Kurzbeschreibung fuer `projekt.md`, falls verwendet |
 | `{STORYPREFIX}` | `CAP` | Projektanlage | Praefix fuer Requirement-IDs und Story-Spec-Dateinamen unter `planning/stories/` |
 

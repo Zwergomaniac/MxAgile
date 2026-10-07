@@ -177,6 +177,31 @@ foreach ($term in $bannedInFixtures) {
 }
 
 # ──────────────────────────────────────────────────────────────
+# [9] Namespace guard: no MB_ company prefix in canonical .mxagile/ sources
+# Any MB_<identifier> in .mxagile/ sources is a Company Layer namespace leak.
+# Exception: lines whose sole purpose is a negative/banned assertion.
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[9] Namespace guard: MB_ prefix absent from canonical .mxagile/ sources"
+$mxagileSourceFiles = Get-ChildItem -Recurse -File (Join-Path $RepoRoot '.mxagile') |
+    Where-Object { $_.FullName -notlike '*\.mxagile\state\*' -and $_.FullName -notlike '*\.mxagile\layers\*' }
+$namespaceLeaks = [System.Collections.Generic.List[string]]::new()
+foreach ($f in $mxagileSourceFiles) {
+    $lines = Get-Content -LiteralPath $f.FullName -ErrorAction SilentlyContinue
+    $lineNum = 0
+    foreach ($line in $lines) {
+        $lineNum++
+        if ($line -match 'MB_[A-Za-z]') {
+            $rel = $f.FullName.Replace($RepoRoot, '').TrimStart('\/')
+            $namespaceLeaks.Add("${rel}:${lineNum}: $line")
+        }
+    }
+}
+Assert ($namespaceLeaks.Count -eq 0) "No MB_ company namespace in canonical .mxagile/ sources ($($namespaceLeaks.Count) leak(s) found)"
+if ($namespaceLeaks.Count -gt 0) {
+    $namespaceLeaks | Select-Object -First 10 | ForEach-Object { Write-Host "  LEAK: $_" -ForegroundColor Red }
+}
+
+# ──────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n========================================"

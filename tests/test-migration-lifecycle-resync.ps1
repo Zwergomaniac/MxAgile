@@ -27,7 +27,7 @@
     I  - Durable step: baseline_written -> resume at Phase 4 DFC Cleanup (no Phase 3.5)
     J  - Durable step: dfc_artifacts_removed -> resume at Phase 5
     K  - Durable step: mxagile_installed -> resume at Phase 6 (validation)
-    L  - Mercedes provenance -> resumed migration remains Mercedes
+    L  - Company Layer flavor -> resumed migration remains Company Layer flavor
     M  - Framework migration does NOT perform stale-reference path rewrites
     N  - Legacy artifacts preserved at original locations (not relocated during migration)
     O  - Artifact canonicalization is a separate lifecycle
@@ -287,7 +287,7 @@ Assert-Contains "K2: agent resume table maps mxagile_installed to Phase 6 (valid
 Write-Host ""
 
 # ===========================================================================
-# GROUP L: Mercedes provenance -> resumed migration remains Mercedes
+# GROUP L: Company Layer flavor -> resumed migration remains Company Layer flavor
 # ===========================================================================
 Write-Host "--- L: Company Layer flavor preserved through resume ---"
 
