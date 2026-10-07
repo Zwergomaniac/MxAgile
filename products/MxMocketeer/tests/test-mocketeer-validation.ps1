@@ -413,6 +413,44 @@ Assert ($da -match 'Adaptive Interview Strategy') 'G: adaptive interview strateg
 Assert ($da -match 'Risk-Based Exploration') 'G: risk-based exploration guidance in Knowledge'
 
 # ──────────────────────────────────────────────────────────────
+# 14  Product boundary — MxMocketeer is a KG producer, not a consumer
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[14] Product boundary — MxMocketeer is a KG producer, not a consumer"
+
+$spBound  = if (Test-Path $promptPath) { Get-Content $promptPath -Raw -Encoding UTF8 } else { '' }
+$mhBound  = if (Test-Path $mhPath) { Get-Content $mhPath -Raw -Encoding UTF8 } else { '' }
+$setupPath = Join-Path $ProductRoot 'agent-builder-setup.md'
+$setupBound = if (Test-Path $setupPath) { Get-Content $setupPath -Raw -Encoding UTF8 } else { '' }
+
+# System prompt must contain producer-side graph output guidance
+Assert ($spBound -match 'graph-ready|graph-indexable|Graph-Ready') `
+    'System prompt: graph-ready output guidance present (producer boundary)'
+
+# System prompt must NOT reference KG consumer operations
+Assert ($spBound -notmatch 'neighbors\(\)') `
+    'System prompt: neighbors() absent (KG consumer operations not in M365 prompt)'
+Assert ($spBound -notmatch 'paths\(\)') `
+    'System prompt: paths() absent (KG consumer operations not in M365 prompt)'
+Assert ($spBound -notmatch 'affected\(\)') `
+    'System prompt: affected() absent (KG consumer operations not in M365 prompt)'
+Assert ($spBound -notmatch 'graph freshness|graph.*stale|stale.*graph') `
+    'System prompt: graph freshness not referenced (KG consumer boundary)'
+Assert ($spBound -notmatch 'provider.*none|provider.*graphify') `
+    'System prompt: graph provider not referenced (KG consumer boundary)'
+
+# mxagile-handoff.txt must NOT instruct MxMocketeer to call graph operations
+Assert ($mhBound -notmatch 'affected\(FLOW-NNN\)') `
+    'mxagile-handoff: direct affected(FLOW-NNN) call removed (downstream pipeline responsibility)'
+Assert ($mhBound -notmatch 'graph status\(\)|status\(\) returns current') `
+    'mxagile-handoff: graph status() consumer call absent'
+Assert ($mhBound -notmatch 'build_artifact_index') `
+    'mxagile-handoff: build_artifact_index call absent (downstream pipeline responsibility)'
+
+# M365 package must NOT include knowledge-graph.txt as an upload file
+Assert ($setupBound -notmatch '^\d+\.\s.*knowledge-graph\.txt') `
+    'M365 package: knowledge-graph.txt not in numbered upload list'
+
+# ──────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n========================================"

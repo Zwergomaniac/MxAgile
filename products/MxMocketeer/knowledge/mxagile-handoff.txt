@@ -32,27 +32,14 @@ When the Design Contract contains structured flows (steps[], FLOW-NNN IDs, FLOWS
    - FLOW-NNN stable IDs → referenced in test-contract traceability.design_contract_elements[]
 
 3. Flow revision impact: when a new mockup revision changes step req_refs or screen_ref,
-   the developer must run affected(FLOW-NNN) to surface downstream TC-NNN and VPL-NNN
-   that are transitively impacted. TC-NNN where staleness_cause: DESIGN_CONTRACT_CHANGED.
+   downstream MxAgile pipeline surfaces affected TC-NNN and VPL-NNN
+   (staleness_cause: DESIGN_CONTRACT_CHANGED). MxMocketeer's responsibility is to
+   increment revision, record revision_delta with source_ids, and preserve stable
+   FLOW-NNN/FLOWSTEP-NNN IDs. Never rename step IDs — use status: SUPERSEDED instead.
 
 4. Mermaid diagrams in the delivered HTML are generated from structured steps.
    They are not canonical. The structured steps[] in the Design Contract are canonical.
    If Mermaid and steps[] disagree: the steps[] data is correct.
-
-## Knowledge Graph Handoff
-
-When the Design Contract is accepted, the downstream MxAgile project's Knowledge Graph
-should be refreshed to incorporate the new Design Contract data:
-
-  1. Run: build_artifact_index.py (or graph build() operation) to pick up new artifacts.
-  2. Verify graph status() returns current after the build.
-  3. Use affected(DC-MOCKUP-ID) to surface all canonical artifacts downstream of this contract.
-  4. For each new REQ-NNN created from the Design Contract, verify PARTICIPATES_IN edges
-     exist for any flows that reference the requirement.
-
-The Design Contract's design_contract_ref in downstream TCs must match:
-  <mockup.id>@revision=<mockup.revision>
-This ensures graph staleness detection works correctly when a new mockup revision arrives.
 
 ## Conflict Rule
 The visible mockup shows observable behavior; the Design Contract explains intent. When there is a discrepancy, do not resolve it yourself — mark it as a conflict and ask the Product Owner.

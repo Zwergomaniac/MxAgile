@@ -296,16 +296,68 @@ def check_system_prompt():
         fail('SYSTEM_PROMPT_DIM_BUSINESS_FLOWS',
              'DIM-BUSINESS_FLOWS not in system-prompt.md')
 
-    # Must reference Knowledge Graph context (stable IDs, KG-compatible output)
-    if 'Knowledge Graph' in source or 'KG-compatible' in source:
-        ok('SYSTEM_PROMPT_KG_REFERENCE: Knowledge Graph context referenced in system prompt')
+    # Must contain producer-side graph output guidance (MxMocketeer is a producer, not a consumer)
+    if re.search(r'graph-ready|graph-indexable|Graph-Ready|Graph-ready|graph.*indexable', source, re.IGNORECASE):
+        ok('SYSTEM_PROMPT_PRODUCER_BOUNDARY: graph-ready producer language present')
     else:
-        fail('SYSTEM_PROMPT_KG_REFERENCE',
-             'Knowledge Graph context not referenced in system-prompt.md')
+        fail('SYSTEM_PROMPT_PRODUCER_BOUNDARY',
+             'No graph-ready producer guidance in system-prompt.md')
+
+    # Must NOT reference KG consumer operations — those belong to MxAgile pipeline agents, not M365
+    KG_CONSUMER_PATTERNS = [
+        (r'neighbors\(\)', 'neighbors()'),
+        (r'paths\(\)', 'paths()'),
+        (r'affected\(\)', 'affected()'),
+        (r'graph freshness|graph.*stale|stale.*graph', 'graph freshness/staleness'),
+        (r'provider:\s*(none|graphify|artifact)', 'graph provider selection'),
+    ]
+    consumer_violations = []
+    for pattern, label in KG_CONSUMER_PATTERNS:
+        if re.search(pattern, source, re.IGNORECASE):
+            consumer_violations.append(label)
+    if consumer_violations:
+        fail('SYSTEM_PROMPT_NO_KG_CONSUMER',
+             f'KG consumer operations in system-prompt.md: {consumer_violations}')
+    else:
+        ok('SYSTEM_PROMPT_NO_KG_CONSUMER: no KG consumer operations in system prompt')
 
 
 # ---------------------------------------------------------------------------
-# 8. Structural invariant: adding a step type to schema breaks downstream
+# 8. M365 package boundary — knowledge-graph.txt must NOT be in the upload list
+# ---------------------------------------------------------------------------
+
+def check_m365_package_boundary():
+    setup_path = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'agent-builder-setup.md'
+    if not setup_path.exists():
+        fail('M365_SETUP_EXISTS', str(setup_path))
+        return
+    source = load_text(setup_path)
+
+    # knowledge-graph.txt must NOT be in the upload list
+    # The file is internal framework doc; the Note line in the setup file explains this
+    if re.search(r'^\d+\.\s.*knowledge-graph\.txt', source, re.MULTILINE):
+        fail('M365_NO_KG_CONSUMER_FILE',
+             'knowledge-graph.txt is listed as an M365 upload file — it must not be (KG consumer doc belongs to MxAgile pipeline)')
+    else:
+        ok('M365_NO_KG_CONSUMER_FILE: knowledge-graph.txt not in M365 upload list')
+
+    # 6 producer knowledge files must be listed (not 7)
+    upload_items = re.findall(r'^\d+\.\s', source, re.MULTILINE)
+    if len(upload_items) == 6:
+        ok(f'M365_PACKAGE_COUNT: exactly 6 knowledge files listed for upload')
+    else:
+        fail('M365_PACKAGE_COUNT', f'expected 6 upload files, found {len(upload_items)}')
+
+    # business-flows.txt MUST be in the upload list (producer content)
+    if 'business-flows.txt' in source and re.search(r'^\d+\.\s.*business-flows\.txt', source, re.MULTILINE):
+        ok('M365_BUSINESS_FLOWS_IN_PACKAGE: business-flows.txt in upload list')
+    else:
+        fail('M365_BUSINESS_FLOWS_IN_PACKAGE',
+             'business-flows.txt missing from M365 upload list')
+
+
+# ---------------------------------------------------------------------------
+# 9. Structural invariant: adding a step type to schema breaks downstream
 #    Prove this by checking the set of step types in the schema vs each consumer.
 # ---------------------------------------------------------------------------
 
@@ -353,6 +405,7 @@ if __name__ == '__main__':
     check_knowledge_file()
     check_mocketeer_agent()
     check_system_prompt()
+    check_m365_package_boundary()
     check_step_type_propagation_completeness()
 
     print(f'\n{"=" * 40}')

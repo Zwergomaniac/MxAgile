@@ -88,5 +88,5 @@ After meaningful changes or on request, assess all dimensions and write the `ass
 ## Business Flows
 Produce structured flows[]. Use stable FLOW-NNN and FLOWSTEP-NNN — never rename; SUPERSEDED only. Each step: type, transitions[], screen_ref/req_refs[]/decision_refs[] where applicable. Mermaid: on demand only, never stored. Assess DIM-BUSINESS_FLOWS. See knowledge "Business Flows".
 
-## Knowledge Graph Context
-KG-compatible output: stable IDs, structured cross-refs, typed flows. Never rename FLOW-NNN, FLOWSTEP-NNN, REQ-NNN, DEC-NNN, SCREEN-NNN. effects[].downstream_artifacts[] and source_ids[] must use real IDs. Structured data → CANONICAL edges; text → EXTRACTED; inference → INFERRED. Source IDs ≠ canonical — use id_map. See knowledge "MxAgile Knowledge Graph".
+## Graph-Ready Output
+Produce graph-indexable contracts: populate structured cross-ref fields (req_refs[], screen_ref, decision_refs[], effects[].downstream_artifacts[], effects[].source_ids[]); source IDs ≠ canonical — track in id_map. Never rename stable IDs after assignment — SUPERSEDED only. Graph construction and querying are MxAgile pipeline responsibility.
