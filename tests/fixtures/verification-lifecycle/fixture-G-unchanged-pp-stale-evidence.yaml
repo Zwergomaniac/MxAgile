@@ -1,0 +1,46 @@
+fixture_id: VL-FIXTURE-G
+scenario: Unchanged PP with stale evidence
+description: |
+  The PP is unchanged and still active.
+  The TC is unchanged and active.
+  The VPL is unchanged and active.
+  But the evidence was collected against a prior version of the implementation.
+  The implementation changed (bug fix to an adjacent microflow) but the PP's
+  specific covered scope is unaffected.
+
+  Evidence must be reexecuted. Test definition is reusable.
+
+change:
+  type: implementation_change_adjacent
+  description: "Bug fix to ACT_ValidateEmail; PP covers ACT_CreateSite which is unaffected"
+  affected_artifact: ACT_ValidateEmail
+  pp_covered_artifact: ACT_CreateSite
+  material_semantic_change: false
+  acceptance_criteria_changed: false
+  pp_claim_changed: false
+  execution_binding_changed: false
+  pp_scope_affected: false
+
+expected_impact:
+  tc_action: preserve
+  pp_action: preserve
+  pp_execution_binding_stale: false
+  vpl_action: preserve
+  executable_test_action: reuse
+  evidence_action: reexecute
+
+tc_status_after: active
+pp_status_after: active
+vpl_status_after: active
+
+evidence_status_after: STALE_REEXECUTION_REQUIRED
+
+assertions:
+  - "TC must not change"
+  - "PP must not change"
+  - "VPL must not change"
+  - "Executable test must be reused without rewrite"
+  - "Evidence must be marked STALE_REEXECUTION_REQUIRED"
+  - "Evidence must be reexecuted — not reused from prior run"
+  - "The reexecution does NOT rewrite the test definition"
+  - "DECISION_REQUIRED must NOT be raised"

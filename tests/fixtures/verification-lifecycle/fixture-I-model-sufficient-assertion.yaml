@@ -1,0 +1,49 @@
+fixture_id: VL-FIXTURE-I
+scenario: MODEL-sufficient assertion
+description: |
+  A PP asserts that an entity access rule exists for a specific role.
+  "ROLE-MANAGER has a CREATE access rule on the SiteRegistry entity."
+
+  This assertion is AUTHORITATIVELY proven by mxcli MODEL inspection.
+  mxcli SHOW ENTITIES SiteRegistry confirms the access rule presence.
+
+  FRONTEND verification adds no additional proof for THIS specific claim.
+  The claim is about MODEL STRUCTURE — not about what the user sees or can do.
+
+  Including FRONTEND in the VPL for this PP would be OVERMATERIALIZED.
+
+change:
+  type: none
+  description: "Identifying correct evidence level for structural access rule assertion"
+
+proof_point:
+  claim: "ROLE-MANAGER has a CREATE access rule on the SiteRegistry entity."
+  role: ROLE-MANAGER
+  operation: CREATE
+  data_state: any
+  assertion_type: model_structural
+
+minimum_evidence_level: MODEL
+frontend_required: false
+frontend_rationale: "The PP asserts rule PRESENCE in the model — not UI visibility or interaction outcome. MODEL inspection is authoritative."
+
+expected_vpl:
+  MODEL:
+    included: true
+    rationale: "mxcli SHOW ENTITIES SiteRegistry confirms access rule"
+  RUNTIME:
+    included: false
+    exclusion_reason: NOT_APPLICABLE
+    rationale: "Access rule presence is proven at MODEL level; runtime enforcement is a different claim"
+  FRONTEND:
+    included: false
+    exclusion_reason: NOT_APPLICABLE
+    rationale: "UI visibility is a different PP — not this one"
+
+assertions:
+  - "VPL must include MODEL layer"
+  - "VPL must NOT include FRONTEND for this PP"
+  - "exclusion_reason for FRONTEND must be NOT_APPLICABLE"
+  - "A separate PP must be used for UI visibility concerns"
+  - "MODEL evidence is authoritative for access rule presence assertions"
+  - "FRONTEND must not be added merely because Playwright is available"

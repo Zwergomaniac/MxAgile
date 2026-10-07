@@ -1,0 +1,44 @@
+fixture_id: VL-FIXTURE-H
+scenario: Changed proof point — acceptance criterion revised
+description: |
+  A proof point's claim must change because its upstream acceptance criterion changed.
+  The AC now requires a different observable outcome.
+  The old PP claim is outdated (STALE).
+  A new PP claim is required.
+
+  The old PP must be preserved as a historical record (status: stale).
+  A new PP is appended with the updated claim.
+  IDs are stable: old PP-003 stays as PP-003 (stale); new PP-007 is appended.
+
+change:
+  type: acceptance_criterion_revision
+  description: "AC changed: success message changed from modal dialog to inline toast notification"
+  affected_pp: PP-003
+  pp_claim_before: "A ROLE-MANAGER user submits the create form and a confirmation dialog appears."
+  pp_claim_after: "A ROLE-MANAGER user submits the create form and a success toast is displayed."
+  material_semantic_change: true
+  acceptance_criteria_changed: true
+  pp_claim_changed: true
+  execution_binding_changed: false
+
+expected_impact:
+  tc_action: reassess
+  old_pp_action: mark_stale
+  new_pp_action: append
+  vpl_action: supersede_and_regenerate
+  executable_test_action: regenerate
+  evidence_action: stale_reexecute
+
+tc_status_after: stale
+old_pp_status_after: stale
+new_pp_id: PP-007
+vpl_status_after: superseded
+
+assertions:
+  - "PP-003 must be marked status: stale — not deleted"
+  - "PP-003 staleness_cause must be ACCEPTANCE_CRITERIA_CHANGED"
+  - "New PP-007 is appended with updated claim"
+  - "PP IDs must not be renumbered — PP-003 stays as PP-003"
+  - "TC must be updated to include PP-007; set status: stale until review complete"
+  - "VPL must be superseded and regenerated from updated TC"
+  - "Evidence produced against PP-003 is legacy only — not applicable to PP-007"

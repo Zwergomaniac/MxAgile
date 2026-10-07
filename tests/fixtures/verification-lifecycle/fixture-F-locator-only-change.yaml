@@ -1,0 +1,44 @@
+fixture_id: VL-FIXTURE-F
+scenario: Locator-only change — widget renamed
+description: |
+  A widget was renamed in the Mendix model.
+  The mx-name attribute changed from "btnCreateSite" to "btnNewSite".
+  The button's visible label, purpose, and behavior are unchanged.
+
+  The PP claim "A ROLE-MANAGER user can create a site record" is still correct.
+  Only the Playwright locator step "assert_mx_name: btnCreateSite" is stale.
+
+  This is the clearest REMATERIALIZE case: semantic intent unchanged, adapter stale.
+
+change:
+  type: locator_only
+  description: "mx-name attribute changed: btnCreateSite → btnNewSite"
+  affected_screen: PAGE-SITE-REGISTRY
+  material_semantic_change: false
+  acceptance_criteria_changed: false
+  pp_claim_changed: false
+  execution_binding_changed: true
+  reason: "Widget renamed during implementation cleanup"
+
+expected_impact:
+  tc_action: preserve
+  pp_action: preserve
+  pp_execution_binding_stale: true
+  vpl_action: rematerialize
+  executable_test_action: rematerialize
+  evidence_action: reexecute
+
+tc_status_after: active
+pp_status_after: active
+vpl_status_after: active
+
+assertions:
+  - "TC must NOT be recreated"
+  - "TC status must remain active"
+  - "PP claim must NOT change"
+  - "execution_binding_stale must be true on the affected PP"
+  - "VPL must be REMATERIALIZED — NOT superseded"
+  - "Playwright locator must be refreshed to use new mx-name"
+  - "Prior evidence is stale — the test was running against old locator"
+  - "DECISION_REQUIRED must NOT be raised — this is purely technical"
+  - "Semantic proof obligation is identical before and after locator change"

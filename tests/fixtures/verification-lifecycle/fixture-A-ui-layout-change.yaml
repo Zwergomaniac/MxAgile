@@ -1,0 +1,42 @@
+fixture_id: VL-FIXTURE-A
+scenario: UI-only layout change
+description: |
+  A screen layout changed (column reorder, spacing adjustment, visual styling).
+  Business semantics are unchanged.
+  Acceptance criteria are unchanged.
+  PP claims are unchanged.
+  Only locators/adapter details may need refresh.
+
+change:
+  type: ui_layout
+  description: "Two-column layout changed to single-column; widget positions shifted"
+  affected_screen: PAGE-SITE-OVERVIEW
+  material_semantic_change: false
+  acceptance_criteria_changed: false
+  pp_claim_changed: false
+  execution_binding_changed: true
+  reason: "mx-name selectors may refer to repositioned widgets"
+
+expected_impact:
+  tc_action: preserve
+  pp_action: preserve
+  pp_execution_binding_stale: true
+  vpl_action: rematerialize
+  executable_test_action: rematerialize
+  evidence_action: reexecute
+
+tc_status_after: active
+pp_status_after: active
+vpl_status_after: active
+
+assertions:
+  - "TC must not be recreated"
+  - "TC status must remain active"
+  - "PP claim must not change"
+  - "PP role must not change"
+  - "PP data_state must not change"
+  - "PP required_layers must not change"
+  - "VPL must NOT be superseded — only refreshed"
+  - "VPL locators/adapters must be refreshed"
+  - "Prior evidence is stale — reexecution required"
+  - "DECISION_REQUIRED must NOT be raised for this change"

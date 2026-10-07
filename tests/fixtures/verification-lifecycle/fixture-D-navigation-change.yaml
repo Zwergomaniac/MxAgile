@@ -1,0 +1,38 @@
+fixture_id: VL-FIXTURE-D
+scenario: Navigation change — same screens, new routing
+description: |
+  The navigation structure changed: pages were reorganized into a different menu structure.
+  The pages themselves exist with the same business behavior.
+  PP claims about what a user CAN DO on each page are unchanged.
+  But the URLs and navigation paths changed — locators for navigation steps are stale.
+
+change:
+  type: navigation_structure
+  description: "Site Registry moved from top-level nav to Settings submenu; URL changed"
+  affected_screen: PAGE-SITE-REGISTRY
+  material_semantic_change: false
+  acceptance_criteria_changed: false
+  pp_claim_changed: false
+  execution_binding_changed: true
+  reason: "UX reorganization — functionality unchanged"
+
+expected_impact:
+  tc_action: preserve
+  pp_action: preserve
+  pp_execution_binding_stale: true
+  vpl_action: rematerialize
+  executable_test_action: rematerialize
+  evidence_action: reexecute
+
+tc_status_after: active
+pp_status_after: active
+vpl_status_after: active
+
+assertions:
+  - "TC must not change — business behavior claims are still correct"
+  - "PP claims must not change"
+  - "execution_binding_stale must be set on PP with navigation steps"
+  - "VPL must be rematerialized — NOT superseded"
+  - "Navigation step locators in executable tests must be refreshed"
+  - "DECISION_REQUIRED must NOT be raised"
+  - "Business-semantics PP claims survive navigation change"

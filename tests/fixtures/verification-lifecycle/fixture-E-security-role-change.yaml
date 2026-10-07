@@ -1,0 +1,43 @@
+fixture_id: VL-FIXTURE-E
+scenario: Security / role permission change
+description: |
+  A role's permission was changed.
+  ROLE-VIEWER previously had READ access to Site records.
+  ROLE-VIEWER no longer has READ access (access rule removed).
+
+  The existing TC has a PP: "A ROLE-VIEWER user can view the site registry."
+  That PP is now outdated — the permission no longer exists.
+  A new negative PP is needed: "A ROLE-VIEWER user cannot view the site registry."
+
+change:
+  type: security_role_permission
+  description: "ROLE-VIEWER READ access on SiteRegistry entity removed"
+  affected_role: ROLE-VIEWER
+  affected_entity: SiteRegistry
+  affected_operation: READ
+  material_semantic_change: true
+  acceptance_criteria_changed: true
+  pp_claim_changed: true
+  execution_binding_changed: false
+  reason: "Security tightening per stakeholder decision"
+
+expected_impact:
+  tc_action: reassess
+  pp_action: reassess
+  pp_execution_binding_stale: false
+  vpl_action: supersede_and_regenerate
+  executable_test_action: regenerate
+  evidence_action: stale_reexecute
+
+tc_status_after: stale
+pp_status_after: stale
+vpl_status_after: superseded
+
+assertions:
+  - "TC must be reviewed — role permission changed"
+  - "Positive PP for ROLE-VIEWER READ must be marked stale"
+  - "staleness_cause must be REQUIREMENT_CHANGED or ACCEPTANCE_CRITERIA_CHANGED"
+  - "New negative PP must be derived: 'ROLE-VIEWER cannot view site registry'"
+  - "security_dimensions for new PP must include VISIBILITY and AUTHORIZATION"
+  - "Both MODEL (access rule absent) and FRONTEND (UI element hidden) layers required for negative PP"
+  - "DECISION_REQUIRED is appropriate when permission change scope is unclear"

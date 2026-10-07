@@ -1,0 +1,45 @@
+fixture_id: VL-FIXTURE-C
+scenario: Implementation-only refactor
+description: |
+  The implementation was refactored internally.
+  Observable behavior is unchanged.
+  Acceptance criteria are unchanged.
+  PP claims are unchanged.
+  The refactor was internal to the microflow — no screen structure changed.
+
+  Distinction: observable behavior is unchanged means FRONTEND evidence from a prior
+  run may still be valid IF the VPL's implementation scope has not changed.
+  However, the runtime behavior should be re-verified because the microflow changed.
+
+change:
+  type: implementation_refactor
+  description: "ACT_CalculateDiscount microflow refactored — same inputs/outputs, different internal logic"
+  affected_artifact: ACT_CalculateDiscount
+  affected_screen: null
+  material_semantic_change: false
+  acceptance_criteria_changed: false
+  pp_claim_changed: false
+  execution_binding_changed: false
+  observable_behavior_changed: false
+  reason: "Performance optimization; no business logic change"
+
+expected_impact:
+  tc_action: preserve
+  pp_action: preserve
+  pp_execution_binding_stale: false
+  vpl_action: preserve
+  executable_test_action: reuse
+  evidence_action: reexecute
+
+tc_status_after: active
+pp_status_after: active
+vpl_status_after: active
+
+assertions:
+  - "TC must not change"
+  - "PP must not change"
+  - "VPL must not change"
+  - "Executable test definition is reusable"
+  - "Evidence for MODEL and RUNTIME layers must be reexecuted (implementation changed)"
+  - "Evidence for FRONTEND layers may be reused if screen structure unchanged"
+  - "DECISION_REQUIRED must NOT be raised"

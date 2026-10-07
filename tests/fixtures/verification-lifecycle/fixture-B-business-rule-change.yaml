@@ -1,0 +1,39 @@
+fixture_id: VL-FIXTURE-B
+scenario: Business rule change
+description: |
+  A business rule changed materially.
+  The acceptance criteria now reflect new behavior.
+  The PP claim is outdated — it describes the old behavior.
+  REASSESS is required.
+
+change:
+  type: business_rule
+  description: "Minimum order quantity changed from 1 to 5; validation error text changed"
+  affected_screen: PAGE-ORDER-EDIT
+  material_semantic_change: true
+  acceptance_criteria_changed: true
+  pp_claim_changed: true
+  execution_binding_changed: false
+  reason: "Business requirement revised by stakeholder"
+
+expected_impact:
+  tc_action: reassess
+  pp_action: reassess
+  pp_execution_binding_stale: false
+  vpl_action: supersede_and_regenerate
+  executable_test_action: regenerate
+  evidence_action: stale_reexecute
+
+tc_status_after: stale
+pp_status_after: stale
+vpl_status_after: superseded
+
+assertions:
+  - "TC status must be set to stale"
+  - "Affected PP status must be set to stale"
+  - "staleness_cause must be ACCEPTANCE_CRITERIA_CHANGED"
+  - "VPL must be superseded"
+  - "New TC must be derived from updated requirements"
+  - "New PP claim must reflect updated business rule"
+  - "Evidence from old PP is legacy only"
+  - "DECISION_REQUIRED IS appropriate before TC claim is rewritten"

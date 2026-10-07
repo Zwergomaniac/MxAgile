@@ -1,0 +1,48 @@
+fixture_id: VL-FIXTURE-J
+scenario: FRONTEND-required assertion — cannot downgrade to MODEL
+description: |
+  A PP asserts user-visible behavior: "A ROLE-VIEWER user cannot see the Create Site button."
+
+  This assertion requires FRONTEND verification because:
+  - It concerns what the USER SEES in the rendered UI
+  - MODEL inspection can predict widget-level access rules, but
+    only FRONTEND confirms actual render behavior
+  - VISIBILITY dimension requires FRONTEND per policies/verification-layers.md
+
+  This PP CANNOT be proven by MODEL alone.
+  Downgrading to MODEL would leave an unproven gap.
+
+change:
+  type: none
+  description: "Identifying that FRONTEND is the authoritative evidence level for UI visibility"
+
+proof_point:
+  claim: "A ROLE-VIEWER user cannot see the Create Site button on the Site Registry page."
+  role: "!ROLE-VIEWER"
+  data_state: any
+  assertion_type: ui_visibility
+  security_dimensions: [VISIBILITY]
+
+minimum_evidence_level: FRONTEND
+model_sufficient: false
+model_rationale: |
+  MODEL inspection can confirm whether the ROLE-VIEWER access rule permits or forbids
+  the Create action at the entity level — but it CANNOT confirm whether the button
+  is actually hidden in the rendered UI for this role. Widget-level access rules
+  may exist in the model but their actual render behavior requires FRONTEND.
+
+expected_vpl:
+  MODEL:
+    included: true
+    rationale: "MODEL confirms access rule at entity level (partial — necessary but not sufficient)"
+  FRONTEND:
+    included: true
+    rationale: "VISIBILITY dimension requires FRONTEND — actual render behavior must be confirmed"
+
+assertions:
+  - "VPL must include FRONTEND layer for this PP"
+  - "FRONTEND must NOT be excluded as COVERED_BY_LOWER_LAYER"
+  - "MODEL evidence is partial — not sufficient alone for VISIBILITY assertion"
+  - "The PP cannot be downgraded to MODEL-only without losing proof strength"
+  - "security_dimensions must include VISIBILITY"
+  - "FRONTEND is required because the PP concerns what the user actually sees"
