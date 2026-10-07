@@ -38,7 +38,7 @@
     },
     "change_scope": {
       "type": "string",
-      "description": "Human-readable narrative of what changed in this revision. Complements the machine-readable affected_screens and change_classification. Must describe both what changed and why it was accepted. Example: 'Removed login page from CapTrack — authentication via MB_SSO platform module, not app-level UI. Role switcher retained as test-only mechanism.'"
+      "description": "Human-readable narrative of what changed in this revision. Complements the machine-readable affected_screens and change_classification. Must describe both what changed and why it was accepted. Example: 'Removed login page — authentication via MB_SSO platform module, not app-level UI. Role switcher retained as test-only mechanism.'"
     },
     "artifact_path": {
       "type": ["string", "null"],

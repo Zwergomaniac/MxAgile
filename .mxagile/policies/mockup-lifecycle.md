@@ -55,7 +55,7 @@ Not all screens visible in a source mockup represent fachliche application pages
 4. Demo role-switcher screens are classified `platform_boundary: true` — they are test-only mechanisms, not productive login or user management.
 5. The project's `source_authority` config may override this classification for specific concerns. Document the override as a DEC-NNN with `decision_type: platform_boundary`.
 
-**CapTrack example:** Login, Anmeldung, Passwort-Reset, and Nutzer­verwaltungs­seiten from the CapTrack mockup are `platform_boundary: true`. The fachliche role model (AppAdmin, E2, Center Koordinator, CeKo Vertreter, E3 Eintragung, E3 Eintragung Vertreter, E3 Überprüfung, E4 Eintragung, E4 Überprüfung) remains fully valid and must be preserved in the Design Contract, requirements, and test contracts.
+**Example:** Login, password-reset, and session management pages in a typical enterprise mockup are `platform_boundary: true`. The fachliche role model (e.g. Admin, Coordinator, Contributor, Reviewer) remains fully valid and must be preserved in the Design Contract, requirements, and test contracts.
 
 ## Artifact Locations
 
@@ -128,7 +128,7 @@ In `planning/ui-inventory/<PageName>.yaml`:
 source_mockup: input-resources/ui-ux/customer-newedit.html   # Original, immutable
 target_mockup: planning/target-mockups/Customer_NewEdit.html  # Active target for verification
 target_mockup_version: "2026-09-15"                           # Date of last accepted change
-target_mockup_reason: "Refined after CapTrack round-1 parity findings — content labels corrected"
+target_mockup_reason: "Refined after round-1 parity findings — content labels corrected"
 ```
 
 **SPA bundle fields** in `planning/ui-inventory/<PageName>.yaml`:

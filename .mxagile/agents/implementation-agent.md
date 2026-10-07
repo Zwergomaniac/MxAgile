@@ -64,7 +64,7 @@ Wenn ein `revision_delta` in der akzeptierten Revision vorliegt, werden Effects 
 | `NO_ACTION` | Unverändert — kein Checklisteneintrag notwendig |
 
 Effects mit `derived_page: false` erzeugen KEINE neuen Mendix-Seiten.
-Effects mit `type: PLATFORM_BOUNDARY` erzeugen KEINE CapTrack-Implementierungsaufgaben.
+Effects mit `type: PLATFORM_BOUNDARY` erzeugen KEINE Implementierungsaufgaben.
 
 ## Ablauf
 

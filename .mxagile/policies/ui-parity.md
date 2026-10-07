@@ -400,15 +400,14 @@ unconditionally.
 Use full reconciliation when:
 - Significant application changes were made
 - Previous evidence is stale or provenance is unclear
-- Preparing for a major release or CapTrack full reconciliation run
+- Preparing for a major release cycle or full acceptance campaign
 
 ---
 
-## CapTrack Full-Reconciliation Plan
+## Example Full-Reconciliation Plan
 
-CapTrack will use full reconciliation on the next acceptance cycle.
+The following generic plan applies when a project schedules a full reconciliation run:
 
-The plan:
 1. Load all pages from `planning/ui-inventory/`
 2. For each page: create or reset the parity-verification file
 3. Run Playwright in `authenticated_session_ready` state
@@ -417,8 +416,6 @@ The plan:
 6. Test mandatory regression scenario: visual PASS + content FAIL = overall FAIL
 7. Record all results in `planning/parity/` directory
 8. Update `process-state.yaml` with parity reconciliation progress
-
-CapTrack is NOT modified in this framework task. The plan applies to the next REAL cycle.
 
 ---
 

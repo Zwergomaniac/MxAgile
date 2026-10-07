@@ -37,7 +37,7 @@
     },
     "topic": {
       "type": "string",
-      "description": "One-line topic summary (e.g. 'Login page scope for CapTrack', 'Role switcher in mockup is test-only')."
+      "description": "One-line topic summary (e.g. 'Login page scope — platform boundary', 'Role switcher in mockup is test-only')."
     },
     "decision_text": {
       "type": "string",

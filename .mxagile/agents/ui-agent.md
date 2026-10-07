@@ -248,7 +248,7 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
             derived_page: false
     ```
 
-    **Pflicht-Interaction-Types fuer CapTrack und vergleichbare Projekte:**
+    **Pflicht-Interaction-Types fuer Mendix-Projekte mit Navigation und Zustandssteuerung:**
     Folgende Interaction Types MUESSEN aktiv ausgeloest und erfasst werden:
     - `expandable_area`: Alle ausklappbaren Bereiche (Abteilungen, Zielkarten, Basisjahr, Folgejahre)
     - `modal`: Alle Dialogfenster (Bestaetigungen, Eingabedialoge)

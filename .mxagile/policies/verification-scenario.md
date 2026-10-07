@@ -151,8 +151,8 @@ Do NOT block:
 ### Bootstrap Sequence Example
 
 ```yaml
-# planning/scenarios/SCN-CAPTRACK-SEED.yaml
-scenario_id: SCN-CAPTRACK-SEED
+# planning/scenarios/SCN-SEED.yaml
+scenario_id: SCN-SEED
 screen_id: PAGE-SEED-UTILITY
 role: Developer
 data_state: any
@@ -161,11 +161,11 @@ prerequisites:
   mock_data_required: false
   requires_authenticated_session: true
 decomposition:
-  bounded_responsibility: "Seed representative CapTrack mock data for subsequent scenarios"
+  bounded_responsibility: "Seed representative mock data for subsequent scenarios"
 status: required
 
-# planning/scenarios/SCN-CAPTRACK-PLANNING-ADMIN-POPULATED.yaml
-scenario_id: SCN-CAPTRACK-PLANNING-ADMIN-POPULATED
+# planning/scenarios/SCN-PLANNING-ADMIN-POPULATED.yaml
+scenario_id: SCN-PLANNING-ADMIN-POPULATED
 screen_id: PAGE-PLANNING-OVERVIEW
 role: Admin
 data_state: populated
@@ -173,8 +173,8 @@ verification_dimensions: [visual, content, structure, state, interaction, role]
 prerequisites:
   mock_data_required: true
   mock_data_seed_identity: DEVELOPER_SEED_IDENTITY
-  mock_data_script: scripts/seed-captrack-mock-data.ps1
-  depends_on_scenarios: [SCN-CAPTRACK-SEED]
+  mock_data_script: scripts/seed-mock-data.ps1
+  depends_on_scenarios: [SCN-SEED]
 status: required
 ```
 
