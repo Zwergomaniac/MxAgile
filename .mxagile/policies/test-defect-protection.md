@@ -153,6 +153,57 @@ When a failure is classified, evidence MUST be preserved regardless of classific
 Evidence of a TEST_DEFECT is as valuable as evidence of an APPLICATION_DEFECT.
 Do not delete or overwrite evidence artifacts during reclassification or test repair.
 
+## Bounded Escalation Rule
+
+When the same proof point repeatedly fails as TECHNICAL_TEST_DEFECT, TEST_ADAPTER_GAP,
+or TEST_INFRASTRUCTURE_GAP, the agent MUST escalate its strategy — not iterate indefinitely.
+
+**Trigger:** The same proof point has failed 2 or more times in the current session
+after a repair/regeneration attempt.
+
+**Escalation protocol:**
+
+```
+STEP 1 — Classify the root cause
+  Does the problem repeat after repair?
+  Determine which category:
+    APPLICATION_DEFECT      — the product behavior is wrong
+    WRONG_EVIDENCE_LEVEL    — FRONTEND repair is expensive; MODEL already proves the property
+    TEST_DATA_GAP           — a data dependency is unresolved (seed, identity, state)
+    INFRASTRUCTURE_GAP      — tooling/runtime genuinely unavailable
+    OVERMATERIALIZED_TEST   — FRONTEND test covers an assertion already proven at MODEL or RUNTIME
+
+STEP 2 — Apply WRONG_EVIDENCE_LEVEL check
+  Does MODEL evidence already authoritatively prove the PP's intended property?
+    YES → do NOT continue FRONTEND repair loops
+          Record FRONTEND layer as exclusion_reason: COVERED_BY_LOWER_LAYER in VPL
+          Accept MODEL evidence as sufficient if the PP claim is provably MODEL-sufficient
+          Surface to developer: "FRONTEND deferred — MODEL evidence sufficient for this claim"
+    NO  → the assertion requires FRONTEND; the blocker is infrastructure or data
+
+STEP 3 — Emit escalation signal (VERIFICATION_STRATEGY_ESCALATION)
+  Write to .concord/scratch/escalation-<wave>.yaml:
+    verification_strategy_escalation: true
+    proof_point_id: PP-NNN
+    test_contract_id: TC-NNN
+    failure_count: N
+    root_cause: APPLICATION_DEFECT | WRONG_EVIDENCE_LEVEL | TEST_DATA_GAP |
+                INFRASTRUCTURE_GAP | OVERMATERIALIZED_TEST
+    action: surface to developer with root cause
+
+STEP 4 — Stop repair loop
+  Do NOT attempt a third repair of the same proof point in the same session.
+  Record the status as BLOCKED with the escalation classification.
+  Continue with other proof points.
+```
+
+**Do NOT use iteration count alone as evidence of APPLICATION_DEFECT.** A proof point
+failing twice may be TECHNICAL_TEST_DEFECT + infrastructure instability; classify before acting.
+
+**WRONG_EVIDENCE_LEVEL is NOT a downgrade.** If the PP genuinely requires FRONTEND evidence
+(user-visible behavior, interaction outcome), WRONG_EVIDENCE_LEVEL does NOT apply.
+Only apply when MODEL can authoritatively prove the specific PP claim.
+
 ## Regression Defects
 
 When a proof point from the regression scope fails in a later wave:

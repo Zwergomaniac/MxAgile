@@ -225,6 +225,21 @@
     "Reason": "Static checks on policies and schemas plus read-only reads of pre-existing tests/fixtures/ui-parity/ YAML files."
   },
   {
+    "File": "test-verification-lifecycle.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static checks on verification lifecycle policies (verification-materialization.md, test-staleness.md, test-defect-protection.md, verification-plan skill) and read-only reads of tests/fixtures/verification-lifecycle/ YAML fixtures."
+  },
+  {
     "File": "test-ui-parity.ps1",
     "Tier": 0,
     "FastGate": true,
