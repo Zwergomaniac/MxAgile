@@ -50,12 +50,56 @@ Triggers:
 - If proof points are affected: mark each affected point `status: stale` and proceed as above.
 - Document the assessment result in the test contract notes field.
 
+## Revision Impact Action Mapping
+
+Revisions and changes produce one of five impact actions. Use the smallest justified action.
+Full definitions: `policies/verification-materialization.md`.
+
+| Action | TC status | PP status | VPL action | Evidence action |
+|---|---|---|---|---|
+| PRESERVE | unchanged `active` | unchanged | unchanged | reuse |
+| REASSESS | → `stale` or `impacted` | → per-PP `stale` if claim outdated | supersede; regenerate from updated TC | `STALE` — reexecute |
+| REMATERIALIZE | unchanged `active` | unchanged; set `execution_binding_stale: true` | refresh layer assignments only | `STALE_REEXECUTION_REQUIRED` — reexecute |
+| REEXECUTE | unchanged `active` | unchanged `active` | unchanged | `STALE_REEXECUTION_REQUIRED` — reexecute without test rewrite |
+| INVALIDATE | → `superseded` | → `stale` or `deferred` | → `superseded` | historical record |
+
+**Key distinction — REMATERIALIZE vs REASSESS:**
+
+REMATERIALIZE applies when the PP CLAIM is unchanged but the technical execution binding changed.
+Locator change, screen restructure, widget rename, infrastructure availability change.
+
+REASSESS applies when the PP CLAIM must be reconsidered.
+Acceptance criteria changed, business rule changed, role permission contract changed.
+
+REMATERIALIZE does NOT change TC status and does NOT require DECISION_REQUIRED.
+REASSESS sets TC status to `stale` or `impacted` and may require DECISION_REQUIRED.
+
+**Propagating NEEDS_RERUN:**
+
+When `policies/impact-resolution.md` marks a TC as `NEEDS_RERUN`, this maps to impact action **REEXECUTE** — screen content changed but acceptance criteria unchanged:
+- TC status remains `active`
+- Evidence is marked `STALE_REEXECUTION_REQUIRED`
+- VPL is unchanged (unless infrastructure changed)
+- Do NOT set TC status to `impacted` for a NEEDS_RERUN signal
+
 ## Staleness Cascade
 
-When a test contract is STALE:
+When a test contract is STALE (REASSESS action):
 1. Its associated verification plan (VPL) is automatically IMPACTED — set `status: superseded` and generate a new plan from the updated contract.
 2. Acceptance campaign results produced from this contract are LEGACY — valid only as historical record.
 3. Evidence manifest entries pointing to stale proof points acquire `parity_result: STALE`.
+
+When a test contract is IMPACTED but not yet assessed (REASSESS pending):
+1. VPL remains `active` but is flagged for review before next campaign.
+2. The Acceptance Agent must complete the impact assessment before running campaigns.
+3. If assessment determines PP claims are unchanged: restore TC to `active`; VPL unchanged.
+
+When impact action is REMATERIALIZE (PP unchanged, execution binding changed):
+1. TC status remains `active`.
+2. VPL is refreshed (locators, adapters, test_generation_hints only) — NOT superseded.
+3. Set VPL `status: draft` while refreshing; re-activate after refresh.
+4. Evidence is marked `STALE_REEXECUTION_REQUIRED` — rerun without test rewrite.
+5. Do not reuse stale evidence — re-run even when the PP claim is unchanged.
 
 ## Propagation Detection
 

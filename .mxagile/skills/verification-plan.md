@@ -20,7 +20,25 @@ The authoritative VPL is created or refreshed at the start of the Verifying phas
 ## When to Run
 
 1. At Verifying phase entry: create VPL for each TC-NNN in scope if not already present.
-2. Refresh if: TC was updated since last VPL, or infrastructure availability changed.
+2. **REASSESS** (full regeneration): TC was updated (status: stale → reassessed → active), or requirement semantics changed. Supersede the existing VPL, create a new one from the updated TC.
+3. **REMATERIALIZE** (binding refresh only): TC is still `active` but execution binding is stale — locator, adapter, or screen structure changed; or infrastructure availability changed. One or more PP has `execution_binding_stale: true`. Refresh `layer_assignments.test_generation_hint` and layer exclusions; do NOT supersede. Set status to `draft`; re-activate after refresh.
+4. Skip if: VPL is `active` and no REASSESS or REMATERIALIZE trigger is present.
+
+**REMATERIALIZE vs REASSESS — key distinction:**
+
+REMATERIALIZE applies when:
+- TC.status is `active`
+- PP claims are unchanged
+- Only execution binding changed (locator, screen name, component rename, infrastructure)
+- Action: refresh VPL hints/exclusions only; TC unchanged
+
+REASSESS applies when:
+- TC.status is `stale` or `impacted`
+- PP claims may need to change
+- Action: first update TC; then create fresh VPL from updated TC
+
+Do NOT supersede a VPL for a REMATERIALIZE trigger. Supersede only for REASSESS.
+See `policies/verification-materialization.md` for the full revision impact action model.
 
 ## Inputs Required
 

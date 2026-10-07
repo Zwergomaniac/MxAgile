@@ -151,6 +151,11 @@
           ],
           "description": "Autonomous remediation classification. Null when not applicable. See policies/autonomous-remediation.md."
         },
+        "execution_binding_stale": {
+          "type": ["boolean", "null"],
+          "default": null,
+          "description": "Set to true when this PP's verification INTENT (claim, role, data_state, required_layers) is unchanged but the technical execution binding is known to be stale — e.g. locator changed, screen restructured, component renamed. Signals REMATERIALIZE action to skills/verification-plan.md. Does NOT change TC status. Cleared to null after VPL is refreshed."
+        },
         "notes": { "type": "string" }
       }
     }
