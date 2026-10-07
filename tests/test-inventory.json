@@ -913,5 +913,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Static checks on runtime orchestration contracts: interactive vs autonomous mode separation, runtime ownership model, readiness gate, test failure classification, no blind process killing, generated projections carry corrected contracts, DB-default preserved. Pure read-only policy and schema validation."
+  },
+  {
+    "File": "test-graphify-scope.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static checks for the Graphify targeted-scope contract (A-J): enrichment_provider defaults to none, .graphifyignore committed with correct noise exclusions, code surfaces (scripts/tests/) not excluded, graphify-out/ gitignored, scope_fingerprint safety mechanism in graphify_provider.py and schema, native graph independence. Pure read-only static validation."
   }
 ]

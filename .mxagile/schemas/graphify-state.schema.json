@@ -57,6 +57,10 @@
       "type": ["string", "null"],
       "description": "SHA-256 fingerprint of indexed source files at last build"
     },
+    "scope_fingerprint": {
+      "type": ["string", "null"],
+      "description": "SHA-256 fingerprint of .graphifyignore content at last build. Changes trigger automatic graphify-out/ wipe before rebuild to prevent stale broad graph contamination."
+    },
     "local_only": {
       "type": "boolean",
       "description": "True if external API keys were suppressed during the last build",

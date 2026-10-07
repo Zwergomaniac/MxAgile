@@ -390,6 +390,11 @@ class GraphifyProvider:
 
         local_only=true strips external API keys from the environment.
 
+        Scope fingerprint safety: if .graphifyignore has changed since the last
+        build, graphify-out/ is wiped before rebuilding. This prevents stale
+        broad-scope nodes (retained by Graphify's fail-closed mechanism) from
+        silently masquerading as a targeted graph.
+
         Returns:
           dict: success, returncode, stdout, stderr, duration_s
         """
@@ -398,11 +403,24 @@ class GraphifyProvider:
                     'stdout': '', 'stderr': 'Graphify not enabled', 'duration_s': 0.0}
 
         import time
+        import shutil
         start = time.time()
 
-        local_only = self._cfg.get('graphify', {}).get('local_only', True)
-        output_dir = self._output_dir()
+        # ── Scope fingerprint check ──────────────────────────────────────────
+        # If .graphifyignore changed, wipe graphify-out/ so fail-closed retention
+        # does not carry over nodes that should now be excluded.
+        current_scope_fp = self._compute_scope_fingerprint()
+        stored_scope_fp  = self._read_stored_scope_fingerprint()
+        output_dir       = self._output_dir()
+
+        if stored_scope_fp is not None and current_scope_fp != stored_scope_fp:
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+            incremental = False   # scope changed → full rebuild
+
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        local_only = self._cfg.get('graphify', {}).get('local_only', True)
 
         env = dict(os.environ)
         if local_only:
@@ -433,6 +451,9 @@ class GraphifyProvider:
                 stderr_lower = result.stderr.lower()
                 if any(x in stderr_lower for x in ('no files', 'nothing to process', 'no python')):
                     success = True
+
+            if success:
+                self._write_scope_fingerprint(current_scope_fp)
 
             return {
                 'success':    success,
@@ -510,6 +531,40 @@ class GraphifyProvider:
 
     def _classify_link_provenance(self, link):
         return PROVENANCE_EXTRACTED if self._is_code_edge(link) else PROVENANCE_INFERRED
+
+    def _compute_scope_fingerprint(self):
+        ignore_path = self._root / '.graphifyignore'
+        content = ignore_path.read_text(encoding='utf-8') if ignore_path.exists() else ''
+        return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+    def _state_path(self):
+        return self._root / '.mxagile' / 'state' / 'graphify-state.yaml'
+
+    def _read_stored_scope_fingerprint(self):
+        state_path = self._state_path()
+        if not state_path.exists():
+            return None
+        try:
+            import yaml
+            with open(state_path, 'r', encoding='utf-8') as f:
+                state = yaml.safe_load(f) or {}
+            return state.get('scope_fingerprint')
+        except Exception:
+            return None
+
+    def _write_scope_fingerprint(self, fingerprint):
+        state_path = self._state_path()
+        if not state_path.exists():
+            return
+        try:
+            import yaml
+            with open(state_path, 'r', encoding='utf-8') as f:
+                state = yaml.safe_load(f) or {}
+            state['scope_fingerprint'] = fingerprint
+            with open(state_path, 'w', encoding='utf-8') as f:
+                yaml.dump(state, f, default_flow_style=False, allow_unicode=True)
+        except Exception:
+            pass   # non-fatal: fingerprint persistence failure does not block build
 
     def _is_stale(self):
         graph_path = self._graph_path()

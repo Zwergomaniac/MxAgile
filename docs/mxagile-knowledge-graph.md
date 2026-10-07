@@ -446,6 +446,70 @@ When Graphify is unavailable (not installed, graph missing, build failed):
 The enrichment overlay is strictly additive. Removing or disabling Graphify
 has zero effect on canonical workflow correctness.
 
+### Graphify Operating Contract
+
+**Mode: TARGETED TECHNICAL STRUCTURAL ENRICHMENT**
+
+Only code-structural surfaces (Python modules, test files) are indexed.
+Framework management surfaces (schemas, agents, skills, policies, docs) are
+excluded via `.graphifyignore` committed at the repo root.
+
+This operating contract was derived from an A/B test comparing FULL_REPO
+(317 files, 5793 nodes) against TARGETED scope (code-only, ~929 nodes):
+
+  FULL_REPO problems:
+    - 18 JSON Schema files → 1,695 keyword-only noise nodes (29.3% of graph)
+    - Top god node: `enum` with 38 edges — a schema keyword, not code
+    - 30+ communities named "properties" — schema fragmentation
+    - Code-structure queries degraded by noise hub centrality
+
+  TARGETED advantages:
+    - Code-structure queries (call graphs, import chains) are materially better
+    - God-node analysis reflects real code centrality
+    - Zero schema-keyword community pollution
+
+**Surface classification:**
+
+| Surface                  | Index?  | Why                                              |
+|--------------------------|---------|--------------------------------------------------|
+| scripts/*.py             | YES     | Core implementation — call/import graph          |
+| tests/*.py               | YES     | Test logic — call graph, fixture refs            |
+| tests/fixtures/**/*.py   | YES     | Fixture code — structural relationships          |
+| .mxagile/schemas/        | NO      | JSON Schema → keyword noise, no call edges       |
+| .mxagile/agents/skills/  | NO      | Markdown, no AST                                 |
+| .mxagile/policies/       | NO      | Markdown, no AST                                 |
+| docs/                    | NO      | Narrative markdown, no code relationships        |
+| planning/                | NO      | Canonical YAML → native Artifact Graph only      |
+| *.ps1 (root)             | NO      | PowerShell AST near-zero relationships in v0.9.28|
+| graphify-out*/           | NEVER   | Fail-closed contamination guard                  |
+| .claude/, .agents/       | NO      | Agent instructions markdown                      |
+
+**Fresh-clone behavior:**
+
+On a fresh clone, Graphify is absent and `graphify-out/` does not exist.
+This is normal — MxAgile operates fully without it.
+
+  1. Clone → all MxAgile lifecycle operations work immediately (graph: native only)
+  2. If code-structure enrichment is needed:
+     a. pwsh scripts/install-graphify.ps1
+     b. Enable in .mxagile/config.yaml (enrichment_provider: graphify, enabled: true)
+     c. graphify update <project-root>   (or: python scripts/graphify_provider.py build)
+  3. graphify-out/ is gitignored — it is never committed
+
+**Scope change safety (scope fingerprint mechanism):**
+
+The `scope_fingerprint` field in `.mxagile/state/graphify-state.yaml` stores a
+SHA-256 hash of `.graphifyignore` at the last successful build.
+
+When `provider.build()` is called and the current `.graphifyignore` hash differs
+from the stored fingerprint:
+  1. `graphify-out/` is deleted entirely (prevents fail-closed contamination)
+  2. A full rebuild is run (not incremental)
+  3. The new fingerprint is written to state on success
+
+This ensures a stale broad graph cannot silently masquerade as a targeted graph
+after the scope definition changes.
+
 ### Troubleshooting
 
 graphify command not found:

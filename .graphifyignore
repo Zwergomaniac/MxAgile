@@ -1,0 +1,93 @@
+# .graphifyignore — MxAgile Graphify Targeted Scope Definition
+#
+# Graphify is an OPTIONAL enrichment overlay.  This file defines which
+# surfaces are indexed.  Only code-structural surfaces that yield
+# actionable call-graph / import relationships belong in the graph.
+#
+# Why these exclusions exist (derived from the FULL_REPO vs TARGETED A/B test):
+#
+#   .mxagile/schemas/  — JSON Schema files decompose into keyword-only nodes
+#                        (properties, enum, type, required, items, description).
+#                        18 schema files produced 1,695 pure-noise nodes (29.3%
+#                        of FULL_REPO), with no call or import relationships.
+#                        Schema validity is enforced at canonical artifact level,
+#                        not in the code graph.
+#
+#   .mxagile/agents/   — Plain markdown — no AST, no call edges.
+#   .mxagile/skills/   — Plain markdown — no AST, no call edges.
+#   .mxagile/policies/ — Plain markdown — no AST, no call edges.
+#   .mxagile/adapters/ — Plain markdown — no AST, no call edges.
+#   .mxagile/templates/ — Plain text/markdown templates — no call edges.
+#   .mxagile/*.yaml, .mxagile/*.md, .mxagile/*.json (root config)
+#                      — Config/data files, not code structural surfaces.
+#
+#   docs/              — Documentation markdown.  Content lives in the native
+#                        Artifact Graph as CANONICAL nodes.  Graphify's markdown
+#                        community-fragmentation produces pure noise here.
+#
+#   products/          — Product-management markdown/config, not code.
+#   skillssource/      — Markdown skill sources.  Platform projection, not code.
+#   planning/          — Canonical YAML lifecycle artifacts.  Already authoritative
+#                        in the native Artifact Graph.  Graphify YAML parsing adds
+#                        structural keyword nodes with no call relationships.
+#   input-resources/   — Raw input/reference material, not executable code.
+#   project-templates/ — Placeholder .gitignore stubs.  No code content.
+#   sprints/           — Sprint notes/markdown, not code.
+#
+#   Root .md files     — README, AGENT, etc. — markdown, no AST value.
+#   Root .ps1 files    — Framework bootstrap installers.  Could yield call edges
+#                        but PowerShell AST support in graphify v0.9.28 produces
+#                        near-zero relationships (confirmed in A/B test).  Excluded
+#                        to avoid fragmented, low-signal nodes.
+#
+#   graphify-out*/     — Graphify output directories MUST never be self-indexed.
+#                        The fail-closed retention mechanism would contaminate the
+#                        graph with manifest/state nodes on incremental rebuilds.
+#
+#   .claude/           — Agent instructions markdown (.claude/agents/).
+#                        Only .claude/skills/ is gitignored; .claude/agents/ is
+#                        committed but must not be indexed as code.
+#
+#   .agents/           — Agent platform projections, markdown.
+#
+# What IS indexed (not excluded here, not in .gitignore):
+#   scripts/*.py       — Python implementation modules → call graph, import graph
+#   tests/*.py         — Python test files → call graph
+#   tests/fixtures/    — Committed fixture code → call graph
+#
+# Note: .gitignore exclusions (graphify-out/, .mxagile/state/, etc.) are
+# automatically respected by Graphify and do not need to be repeated here.
+
+# ── MxAgile framework management surfaces (noise in code graph) ───────────────
+.mxagile/schemas/
+.mxagile/agents/
+.mxagile/skills/
+.mxagile/policies/
+.mxagile/adapters/
+.mxagile/templates/
+.mxagile/migration/
+.mxagile/*.yaml
+.mxagile/*.md
+.mxagile/*.json
+
+# ── Documentation / narrative markdown ───────────────────────────────────────
+docs/
+
+# ── Product / project management surfaces ────────────────────────────────────
+products/
+skillssource/
+planning/
+input-resources/
+project-templates/
+sprints/
+
+# ── Root-level non-code files ─────────────────────────────────────────────────
+*.md
+*.ps1
+
+# ── Graphify output directories (must never be self-indexed) ─────────────────
+graphify-out*/
+
+# ── Agent instruction surfaces ────────────────────────────────────────────────
+.claude/
+.agents/
