@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mxagile.io/schemas/graphify-state",
+  "title": "Graphify Enrichment Provider State",
+  "description": "Tracks installation and graph-build state for the optional Graphify enrichment provider. Written by scripts/install-graphify.ps1 and scripts/graphify_provider.py.",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["DISABLED", "MISSING", "READY", "STALE", "FAILED"],
+      "description": "DISABLED=provider not configured; MISSING=installed but graph not built; READY=graph current; STALE=source files newer than graph; FAILED=last build error"
+    },
+    "installed_version": {
+      "type": ["string", "null"],
+      "description": "Installed graphify CLI version, e.g. '0.9.28'"
+    },
+    "version_constraint": {
+      "type": ["string", "null"],
+      "description": "Version constraint used during install, e.g. '>=0.9.28'"
+    },
+    "install_path": {
+      "type": ["string", "null"],
+      "description": "Resolved path to the graphify executable"
+    },
+    "install_date": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of last install/update"
+    },
+    "graph_path": {
+      "type": ["string", "null"],
+      "description": "Path to graph.json relative to project root"
+    },
+    "node_count": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Number of nodes in the last successful graph build"
+    },
+    "link_count": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Number of links/edges in the last successful graph build"
+    },
+    "last_built": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of last successful graph build"
+    },
+    "build_duration_s": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Duration of last graph build in seconds"
+    },
+    "source_fingerprint": {
+      "type": ["string", "null"],
+      "description": "SHA-256 fingerprint of indexed source files at last build"
+    },
+    "local_only": {
+      "type": "boolean",
+      "description": "True if external API keys were suppressed during the last build",
+      "default": true
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Error message from last failed build or install"
+    }
+  }
+}

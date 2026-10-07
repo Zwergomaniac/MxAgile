@@ -19,3 +19,22 @@ knowledge_graph:
 
   # If true, refresh() is called automatically before lifecycle re-sync orientation
   auto_refresh_on_resync: true
+
+# ---------------------------------------------------------------------------
+# Enrichment Provider (Phase 3 — optional overlay, NEVER replaces native graph)
+# Options:
+#   none     — no enrichment (default)
+#   graphify — Graphify code-graph overlay; requires scripts/install-graphify.ps1
+# ---------------------------------------------------------------------------
+enrichment_provider: none
+
+graphify:
+  enabled: false
+  # Output directory for graphify-generated graph.json (relative to project root)
+  output_dir: graphify-out
+  # Strip external API keys during build — enforces local-first operation
+  local_only: true
+  # Use 'graphify update' (AST-only, no LLM) for incremental builds
+  incremental: true
+  # Minimum acceptable graphify CLI version
+  version_constraint: ">=0.9.28"
