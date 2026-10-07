@@ -244,3 +244,226 @@ To maximize graph quality, MxMocketeer must:
 5. Never invent or modify IDs from existing MxAgile canonical artifacts.
    The id_map in design_contract_provenance tracks source-to-canonical mapping.
    Source IDs and canonical IDs are different namespaces.
+
+---
+
+## Graphify Optional Enrichment Provider (Phase 3)
+
+### What Graphify Is (and Is Not)
+
+Graphify is an OPTIONAL enrichment overlay for the MxAgile Knowledge Graph.
+It adds code-structural relationships discovered via AST analysis.
+
+Graphify MUST NOT:
+  - Replace the native artifact-index provider
+  - Become canonical project truth
+  - Become a mandatory dependency
+  - Be added to the M365 MxMocketeer package
+  - Block any lifecycle operation
+
+Graphify MAY:
+  - Surface code dependencies not present in canonical artifact refs
+  - Identify code functions that reference canonical artifact IDs in docstrings
+  - Detect import cycles and code centrality (architectural hot spots)
+  - Provide function-level call graphs as enrichment candidates
+
+### Provider Hierarchy
+
+When Graphify enrichment is enabled, the authority hierarchy is:
+
+  CANONICAL (artifact-index) > EXTRACTED (Graphify AST) > INFERRED (Graphify LLM)
+
+Enrichment results from Graphify are always tagged `enrichment_only: true` and carry
+a `provenance` field. They appear in a separate `enrichment` or `enrichment_affected`
+key in operation results — never mixed into canonical results.
+
+### Graphify Architecture
+
+Graphify is a separate CLI tool (`graphify` command, PyPI package `graphifyy`).
+It produces `graphify-out/graph.json` in NetworkX node-link format.
+
+Key edge types in the Graphify code graph:
+  EXTRACTED (AST-derived, local, deterministic, zero token cost):
+    calls        — function A calls function B
+    imports      — module A imports from module B
+    imports_from — module A uses `from X import Y`
+    contains     — module contains function/class
+    rationale_for — docstring/comment belongs to function
+
+  INFERRED (LLM-based, requires opt-in, may cost tokens):
+    semantic / similarity edges (requires GEMINI_API_KEY or similar)
+    Not produced in local-only mode
+
+### Installation
+
+Install via the managed installer:
+
+  pwsh scripts/install-graphify.ps1
+
+Requirements:
+  - uv must be available (https://docs.astral.sh/uv/getting-started/installation/)
+  - Python 3.8+
+  - Package: graphifyy >= 0.9.28 (note double-y in package name; CLI is `graphify`)
+
+The installer:
+  1. Checks uv availability
+  2. Verifies existing graphify version vs constraint
+  3. Installs/upgrades via: uv tool install graphifyy>=0.9.28
+  4. Runs smoke test: graphify --version
+  5. Writes .mxagile/state/graphify-state.yaml
+
+On failure (uv not found, install error, network unavailable): the installer
+exits 0 with a warning. MxAgile core operations are NEVER blocked.
+
+### Enabling Graphify Enrichment
+
+After installation, enable in .mxagile/config.yaml:
+
+  enrichment_provider: graphify
+  graphify:
+    enabled: true
+    output_dir: graphify-out
+    local_only: true      # strips external API keys — enforces local-first
+    incremental: true     # uses 'graphify update' (AST-only, no LLM)
+    version_constraint: ">=0.9.28"
+
+The default configuration has `enrichment_provider: none`. No Graphify calls
+are ever made unless both `enrichment_provider: graphify` AND `enabled: true`.
+
+### Building the Graph
+
+Initial build (AST extraction, no LLM):
+
+  graphify update <project-root>
+
+Incremental rebuild after code changes (no LLM, no API cost):
+
+  graphify update <project-root>
+
+Full rebuild (may use LLM for community labeling if API key is set):
+
+  graphify <project-root>
+
+From scripts/graphify_provider.py:
+
+  from scripts.graphify_provider import GraphifyProvider
+  provider = GraphifyProvider(project_root='.')
+  result = provider.build(incremental=True)
+
+The MxAgile integration uses incremental mode (`graphify update`) by default.
+This is 100% local, deterministic, and zero token cost for code files.
+
+### Security Model
+
+local_only: true (default) enforces the following:
+  - GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, COHERE_API_KEY
+    are stripped from the subprocess environment before running graphify
+  - No data leaves the developer's machine during graph builds
+  - LLM-based semantic extraction is disabled
+
+When local_only is false: semantic extraction may make external API calls if
+an API key is present in the environment. This must be explicitly opted into.
+
+The Graphify output directory (graphify-out/) must not overlap with any canonical
+artifact directory (requirements/, specs/, planning/, .mxagile/).
+The conflict check in verify_no_canonical_conflict() enforces this at runtime.
+
+### Enrichment Overlay API
+
+After enabling, enrichment results appear automatically in:
+
+  kg.neighbors(node_id)
+    → result['enrichment']  list of enrichment-only neighbors (code context)
+
+  kg.affected(changed_ids)
+    → result['enrichment_affected']  list of code-level affected candidates
+
+Direct GraphifyProvider API (scripts/graphify_provider.py):
+
+  provider.neighbors_overlay(node_id, canonical_neighbors=set())
+    → enrichment-only neighbors not already in canonical graph
+
+  provider.affected_candidates(changed_ids, canonical_affected=set())
+    → BFS from changed IDs through code graph; returns enrichment candidates
+
+  provider.find_unlinked_artifacts(canonical_node_ids)
+    → artifact IDs (REQ-NNN, SPEC-NNN, etc.) referenced in code/docs but
+      not present in the canonical artifact index
+
+  provider.classify_edges(canonical_edge_pairs=set())
+    → extracted[], inferred[], duplicate[], enrichment_count
+
+  provider.verify_no_canonical_conflict(canonical_nodes, canonical_edges)
+    → safe flag, conflicts list — run after major graph updates
+
+### Pilot Findings (tests/fixtures/graphify-pilot)
+
+The pilot fixture contains a representative mini-project:
+  - 3 Python modules (auth.py, session.py, validators.py)
+  - 3 canonical requirements (REQ-001, REQ-002, REQ-003)
+  - Supporting SPEC, TASK, DEC, PAGE, SCN, TC, VPP, revision
+  - Non-indexed planning artifacts (GAP, PP, VPL)
+
+Results from `graphify update tests/fixtures/graphify-pilot` (v0.9.28):
+  - 31 nodes, 36 edges, 6 communities
+  - 100% EXTRACTED (zero token cost, zero external API calls)
+  - Import cycle detection: none found
+
+Key relationships discovered (absent from native artifact graph):
+  - auth.py --imports_from--> validators.py
+  - authenticate() --calls--> check_password_rules(), sanitize_input(), _create_jwt_token()
+  - refresh_session() --calls--> _create_jwt_token() (cross-file call, session.py→auth.py)
+  - invalidate_session() --calls--> validate_session()
+  - Docstring rationale nodes that mention REQ-001, REQ-002, REQ-003 (code-to-requirement bridge)
+
+Adoption status: ADOPT_EXPERIMENTAL
+Rationale: Extracted relationships are genuinely useful and zero-cost; integration is
+opt-in; the node-ID scheme is pre-#1504 (known limitation in v0.9.28); pilot scope is
+small. Upgrade path exists. Promotion to ADOPT when node-ID scheme stabilizes and
+integration has run on a real project for one sprint.
+
+### Refreshing the Graphify Graph
+
+Graphify staleness is detected by comparing source file modification times to
+the graph.json modification time. The provider considers the graph stale if any
+.py, .ts, .js file in src/, scripts/, or docs/ is newer than graph.json.
+
+Auto-refresh policy: Graphify does NOT auto-refresh during lifecycle operations.
+The native artifact-index may auto-refresh (auto_refresh_on_resync: true) but
+the Graphify overlay is always refresh-on-demand.
+
+To refresh: run `graphify update <project-root>` or call `provider.build(incremental=True)`.
+
+### Failure and Fallback
+
+When Graphify is unavailable (not installed, graph missing, build failed):
+  - All provider methods return empty results
+  - neighbors() and affected() return only canonical results (no enrichment key)
+  - status() returns enrichment.status: DISABLED or MISSING
+  - No exception is raised
+  - No lifecycle operation is blocked
+
+The enrichment overlay is strictly additive. Removing or disabling Graphify
+has zero effect on canonical workflow correctness.
+
+### Troubleshooting
+
+graphify command not found:
+  → Run: scripts/install-graphify.ps1
+  → Or: uv tool install graphifyy>=0.9.28
+  → Then: uv tool update-shell (if not in PATH)
+
+Graph not built (status: MISSING):
+  → Run: graphify update <project-root>
+  → Check .mxagile/state/graphify-state.yaml for error
+
+"pre-#1504 node-ID scheme" warning:
+  → Known issue in graphify v0.9.28. IDs may collide for same-name files in
+    different directories. Upgrade graphify or use rebuild with --force when
+    the warning appears.
+
+Enrichment results are empty even though Graphify is installed:
+  → Verify .mxagile/config.yaml: enrichment_provider must be 'graphify' AND
+    graphify.enabled must be true
+  → Verify graph.json exists in output_dir (default: graphify-out/graph.json)
+  → Run provider.status() to inspect the current state

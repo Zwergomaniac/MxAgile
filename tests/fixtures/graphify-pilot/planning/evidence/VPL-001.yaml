@@ -1,0 +1,8 @@
+evidence_id: VPL-001
+title: Automated test run — authentication suite
+type: test_execution
+status: PENDING
+test_contract_ref: TC-001
+run_date: null
+result: null
+artifacts: []

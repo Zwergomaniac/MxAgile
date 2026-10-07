@@ -1,0 +1,9 @@
+ID: REQ-001
+title: User Authentication
+status: CONFIRMED
+description: The system shall authenticate users via username and password
+acceptance_criteria:
+  - User can log in with valid credentials
+  - Invalid credentials are rejected with appropriate error
+  - Account locks after 5 failed attempts
+source: stakeholder

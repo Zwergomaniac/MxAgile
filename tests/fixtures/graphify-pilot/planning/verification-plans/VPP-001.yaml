@@ -1,0 +1,10 @@
+ID: VPP-001
+title: Authentication Verification Plan
+status: ACTIVE
+test_contract_refs:
+  - TC-001
+requirement_refs:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+verification_approach: automated_plus_manual

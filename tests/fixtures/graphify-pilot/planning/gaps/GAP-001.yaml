@@ -1,0 +1,9 @@
+gap_id: GAP-001
+title: Session timeout not verified end-to-end
+type: test_coverage_gap
+status: OPEN
+related_requirement: REQ-003
+related_test_contract: TC-001
+description: The session timeout behavior (REQ-003) has TC-001 as a test contract but no verification evidence has been collected yet
+identified_by: quality_review
+identified_date: 2026-10-01

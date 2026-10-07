@@ -1,0 +1,13 @@
+scenario_id: SCN-001
+title: Successful User Login
+status: READY
+requirement_refs:
+  - REQ-001
+page_refs:
+  - PAGE-001
+steps:
+  - Navigate to login page
+  - Enter valid username and password
+  - Click Login button
+  - Verify redirect to dashboard
+expected_outcome: User is authenticated and redirected to dashboard

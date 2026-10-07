@@ -1,0 +1,19 @@
+ID: TC-001
+title: Authentication Test Contract
+status: ACTIVE
+requirement_refs:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+scenario_refs:
+  - SCN-001
+test_cases:
+  - id: TEST-001
+    name: Valid login succeeds
+    type: positive
+  - id: TEST-002
+    name: Invalid password rejected
+    type: negative
+  - id: TEST-003
+    name: Session expires after timeout
+    type: boundary

@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Login Mockup — Graphify Pilot</title>
+  <!--
+  MXMOCKETEER DESIGN CONTRACT
+  Contract-Version: 1
+  Visible prototype = customer-facing UI.
+  #mocketeer-spec = machine-readable design context, not technical implementation.
+  Preserve stable IDs and unrelated confirmed knowledge during refinement.
+  -->
+  <script type="application/json" id="mocketeer-spec">
+  {
+    "schema_version": "1.1",
+    "mockup": {
+      "id": "MOCKUP-LOGIN-PILOT",
+      "revision": 1,
+      "title": "Login — Graphify Pilot Fixture",
+      "language": "en",
+      "updated_at": "2026-10-07",
+      "lifecycle_status": "SOURCE",
+      "refinement_status": "ACCEPTED",
+      "active_target": true,
+      "change_scope": "Initial login mockup for Graphify pilot fixture"
+    },
+    "revision_history": [
+      {
+        "revision": 1,
+        "date": "2026-10-07",
+        "author": "MxMocketeer",
+        "change_scope": "Initial login mockup — ROLE-USER flow; SCREEN-LOGIN; FLOW-001 with FLOWSTEP-001 and FLOWSTEP-002"
+      }
+    ],
+    "preservation": {
+      "result": "VERIFIED",
+      "checked_at": "revision:1",
+      "preserved": [],
+      "changed": [],
+      "removed": []
+    },
+    "project": {
+      "name": "Graphify Pilot",
+      "scope": "Authentication — user login for a fictional application"
+    },
+    "sources": [
+      {"id": "SRC-001", "type": "stakeholder", "title": "Initial requirements session", "status": "CONFIRMED_BY_STAKEHOLDER"}
+    ],
+    "roles": [
+      {
+        "id": "ROLE-USER",
+        "name": "Authenticated User",
+        "goals": ["Log in to access the application"],
+        "responsibilities": ["Provide valid credentials"],
+        "organizational_scope": "all",
+        "data_scope": "own account",
+        "can": ["CAP-LOGIN", "CAP-LOGOUT"],
+        "cannot": ["CAP-ADMIN"],
+        "known_states": ["logged_out", "logged_in", "locked"],
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      }
+    ],
+    "requirements": [
+      {
+        "id": "REQ-001",
+        "actor_role_refs": ["ROLE-USER"],
+        "goal": "Authenticate via username and password",
+        "why": "Secure access to the application",
+        "acceptance_criteria": [
+          "User can log in with valid credentials",
+          "Invalid credentials are rejected with appropriate error",
+          "Account locks after 5 failed attempts"
+        ],
+        "screen_refs": ["SCREEN-LOGIN"],
+        "decision_refs": [],
+        "business_rule_refs": ["BR-001"],
+        "priority": "Must",
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      },
+      {
+        "id": "REQ-002",
+        "actor_role_refs": ["ROLE-USER"],
+        "goal": "Submit a password that meets complexity requirements",
+        "why": "Ensure password security before acceptance",
+        "acceptance_criteria": [
+          "Minimum 8 characters",
+          "At least one uppercase letter",
+          "At least one digit",
+          "At least one special character"
+        ],
+        "screen_refs": ["SCREEN-LOGIN"],
+        "decision_refs": [],
+        "business_rule_refs": ["BR-002"],
+        "priority": "Must",
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      }
+    ],
+    "decisions": [],
+    "business_rules": [
+      {
+        "id": "BR-001",
+        "rule": "Account is locked after 5 consecutive failed login attempts.",
+        "scope_refs": ["FLOW-001"],
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      },
+      {
+        "id": "BR-002",
+        "rule": "Password must be at least 8 characters with uppercase, digit, and special character.",
+        "scope_refs": ["FLOW-001"],
+        "status": "CONFIRMED_BY_STAKEHOLDER"
+      }
+    ],
+    "calculations": [],
+    "data_semantics": [],
+    "screens": [
+      {
+        "id": "SCREEN-LOGIN",
+        "name": "Login Screen",
+        "purpose": "Allow users to authenticate with username and password",
+        "role_refs": ["ROLE-USER"],
+        "requirement_refs": ["REQ-001", "REQ-002"],
+        "decision_refs": [],
+        "states": ["initial", "validation_error", "account_locked"],
+        "interaction_intent": [
+          "User enters credentials and submits",
+          "Validation errors shown inline"
+        ],
+        "responsive_intent": "Single centered card on all viewport sizes"
+      }
+    ],
+    "flows": [
+      {
+        "id": "FLOW-001",
+        "name": "Login Flow",
+        "trigger": "User navigates to login page",
+        "result": "User is authenticated and redirected to dashboard",
+        "status": "STRUCTURED",
+        "role_refs": ["ROLE-USER"],
+        "req_refs": ["REQ-001", "REQ-002"],
+        "steps": [
+          {
+            "step_id": "FLOWSTEP-001",
+            "type": "ui_state",
+            "description": "Enter Credentials — Login form visible, username and password fields empty",
+            "screen_ref": "SCREEN-LOGIN",
+            "req_refs": ["REQ-001"],
+            "role_refs": ["ROLE-USER"],
+            "transitions": [{"to": "FLOWSTEP-002", "label": "click Login"}]
+          },
+          {
+            "step_id": "FLOWSTEP-002",
+            "type": "user_action",
+            "description": "Submit Login — User submits credentials; system validates against REQ-001 and REQ-002",
+            "screen_ref": "SCREEN-LOGIN",
+            "req_refs": ["REQ-001", "REQ-002"],
+            "role_refs": ["ROLE-USER"],
+            "transitions": [
+              {"to": "FLOWSTEP-003", "label": "credentials valid"},
+              {"to": "FLOWSTEP-ERR", "label": "credentials invalid"}
+            ]
+          },
+          {
+            "step_id": "FLOWSTEP-003",
+            "type": "system_action",
+            "description": "System issues session token and redirects to dashboard",
+            "req_refs": ["REQ-001"],
+            "transitions": [{"to": "FLOWSTEP-004"}]
+          },
+          {
+            "step_id": "FLOWSTEP-004",
+            "type": "end_node",
+            "description": "User lands on dashboard — authentication complete",
+            "screen_ref": "SCREEN-LOGIN",
+            "transitions": []
+          },
+          {
+            "step_id": "FLOWSTEP-ERR",
+            "type": "error_node",
+            "description": "Inline error shown — invalid credentials or account locked (BR-001)",
+            "screen_ref": "SCREEN-LOGIN",
+            "transitions": [{"to": "FLOWSTEP-001", "label": "retry"}]
+          }
+        ],
+        "error_paths": ["FLOWSTEP-ERR"]
+      }
+    ],
+    "_flows_note": "Mermaid diagrams are generated on demand from steps[] — never stored here. Run: python scripts/mermaid_generator.py <html_path> FLOW-001",
+    "permissions": [
+      {
+        "id": "PERM-001",
+        "role_ref": "ROLE-USER",
+        "capability": "CAP-LOGIN",
+        "effect": "ALLOW",
+        "scope": "own account",
+        "explicit": true,
+        "source_refs": ["SRC-001"]
+      }
+    ],
+    "assumptions": [],
+    "open_questions": [],
+    "conflicts": [],
+    "risks": [],
+    "accepted_risks": [],
+    "out_of_scope": ["OAuth / SSO integration", "Two-factor authentication"],
+    "phase2": ["Remember-me functionality"],
+    "dependencies": [],
+    "mendix_candidates": {
+      "entities": [
+        {"name": "Account", "status": "derived", "reason": "Persistent user account entity"}
+      ],
+      "pages": [
+        {"name": "Login_Page", "status": "derived"}
+      ],
+      "microflows": [
+        {"name": "ACT_AuthenticateUser", "type": "ACT", "status": "derived"}
+      ]
+    },
+    "findings": [],
+    "traceability": [
+      {
+        "requirement_ref": "REQ-001",
+        "screen_refs": ["SCREEN-LOGIN"],
+        "element_refs": ["login-button"],
+        "decision_refs": [],
+        "role_refs": ["ROLE-USER"],
+        "business_rule_refs": ["BR-001"]
+      },
+      {
+        "requirement_ref": "REQ-002",
+        "screen_refs": ["SCREEN-LOGIN"],
+        "element_refs": ["password-field"],
+        "decision_refs": [],
+        "role_refs": ["ROLE-USER"],
+        "business_rule_refs": ["BR-002"]
+      }
+    ],
+    "assessment": {
+      "assessed_revision": 1,
+      "assessed_at": "2026-10-07",
+      "assessed_by": "MxMocketeer",
+      "prototype_readiness": "PROTOTYPE_READY",
+      "development_handoff_readiness": "HANDOFF_READY",
+      "prototype_readiness_reason": "Login flow is clickable; error state represented.",
+      "handoff_readiness_reason": "All requirements confirmed; no open blocking questions.",
+      "dimensions": [
+        {"id": "DIM-PURPOSE_SCOPE",            "status": "SUFFICIENT", "notes": "Goal, actors, and scope confirmed by stakeholder"},
+        {"id": "DIM-FUNCTIONAL_COVERAGE",      "status": "SUFFICIENT", "notes": "Login and error flows fully represented"},
+        {"id": "DIM-BUSINESS_RULES",           "status": "SUFFICIENT", "notes": "BR-001 (lockout) and BR-002 (complexity) confirmed"},
+        {"id": "DIM-ROLES_CAPABILITIES",       "status": "SUFFICIENT", "notes": "ROLE-USER confirmed"},
+        {"id": "DIM-DATA_SEMANTICS",           "status": "SUFFICIENT", "notes": "Credential fields clear"},
+        {"id": "DIM-UX_NAVIGATION",            "status": "SUFFICIENT", "notes": "Single-screen login pattern confirmed"},
+        {"id": "DIM-STATES_EDGE_CASES",        "status": "SUFFICIENT", "notes": "Error and locked states represented"},
+        {"id": "DIM-VALIDATION_ERROR_HANDLING","status": "SUFFICIENT", "notes": "Inline validation per BR-002"},
+        {"id": "DIM-SECURITY_PRIVACY",         "status": "SUFFICIENT", "notes": "Lockout rule explicit (BR-001)"},
+        {"id": "DIM-ACCESSIBILITY",            "status": "PARTIAL",    "notes": "ARIA labels present; full audit not performed"},
+        {"id": "DIM-NON_FUNCTIONAL",           "status": "PARTIAL",    "notes": "Session timeout addressed in REQ-003; performance not discussed"},
+        {"id": "DIM-DEVELOPMENT_HANDOFF",      "status": "SUFFICIENT", "notes": "Traceability complete for confirmed scope"}
+      ],
+      "gaps": [],
+      "blocking_gaps": [],
+      "next_exploration_areas": []
+    }
+  }
+  </script>
+  <style>
+    :root { font-family: Segoe UI, Arial, sans-serif; color: #222; background: #f5f6f8; }
+    body { margin: 0; display: grid; place-items: center; min-height: 100vh; }
+    .card { background: white; border: 1px solid #ddd; border-radius: 12px; padding: 32px; width: min(380px, 92vw); box-shadow: 0 4px 16px #0001; }
+    h1 { margin: 0 0 24px; font-size: 1.4em; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; margin-bottom: 4px; font-size: .9em; font-weight: 600; }
+    .field input { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: .95em; }
+    .error-msg { color: #b00020; font-size: .85em; margin-top: 4px; min-height: 1.1em; }
+    .btn-primary { width: 100%; padding: 10px; background: #0078d4; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; margin-top: 8px; }
+    .btn-primary:hover { background: #006cbf; }
+    .spec-footer { margin-top: 20px; font-size: .8em; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card" data-mx-screen="SCREEN-LOGIN">
+    <h1>Sign In</h1>
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" type="text" autocomplete="username" aria-required="true"
+               placeholder="Enter username" data-mx-req="REQ-001">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" aria-required="true"
+               placeholder="Enter password" data-mx-req="REQ-001 REQ-002">
+        <div id="password-error" class="error-msg" aria-live="polite" role="alert"></div>
+      </div>
+      <div id="form-error" class="error-msg" aria-live="polite" role="alert"></div>
+      <button id="login-button" type="submit" class="btn-primary"
+              data-mx-req="REQ-001" data-mx-flow="FLOW-001" data-mx-flowstep="FLOWSTEP-002">
+        Login
+      </button>
+    </form>
+    <p class="spec-footer">
+      Fixture: MOCKUP-LOGIN-PILOT &mdash; All data fictional &mdash; REQ-001, REQ-002
+    </p>
+  </div>
+
+  <script>
+    // Mock login — MOCKUP-LOGIN-PILOT, revision 1
+    // FLOW-001: FLOWSTEP-001 (Enter Credentials) → FLOWSTEP-002 (Submit Login)
+    const form     = document.getElementById('login-form');
+    const formErr  = document.getElementById('form-error');
+    const passErr  = document.getElementById('password-error');
+
+    let failedAttempts = 0;
+    const MAX_ATTEMPTS = 5; // REQ-001: lock after 5 failed attempts
+
+    // REQ-002: password complexity (simplified front-end check for mockup)
+    function meetsComplexity(pw) {
+      return pw.length >= 8 && /[A-Z]/.test(pw) && /\d/.test(pw) && /[!@#$%^&*]/.test(pw);
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      formErr.textContent = '';
+      passErr.textContent = '';
+
+      if (failedAttempts >= MAX_ATTEMPTS) {
+        formErr.textContent = 'Account locked after 5 failed attempts. (REQ-001 / BR-001)';
+        return;
+      }
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!username || !password) {
+        formErr.textContent = 'Username and password are required.';
+        return;
+      }
+
+      if (!meetsComplexity(password)) {
+        // REQ-002: complexity validation feedback
+        passErr.textContent = 'Password must be 8+ chars with uppercase, digit, and special character. (REQ-002)';
+        return;
+      }
+
+      // Simplified: mock successful login for testuser/TestPass1!
+      if (username === 'testuser' && password === 'TestPass1!') {
+        formErr.textContent = '';
+        formErr.style.color = '#1a6632';
+        formErr.textContent = 'Login successful — redirecting to dashboard... (FLOWSTEP-003 → FLOWSTEP-004)';
+        failedAttempts = 0;
+      } else {
+        failedAttempts++;
+        const remaining = MAX_ATTEMPTS - failedAttempts;
+        if (remaining > 0) {
+          formErr.style.color = '#b00020';
+          formErr.textContent = `Invalid credentials. ${remaining} attempt(s) remaining before lockout. (REQ-001)`;
+        } else {
+          formErr.style.color = '#b00020';
+          formErr.textContent = 'Account locked after 5 failed attempts. (REQ-001 / BR-001)';
+        }
+      }
+    });
+  </script>
+</body>
+</html>

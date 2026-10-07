@@ -1,0 +1,9 @@
+ID: REQ-003
+title: Session Timeout
+status: CONFIRMED
+description: User sessions must expire after 30 minutes of inactivity
+acceptance_criteria:
+  - Session expires after 30 minutes idle
+  - User is redirected to login on expired session
+  - Session timer resets on user activity
+source: security_review

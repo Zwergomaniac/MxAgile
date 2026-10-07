@@ -1,0 +1,8 @@
+revision_id: REV-001
+mockup_name: login-mockup
+revision: 1
+lifecycle_status: SOURCE
+refinement_status: ACCEPTED
+active_target: true
+page_refs:
+  - PAGE-001

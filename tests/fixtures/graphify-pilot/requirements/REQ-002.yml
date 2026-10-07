@@ -1,0 +1,10 @@
+ID: REQ-002
+title: Password Validation Rules
+status: CONFIRMED
+description: Passwords must meet complexity requirements before acceptance
+acceptance_criteria:
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one digit
+  - At least one special character
+source: stakeholder

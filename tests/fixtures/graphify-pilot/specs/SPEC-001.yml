@@ -1,0 +1,20 @@
+ID: SPEC-001
+title: Login Screen Specification
+status: ACTIVE
+requirement_refs:
+  - REQ-001
+  - REQ-002
+description: Specification for the user login screen
+fields:
+  - id: F-001
+    label: Username
+    type: text
+    required: true
+  - id: F-002
+    label: Password
+    type: password
+    required: true
+  - id: F-003
+    label: Login Button
+    type: button
+    action: authenticate

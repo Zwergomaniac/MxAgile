@@ -1,0 +1,10 @@
+ID: DEC-001
+title: Use JWT for session tokens
+decision_status: CONFIRMED
+description: Use JSON Web Tokens (JWT) for session management instead of server-side sessions
+rationale: JWT allows stateless authentication, reducing server load and enabling horizontal scaling
+alternatives_considered:
+  - Server-side sessions (rejected: requires shared session store)
+  - Cookie-based auth (rejected: CSRF risk)
+requirement_refs:
+  - REQ-003

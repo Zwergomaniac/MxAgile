@@ -1,0 +1,14 @@
+page_id: PAGE-001
+name: Login Page
+title: User Login
+requirement_refs:
+  - REQ-001
+  - REQ-002
+description: Entry point for user authentication
+interaction_states:
+  - id: IS-001
+    name: Initial State
+    description: Form empty, ready for input
+  - id: IS-002
+    name: Validation Error
+    description: Credentials invalid, error shown

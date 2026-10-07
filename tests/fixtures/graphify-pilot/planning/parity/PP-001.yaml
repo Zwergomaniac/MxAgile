@@ -1,0 +1,12 @@
+parity_id: PP-001
+title: Login page UI parity check
+status: PENDING
+page_ref: PAGE-001
+mockup_ref: MOCKUP-LOGIN-PILOT
+checks:
+  - id: PP-CHECK-001
+    description: Login button placement matches mockup
+    status: PENDING
+  - id: PP-CHECK-002
+    description: Error message styling matches design spec
+    status: PENDING
