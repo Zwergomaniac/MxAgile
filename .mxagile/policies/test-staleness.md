@@ -76,11 +76,16 @@ REASSESS sets TC status to `stale` or `impacted` and may require DECISION_REQUIR
 
 **Propagating NEEDS_RERUN:**
 
-When `policies/impact-resolution.md` marks a TC as `NEEDS_RERUN`, this maps to impact action **REEXECUTE** — screen content changed but acceptance criteria unchanged:
+When `policies/impact-resolution.md` marks a TC as `NEEDS_RERUN`, this maps to impact action **REEXECUTE** — non-material (cosmetic) screen change, acceptance criteria unchanged:
 - TC status remains `active`
 - Evidence is marked `STALE_REEXECUTION_REQUIRED`
 - VPL is unchanged (unless infrastructure changed)
 - Do NOT set TC status to `impacted` for a NEEDS_RERUN signal
+
+`NEEDS_RERUN` applies only to **non-material** screen changes (spacing, color, cosmetic layout).
+For **material** screen changes with AC unchanged, `policies/impact-resolution.md` sets
+`PP.execution_binding_stale: true` on affected proof points instead — this maps to **REMATERIALIZE**,
+not REEXECUTE. See `policies/impact-resolution.md` Step 4 Case B vs Case C.
 
 ## Staleness Cascade
 

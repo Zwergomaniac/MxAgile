@@ -369,6 +369,56 @@ Assert-FileContains "verification-layers: VISIBILITY requires FRONTEND" ".mxagil
 Assert-FileContains "REEXECUTE does not reuse stale evidence" $StalePol "Do not reuse stale evidence"
 Assert-FileContains "stale evidence not reused  - acceptance agent" $AccAgent "Do not reuse stale evidence"
 
+$ImpRes = Join-Path $ScriptDir ".mxagile/policies/impact-resolution.md"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IMPACT-RESOLUTION WIRING (execution_binding_stale automatic propagation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "IMPACT-RESOLUTION WIRING" -ForegroundColor Cyan
+
+# A - locator/structural change -> REMATERIALIZE via execution_binding_stale
+Assert-FileContains "impact-resolution Step 4 has Case A" $ImpRes "Case A"
+Assert-FileContains "impact-resolution Step 4 has Case B" $ImpRes "Case B"
+Assert-FileContains "impact-resolution Step 4 has Case C" $ImpRes "Case C"
+Assert-FileContains "impact-resolution Case C sets execution_binding_stale" $ImpRes "execution_binding_stale: true"
+Assert-FileContains "impact-resolution Case C maps to REMATERIALIZE" $ImpRes "maps to impact action REMATERIALIZE"
+Assert-FileContains "impact-resolution Case C: TC.status remains active" $ImpRes "TC.status remains active"
+Assert-FileContains "impact-resolution Case C: no DECISION_REQUIRED" $ImpRes "DECISION_REQUIRED is NOT required"
+
+# B - navigation/material change with unchanged observable claim -> same REMATERIALIZE
+Assert-FileContains "impact-resolution Case C covers navigation/locator structural changes" $ImpRes "navigation routes, form fields"
+
+# C - AC change -> REASSESS, NOT REMATERIALIZE
+Assert-FileContains "impact-resolution Case A -> REASSESS" $ImpRes "Case A"
+Assert-FileContains "impact-resolution Case A maps to REASSESS" $ImpRes "maps to impact action REASSESS"
+Assert-FileNotContains "impact-resolution does not set execution_binding_stale for AC change" $ImpRes "REASSESS.*execution_binding_stale"
+
+# D - non-material/cosmetic change -> REEXECUTE, NOT execution_binding_stale
+Assert-FileContains "impact-resolution Case B -> REEXECUTE" $ImpRes "Case B"
+Assert-FileContains "impact-resolution Case B maps to REEXECUTE" $ImpRes "maps to impact action REEXECUTE"
+Assert-FileContains "test-staleness NEEDS_RERUN is non_material only" $StalePol "NEEDS_RERUN.*applies only.*non-material"
+
+# Signal cleared correctly
+Assert-FileContains "VPL skill clears execution_binding_stale after REMATERIALIZE" $VplSkill "execution_binding_stale.*null"
+Assert-FileContains "VPL skill: do NOT clear before VPL active" $VplSkill "Do NOT clear.*execution_binding_stale.*before"
+Assert-FileContains "VPL skill: sticky if interrupted (remains true)" $VplSkill "remains.*true.*REMATERIALIZE trigger"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ACCEPTANCE AGENT WIRING
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "ACCEPTANCE AGENT WIRING" -ForegroundColor Cyan
+
+Assert-FileContains "acceptance agent references verification-materialization policy" $AccAgent "verification-materialization.md"
+Assert-FileContains "acceptance agent references bounded escalation in defect section" $AccAgent "Bounded escalation.*mandatory"
+Assert-FileContains "acceptance agent bounded escalation: 2-or-more trigger" $AccAgent "2 or more times"
+Assert-FileContains "acceptance agent bounded escalation: emit escalation signal" $AccAgent "VERIFICATION_STRATEGY_ESCALATION"
+Assert-FileContains "acceptance agent bounded escalation: stop repair loop" $AccAgent "Do NOT attempt a third repair"
+Assert-FileContains "acceptance agent: WRONG_EVIDENCE_LEVEL guard" $AccAgent "WRONG_EVIDENCE_LEVEL.*only applies"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────

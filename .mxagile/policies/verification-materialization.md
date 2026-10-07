@@ -10,7 +10,7 @@ Materializing verification execution too early — before implementation details
 creates work that must be redone when the implementation changes. This is test-harness churn,
 not product verification.
 
-The CapTrack reality test demonstrated an order-of-magnitude effort ratio between
+A real-project reality test demonstrated an order-of-magnitude effort ratio between
 test-harness work and actual implementation work. The primary cause was coupling
 stable verification INTENT to volatile technical EXECUTION before implementation was stable.
 

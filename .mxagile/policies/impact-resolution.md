@@ -220,7 +220,7 @@ Use `scripts/resolve_impact.py` to perform structured trace resolution.
 python scripts/resolve_impact.py --path <project_root> PAGE-CALENDAR
 python scripts/resolve_impact.py --path <project_root> REQ-034
 python scripts/resolve_impact.py --path <project_root> SPEC-012
-python scripts/resolve_impact.py --path <project_root> --mockup kidscompass-web
+python scripts/resolve_impact.py --path <project_root> --mockup <mockup-name>
 ```
 
 Resolver output contains FACTS AND CANDIDATES. It does NOT decide:
@@ -284,10 +284,28 @@ STEP 3 — Propagate to parity artifacts
 
 STEP 4 — Propagate to test contracts and verification plans
   For each REQ-NNN in revision.requirements[]:
-    If acceptance criteria changed per change_scope narrative:
+
+    Case A — acceptance criteria changed per change_scope narrative:
       Mark TC-NNN for that REQ as IMPACTED per policies/test-staleness.md
-    If acceptance criteria unchanged but screen content changed:
-      Mark TC-NNN as NEEDS_RERUN (not IMPACTED — contract is still valid)
+      → maps to impact action REASSESS
+      → TC must be reviewed and updated before next campaign; DECISION_REQUIRED if needed
+
+    Case B — acceptance criteria unchanged AND change_classification == non_material:
+      Mark TC-NNN as NEEDS_RERUN
+      → maps to impact action REEXECUTE (cosmetic change; test definitions and locators
+        remain valid; evidence is stale, re-run without test rewrite)
+      Note: TC.status remains active; DECISION_REQUIRED is NOT required
+
+    Case C — acceptance criteria unchanged AND change_classification == material:
+      For each proof point (PP) in TC-NNN whose traceability or claim references
+      affected_screens from this revision:
+        Set PP.execution_binding_stale: true in the TC-NNN YAML
+      → maps to impact action REMATERIALIZE (structural or behavioral screen change;
+        locators, navigation routes, form fields, or interaction structure may be stale;
+        verification INTENT is unchanged, execution BINDING must be refreshed)
+      → VPL skill will trigger REMATERIALIZE branch at next Verifying phase entry
+      Note: TC.status remains active; DECISION_REQUIRED is NOT required
+      See policies/verification-materialization.md for the REMATERIALIZE definition
 
 STEP 5 — Propagate to implementation tasks
   For each affected PAGE-NNN:
@@ -302,6 +320,7 @@ STEP 6 — Record propagation event
       stale_screens: [PAGE-NNN, ...]
       stale_tc_count: N
       needs_rerun_tc_count: N
+      rematerialize_pp_count: N
       propagated_by: <agent-id>
 ```
 

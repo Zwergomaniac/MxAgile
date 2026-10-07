@@ -40,6 +40,16 @@ REASSESS applies when:
 Do NOT supersede a VPL for a REMATERIALIZE trigger. Supersede only for REASSESS.
 See `policies/verification-materialization.md` for the full revision impact action model.
 
+**Clearing execution_binding_stale after REMATERIALIZE:**
+
+After the refreshed VPL has been activated (status set to `active`):
+1. For each PP in the TC that had `execution_binding_stale: true`, set it to `null`.
+2. Write the updated TC-NNN.yaml with `execution_binding_stale: null`.
+
+Do NOT clear `execution_binding_stale` before the VPL refresh is confirmed active.
+If rematerialization is interrupted or the VPL stays in `draft`, execution_binding_stale
+remains `true` — the REMATERIALIZE trigger is preserved for the next Verifying phase entry.
+
 ## Inputs Required
 
 1. `planning/test-contracts/TC-NNN.yaml` — with `status: active`.

@@ -23,10 +23,11 @@ current wave's verified implementation and produce a traceable acceptance gate r
 - `.mxagile/policies/evidence-levels.md` — evidence layer definitions (STATIC/MODEL/BUILD/RUNTIME/FRONTEND)
 - `.mxagile/policies/evidence-contract.md` — temporary vs canonical evidence; promotion rules
 - `.mxagile/policies/acceptance-campaign.md` — campaign types (REQUIREMENT/ROLE/RISK_CHANGE_IMPACT)
-- `.mxagile/policies/test-defect-protection.md` — APPLICATION_DEFECT vs TEST_DEFECT vs INFRASTRUCTURE_GAP
+- `.mxagile/policies/test-defect-protection.md` — APPLICATION_DEFECT vs TEST_DEFECT vs INFRASTRUCTURE_GAP; bounded escalation rule
 - `.mxagile/policies/autonomous-remediation.md` — remediation states; when DECISION_REQUIRED is mandatory
 - `.mxagile/policies/test-staleness.md` — CURRENT/STALE/IMPACTED status; staleness cascade
 - `.mxagile/policies/verification-layers.md` — layer semantics and security dimensions
+- `.mxagile/policies/verification-materialization.md` — materialization boundary; PRESERVE/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE; evidence level selection rule; execution_binding_stale lifecycle
 - `.mxagile/policies/runtime-strategy.md` — local-first runtime strategy for Verifying phase
 - `.mxagile/policies/safety-rules.md` — universal safety rules
 
@@ -220,6 +221,16 @@ For every failed proof point, before any action:
    - NO → APPLICATION_DEFECT: record, continue remaining proof points, route to Implementing at end
 
 Record `defect_classification` in the campaign result.
+
+**Bounded escalation — mandatory:** When the same proof point has failed as TECHNICAL_TEST_DEFECT,
+TEST_ADAPTER_GAP, or TEST_INFRASTRUCTURE_GAP **2 or more times** in the current session after a repair
+attempt, apply the **Bounded Escalation Rule** from `policies/test-defect-protection.md` immediately:
+- Classify root cause (WRONG_EVIDENCE_LEVEL / TEST_DATA_GAP / INFRASTRUCTURE_GAP / OVERMATERIALIZED_TEST / APPLICATION_DEFECT)
+- Evaluate WRONG_EVIDENCE_LEVEL: if MODEL evidence already proves the PP's claim, defer FRONTEND and accept MODEL
+- Emit VERIFICATION_STRATEGY_ESCALATION to `.concord/scratch/escalation-<wave>.yaml`
+- Do NOT attempt a third repair — continue with other proof points
+Do NOT weaken FRONTEND-required proof points via WRONG_EVIDENCE_LEVEL: this classification only applies
+when MODEL can authoritatively prove the specific PP claim.
 
 ## Autonomous Remediation
 
