@@ -143,7 +143,7 @@ try {
     $layerProvenanceNote = if ($layerInstalled) {
         if ($layerHasProvenance) { " [provenance: OK]" } else { " [provenance: MISSING - will report UNTRACKED]" }
     } else { "" }
-    $layerState     = if ($layerInstalled) { "MERCEDES_LAYER_INSTALLED ($($layerIds -join ', '))$layerProvenanceNote" } else { "LAYER_NOT_INSTALLED" }
+    $layerState     = if ($layerInstalled) { "LAYER_INSTALLED ($($layerIds -join ', '))$layerProvenanceNote" } else { "LAYER_NOT_INSTALLED" }
     $layerOperation = if ($layerInstalled) { "UPDATE" } else { "INSTALL" }
 
     Write-Host ""

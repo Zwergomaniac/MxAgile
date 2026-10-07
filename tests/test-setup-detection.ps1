@@ -190,8 +190,8 @@ Assert-FileContains "mercedes-setup: reports Layer operation separately" `
 Assert-FileContains "mercedes-setup: LAYER_NOT_INSTALLED state defined" `
     $setupMercedesScript 'LAYER_NOT_INSTALLED'
 
-Assert-FileContains "mercedes-setup: MERCEDES_LAYER_INSTALLED state defined" `
-    $setupMercedesScript 'MERCEDES_LAYER_INSTALLED'
+Assert-FileContains "mercedes-setup: LAYER_INSTALLED state defined" `
+    $setupMercedesScript 'LAYER_INSTALLED'
 
 Write-Host ""
 

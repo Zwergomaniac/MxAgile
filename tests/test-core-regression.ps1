@@ -202,6 +202,50 @@ if ($namespaceLeaks.Count -gt 0) {
 }
 
 # ──────────────────────────────────────────────────────────────
+# [10] Test tree boundary guard: generic Core tests must not contain
+# unguarded positive company references. Company names are permitted only
+# in negative assertions (-notmatch / $banned arrays) or comments.
+# Files listed here test framework contracts with synthetic data only.
+# REPOSITORY_TOOLING_TEST files (test-setup-detection, test-installer-ux,
+# test-install-bootstrap-regression, test-platform-portability, etc.) are
+# deliberately excluded — they verify real shipped Mercedes artifacts.
+# ──────────────────────────────────────────────────────────────
+Write-Host "`n[10] Test tree boundary: no unguarded company coupling in generic Core tests"
+$genericCoreTests = @(
+    'tests/test-revision-lifecycle.ps1',
+    'tests/test-wp2-lifecycle-extensions.ps1',
+    'tests/test-orientation.ps1',
+    'tests/test-migration-lifecycle-resync.ps1',
+    'tests/test-migration-provenance.ps1'
+)
+$companyTermRx  = [regex]'Mercedes|mercedes-benz|Daimler|MB_SSO|MB_UI|MBUI|CapTrack|KidsCompass'
+$safeLineRx     = [regex]'notmatch|notlike|notcontain|-not\s|banned|forbid|Write-Host'
+$couplingLeaks  = [System.Collections.Generic.List[string]]::new()
+foreach ($relPath in $genericCoreTests) {
+    $absPath = Join-Path $RepoRoot $relPath
+    if (-not (Test-Path -LiteralPath $absPath)) {
+        Write-Host "  SKIP  $relPath (not found)" -ForegroundColor DarkGray
+        continue
+    }
+    $lines = Get-Content -LiteralPath $absPath -Encoding UTF8
+    $lineNum = 0
+    foreach ($line in $lines) {
+        $lineNum++
+        if ($companyTermRx.IsMatch($line)) {
+            if ($line.TrimStart().StartsWith('#')) { continue }
+            if ($safeLineRx.IsMatch($line)) { continue }
+            # Multi-line $banned array continuations: lines that are only quoted string literals
+            if ($line.Trim() -match "^'[^']*'(\s*,\s*'[^']*')*\s*\)?\s*$") { continue }
+            $couplingLeaks.Add("${relPath}:${lineNum}: $($line.Trim())")
+        }
+    }
+}
+Assert ($couplingLeaks.Count -eq 0) "No unguarded company coupling in generic Core tests ($($couplingLeaks.Count) violation(s))"
+if ($couplingLeaks.Count -gt 0) {
+    $couplingLeaks | Select-Object -First 10 | ForEach-Object { Write-Host "  COUPLING: $_" -ForegroundColor Red }
+}
+
+# ──────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n========================================"
