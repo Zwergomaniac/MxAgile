@@ -76,7 +76,40 @@
           },
           "given": { "type": "string" },
           "when": { "type": "string" },
-          "then": { "type": "string" }
+          "then": { "type": "string" },
+          "source_ac_ref": {
+            "type": ["string", "null"],
+            "description": "Optional back-reference to the source AC identifier this canonical AC derives from. Convenience field; authoritative traceability is in source_ac_coverage at the requirement level."
+          }
+        }
+      }
+    },
+    "source_ac_coverage": {
+      "type": "array",
+      "description": "Source-traceability map from Design Contract acceptance criteria to canonical ACs. Populated when this Requirement was created or refined from a Design Contract source. Every material source AC must be covered by exactly one entry. Enables deterministic validation that no semantic content was silently discarded during refinement. See policies/design-contract-intake.md AC COVERAGE COMPLETENESS.",
+      "items": {
+        "type": "object",
+        "required": ["source_ac_id", "disposition"],
+        "additionalProperties": false,
+        "properties": {
+          "source_ac_id": {
+            "type": "string",
+            "description": "Identifier of the source acceptance criterion from the Design Contract (e.g. AC-001, or <req_id>-AC-3 for positional reference)."
+          },
+          "disposition": {
+            "type": "string",
+            "enum": ["PRESERVED", "REFINED", "MERGED", "SPLIT", "NOT_APPLICABLE"],
+            "description": "PRESERVED: source AC carried verbatim or near-verbatim. REFINED: source AC substantially preserved but re-expressed with different wording. MERGED: source AC combined with one or more other source ACs into a single canonical AC. SPLIT: source AC expressed as multiple canonical ACs. NOT_APPLICABLE: source AC explicitly excluded — exclusion_reason required."
+          },
+          "canonical_ac_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "AC identifiers in this requirement that cover the source AC. Required for PRESERVED/REFINED/MERGED/SPLIT. Empty or absent only for NOT_APPLICABLE."
+          },
+          "exclusion_reason": {
+            "type": ["string", "null"],
+            "description": "Required when disposition is NOT_APPLICABLE. Must explain why the source AC does not require a canonical equivalent (e.g. 'covered by business rule BR-001', 'scope boundary — belongs to platform module', 'superseded by AC-003 which encompasses this')."
+          }
         }
       }
     },

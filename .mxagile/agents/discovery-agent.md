@@ -11,6 +11,7 @@ beginnt.
 - `.mxagile/policies/evidence-levels.md` — Evidenz-Level-Klassifikation (STATIC/MODEL/BUILD/RUNTIME/FRONTEND)
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/design-contract-intake.md` — Mocketeer Design Contract v1 intake (WP2)
+- `.mxagile/policies/verification-gap-taxonomy.md` — Verification gap classification (NO_TC_YET / VERIFICATION_COVERAGE_GAP / TEST_BINDING_GAP / EVIDENCE_STALE)
 
 ## Projektkonfiguration
 
@@ -281,6 +282,27 @@ Falls kein Requirements-Dokument unter `input-resources/requirements/` vorhanden
    strukturierte Rueckfragen vorlegen. Der UI-Agent kann aus dem Mockup ein
    Feldinventar erzeugen (Felder, Buttons, Navigation), aber die fachliche
    Bedeutung dahinter darf nicht geraten werden.
+
+## Verification Gap Classification (Pflicht bei Requirements-Analyse)
+
+Nach Abschluss der Requirements-Analyse, klassifiziere fuer jede neue/verfeinerte
+Anforderung den Verifikationsstatus:
+
+| Zustand | Klassifikation | Aktion |
+|---|---|---|
+| Neue Anforderung, kein TC fuer diese Domaene | `NO_TC_YET` | Eintragen in Story-Spec; KEINE TC/PP-Erstellung in Discovery |
+| Neue Anforderung, verwandter TC existiert | `VERIFICATION_COVERAGE_GAP` | Eintragen mit `related_tc_id`; EXTEND-Kandidat fuer Refinement |
+| Bestehende Anforderung, TC/PP aktiv, kein VPL | `TEST_BINDING_GAP` | Eintragen; REMATERIALIZE-Kandidat wenn Impl. stabil |
+| Anforderung unveraendert, Impl. geaendert, Evidenz veraltet | `EVIDENCE_STALE` | Eintragen; REEXECUTE-Kandidat |
+
+**Pflicht:** `NO_TC_YET` loest NICHT automatisch aus:
+- TC erstellen
+- PP erstellen
+- VPL erstellen
+- Executable Tests erstellen
+- Evidenz sammeln
+
+Vollstaendiger Vertrag: `policies/verification-gap-taxonomy.md`
 
 ## Einschraenkungen
 

@@ -1,0 +1,59 @@
+# Fixture: Complete AC coverage — all source ACs accounted for
+# Expected: passes validation (no TRACEABILITY_ERROR)
+#
+# Synthetic fixture — no real project data.
+
+scenario: ac_coverage_complete
+description: >
+  Source Design Contract requirement has 3 ACs.
+  Canonical requirement covers all 3 with a mix of dispositions.
+
+source_requirement:
+  id: REQ-DC-001
+  title: User can update profile data
+  acceptance_criteria:
+    - id: AC-1
+      text: User sees their current name, email, and department on the profile page
+    - id: AC-2
+      text: User can update name and email; department is read-only
+    - id: AC-3
+      text: After saving, a success notification appears and changes persist on reload
+
+canonical_requirement:
+  ID: REQ-042
+  title: Profile management for authenticated users
+  status: accepted
+  acceptance_criteria:
+    - id: AC-001
+      given: An authenticated user navigates to their profile
+      when: the page loads
+      then: current name, email, and department are displayed
+      source_ac_ref: AC-1
+    - id: AC-002
+      given: An authenticated user is on the profile page
+      when: they edit name or email and click Save
+      then: changes are persisted and a success notification is shown
+      source_ac_ref: AC-2  # AC-2 and AC-3 MERGED into this single canonical AC
+    - id: AC-003
+      given: An authenticated user views the department field
+      when: they attempt to modify it
+      then: the field is disabled or read-only and cannot be changed
+      source_ac_ref: AC-2
+  source_ac_coverage:
+    - source_ac_id: AC-1
+      disposition: PRESERVED
+      canonical_ac_ids: [AC-001]
+    - source_ac_id: AC-2
+      disposition: SPLIT
+      canonical_ac_ids: [AC-002, AC-003]
+    - source_ac_id: AC-3
+      disposition: MERGED
+      canonical_ac_ids: [AC-002]
+      # AC-3 (success notification + persistence) MERGED into AC-002 which covers both
+
+expected_validation: PASS
+validation_result: >
+  All 3 source ACs are accounted for in source_ac_coverage.
+  Dispositions are PRESERVED, SPLIT, MERGED — all valid.
+  canonical_ac_ids are populated for all non-NOT_APPLICABLE entries.
+  No TRACEABILITY_ERROR.

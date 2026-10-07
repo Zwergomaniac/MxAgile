@@ -1,0 +1,72 @@
+# Fixture K: Scope expansion — EXTEND action
+# Scenario: Existing TC/PP/VPL/evidence are valid for prior scope.
+# Product scope expands. New acceptance criteria added for new scope.
+# Prior proof points must be preserved. Only new PPs are added.
+#
+# Expected: EXTEND action
+#   TC: unchanged active — prior PPs preserved; new PPs appended
+#   PP: prior PPs unchanged; new PPs created for expanded scope
+#   VPL: prior VPL entries preserved; new VPL entries added after implementation stable
+#   Evidence: prior evidence valid and preserved; new evidence required only for new PPs
+#   DECISION_REQUIRED: must NOT be raised for unambiguous new scope
+
+scenario: extend_scope_expansion
+change_description: >
+  REQ-042 (search feature) had 2 acceptance criteria covering basic search.
+  Product scope expands: a third AC is added for advanced filter functionality.
+  The existing TC-009 covers PP-001 (basic search visible) and PP-002 (search returns results).
+  PP-001 and PP-002 remain semantically unchanged. A new PP-003 is needed for the filter.
+
+prior_state:
+  req_id: REQ-042
+  req_status: accepted
+  prior_ac_count: 2
+  tc_id: TC-009
+  tc_status: active
+  pp_count: 2
+  pp_001_claim: "Basic search input is visible and enabled for all authenticated users"
+  pp_001_status: active
+  pp_002_claim: "Submitting search returns filtered results matching the query"
+  pp_002_status: active
+  vpl_id: VPL-009
+  vpl_status: active
+  evidence_status: valid
+
+change:
+  type: scope_expansion
+  new_ac_id: AC-003
+  new_ac_description: >
+    Advanced filter panel is accessible, allows multi-criteria filtering,
+    and results update without full page reload.
+  prior_scope_affected: false  # PP-001 and PP-002 claims are unchanged
+
+expected:
+  action: extend
+  tc_action: extend         # TC status remains active; new PP appended
+  tc_status_after: active   # prior scope unchanged
+  pp_action: extend         # prior PPs preserved unchanged; new PP-003 appended
+  prior_pp_001_action: preserve
+  prior_pp_002_action: preserve
+  new_pp_appended: PP-003
+  vpl_action: extend        # prior VPL entries preserved; new entry deferred until impl stable
+  prior_vpl_entries: preserved
+  evidence_action: preserve_prior  # prior evidence remains valid
+  new_evidence_required: true       # but only for PP-003
+  DECISION_REQUIRED: must NOT be raised for unambiguous scope addition
+
+invariants:
+  - PP-001 claim must NOT change
+  - PP-002 claim must NOT change
+  - PP-001 and PP-002 evidence must NOT be invalidated
+  - PP-001 and PP-002 must NOT be reexecuted due to scope expansion alone
+  - Prior VPL entries for PP-001 and PP-002 must NOT be superseded
+  - PP-003 materialization deferred until implementation is stable
+  - TC status remains active (not stale, not impacted)
+
+extend_is_NOT_reassess: >
+  EXTEND preserves all prior intent; REASSESS means prior intent must be reconsidered.
+  In this scenario, PP-001 and PP-002 are NOT reassessed — only PP-003 is new.
+
+extend_is_NOT_rematerialize: >
+  EXTEND adds new scope; REMATERIALIZE refreshes binding for unchanged claim.
+  In this scenario, the new AC is new scope, not a locator/binding change.

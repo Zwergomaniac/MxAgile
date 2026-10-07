@@ -1,0 +1,60 @@
+# Fixture: Structured access dimensions on proof points
+# Synthetic fixture — no real project data.
+# Uses generic role names (ROLE-A, ROLE-B, ROLE-C) — no real project roles.
+
+scenario: structured_access_semantics
+description: >
+  Three roles demonstrate distinct access dimension profiles:
+  ROLE-A = READ only, ROLE-B = WRITE authority, ROLE-C = NAVIGATE without mutation.
+
+proof_points:
+  - id: PP-SAM-001
+    role: ROLE-A
+    claim: ROLE-A can view record details but cannot modify or delete them
+    access_dimensions: [READ]
+    authorization_disposition: REQUIRED
+    operation: READ
+    note: READ only — no WRITE or MANAGE
+
+  - id: PP-SAM-002
+    role: ROLE-B
+    claim: ROLE-B can create and modify records in the domain
+    access_dimensions: [READ, WRITE]
+    authorization_disposition: REQUIRED
+    note: WRITE implies READ here; both recorded explicitly per inference prohibition
+
+  - id: PP-SAM-003
+    role: ROLE-C
+    claim: ROLE-C can navigate to the overview screen but cannot submit any forms
+    access_dimensions: [VISIBLE, NAVIGABLE]
+    authorization_disposition: UNSPECIFIED
+    operation: null
+    note: >
+      NAVIGABLE without WRITE — role can browse but has no mutation authority.
+      This is distinct from READ (data read) and from WRITE (mutation authority).
+      VISIBLE+NAVIGABLE without READ means the role can access the UI shell
+      but data content may be restricted by a separate READ-level authorization check.
+
+  - id: PP-SAM-004
+    role: ROLE-A
+    claim: Authentication flows are handled by the platform module and not tested at application level
+    access_dimensions: [PLATFORM_OWNED]
+    authorization_disposition: UNSPECIFIED
+    note: >
+      PLATFORM_OWNED means this access concern is out of scope for MxAgile TC.
+      Explicitly recorded rather than silently omitted.
+
+validation_rules:
+  - PP-SAM-001 access_dimensions must contain READ only (no WRITE, no MANAGE)
+  - PP-SAM-002 access_dimensions must contain both READ and WRITE
+  - PP-SAM-003 access_dimensions must contain VISIBLE and NAVIGABLE but NOT WRITE
+  - PP-SAM-004 access_dimensions must contain PLATFORM_OWNED
+
+backward_compatibility: >
+  Existing proof points without access_dimensions remain valid.
+  access_dimensions is optional — its absence does not invalidate a proof point.
+
+organization_neutrality: >
+  ROLE-A, ROLE-B, ROLE-C are synthetic generic role identifiers.
+  No real project role names are used. Role names are entirely synthetic.
+  The access_dimensions vocabulary is organization-independent.

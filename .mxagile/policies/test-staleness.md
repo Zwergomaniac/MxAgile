@@ -58,10 +58,24 @@ Full definitions: `policies/verification-materialization.md`.
 | Action | TC status | PP status | VPL action | Evidence action |
 |---|---|---|---|---|
 | PRESERVE | unchanged `active` | unchanged | unchanged | reuse |
+| EXTEND | unchanged `active`; new PPs appended | prior PPs unchanged; new PPs `active` | prior VPL unchanged; new VPL entries added | prior evidence valid; new evidence required for new PPs only |
 | REASSESS | → `stale` or `impacted` | → per-PP `stale` if claim outdated | supersede; regenerate from updated TC | `STALE` — reexecute |
 | REMATERIALIZE | unchanged `active` | unchanged; set `execution_binding_stale: true` | refresh layer assignments only | `STALE_REEXECUTION_REQUIRED` — reexecute |
 | REEXECUTE | unchanged `active` | unchanged `active` | unchanged | `STALE_REEXECUTION_REQUIRED` — reexecute without test rewrite |
 | INVALIDATE | → `superseded` | → `stale` or `deferred` | → `superseded` | historical record |
+
+**Key distinction — EXTEND vs REASSESS:**
+
+EXTEND applies when prior verification scope is confirmed valid AND product scope grows additively.
+New PPs are added; existing PPs are NOT reconsidered. TC status remains `active`.
+
+REASSESS applies when existing PP CLAIMS must be reconsidered — AC changed, business rule changed,
+role permission contract changed.
+
+If existing PPs are unaffected but new scope requires new PPs: use EXTEND.
+If any existing PP claim must change: use REASSESS for those PPs (may co-exist with EXTEND for unaffected scope).
+
+EXTEND does NOT affect existing PP/VPL/evidence. EXTEND does NOT require DECISION_REQUIRED when new scope is unambiguous.
 
 **Key distinction — REMATERIALIZE vs REASSESS:**
 

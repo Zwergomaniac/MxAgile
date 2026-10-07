@@ -89,6 +89,41 @@ Result:
 - Executable test: reuse
 - Evidence: reuse
 
+### EXTEND
+
+Existing verification intent is preserved AND new verification intent is added for
+expanded scope.
+
+Applies when:
+- An existing Requirement is expanded with new acceptance criteria
+- Product scope grows in a domain where an active TC already exists
+- The existing TC/PP/VPL/evidence for prior scope remains fully valid
+- New proof points are required only for the new/expanded scope
+
+This is distinct from REASSESS: the existing TC claim is NOT reconsidered; it is preserved
+exactly as-is. Only additive new proof points are introduced.
+
+EXTEND must NOT:
+- Invalidate existing PP/VPL/evidence for unaffected prior scope
+- Rebuild or rematerialize prior executable tests
+- Rerun prior proof points
+- Change existing TC status if prior scope is unaffected
+
+Result:
+- TC: add new proof points for expanded scope; prior PPs unchanged; TC status remains `active`
+- PP: existing PPs unchanged and at current status; new PPs appended for new scope
+- VPL: existing VPL entries preserved; new VPL entries generated for new PPs when implementation is stable
+- Executable test: prior tests unchanged; new tests generated only for new PPs
+- Evidence: prior evidence preserved and valid; new evidence required only for new PPs
+
+Key distinction — EXTEND vs REASSESS:
+
+EXTEND applies when prior scope is confirmed valid and scope grows additively.
+REASSESS applies when prior verification INTENT itself must be reconsidered.
+If any existing PP claim must change, use REASSESS for the affected PPs (may co-exist with EXTEND for unaffected PPs).
+
+EXTEND does NOT require DECISION_REQUIRED if the new scope is unambiguous.
+
 ### REASSESS
 
 Verification INTENT must be reconsidered.
@@ -169,7 +204,8 @@ REASSESS and INVALIDATE is unclear.
 | Locator change (widget rename) | preserve | preserve `+` execution_binding_stale | rematerialize | reexecute |
 | Navigation change (same screens, new routes) | preserve | preserve `+` execution_binding_stale | rematerialize | reexecute |
 | Implementation refactor (same observable behavior) | preserve | preserve | preserve | reexecute |
-| New acceptance criterion | reassess | reassess (new PP) | regenerate | stale |
+| New acceptance criterion — prior scope valid | extend | extend (new PP appended; prior PPs unchanged) | extend (new VPL entries only) | prior evidence valid; new evidence for new PPs |
+| New acceptance criterion — prior intent affected | reassess | reassess (affected PPs) | regenerate affected | stale for affected PPs |
 | Business rule change | reassess | reassess | regenerate | stale |
 | Role permission change | reassess | reassess affected | regenerate | stale |
 | Feature removed from scope | invalidate | invalidate | supersede | historical |
@@ -235,9 +271,26 @@ FOR each PP in TC:
     → Normal VPL creation
 ```
 
+## Verification Gap Taxonomy
+
+Before applying an impact action, classify why verification is insufficient using:
+
+`policies/verification-gap-taxonomy.md`
+
+| Gap type | Applicable action(s) |
+|---|---|
+| `NO_TC_YET` | No action — defer until Requirement is accepted and Testability Gate passes |
+| `VERIFICATION_COVERAGE_GAP` | EXTEND — add new PPs to existing TC for expanded scope |
+| `TEST_BINDING_GAP` | REMATERIALIZE — refresh VPL/locators; PP claim unchanged |
+| `EVIDENCE_STALE` | REEXECUTE — rerun without rewriting tests |
+
+A new Requirement classified as `NO_TC_YET` does NOT automatically trigger TC/PP/VPL/
+executable test / Evidence creation. Premature materialization against a DRAFT or
+not-yet-stable Requirement is test-harness churn.
+
 ## Relationship to Test Staleness Policy
 
-This policy defines the impact ACTION vocabulary (PRESERVE/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE).
+This policy defines the impact ACTION vocabulary (PRESERVE/EXTEND/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE).
 
 `policies/test-staleness.md` defines the TC/PP STATUS vocabulary (active/stale/impacted/superseded)
 and how each revision impact action maps to artifact statuses.

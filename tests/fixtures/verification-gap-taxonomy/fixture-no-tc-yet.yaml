@@ -1,0 +1,42 @@
+# Fixture: NO_TC_YET — new requirement, no TC in this domain
+# Verifies: NO_TC_YET does NOT trigger automatic TC/PP/VPL/test/evidence creation
+#
+# Synthetic fixture — no real project data.
+
+scenario: no_tc_yet_no_cascade
+description: >
+  A new Requirement REQ-NEW-001 is created for a domain (reporting module) where no
+  Test Contract currently exists. The Requirement is in DRAFT status with accepted ACs.
+  Classification: NO_TC_YET.
+
+requirement:
+  id: REQ-NEW-001
+  title: Generate monthly summary report
+  status: draft
+  domain: reporting_module
+  acceptance_criteria:
+    - id: AC-001
+      given: A user with REPORT_VIEWER role is authenticated
+      when: they navigate to the Reports section
+      then: they see the Generate Monthly Summary button
+
+verification_gap:
+  classification: NO_TC_YET
+  reason: No Test Contract currently covers the reporting_module domain.
+
+expected_NO_automatic_creation:
+  tc_created: false          # NO_TC_YET does NOT create a TC
+  pp_created: false          # NO_TC_YET does NOT create proof points
+  vpl_created: false         # NO_TC_YET does NOT create a VPL
+  executable_test_created: false   # NO_TC_YET does NOT generate Playwright steps
+  evidence_collected: false  # NO_TC_YET does NOT collect evidence
+
+deferred_until:
+  - requirement status transitions to accepted
+  - testability gate passes
+  - implementation is sufficiently stable
+
+note: >
+  NO_TC_YET is a diagnostic classification, not an execution trigger.
+  Recording NO_TC_YET in the story specification is the correct action.
+  TC materialization is deferred to post-acceptance/post-gate.

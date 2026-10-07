@@ -339,6 +339,55 @@ melden. Fehlende Geschaeftsentscheidungen NICHT still erfinden.
 
 ---
 
+## Active Target Invariant Validator
+
+Beim Lifecycle-Re-Sync, pruefe fuer jede Mockup-Bundle unter `planning/target-mockups/`:
+
+**Invariante:** Genau EINE Revision pro Mockup-Bundle darf `active_target: true` haben.
+
+### Erkennungsregeln (unterbrechungssichere Validierung)
+
+Alle `_history/REV-NNN/revision.yaml` Dateien eines Mockup-Bundles lesen.
+
+| Bedingung | Klassifikation | Aktion |
+|---|---|---|
+| Genau eine Revision hat `active_target: true` | VALID | Normal fortfahren |
+| Keine Revision hat `active_target: true` | INVALID_ZERO_ACTIVE | Melden als ACTIVE_TARGET_MISSING; Gate blockieren |
+| Mehr als eine Revision hat `active_target: true` | INVALID_DOUBLE_ACTIVE | Melden als ACTIVE_TARGET_DUPLICATE; Gate blockieren |
+| `lifecycle_status: REFINED_TARGET` aber `active_target: false` | INTERRUPTED_TRANSITION | Unterbrochener Akzeptanzuebergang erkannt; Reparatur erforderlich |
+| `refinement_status: ACCEPTED` aber kein `active_target: true` irgendwo | INTERRUPTED_ACCEPTANCE | Akzeptanz ohne active_target-Aktivierung; Re-Sync erforderlich |
+
+### Interruption-Safe Re-Sync
+
+Wenn ein INTERRUPTED_TRANSITION oder INTERRUPTED_ACCEPTANCE erkannt wird:
+
+1. Den ACCEPTED-Revision-Eintrag aus dem Ledger (`revision_history[].status: ACTIVE_TARGET`) identifizieren.
+2. Wenn eine Revision `refinement_status: ACCEPTED` hat und keine andere `active_target: true`:
+   → Kandidatenrevision fuer `active_target: true` ist die juengste ACCEPTED Revision.
+3. Re-Sync darf `active_target` NICHT still setzen ohne explizite Entwicklerbestaetigung.
+   → Als INTERRUPTED_TRANSITION melden mit konkretem Reparaturvorschlag.
+4. Andere Lifecycle-Arbeit kann trotzdem fortgefuehrt werden — ein unterbrochener Uebergang
+   blockiert nicht-betroffene Requirements/Specs/Tasks.
+
+### Konsistenzregeln (Kreuzpruefung)
+
+| Feld | Erlaubte Kombination |
+|---|---|
+| `lifecycle_status: REFINED_TARGET` | Muss `active_target: true` haben (ODER Uebergangsstatus) |
+| `lifecycle_status: SUPERSEDED_TARGET` | Muss `active_target: false` haben |
+| `lifecycle_status: SOURCE` und neueste Revision | Darf `active_target: true` haben (kein Refinement stattgefunden) |
+| `refinement_status: REJECTED` | Muss `active_target: false` haben |
+| `refinement_status: PROPOSED` | Muss `active_target: false` haben |
+
+**Keine Transaktionsinfrastruktur benoetigt.** Ein einfacher Validator der diese Pruefungen
+beim Lifecycle-Re-Sync ausfuehrt ist ausreichend — er erkennt unterbrochene Uebergaenge
+zuverlaessig, weil die revision.yaml-Dateien append-only/immutable sind.
+
+Vollstaendiger Schema-Vertrag: `.mxagile/schemas/revision.schema.json`
+Lifecycle-Regeln: `.mxagile/policies/mockup-lifecycle.md`
+
+---
+
 ## Runtime-Zustand ist Transient
 
 Die lokale Runtime (`mxcli run --local`, im interaktiven Modus mit `--watch` oder

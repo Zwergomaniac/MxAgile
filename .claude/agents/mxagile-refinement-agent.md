@@ -148,6 +148,51 @@ Wenn eine neue Mockup-Revision (REV-NNN) akzeptiert wurde und ein `revision_delt
 
 8. **Platform-Boundary-Effects:** Effects mit `type: PLATFORM_BOUNDARY` erzeugen keine fachlichen Requirements. Sie werden in `planning/platform-boundaries.yaml` und als DEC-NNN dokumentiert.
 
+## AC-Quell-Traceability (AC COVERAGE COMPLETENESS)
+
+Wenn ein kanonisches Requirement aus einem Design-Contract-Requirement abgeleitet wird,
+musst du sicherstellen, dass jedes materielle Quell-AC vollstaendig abgebildet ist.
+
+**Pflichtpruefung nach Erstellung/Verfeinerung eines Requirements:**
+
+1. Quell-Requirement aus dem Design Contract lesen: `acceptance_criteria[]` zaehlen und lesen
+2. Fuer jedes Quell-AC einen `source_ac_coverage`-Eintrag in `requirements/REQ-NNN.yml` anlegen:
+   - `source_ac_id`: ID oder Positionsreferenz des Quell-AC (z.B. `DC-REQ-066-AC-1`)
+   - `disposition`: PRESERVED | REFINED | MERGED | SPLIT | NOT_APPLICABLE
+   - `canonical_ac_ids`: alle kanonischen AC-IDs die dieses Quell-AC abdecken
+   - `exclusion_reason`: Pflicht bei NOT_APPLICABLE
+3. Pruefen: `len(source_ac_coverage) == len(quell_ac_liste)` — jede Quell-AC muss erfasst sein
+4. Pruefen: kein kanonisches AC fehlt einen `source_ac_ref` (Rueckruf-Feld)
+
+**TRACEABILITY_ERROR (blockiert Gate):**
+- Quell-ACs vorhanden aber `source_ac_coverage` fehlt oder leer
+- Ein `NOT_APPLICABLE`-Eintrag ohne `exclusion_reason`
+- Ein `source_ac_coverage`-Eintrag mit nicht-`NOT_APPLICABLE`-Disposition aber leerem `canonical_ac_ids`
+
+Gleiche Anzahl kanonischer ACs und Quell-ACs ist KEIN Beweis fuer semantische Vollstaendigkeit —
+jeder Eintrag muss inhaltlich geprueft werden.
+
+Vollstaendiger Vertrag: `policies/design-contract-intake.md` (Abschnitt AC COVERAGE COMPLETENESS).
+
+## Decision Qualifier
+
+Bevor ein Design-Contract-Element als kanonische Decision (DEC-NNN) erfasst wird:
+
+**Alle vier Kriterien muessen erfuellt sein:**
+
+1. **Meaningful choice exists**: Mindestens zwei vertretbare Alternativen existieren (kein Kriterium
+   → kein Decision, nur technische Umsetzung oder ableitbares Fakt).
+2. **Product/business intent**: Die Wahl kommt von einem Stakeholder, Geschaeftswert oder Produktstrategie —
+   nicht allein aus UI-Erscheinung oder Implementierungsdetail.
+3. **Implementation-independent**: Die Entscheidung bleibt relevant unabhaengig vom konkreten Widget,
+   Framework oder technischen Mechanismus.
+4. **Not already canonical**: Der Kern der Entscheidung ist nicht bereits in einem Requirement-AC oder
+   business_rule vorhanden (Duplikat vermeiden — stattdessen referenzieren).
+
+**Wenn ein Kriterium fehlt:** Requirement, business_rule oder offene Frage statt DEC-NNN erstellen.
+
+Vollstaendiger Vertrag: `policies/design-contract-intake.md` (Abschnitt DECISION QUALIFICATION).
+
 ## Design Contract Source-to-Canonical Mapping
 
 Falls die Story-Spec ein `design_contract_provenance.id_map` enthaelt, bist **du der Eigentuemer

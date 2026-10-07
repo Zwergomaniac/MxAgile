@@ -1,0 +1,74 @@
+# Fixture: TEST_BINDING_GAP — TC/PP exist but executable binding is absent
+# Also covers: EVIDENCE_STALE distinction
+#
+# Synthetic fixture — no real project data.
+
+scenario: test_binding_gap_no_vpl
+description: >
+  TC-008 and PP-001/PP-002 are active and cover REQ-DASHBOARD-001.
+  The implementation became stable. No VPL has been created yet.
+  Classification: TEST_BINDING_GAP — intent exists, binding is missing.
+
+tc_state:
+  tc_id: TC-008
+  tc_status: active
+  pp_001_status: active
+  pp_001_claim: Dashboard widget loads data within 2s for ADMIN role
+  pp_002_status: active
+  pp_002_claim: Dashboard shows error message when data source is unavailable
+
+binding_state:
+  vpl_exists: false
+  playwright_steps_exist: false
+  locators_defined: false
+
+verification_gap:
+  classification: TEST_BINDING_GAP
+  reason: TC-009 and PP claims are stable. No VPL has been materialized.
+
+expected:
+  action: REMATERIALIZE  # binding missing — create VPL, not reassess TC
+  tc_action: preserve    # TC intent is valid; do NOT reassess
+  pp_action: preserve    # PP claims are valid; do NOT change
+  vpl_action: materialize  # create VPL from stable TC/PP
+  tc_status_unchanged: active
+
+not_reassess: >
+  TEST_BINDING_GAP does NOT trigger REASSESS.
+  The PP CLAIM is valid. Only the technical execution binding is missing.
+
+not_no_tc_yet: >
+  TEST_BINDING_GAP is NOT NO_TC_YET — TC and PP exist.
+  The gap is in the executable binding layer only.
+
+---
+# Separate sub-fixture: EVIDENCE_STALE vs TEST_BINDING_GAP distinction
+
+scenario: evidence_stale_vs_binding_gap
+description: >
+  Same TC-008, same PP-001/PP-002, now VPL-008 exists and locators are valid.
+  Implementation was updated in the latest wave. Evidence is from prior wave.
+  Classification: EVIDENCE_STALE — binding is valid, evidence is outdated.
+
+tc_state_2:
+  tc_id: TC-008
+  tc_status: active
+  pp_001_execution_binding_stale: false  # locators are current
+  vpl_exists: true
+  vpl_status: active
+  evidence_status: STALE_REEXECUTION_REQUIRED
+
+verification_gap_2:
+  classification: EVIDENCE_STALE
+  reason: VPL and binding are valid but evidence was produced against a prior implementation.
+
+expected_2:
+  action: REEXECUTE
+  tc_action: preserve     # TC unchanged
+  pp_action: preserve     # PP unchanged
+  vpl_action: preserve    # VPL unchanged
+  evidence_action: reexecute  # rerun without rewriting test definition
+
+distinction:
+  TEST_BINDING_GAP: binding or VPL is missing/stale — materialize or rematerialize
+  EVIDENCE_STALE: binding is valid — rerun existing tests; do not rewrite

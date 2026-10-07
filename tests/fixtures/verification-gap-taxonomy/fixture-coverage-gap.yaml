@@ -1,0 +1,50 @@
+# Fixture: VERIFICATION_COVERAGE_GAP — existing TC covers domain but not new scope
+# Verifies: VERIFICATION_COVERAGE_GAP suggests EXTEND, not a new TC from scratch
+#
+# Synthetic fixture — no real project data.
+
+scenario: verification_coverage_gap_extend_candidate
+description: >
+  Requirement REQ-SEARCH-001 (basic search) is covered by TC-005.
+  A new Requirement REQ-FILTER-001 (advanced filtering within same search domain) is accepted.
+  TC-005 covers search but does not cover the new filter AC.
+  Classification: VERIFICATION_COVERAGE_GAP — existing TC partially covers the domain.
+
+existing_coverage:
+  tc_id: TC-005
+  tc_status: active
+  tc_title: Basic search contract
+  covers_domain: search_and_filter_module
+  pp_count: 2
+  pp_001_claim: Search input visible for authenticated users
+  pp_002_claim: Search returns matching results
+
+new_requirement:
+  id: REQ-FILTER-001
+  title: Advanced filter panel
+  status: accepted
+  domain: search_and_filter_module  # same domain as TC-005
+  new_ac:
+    id: AC-001
+    given: A user with FILTER_USER role navigates to search
+    when: they expand the Advanced Filters panel
+    then: multi-criteria filter fields are visible and functional
+
+verification_gap:
+  classification: VERIFICATION_COVERAGE_GAP
+  reason: TC-005 covers the search domain but does not include filter panel ACs.
+  related_tc_id: TC-005
+
+expected:
+  action: EXTEND_CANDIDATE  # not a new TC — EXTEND TC-005 with new PP
+  new_tc_created: false      # VERIFICATION_COVERAGE_GAP does NOT automatically create a new TC
+  extend_existing_tc: true   # TC-005 is the natural home for filter proof points
+  prior_pp_affected: false   # PP-001 and PP-002 are unchanged
+
+not_no_tc_yet: >
+  This is NOT NO_TC_YET because TC-005 exists for the same domain.
+  VERIFICATION_COVERAGE_GAP is correct when a TC partially covers the domain.
+
+not_reassess: >
+  This is NOT REASSESS because prior PP claims are unchanged.
+  EXTEND (not REASSESS) is the appropriate action.

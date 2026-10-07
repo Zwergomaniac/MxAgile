@@ -1,0 +1,48 @@
+# Fixture: Interrupted active_target transition
+# Scenario: Acceptance was partially applied — new revision marked ACCEPTED,
+# but active_target was NOT set to true. Old revision still has active_target: false
+# (was cleared first in an interrupted transaction).
+#
+# Expected: INTERRUPTED_TRANSITION detected; validator must NOT silently accept this state.
+# Synthetic fixture — no real project data.
+
+scenario: interrupted_acceptance_transition
+description: >
+  A two-step acceptance transition was interrupted between steps.
+  Step 1 completed: old REV-001 active_target set to false.
+  Step 2 NOT completed: new REV-002 active_target NOT set to true.
+  Result: zero active targets — invariant violated.
+
+bundle:
+  mockup_name: feature-overview
+  revisions:
+    - revision_id: REV-001
+      lifecycle_status: SOURCE
+      refinement_status: ACCEPTED
+      active_target: false    # was true; set to false in step 1 of interrupted transition
+      revision: 1
+
+    - revision_id: REV-002
+      lifecycle_status: REFINED_TARGET
+      refinement_status: ACCEPTED
+      active_target: false    # should be true after step 2 — NEVER SET (interrupted)
+      revision: 2
+      acceptance_decisions: [DEC-007]
+
+active_target_true_count: 0   # invariant violation: should be exactly 1
+
+expected_detection:
+  state: INTERRUPTED_TRANSITION
+  active_target_count: 0
+  violates_invariant: true
+  candidate_for_repair: REV-002  # most recent ACCEPTED revision is the repair candidate
+
+repair_proposal: >
+  The Lifecycle Re-Sync validator should detect: lifecycle_status REFINED_TARGET +
+  refinement_status ACCEPTED but active_target false while no other revision is true.
+  Proposed repair: set REV-002 active_target to true — but ONLY after explicit developer confirmation.
+
+resync_behavior: >
+  The validator reports INTERRUPTED_TRANSITION with the repair candidate.
+  It does NOT silently repair. Other lifecycle work (Requirements, Specs, Tasks)
+  that does not depend on the active_target state may continue.

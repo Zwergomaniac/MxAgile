@@ -1,0 +1,46 @@
+# Fixture: Inconsistent lifecycle_status/active_target combination
+# Scenario: revision has lifecycle_status REFINED_TARGET but active_target: false
+# while another revision has lifecycle_status SOURCE with active_target: false.
+# Zero active targets detected.
+#
+# Synthetic fixture — no real project data.
+
+scenario: inconsistent_refined_target_not_active
+description: >
+  REV-001 was the source. REV-002 was accepted as REFINED_TARGET.
+  But active_target was never set to true on REV-002.
+  Both revisions have active_target: false.
+  This is inconsistent: REFINED_TARGET must have active_target: true.
+
+bundle:
+  mockup_name: dashboard-overview
+  revisions:
+    - revision_id: REV-001
+      lifecycle_status: SOURCE
+      refinement_status: ACCEPTED
+      active_target: false
+      revision: 1
+
+    - revision_id: REV-002
+      lifecycle_status: REFINED_TARGET   # claims to be active target
+      refinement_status: ACCEPTED
+      active_target: false               # but this field says it's NOT active
+      revision: 2
+
+active_target_true_count: 0
+lifecycle_status_refined_target_count: 1
+
+expected_detection:
+  state: INTERRUPTED_ACCEPTANCE
+  inconsistency: REFINED_TARGET revision has active_target false
+  violates_invariant: true
+
+consistency_rule: >
+  If lifecycle_status == REFINED_TARGET then active_target must be true.
+  This combination (REFINED_TARGET + active_target: false) is only valid
+  during an atomic transition — never in a stable state.
+
+validator_output: >
+  ACTIVE_TARGET_INCONSISTENT: REV-002 has lifecycle_status REFINED_TARGET
+  but active_target: false. This indicates an interrupted acceptance transition.
+  Proposed: set active_target: true on REV-002 (developer confirmation required).

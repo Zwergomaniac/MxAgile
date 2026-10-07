@@ -1,0 +1,71 @@
+# Fixture: Missing AC coverage — source AC silently dropped
+# Expected: TRACEABILITY_ERROR (fails validation)
+#
+# Synthetic fixture — no real project data.
+
+scenario: ac_coverage_missing_traceability_error
+description: >
+  Source Design Contract requirement has 4 ACs.
+  Canonical requirement only covers 3. One source AC (AC-4) is silently dropped.
+  source_ac_coverage has only 3 entries — AC-4 is unaccounted for.
+  This is the REV-014 regression scenario: equal counts do not prove coverage.
+
+source_requirement:
+  id: REQ-DC-002
+  title: Create site record
+  acceptance_criteria:
+    - id: AC-1
+      text: SITE_MANAGER can create a new site record from the Sites overview
+    - id: AC-2
+      text: Site name and location are required fields; saving without them shows validation errors
+    - id: AC-3
+      text: After creation, the new site appears in the Sites list
+    - id: AC-4
+      text: READ_ONLY role cannot access the Create Site button
+
+canonical_requirement:
+  ID: REQ-055
+  title: Site record creation
+  status: accepted
+  acceptance_criteria:
+    - id: AC-001
+      given: A SITE_MANAGER user views the Sites overview
+      when: they click Create New Site
+      then: a creation form is presented
+      source_ac_ref: AC-1
+    - id: AC-002
+      given: A SITE_MANAGER user has an incomplete site creation form
+      when: they click Save without filling required fields
+      then: validation errors are shown for Site name and Location
+      source_ac_ref: AC-2
+    - id: AC-003
+      given: A SITE_MANAGER user successfully creates a site
+      when: the site is saved
+      then: the new site appears in the Sites overview list
+      source_ac_ref: AC-3
+  # AC-4 (READ_ONLY cannot access Create button) is MISSING from both AC list and coverage
+  source_ac_coverage:
+    - source_ac_id: AC-1
+      disposition: PRESERVED
+      canonical_ac_ids: [AC-001]
+    - source_ac_id: AC-2
+      disposition: PRESERVED
+      canonical_ac_ids: [AC-002]
+    - source_ac_id: AC-3
+      disposition: PRESERVED
+      canonical_ac_ids: [AC-003]
+    # AC-4 is absent — TRACEABILITY_ERROR
+
+expected_validation: FAIL
+validation_error: TRACEABILITY_ERROR
+error_reason: >
+  Source AC-4 (READ_ONLY role cannot access Create Site button) has no
+  source_ac_coverage entry. A material source AC was silently dropped.
+  This is not detectable by AC count comparison alone (3 source covered, 1 missing).
+detection_method: >
+  len(source_ac_coverage) = 3 != len(source.acceptance_criteria) = 4
+  Missing: AC-4 — no entry with source_ac_id: AC-4 in coverage map.
+note: >
+  This is the REV-014 regression pattern: count-based AC matching would falsely pass
+  (3 canonical ACs for 3 covered source ACs) while the 4th source AC is lost.
+  The source_ac_coverage map detects this gap deterministically.

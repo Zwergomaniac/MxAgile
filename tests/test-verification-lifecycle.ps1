@@ -318,6 +318,29 @@ Assert-FileContains "J.7 verification-layers policy: VISIBILITY requires FRONTEN
 Assert-FileContains "J.8 bounded escalation: WRONG_EVIDENCE_LEVEL not applicable when FRONTEND genuinely required" $DefectPol "WRONG_EVIDENCE_LEVEL.*NOT a downgrade"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SCENARIO K: EXTEND — scope expansion with existing TC preserved
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "TEST K: Scope expansion causes EXTEND  - prior PPs preserved" -ForegroundColor Cyan
+
+Assert-FileExists "K.1 fixture K exists" (Join-Path $FixDir "fixture-K-extend.yaml")
+$fixK = Get-Content -LiteralPath (Join-Path $FixDir "fixture-K-extend.yaml") -Raw -ErrorAction SilentlyContinue
+Assert-True "K.2 fixture-K action is extend" ($fixK -match "action: extend")
+Assert-True "K.3 fixture-K tc_action is extend" ($fixK -match "tc_action: extend")
+Assert-True "K.4 fixture-K tc_status_after is active" ($fixK -match "tc_status_after: active")
+Assert-True "K.5 fixture-K pp_action is extend" ($fixK -match "pp_action: extend")
+Assert-True "K.6 fixture-K prior PP-001 preserved" ($fixK -match "prior_pp_001_action: preserve")
+Assert-True "K.7 fixture-K prior PP-002 preserved" ($fixK -match "prior_pp_002_action: preserve")
+Assert-True "K.8 fixture-K evidence_action preserves prior" ($fixK -match "evidence_action: preserve_prior")
+Assert-True "K.9 fixture-K DECISION_REQUIRED must NOT be raised" ($fixK -match "DECISION_REQUIRED: must NOT")
+Assert-True "K.10 fixture-K PP-001 claim must NOT change invariant" ($fixK -match "PP-001 claim must NOT change")
+Assert-FileContains "K.11 materialization policy defines EXTEND" $MatPol "### EXTEND"
+Assert-FileContains "K.12 test-staleness defines EXTEND" $StalePol "EXTEND"
+Assert-FileContains "K.13 EXTEND preserves existing PPs per materialization policy" $MatPol "existing PPs unchanged|prior PPs unchanged"
+Assert-FileContains "K.14 EXTEND TC remains active per test-staleness" $StalePol "prior PPs unchanged.*EXTEND|EXTEND.*prior PPs unchanged"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # GRAPH IMPACT MODEL
 # ─────────────────────────────────────────────────────────────────────────────
 

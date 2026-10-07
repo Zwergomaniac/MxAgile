@@ -239,6 +239,163 @@ design_contract_provenance:
       source_governs: [<source IDs>]       # optional; preserves source governance relationships
 ```
 
+## AC COVERAGE COMPLETENESS
+
+When creating or refining canonical Requirements from a Design Contract source, every
+acceptance criterion in the source requirement must be explicitly accounted for.
+
+This is a **semantic completeness guarantee** — counting canonical ACs is not sufficient.
+A source requirement with 4 ACs refined into 4 differently-worded canonical ACs may still
+lose material constraints if the refinement silently drops or distorts a single AC.
+
+**For every source requirement with acceptance_criteria[]:**
+
+1. For each source AC (identified by `id` or positional index), create a `source_ac_coverage`
+   entry in the canonical Requirement with the following disposition:
+
+   | Disposition | Meaning |
+   |---|---|
+   | `PRESERVED` | Source AC carried into canonical AC with no significant change. `canonical_ac_ids` must reference at least one canonical AC. |
+   | `REFINED` | Source AC substantially preserved but re-expressed. Semantic meaning retained. `canonical_ac_ids` must reference the refined canonical AC(s). |
+   | `MERGED` | Source AC combined with one or more other source ACs into a single canonical AC. `canonical_ac_ids` references the merged canonical AC. All merged source ACs must each have a `MERGED` entry pointing to the same canonical AC. |
+   | `SPLIT` | Source AC expressed as multiple canonical ACs. `canonical_ac_ids` references all resulting canonical ACs. |
+   | `NOT_APPLICABLE` | Source AC explicitly excluded. `exclusion_reason` is required and must explain why (e.g. scope boundary, platform ownership, already covered by another canonical artifact). |
+
+2. **Completeness invariant:** Every source AC that is not `NOT_APPLICABLE` must appear in at
+   least one canonical AC's `source_ac_ref` field AND must have a `source_ac_coverage` entry.
+
+3. **Detection rule:** A `source_ac_coverage` array whose length differs from the source
+   requirement's `acceptance_criteria` count is a coverage deficit signal. However, equal
+   counts do NOT guarantee coverage — each entry must be semantically verified.
+
+4. **Validation gate:** Before Refinement may accept a canonical Requirement as complete,
+   every source AC in the Design Contract must have a `source_ac_coverage` entry with a
+   non-null `disposition`. A missing or incomplete `source_ac_coverage` when the Requirement
+   was derived from a Design Contract is a `TRACEABILITY_ERROR`.
+
+5. **Backward compatibility:** Requirements without `source_ac_coverage` remain valid.
+   The field is required only when `source: native` and the Requirement was derived from a
+   Design Contract (i.e. `design_contract_provenance` is present in the parent story-spec).
+   Requirements with `source: migrated` or `source: legacy` are exempt.
+
+See `schemas/requirement.schema.json` for the `source_ac_coverage` field definition.
+
+## DECISION QUALIFICATION
+
+Not every observation in a Design Contract represents a canonical Decision. Promoting
+mockup observations and implementation wording into canonical Decisions without sufficient
+justification inflates the decision backlog and creates false DECISION REQUIRED blockers.
+
+**A Design Contract element should be promoted to a canonical Decision (DEC-NNN) if and only
+if ALL of the following criteria are satisfied:**
+
+1. **Meaningful choice exists between alternatives.**
+   There must be at least two viable alternatives that a product owner could reasonably choose.
+   If only one option makes sense given the constraints, it is not a decision — it is a
+   derivable fact.
+
+2. **Choice represents product/business/stakeholder intent.**
+   The choice must originate from a stakeholder preference, business rule, or product strategy —
+   not merely from the UI appearance or the technical implementation mechanism.
+   "Button is blue" is not a decision; "primary action uses the brand color" may be if a
+   meaningful alternative exists.
+
+3. **Choice is implementation-independent.**
+   The decision must remain meaningful independently of the concrete implementation
+   mechanism, widget, or framework. A choice that changes only the technical realization
+   without affecting observable behavior is implementation detail, not a canonical Decision.
+
+4. **Choice is not already expressed as a canonical Requirement or business rule.**
+   If the substance of the choice is already captured in a Requirement's acceptance criteria
+   or business_rules[], creating a separate Decision duplicates the canonical source.
+   Reference the existing Requirement instead.
+
+**Non-decision examples (do not promote):**
+
+- Widget selection: "We use a DataGrid here" — implementation detail
+- Cosmetic appearance derived from DS conventions: "Buttons follow Atlas style" — framework default
+- Behavior derivable from requirements: "Clicking Save validates first" — expressed in AC-003
+- Single-option constraint: "Admin can delete records" with no alternative — becomes a Requirement
+
+**Decision examples (promote):**
+
+- Data retention period: 30 days vs 90 days vs user-configurable — meaningful alternatives, product intent
+- Role can self-assign: YES vs NO with different access implications — stakeholder choice, implementation-independent
+- Multi-tenancy scope: per-center vs per-team — materially different architectures, product-driven
+
+**Checklist behavior:** Use this as a review boundary before creating DEC-NNN artifacts.
+When a Design Contract element satisfies fewer than all four criteria, record it as a
+Requirement, business rule, or open question instead.
+
+## STRUCTURED ACCESS SEMANTICS
+
+When a Design Contract's `can[]` or `cannot[]` lists express access with navigation/visibility
+semantics distinct from data authorization, structured `access_dimensions` may be recorded on
+the corresponding Test Contract proof points.
+
+**Access dimension vocabulary (organization-neutral):**
+
+| Dimension | Meaning |
+|---|---|
+| `VISIBLE` | Role can see the element/screen/data without necessarily being able to interact with it. |
+| `NAVIGABLE` | Role can navigate to the screen/element without mutation authority — read-only navigation. |
+| `READ` | Role can read/inspect data records. |
+| `WRITE` | Role can create or modify records. |
+| `MANAGE` | Role has administrative or lifecycle-control authority over a resource. |
+| `PLATFORM_OWNED` | Access governed by an external platform module — not tested at application level; out of scope for TC. |
+
+**Usage rules:**
+
+- `access_dimensions` is OPTIONAL on proof points. Absent means "not structured."
+- Multiple dimensions may apply to one proof point.
+- `NAVIGABLE` without `WRITE` represents a read-only navigation claim — distinct from `WRITE`.
+- `PLATFORM_OWNED` means the access concern is excluded from MxAgile TC scope; record the
+  exclusion explicitly rather than silently omitting the proof point.
+- Do not encode company-specific or project-specific role names in dimension names.
+- Backward compatible — existing proof points without `access_dimensions` remain valid.
+
+See `schemas/test-contract.schema.json` for the `access_dimensions` field definition.
+
+## CANONICAL ID DISCOVERY
+
+Before allocating new canonical IDs (REQ-NNN, DEC-NNN, etc.) during Refinement, the
+occupied ID space must be derived deterministically from canonical artifacts — not from
+memory, manual counters, or an independent registry.
+
+**Authoritative ID discovery algorithm:**
+
+```
+Occupied REQ IDs: scan requirements/*.yml, extract ID fields
+Occupied DEC IDs: scan planning/decisions/DEC-NNN.md and planning/decisions/DEC-NNN.yml files
+Occupied TC IDs:  scan planning/test-contracts/TC-NNN.yaml, extract ID fields
+Occupied VPL IDs: scan planning/verification-plans/VPL-NNN.yaml
+```
+
+If `scripts/build_artifact_index.py` is available and the graph state is READY, query:
+`python scripts/build_artifact_index.py` to obtain the artifact index — this is faster but
+not the authoritative source. The canonical artifact files are always authoritative.
+
+**Allocation rules:**
+
+1. The NEXT available ID is `MAX(occupied) + 1` for the namespace.
+2. IDs are NEVER recycled from deleted artifacts.
+3. A collision registry entry (`mapping_status: COLLISION`) does NOT allocate the new canonical
+   ID — it only records that one is needed. Allocation happens explicitly during Refinement.
+4. After allocation, verify that no existing canonical artifact in `requirements/`, `planning/`,
+   etc. already uses the allocated ID before writing the new artifact.
+5. An `id_map` entry pointing to a canonical ID that does not exist as a file is a
+   `TRACEABILITY_ERROR`.
+
+**Consistency validation (run before Refinement gate):**
+
+| Check | Pass condition |
+|---|---|
+| All `MAPPED` id_map entries resolve to real canonical artifacts | `canonical_id` file exists at expected path |
+| All `DIRECT` id_map entries have semantically confirmed identity | canonical artifact content confirms match |
+| No two `MAPPED`/`DIRECT` entries map to the same canonical ID | 1:1 canonical ID uniqueness |
+| No `COLLISION` entry has `canonical_id` populated before Refinement allocation | allocation only during Refinement |
+| After Refinement: no `PENDING` entry remains for material confirmed elements | all confirmed material elements dispositioned |
+
 ## INTAKE VALIDATION
 
 Before Discovery intake may report `COMPLETE`, validate all of the following:
@@ -251,6 +408,7 @@ Before Discovery intake may report `COMPLETE`, validate all of the following:
 6. No ID collision is silently treated as identity — all collisions have `mapping_status: COLLISION` in `id_map`.
 7. Source supersession chains are recorded in `id_map` as `source_superseded_by` entries.
 8. Prose alone is not the sole holder of a required source-to-canonical mapping.
+9. Every canonical Requirement derived from a Design Contract has a `source_ac_coverage` entry for every material source AC. Missing or incomplete `source_ac_coverage` when source ACs exist is a `TRACEABILITY_ERROR`. (See AC COVERAGE COMPLETENESS.)
 
 ## INTAKE RESULT SEMANTICS
 

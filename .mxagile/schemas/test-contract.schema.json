@@ -120,6 +120,14 @@
           },
           "description": "Security dimensions exercised by this proof point. Empty array for non-security proof points. See policies/verification-layers.md for dimension semantics."
         },
+        "access_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["VISIBLE", "NAVIGABLE", "READ", "WRITE", "MANAGE", "PLATFORM_OWNED"]
+          },
+          "description": "Optional structured access semantics this proof point exercises. Distinct from security_dimensions (which describe verification strategy) and authorization_disposition (which describes permissibility). VISIBLE: role can see the element/screen. NAVIGABLE: role can navigate to the element/screen without mutation authority. READ: role can read/inspect data. WRITE: role can create or modify records. MANAGE: role has administrative or lifecycle-control authority. PLATFORM_OWNED: access governed by platform module — not tested at application level. Multiple dimensions may apply. Backward compatible — may be absent. See policies/design-contract-intake.md STRUCTURED ACCESS SEMANTICS."
+        },
         "traceability": {
           "type": "object",
           "additionalProperties": false,
