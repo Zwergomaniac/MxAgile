@@ -1,5 +1,5 @@
 """
-MxAgile Provider-Neutral Knowledge Graph Capability (Phase 1d)
+MxAgile Provider-Neutral Knowledge Graph Capability (Phase 1d + Phase 3 enrichment)
 
 Implements the graph operations contract defined in docs/spikes/SPIKE-KG-BUSINESSFLOW.md.
 This module wraps the existing build_artifact_index.py / resolve_impact.py infrastructure
@@ -22,7 +22,16 @@ Provider selection is read from .mxagile/config.yaml:
   knowledge_graph:
     provider: artifact-index   # default
     # provider: none           # disables the graph entirely
-    # provider: graphify       # Phase 3 only — not implemented here
+
+Optional Graphify enrichment overlay (Phase 3):
+  enrichment_provider: graphify
+  graphify:
+    enabled: true
+    output_dir: graphify-out
+    local_only: true
+
+The enrichment overlay NEVER replaces or overrides canonical artifact-index results.
+Authority: CANONICAL (artifact-index) > EXTRACTED (Graphify AST) > INFERRED (Graphify LLM)
 
 Usage:
   from scripts.graph_capability import KnowledgeGraph
@@ -72,12 +81,20 @@ class KnowledgeGraph:
       canonical YAML traversal where possible.
     - Graph unavailability never raises exceptions in query/neighbors/affected —
       only build()/refresh() surface errors.
+
+    Enrichment overlay (Phase 3):
+    - When enrichment_provider=graphify and graphify.enabled=true, neighbors()
+      and affected() append Graphify-discovered edges/nodes after canonical results.
+    - Enrichment results are always tagged enrichment_only=True and carry a
+      'provenance' field (EXTRACTED or INFERRED).
+    - Enrichment NEVER overrides canonical results and NEVER blocks operations.
     """
 
     def __init__(self, project_root='.'):
-        self._root    = Path(project_root).resolve()
-        self._index   = None          # lazily loaded
-        self._state   = None          # cached state
+        self._root       = Path(project_root).resolve()
+        self._index      = None          # lazily loaded
+        self._state      = None          # cached state
+        self._enrichment = None          # lazily loaded GraphifyProvider
 
     # ------------------------------------------------------------------
     # Public API
@@ -148,6 +165,7 @@ class KnowledgeGraph:
         Keys: status, provider, last_built, node_count, edge_count,
               source_fingerprint, build_duration_s.
         Falls back to MISSING if state file does not exist.
+        Includes 'enrichment' sub-key when Graphify overlay is configured.
         """
         cfg = self._read_config()
         provider = cfg.get('knowledge_graph', {}).get('provider', 'artifact-index')
@@ -169,6 +187,15 @@ class KnowledgeGraph:
             state['status'] = STATE_STALE
 
         self._state = state
+
+        # Append enrichment provider status (never blocks)
+        ep = self._get_enrichment_provider()
+        if ep is not None:
+            try:
+                state['enrichment'] = ep.status()
+            except Exception:
+                state['enrichment'] = {'status': 'FAILED', 'error': 'enrichment status check failed'}
+
         return state
 
     def query(self, node_type=None, id_pattern=None, predicate=None):
@@ -241,7 +268,20 @@ class KnowledgeGraph:
                         'provenance': edge.get('provenance', {}),
                     })
 
-        return {'node_id': node_id, 'outgoing': outgoing, 'incoming': incoming}
+        result = {'node_id': node_id, 'outgoing': outgoing, 'incoming': incoming}
+
+        # Enrichment overlay: add Graphify-discovered neighbors (never overrides canonical)
+        ep = self._get_enrichment_provider()
+        if ep is not None:
+            try:
+                canonical_ids = {n['node']['id'] for n in outgoing + incoming}
+                overlay = ep.neighbors_overlay(node_id, canonical_neighbors=canonical_ids)
+                if overlay:
+                    result['enrichment'] = overlay
+            except Exception:
+                pass
+
+        return result
 
     def paths(self, from_id, to_id, max_depth=5):
         """
@@ -341,12 +381,25 @@ class KnowledgeGraph:
                     queue.append((next_id, dist + 1, path + [next_id]))
 
         affected_sorted = sorted(visited.values(), key=lambda x: x['distance'])
-        return {
+        result = {
             'changed':  list(changed_ids),
             'affected': affected_sorted,
             'warnings': warnings,
             'fallback': False,
         }
+
+        # Enrichment overlay: add Graphify-discovered affected candidates
+        ep = self._get_enrichment_provider()
+        if ep is not None:
+            try:
+                canonical_affected = {a['id'] for a in affected_sorted}
+                overlay = ep.affected_candidates(list(changed_ids), canonical_affected=canonical_affected)
+                if overlay:
+                    result['enrichment_affected'] = overlay
+            except Exception:
+                pass
+
+        return result
 
     def explain(self, from_id, to_id):
         """
@@ -478,6 +531,34 @@ class KnowledgeGraph:
         except Exception as e:
             print(f'[ERROR] build_artifact_index.py failed: {e}', file=sys.stderr)
             return False
+
+    def _get_enrichment_provider(self):
+        """
+        Lazily load the GraphifyProvider if enrichment is configured.
+        Returns None if enrichment_provider != 'graphify' or graphify.enabled=false.
+        Never raises — enrichment is always optional.
+        """
+        if self._enrichment is not None:
+            return self._enrichment
+
+        cfg = self._read_config()
+        if cfg.get('enrichment_provider') != 'graphify':
+            return None
+        if not cfg.get('graphify', {}).get('enabled', False):
+            return None
+
+        try:
+            provider_module = Path(__file__).parent / 'graphify_provider.py'
+            if not provider_module.exists():
+                return None
+            import importlib.util
+            spec = importlib.util.spec_from_file_location('graphify_provider', str(provider_module))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self._enrichment = module.GraphifyProvider(project_root=str(self._root), config=cfg)
+            return self._enrichment
+        except Exception:
+            return None
 
     def _direct_affected_fallback(self, changed_ids, base_warnings):
         """
