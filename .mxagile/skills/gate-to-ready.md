@@ -12,6 +12,17 @@ bevor die Implementierung freigegeben wird.
 - [ ] Wave-Planung in `planning/execution-waves.md` aktualisiert
 - [ ] Marketplace-Widgets identifiziert fuer `standard_widget: false` Items (D49)
 - [ ] Company Layer Platform-Constraints beruecksichtigt: falls Layer installiert (.mxagile/layers/) → Layer-spezifische Modul- und UI-Vorgaben eingehalten; falls keine Layer → NOT_APPLICABLE
+- [ ] **Architecture Significance Assessment:** Change-Significance dieser Wave bestimmt:
+  `LOCAL | FEATURE | CROSS_CUTTING | ARCHITECTURALLY_SIGNIFICANT`
+  (Vollstaendige Klassifikationsregeln und Eskalations-Trigger: `policies/implementation-control.md`)
+- [ ] **Fuer FEATURE, CROSS_CUTTING, ARCHITECTURALLY_SIGNIFICANT:** Architecture Ownership Assessment
+  abgeschlossen — alle 10 Fragen beantwortet (siehe Abschnitt unten);
+  Wave-Eintrag in `execution-waves.md` enthaelt `Significance`, `Capability`, `Domain`,
+  `Module Ownership`, `Architecture Decision(s)` Felder
+- [ ] **Fuer ARCHITECTURALLY_SIGNIFICANT:** Mindestens ein DEC-NNN mit
+  `decision_type: architecture` mit `status: CONFIRMED` oder ausdruecklicher
+  Entwickler-Bestaetigung vorhanden; dieser DEC ist in `architecture_decision`-Feld
+  der betroffenen Checklisten-Items referenziert
 - [ ] **UI Element Selection Gate:** Fuer jede Component im UI-Inventar mit `widget_candidate` gilt:
   - `candidate_confidence` ist `assessed` oder `validated` — NICHT `preliminary`
   - `fit_rationale` ist dokumentiert wenn `candidate_confidence: assessed` oder `validated`
@@ -70,6 +81,39 @@ Wenn ein aktives Target Mockup im Wave-Scope vorhanden ist, sind diese Checks
 
 Diese Checks werden im selben Arbeitsschritt wie die Vorbedingungen ausgeführt und unter
 `waves.<Wave>.gates.gate_to_ready_revision_checks` in `process-state.yaml` protokolliert.
+
+## Architecture Ownership Assessment
+
+Fuer FEATURE, CROSS_CUTTING und ARCHITECTURALLY_SIGNIFICANT Waves sind die folgenden
+10 Fragen vor der Checklisten-Erstellung zu beantworten. Das Ziel ist kohaerente
+Capability/Domain-Ownership — NICHT maximale Modularisierung.
+
+1. Welche Business-Capability besitzt das in dieser Wave beschriebene Verhalten?
+2. Welche Domain besitzt die relevanten Daten/Logik?
+3. Welches Mendix-Modul soll sie besitzen?
+4. Besitzt dieses Modul die Capability/Domain bereits, oder ist das eine neue Grenze?
+5. Ist ein neues Modul oder eine neue Modul-Grenze gerechtfertigt (vs. Erweiterung eines bestehenden)?
+6. Wird Verhalten dupliziert, weil lokale Implementierung einfacher ist?
+7. Ist eine gemeinsam genutzte Abstraktion/Komponente tatsaechlich noetig (wiederverwendbarer Microflow/Page/Snippet)?
+8. Wird eine unerwuenschte moduluebergreifende Kopplung eingefuehrt?
+9. Vergroessert diese Implementierung ein bestehendes General-Purpose-Modul in Richtung Monolith-Risiko?
+10. Deckt Company-Layer/Platform-Funktionalitaet diesen Concern bereits ab?
+
+### Ergebnis-Routing
+
+Wenn eine Antwort eine neue Modul-Grenze oder eine signifikante Ownership-Entscheidung erfordert:
+- DEC-NNN mit `decision_type: architecture` erstellen (status: CONFIRMED nach Entwickler-Bestaetigung)
+- DEC-NNN im `architecture_decision`-Feld der betreffenden Checklisten-Items referenzieren
+- Wave-Eintrag in `execution-waves.md` mit `Module Ownership` und `Architecture Decision(s)` aktualisieren
+
+Wenn eine Frage **nicht** aus bestehenden Specs/Decisions beantwortet werden kann:
+- Readiness fuer diese spezifische Frage pausieren
+- `gate_to_ready: failed` eintragen mit der konkreten Ownership-Luecke dokumentiert
+- Unabhaengigen Scope NICHT blockieren
+
+Wenn GREENFIELD (keine etablierten Module vorhanden):
+- Bevor die erste Wave-Checkliste generiert wird: uebergeordnete Modul/Capability-Karte
+  fuer den gesamten akzeptierten Scope in `execution-waves.md` festhalten
 
 ## Pflichtausgabe: implementation-checklist.yaml (D37)
 
@@ -134,6 +178,12 @@ items:
     req: [{STORYPREFIX}-002]
     source: story-spec
     spec: "Berechnet Gesamtbetrag"
+    # Architecture placement fields — required for FEATURE+ significance, optional for LOCAL
+    capability: "Order Management"           # Business capability owning this behavior
+    domain: "Order"                          # Domain/entity ownership
+    module: "OrderModule"                    # Mendix module assignment
+    ownership_type: EXISTING                 # EXISTING (module already owns this domain) | NEW (new boundary)
+    architecture_decision: null              # DEC-NNN ref; required if ownership_type: NEW or ARCHITECTURALLY_SIGNIFICANT
     status: pending
     test:
       steps:
@@ -150,6 +200,15 @@ items:
 
 - Jedes fachliche Artefakt wird ein Item (Entity, Attribut, Association, Microflow, Page, Widget, Security-Rule)
 - `req:` nennt die Requirements, die das Item abdeckt — Grundlage der Traceability
+- **Architecture Placement Felder** (basierend auf Wave-Significance):
+  - `capability`, `domain`, `module`: fuer FEATURE/CROSS_CUTTING/ARCHITECTURALLY_SIGNIFICANT Pflicht;
+    fuer LOCAL optional
+  - `ownership_type`: `EXISTING` wenn das Modul diesen Concern bereits besitzt;
+    `NEW` wenn eine neue Grenze gezogen wird
+  - `architecture_decision`: DEC-NNN Referenz — Pflicht wenn `ownership_type: NEW` oder Wave-Significance
+    ist ARCHITECTURALLY_SIGNIFICANT; null erlaubt fuer EXISTING-Ownership im etablierten Scope
+  - Der Implementation-Agent darf KEINE stille Architektur-Grenze waehlen die nicht in diesen Feldern
+    oder einem referenzierten DEC festgelegt wurde; bei fehlendem Kontext `DECISION REQUIRED` setzen
 - `test:` Block ist Pflicht fuer jedes Item das testbar ist
 - `inspect:` Block ist optional — fuer Berechnungen/Bedingungen empfohlen, fuer komplexe Workflows Pflicht (D51)
 - Items aus dem UI-Inventar bekommen `suggested_mendix_type` und `standard_widget` uebernommen

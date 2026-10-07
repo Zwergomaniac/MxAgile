@@ -31,10 +31,10 @@ Eine Story-Spezifikation je Requirement, benannt nach der Requirement-ID.
 | Dokument | Zweck |
 |---|---|
 | `sprint-roadmap.md` | Alle Specs nach Sprint und Feature-/Abo-Tier |
-| `execution-waves.md` | Technische Reihenfolge innerhalb Board-Sprints |
+| `execution-waves.md` | Technische Reihenfolge innerhalb Board-Sprints; fuer FEATURE+ Waves auch Capability/Domain/Module-Ownership |
 | `traceability.md` | Mockup und Specs auf Board-Storys abbilden |
 | `backlog-review.md` | Entwickelbarkeit, Risiken, Klaerungsbedarf |
-| `dependency-matrix.md` | Kritischer Pfad, technische Reihenfolge |
+| `dependency-matrix.md` | **OPTIONAL** — kreuztabellarische Abhaengigkeiten; Wave-Ownership in execution-waves.md ist primaer |
 | `mockup-gesamtplan.md` | Mockup-Strategie: Screens, Rollen, Detailstufen |
 | `mockup-validation-report.md` | Abgleich Mockup gegen Story-Specs |
 | `story-spec.schema.json` | JSON Schema fuer Story-Specs (Validierung + Extraktion) |
@@ -94,7 +94,8 @@ Pruefung des Wave-Berichts und ueber `scripts/generate-board-action-report.ps1`.
 
 - `traceability.md`: Mockup und Fachgrundlage auf Board-Storys abbilden.
 - `backlog-review.md`: Entwickelbarkeit, Risiken und erforderliche Klaerungen bewerten.
-- `dependency-matrix.md`: Kritischen Pfad und technische Reihenfolge festhalten.
+- `dependency-matrix.md`: Optionale kreuztabellarische Abhaengigkeitsmatrix. Wave-uebergreifende
+  Abhaengigkeiten und Modul-Ownership werden primaer in `execution-waves.md` festgehalten.
 
 Diese Dokumente beschreiben den aktuellen Board-Snapshot, enthalten aber keine lokale
 Statusfuehrung und brauchen kein storybezogenes Frontmatter.

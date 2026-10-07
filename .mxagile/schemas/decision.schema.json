@@ -25,6 +25,7 @@
       "enum": [
         "business",
         "technical",
+        "architecture",
         "scope",
         "role_permission",
         "mockup_refinement",
@@ -33,7 +34,7 @@
         "data_model",
         "gap_repair"
       ],
-      "description": "Classification of this decision. business: business rule or process choice. technical: implementation technique or architecture. scope: what is in vs. out of scope. role_permission: access rights or capability assignment. mockup_refinement: acceptance of a refined target mockup revision. platform_boundary: clarifies which functionality is delivered by a platform module (e.g. a company authentication module) vs. the application. ux_interaction: interaction design choice (modal, inline expand, popup). data_model: entity or attribute design choice. gap_repair: decision authorising a GAP repair without changing the fachliches Soll."
+      "description": "Classification of this decision. business: business rule or process choice. technical: implementation technique choice within an established boundary. architecture: capability or module ownership decision — establishes or changes which Mendix module or business capability owns a concern, draws a domain boundary, or defines cross-module dependency direction; required when change_significance is ARCHITECTURALLY_SIGNIFICANT. scope: what is in vs. out of scope. role_permission: access rights or capability assignment. mockup_refinement: acceptance of a refined target mockup revision. platform_boundary: clarifies which functionality is delivered by a platform module (e.g. a company authentication module) vs. the application. ux_interaction: interaction design choice (modal, inline expand, popup). data_model: entity or attribute design choice. gap_repair: decision authorising a GAP repair without changing the fachliches Soll."
     },
     "topic": {
       "type": "string",

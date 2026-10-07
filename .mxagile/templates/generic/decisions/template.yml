@@ -3,13 +3,25 @@
 # Location: planning/decisions/DEC-NNN.yml
 # ID must match filename stem exactly (DEC-001.yml -> ID: DEC-001).
 #
-# Use for: business, technical, scope, role/permission, mockup-refinement,
+# Use for: business, technical, architecture, scope, role/permission, mockup-refinement,
 #           platform-boundary, ux-interaction, data-model, gap-repair decisions.
+#
+# Architecture decisions (decision_type: architecture):
+#   Required when change_significance is ARCHITECTURALLY_SIGNIFICANT.
+#   Use to establish or change:
+#     - Which Mendix module or business capability owns a concern
+#     - A new module boundary or domain boundary
+#     - Cross-module dependency direction
+#     - Shared vs. local responsibility (e.g. shared microflow/snippet across modules)
+#     - Whether Company Layer / platform already owns the concern
+#     - Intentional retention of a large module despite apparent size (with justification)
+#   Do NOT create architecture decisions for routine implementation placement already
+#   governed by an accepted architecture decision.
 
 ID: DEC-001
 title: "[Short decision title]"
 status: PROPOSED   # PROPOSED | CONFIRMED | REJECTED | SUPERSEDED
-decision_type: business   # business | technical | scope | role_permission | mockup_refinement | platform_boundary | ux_interaction | data_model | gap_repair
+decision_type: business   # business | technical | architecture | scope | role_permission | mockup_refinement | platform_boundary | ux_interaction | data_model | gap_repair
 
 topic: "[What is being decided?]"
 decision_text: "[The decision: what was chosen or ruled out.]"

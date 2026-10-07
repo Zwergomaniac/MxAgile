@@ -14,6 +14,45 @@ reading_order:
   - Record unresolved facts as ASSUMPTION or DECISION REQUIRED.
 
 terms:
+  implementation_planning:
+    Change_Significance:
+      category: Planning
+      description: >
+        Classification of the architectural scope of a Wave before implementation readiness.
+        Determined at gate-to-ready. Drives architecture assessment depth.
+        Does not trigger verification artifact creation — architecture and verification are independent.
+      values:
+        LOCAL: >
+          Bounded change within an established capability/domain/module. Existing architecture
+          and ownership remain valid. No new architecture decision required. GAP repair may stay
+          on the bounded repair path.
+        FEATURE: >
+          Coherent product capability change within or adding to established architecture.
+          Module and capability ownership must be explicitly stated before checklist generation.
+        CROSS_CUTTING: >
+          Affects multiple capabilities, modules, or shared cross-cutting concerns (security,
+          persistence, audit, shared microflows/pages/snippets). Architecture ownership
+          assessment required before readiness.
+        ARCHITECTURALLY_SIGNIFICANT: >
+          Creates, moves, or changes module/capability boundaries, security boundaries,
+          integration boundaries, broadly shared components, or causes monolith growth.
+          Explicit DEC-NNN (decision_type: architecture) required before readiness.
+      agent_hint: >
+        Classify at gate-to-ready using escalation triggers in policies/implementation-control.md.
+        LOCAL requires no ownership fields. FEATURE+ requires ownership fields in execution-waves.md
+        and checklist items. ARCHITECTURALLY_SIGNIFICANT requires a confirmed DEC-NNN.
+        Do not escalate solely on number of files or requirements changed.
+    Architecture_Ownership_Assessment:
+      category: Planning
+      description: >
+        10-question assessment performed at gate-to-ready for FEATURE, CROSS_CUTTING, and
+        ARCHITECTURALLY_SIGNIFICANT waves. Establishes capability, domain, and Mendix module
+        ownership before implementation begins. Prevents LOCAL_REQUIREMENT_OPTIMIZATION.
+      agent_hint: >
+        See skills/gate-to-ready.md for the 10 questions. Result is recorded in execution-waves.md
+        (module_owner) and checklist items (capability, domain, module, architecture_decision).
+        Does not generate TC, VPL, or evidence — verification remains late-materialized.
+
   framework:
     MxAgile:
       category: Delivery process
@@ -37,8 +76,14 @@ terms:
       agent_hint: Reference the Board ID and source fingerprint; never treat it as a second backlog.
     Implementation_Wave:
       category: Planning
-      description: Technical implementation sequence within or across Board sprints.
-      agent_hint: It is not a local sprint.
+      description: >
+        Technical implementation sequence within or across Board sprints.
+        For FEATURE/CROSS_CUTTING/ARCHITECTURALLY_SIGNIFICANT scope, a Wave entry records
+        capability, domain, and Mendix module ownership before implementation begins.
+      agent_hint: >
+        It is not a local sprint. Wave entries for significant scope include Significance,
+        Capability, Domain, Module Ownership, and Architecture Decision fields.
+        See policies/implementation-control.md for Wave Entry Format.
     ASSUMPTION:
       category: Decision status
       description: A statement not confirmed by a source or stakeholder.

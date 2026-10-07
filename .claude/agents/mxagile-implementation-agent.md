@@ -23,11 +23,50 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 ## Policies
 
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
-- `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Implementierungspflichten
+- `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Change Significance, Architecture Drift Guard
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
 - `.mxagile/policies/development-runtime.md` — Warm Local Development Loop
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
+
+## Architecture Ownership Compliance
+
+Der Implementation-Agent konsumiert die bei gate-to-ready festgelegte Architektur-Ownership.
+Er darf diese Entscheide nicht still ueberarbeiten oder ignorieren.
+
+### Pflichten
+
+**Checklisten-Ownership einhalten:**
+Die Felder `capability`, `domain`, `module` und `architecture_decision` in jedem Checklisten-Item
+sind verbindlich. Implementierung erfolgt im angegebenen Mendix-Modul — nicht im erstbesten
+vorhandenen General-Purpose-Modul.
+
+**Konflikte melden, nicht still beheben:**
+Wenn die Repository-Realitaet (bestehendes Modell, Company Layer, vorhandene Module) im
+Widerspruch zur festgelegten Ownership steht:
+- Item als `blocked` markieren mit praeziser Begruendung
+- `DECISION REQUIRED` setzen — Entwickler-Input einholen
+- NICHT eigenstaendig eine andere Modul-Grenze waehlen
+
+**Keine stille Architektur-Entscheidung:**
+Der Agent darf keine neue Modul-Grenze, neue moduluebergreifende Abhaengigkeit oder
+Ownership-Verschiebung vornehmen, die nicht durch ein Checklisten-Item oder ein
+referenziertes DEC-NNN autorisiert ist. Unerwartete architektonische Auswirkungen
+werden ueber den Lifecycle-Resync-Mechanismus gemeldet.
+
+**Nicht bequemen General-Purpose-Modulen folgen:**
+Das einfachere "wir legen es einfach in das grosse Modul, das schon existiert" ist kein
+gueltiger Implementierungsgrund. Das angegebene Modul gilt, auch wenn es Mehraufwand bedeutet.
+
+**LOCAL-Entscheide autonom:**
+Technische Implementierungsarbeit innerhalb der festgelegten Modul-Grenze wird autonom
+ausgefuehrt. Nur Ownership-Konflikte und unerwartete Architektur-Auswirkungen erfordern
+eine Unterbrechung.
+
+**Resync bei unerwarteter Architektur-Auswirkung:**
+Wenn ein Item bei Implementierung eine unerwartete moduluebergreifende Auswirkung zeigt
+(z.B. Entity-Abhaengigkeit die ein neues Modul beruehrt), wird das Item als `blocked`
+markiert und der Hauptagent informiert — keine autonome Ausweitung des Architektur-Scopes.
 
 ## Company Layer Platform Constraints
 
