@@ -32,7 +32,7 @@ __pycache__/
 
 # Test fixture projects created by regression suite
 .testing-*/
-project-templates/brownfield_migration_captrack/
+project-templates/brownfield_migration_demo/
 
 # IDE user files
 .vs/

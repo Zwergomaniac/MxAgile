@@ -122,7 +122,7 @@
     },
     "gap_ref": {
       "type": ["string", "null"],
-      "description": "Reference to the GAP that prompted this decision (e.g. 'GAP-CAPTRACK-LOGIN-SCOPE'). Set when decision_type=gap_repair or source=gap_analysis."
+      "description": "Reference to the GAP that prompted this decision (e.g. 'GAP-001-AUTH-BOUNDARY'). Set when decision_type=gap_repair or source=gap_analysis."
     },
     "notes": {
       "type": "string",

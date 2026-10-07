@@ -68,16 +68,16 @@ If a repair reveals that the correct implementation requires changing the fachli
 Each identified GAP is recorded as an entry in the parity report or a standalone GAP record:
 
 ```yaml
-gap_id: GAP-CAPTRACK-ABTEILUNG-EXPAND
+gap_id: GAP-001-SECTION-EXPAND
 gap_type: INTERACTION_GAP
 severity: MATERIAL
-page_id: PAGE-GESAMTUEBERSICHT
-description: "Ausklappbare Abteilungsbereiche reagieren nicht auf Klick — Expand-Effekt fehlt."
-target_state_ref: "STATE-ABTEILUNG-EXPANDED"
-target_effect_ref: "EFF-ABTEILUNG-EXPAND"
-implementation_actual: "Abteilungsbereiche are rendered as static sections without expand control."
+page_id: PAGE-OVERVIEW
+description: "Expandable sections do not respond to click — expand effect missing."
+target_state_ref: "STATE-SECTION-EXPANDED"
+target_effect_ref: "EFF-SECTION-EXPAND"
+implementation_actual: "Sections are rendered as static panels without expand control."
 lifecycle_status: REPAIR_PROPOSED
-repair_description: "Add expand/collapse toggle to Abteilung section header."
+repair_description: "Add expand/collapse toggle to section header."
 decision_required: false
 decision_ref: null
 ```
@@ -91,18 +91,15 @@ When a GAP involves a screen that should NOT be in the application UI (platform 
 3. Create a DEC-NNN with `decision_type: platform_boundary` confirming the boundary.
 4. Remove or redirect the screen per the platform module contract.
 
-**CapTrack example:** If the CapTrack Mendix application has an app-level login page instead of delegating to MB_SSO, this is a `PLATFORM_BOUNDARY_GAP`. The repair is to remove the app-level login page and configure MB_SSO — not to align the app-level login with the mockup.
+**Example:** If a Mendix application has an app-level login page instead of delegating to the platform SSO provider, this is a `PLATFORM_BOUNDARY_GAP`. The repair is to remove the app-level login page and configure the SSO provider — not to align the app-level login with the mockup.
 
 ## Role Coverage GAPs
 
 When a fachliche role defined in the Design Contract or role model cannot be represented or tested:
 
 1. Classify as `ROLE_GAP`.
-2. Record the missing role and its required scope context:
-   - Scoped roles (E2, CeKo): require a representative Center context.
-   - E3 roles: require an Abteilungs context.
-   - E4 roles: require a Team context.
-3. A missing E4 test identity is a ROLE_GAP, not an infrastructure gap.
+2. Record the missing role and its required scope context (e.g. organisational unit, department, or team scope required to represent the role in testing).
+3. A missing scoped test identity is a ROLE_GAP, not an infrastructure gap.
 4. Role Coverage GAPs block the ROLE campaign gate.
 
 ## Agent Authority Limits for GAP Repair

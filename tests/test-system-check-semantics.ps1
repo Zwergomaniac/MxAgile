@@ -3,7 +3,7 @@
     System-Check Semantic Correctness Tests
 
 .DESCRIPTION
-    Regression coverage for three semantic issues found during the second REAL CapTrack
+    Regression coverage for three semantic issues found during a real project
     acceptance run:
       1. FULLY_NATIVE (migration axis) must not imply reconciliation is complete.
       2. Historical phase reconstruction must not authorize implementation resume when

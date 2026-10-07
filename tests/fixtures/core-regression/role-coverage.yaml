@@ -1,0 +1,139 @@
+# Synthetic Core Regression Fixture: Role Coverage
+# Tests that role coverage schema supports multi-scope role models including COVERAGE_GAP.
+# All domain content is synthetic (DemoApp is not a real project).
+# Framework behavior under test:
+#   - Roles at different scopes (app / org / department / team)
+#   - COVERAGE_GAP correctly propagates to overall_status
+#   - ROLE_GAP classification distinct from infrastructure gap
+
+wave_id: W00-FIXTURE
+mockup_id: MOCKUP-DEMO-APP
+target_revision: REV-001
+assessed_at: "2026-01-01"
+assessed_by: fixture
+overall_status: COVERAGE_GAP  # TeamEntry has known COVERAGE_GAP in this fixture
+
+roles:
+  - role_id: ROLE-ADMIN
+    role_name: Admin
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: app
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-ORG-LEAD
+    role_name: OrgLead
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: org
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-ORG-DELEGATE
+    role_name: OrgDelegate
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: org
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: false
+    acceptance_coverage_present: false
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-DEPT-MANAGER
+    role_name: DeptManager
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: department
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-DEPT-REVIEWER
+    role_name: DeptReviewer
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: true
+    representative_scope_present: true
+    required_scope: department
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: true
+    acceptance_coverage_present: true
+    status: COVERED
+    gap_description: null
+    evidence: []
+
+  - role_id: ROLE-TEAM-ENTRY
+    role_name: TeamEntry
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: false
+    representative_scope_present: false
+    required_scope: team
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: false
+    acceptance_coverage_present: false
+    status: COVERAGE_GAP
+    gap_description: >-
+      ROLE_GAP: TeamEntry requires a team-scoped demo identity but none exists.
+      demo_mode_present=false, representative_scope_present=false.
+      This is a ROLE_GAP, not an infrastructure gap.
+      Missing team-scoped test identity blocks the role campaign acceptance gate.
+    evidence: []
+
+  - role_id: ROLE-TEAM-REVIEWER
+    role_name: TeamReviewer
+    contract_present: true
+    requirements_present: true
+    runtime_present: true
+    demo_mode_present: false
+    representative_scope_present: false
+    required_scope: team
+    ui_inventory_present: true
+    story_coverage_present: true
+    task_coverage_present: false
+    acceptance_coverage_present: false
+    status: COVERAGE_GAP
+    gap_description: >-
+      ROLE_GAP: TeamReviewer requires a team-scoped demo identity but none exists.
+      Blocked by same root cause as TeamEntry.
+    evidence: []
+
+fixture_assertions:
+  - "overall_status == COVERAGE_GAP because TeamEntry/TeamReviewer have no demo identity"
+  - "TeamEntry/TeamReviewer COVERAGE_GAP is a ROLE_GAP — not an infrastructure gap"
+  - "Demo Role Switcher must include team-scoped roles with representative team context"
+  - "SSO provider authentication does not resolve team-scoped test identity gap"

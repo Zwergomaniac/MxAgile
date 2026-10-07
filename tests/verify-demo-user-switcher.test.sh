@@ -6,7 +6,7 @@ set -euo pipefail
 : "${PLAYWRIGHT_BASE_URL:?PLAYWRIGHT_BASE_URL must be set by the isolated runner}"
 
 # Konfigurierbare Rollenliste des Demo-User-Switchers (Komma-getrennt).
-# Default sind die CapTrack-Referenzrollen; andere Projekte setzen die Variable.
+# Default sind generische Demo-Rollen; andere Projekte setzen die Variable.
 IFS=',' read -r -a DEMO_SWITCHER_ROLES <<< "${DEMO_SWITCHER_ROLES:-demo_administrator,demo_user,demo_NewSSOUser}"
 
 TMP_DIR="$(mktemp -d)"

@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Validates the MxAgile autonomous runtime orchestration contracts introduced
-    to fix the CapTrack Rev5 reality test defects:
+    to fix the Rev5 reality test defects:
 
     A. Interactive warm development uses --watch
     B. Autonomous verification omits --watch

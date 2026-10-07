@@ -143,11 +143,11 @@ Assert-FileExists "11.2 fixture AE exists (refined target supersedes source)" (J
 $fixAE = Get-Content -LiteralPath (Join-Path $FixDir "fixture-AE-refined-target-supersedes-source.yaml") -Raw
 Assert-True "11.3 fixture-AE parity compares against refined target not source" ($fixAE -match 'planning/target-mockups')
 
-# Test 12: Legacy CapTrack-specific paths are not Core requirements
+# Test 12: Legacy paths are not Core requirements
 Write-Host ""
-Write-Host "TEST 12: Legacy CapTrack paths not required by Core" -ForegroundColor Cyan
-Assert-FileExists "12.1 fixture AF exists (no legacy captrack paths)" (Join-Path $FixDir "fixture-AF-no-legacy-captrack-paths-in-core.yaml")
-$fixAF = Get-Content -LiteralPath (Join-Path $FixDir "fixture-AF-no-legacy-captrack-paths-in-core.yaml") -Raw
+Write-Host "TEST 12: Legacy paths not required by Core" -ForegroundColor Cyan
+Assert-FileExists "12.1 fixture AF exists (no legacy paths in core)" (Join-Path $FixDir "fixture-AF-no-legacy-paths-in-core.yaml")
+$fixAF = Get-Content -LiteralPath (Join-Path $FixDir "fixture-AF-no-legacy-paths-in-core.yaml") -Raw
 Assert-True "12.2 fixture-AF states sprints/decisions.md is legacy" ($fixAF -match 'sprints/decisions.*LEGACY')
 Assert-True "12.3 fixture-AF states .concord/screenshots/mockup is legacy source" ($fixAF -match '\.concord.*LEGACY')
 

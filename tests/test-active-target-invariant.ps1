@@ -70,14 +70,14 @@ $gateReady = ReadFile (Join-Path $RepoRoot '.mxagile/skills/gate-to-ready.md')
 Assert ($gateReady -match 'active_target') 'gate-to-ready skill enforces active_target check'
 
 # ──────────────────────────────────────────────────────────────
-# [2] VALID case: captrack fixture has exactly one active_target: true
+# [2] VALID case: core-regression fixture has exactly one active_target: true
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[2] VALID case: CapTrack fixture — exactly one active_target"
-$rl = ReadYAML (Join-Path $RepoRoot 'tests/fixtures/captrack/revision-lifecycle.yaml')
+Write-Host "`n[2] VALID case: core-regression fixture — exactly one active_target"
+$rl = ReadYAML (Join-Path $RepoRoot 'tests/fixtures/core-regression/revision-lifecycle.yaml')
 $activeTrue = CountActiveTrueYAML $rl
 $activeFalse = CountActiveFalseYAML $rl
-Assert ($activeTrue -eq 1) "CapTrack fixture: exactly 1 active_target: true ($activeTrue found)"
-Assert ($activeFalse -ge 1) "CapTrack fixture: at least 1 active_target: false ($activeFalse found)"
+Assert ($activeTrue -eq 1) "core-regression fixture: exactly 1 active_target: true ($activeTrue found)"
+Assert ($activeFalse -ge 1) "core-regression fixture: at least 1 active_target: false ($activeFalse found)"
 Assert ($rl -match 'lifecycle_status: SOURCE') 'VALID: SOURCE revision exists'
 Assert ($rl -match 'lifecycle_status: REFINED_TARGET') 'VALID: REFINED_TARGET revision exists'
 

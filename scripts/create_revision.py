@@ -19,9 +19,9 @@ Usage:
                                     [--dry-run]
 
 Examples:
-  python scripts/create_revision.py --mockup kidscompass-web --decision DEC-061
-  python scripts/create_revision.py --mockup admin-portal --decision DEC-042 --impact-scope targeted --affected-screens PAGE-CALENDAR
-  python scripts/create_revision.py --mockup kidscompass-web --decision DEC-099 --dry-run
+  python scripts/create_revision.py --mockup demo-application --decision DEC-061
+  python scripts/create_revision.py --mockup admin-portal --decision DEC-042 --impact-scope targeted --affected-screens PAGE-DASHBOARD
+  python scripts/create_revision.py --mockup demo-application --decision DEC-099 --dry-run
 
 What this script does:
   1. Computes the current working bundle hash.
@@ -227,7 +227,7 @@ def main():
         epilog=__doc__
     )
     parser.add_argument('--path', type=str, default='.', help='Project root directory.')
-    parser.add_argument('--mockup', required=True, help='Mockup bundle name (e.g. kidscompass-web).')
+    parser.add_argument('--mockup', required=True, help='Mockup bundle name (e.g. demo-application).')
     parser.add_argument('--decision', required=True, help='DEC-NNN identifier of the acceptance decision.')
     parser.add_argument('--reason', type=str, default=None, help='Human-readable reason for this revision.')
     parser.add_argument('--impact-scope', default='unknown',

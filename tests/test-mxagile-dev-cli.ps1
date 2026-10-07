@@ -211,7 +211,7 @@ try {
 
 Write-Host '  Scenario I: migration status diagnostics'
 
-$migWs = Join-Path $RepoRoot '.testing-brownfield_migration_captrack'
+$migWs = Join-Path $RepoRoot '.testing-brownfield_migration_demo'
 if (Test-Path -LiteralPath $migWs -PathType Container) {
     $r = Invoke-CLI @('migration', 'status', $migWs)
     Assert-True 'I1: migration status exits 0'        ($r.ExitCode -eq 0) "exit $($r.ExitCode)"
@@ -220,7 +220,7 @@ if (Test-Path -LiteralPath $migWs -PathType Container) {
     Assert-True 'I4: output shows state.yaml present' ($r.Output -match 'state\.yaml\s*:?\s*present') 'state.yaml status missing'
     Assert-True 'I5: state.yaml content shown (status: in_progress)' ($r.Output -match 'in_progress') 'state content not shown'
 } else {
-    Write-Host "  SKIP: .testing-brownfield_migration_captrack not found (I1-I5 skipped)" -ForegroundColor Yellow
+    Write-Host "  SKIP: .testing-brownfield_migration_demo not found (I1-I5 skipped)" -ForegroundColor Yellow
     $script:PassCount += 5  # count as pass when workspace absent (not a CLI failure)
 }
 

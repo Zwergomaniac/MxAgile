@@ -15,10 +15,10 @@
     mxagile-dev test all
     mxagile-dev test run migration-crash-safety
     mxagile-dev workspace list
-    mxagile-dev workspace create brownfield_migration_captrack
-    mxagile-dev project detect .testing-brownfield_migration_captrack
-    mxagile-dev project status .testing-brownfield_migration_captrack
-    mxagile-dev migration status .testing-brownfield_migration_captrack
+    mxagile-dev workspace create brownfield_migration_demo
+    mxagile-dev project detect .testing-brownfield_migration_demo
+    mxagile-dev project status .testing-brownfield_migration_demo
+    mxagile-dev migration status .testing-brownfield_migration_demo
     mxagile-dev install core /path/to/mendix-project
 #>
 [CmdletBinding()]
@@ -123,10 +123,10 @@ function Show-RootHelp {
     Write-Host "    mxagile-dev test all"
     Write-Host "    mxagile-dev test run migration-crash-safety"
     Write-Host "    mxagile-dev workspace list"
-    Write-Host "    mxagile-dev workspace create brownfield_migration_captrack"
-    Write-Host "    mxagile-dev project detect .testing-brownfield_migration_captrack"
-    Write-Host "    mxagile-dev project status .testing-brownfield_migration_captrack"
-    Write-Host "    mxagile-dev migration status .testing-brownfield_migration_captrack"
+    Write-Host "    mxagile-dev workspace create brownfield_migration_demo"
+    Write-Host "    mxagile-dev project detect .testing-brownfield_migration_demo"
+    Write-Host "    mxagile-dev project status .testing-brownfield_migration_demo"
+    Write-Host "    mxagile-dev migration status .testing-brownfield_migration_demo"
     Write-Host "    mxagile-dev install core /path/to/mendix-project"
     Write-Host ""
 }

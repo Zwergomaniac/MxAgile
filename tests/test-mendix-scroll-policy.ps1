@@ -21,7 +21,7 @@
     J. Skill documentation exists and covers the required behavioral contract
     K. Spec file and fixture files exist for framework regression coverage
     L. Discovery result codes and their meaning are clearly named
-    M. No CapTrack-specific hardcoded selectors, heights, or logic leaked into Core
+    M. No project-specific hardcoded selectors, heights, or logic leaked into Core
     N. Evidence safety rule documented — SCROLL_NOT_EFFECTIVE prevents false PASS
     O. mxcli capability findings documented accurately
 #>
@@ -216,7 +216,7 @@ Assert-FileContains "L.4 CLAMPED_TO_MAX in shell output" $ShellHelper 'CLAMPED_T
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "TEST M: No CapTrack-specific logic leaked into MxAgile Core" -ForegroundColor Cyan
+Write-Host "TEST M: No project-specific logic leaked into MxAgile Core" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
 Assert-FileNotContains "M.1 mx-scroll.js does not mention CapTrack" $ScrollHelper 'CapTrack|captrack'

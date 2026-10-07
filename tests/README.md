@@ -113,7 +113,7 @@ All 32 FAST tests are ParallelSafe=true → entire FAST run executes in one para
 | Driver | Classification |
 |---|---|
 | Junction in shared project-templates/ | EXCLUSIVE_RESOURCE |
-| Group M brownfield_migration_captrack (>1000 files robocopy) | CONTRACT_REQUIRED |
+| Group M brownfield_migration_demo (>1000 files robocopy) | CONTRACT_REQUIRED |
 | Groups D/G/H: identical -WithDfc source, separate New-MinimalFixture | SAFE_IMMUTABLE_FIXTURE_REUSE |
 | 15 powershell.exe process startups | PROCESS_STARTUP_OVERHEAD |
 

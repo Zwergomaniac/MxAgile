@@ -5,9 +5,9 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 
 ## Platzhalter
 
-| Platzhalter | Beispiel (CapTrack) | Bekannt ab | Beschreibung |
+| Platzhalter | Beispiel (MyApp) | Bekannt ab | Beschreibung |
 |---|---|---|---|
-| `{Projektname}` | `CapTrack` | Projektanlage | Anzeigename der App (z.B. in MB_UI.AppName) |
+| `{Projektname}` | `MyApp` | Projektanlage | Anzeigename der App (z.B. in MB_UI.AppName) |
 | `{App}` | `Cap` | MB-Governance-Onboarding | Wert von `MB_SSO.CONST_UserroleAppname` — bestimmt das Rollen-Praefix |
 | `{APP}_` | `CAP_` | MB-Governance-Onboarding | Rollen-Praefix (`{App}` in Grossbuchstaben + Unterstrich) |
 | `{Projektbeschreibung}` | _optional_ | Projektanlage | Kurzbeschreibung fuer `projekt.md`, falls verwendet |

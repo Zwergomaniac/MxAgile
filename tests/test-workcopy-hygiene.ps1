@@ -395,7 +395,7 @@ if (Test-Path -LiteralPath $greenfieldSrc -PathType Container) {
 # M: Brownfield migration fixture remains logically equivalent
 # ---------------------------------------------------------------------------
 Write-Host "--- M: Brownfield fixture fidelity ---"
-$brownSrc = Join-Path $WorkspaceRoot "project-templates\brownfield_migration_captrack"
+$brownSrc = Join-Path $WorkspaceRoot "project-templates\brownfield_migration_demo"
 if (Test-Path -LiteralPath $brownSrc -PathType Container) {
     $destBrown = ".testing-test-hygiene-M-brown"
     $destFull = Join-Path $WorkspaceRoot $destBrown
@@ -403,7 +403,7 @@ if (Test-Path -LiteralPath $brownSrc -PathType Container) {
     try {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         powershell -NoProfile -ExecutionPolicy Bypass -File $CreateScript `
-            -TemplateName "brownfield_migration_captrack" `
+            -TemplateName "brownfield_migration_demo" `
             -TestDirName "test-hygiene-M-brown" 2>&1 | Out-Null
         $sw.Stop()
         Assert ($LASTEXITCODE -eq 0) "M1: brownfield workcopy exits 0"
@@ -436,7 +436,7 @@ if (Test-Path -LiteralPath $brownSrc -PathType Container) {
         if (Test-Path $destFull) { Remove-Item -LiteralPath $destFull -Recurse -Force -ErrorAction SilentlyContinue }
     }
 } else {
-    Write-Host "  SKIP M: brownfield_migration_captrack template not present"
+    Write-Host "  SKIP M: brownfield_migration_demo template not present"
     $PassCount++
 }
 

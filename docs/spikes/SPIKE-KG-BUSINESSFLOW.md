@@ -644,5 +644,5 @@ When deploying the updated package, the configurator must:
 - Graphify is not a mandatory dependency. Default provider: `artifact-index`.
 - Mermaid text is never stored in the contract or canonical artifacts.
 - No hosted graph service without explicit developer opt-in and `local_only: false` confirmation.
-- CapTrack application code: not modified.
+- Project application code: not modified.
 - Company Layer: not modified.

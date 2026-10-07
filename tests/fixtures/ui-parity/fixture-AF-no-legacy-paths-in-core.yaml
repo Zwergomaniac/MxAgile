@@ -1,10 +1,10 @@
-# Fixture M: Legacy CapTrack-specific paths are not required by Core
+# Fixture AF: Legacy paths are not required by Core
 fixture_id: FIXTURE-AF
 fixture_requirement: M
 description: "Demonstrates that Core framework does not require planning/stories/, sprints/decisions.md, or .concord/screenshots/mockup/ as canonical MxAgile locations. These are legacy/project-specific paths resolved through the canonical artifact map."
 classification: DOCUMENTATION_FIXTURE
 
-legacy_captrack_paths:
+legacy_paths:
   - path: "planning/stories/"
     canonical_status: LEGACY
     canonical_equivalent: "Legacy story format. Current MxAgile uses requirements/REQ-NNN.yml and specs/SPEC-NNN.yml."

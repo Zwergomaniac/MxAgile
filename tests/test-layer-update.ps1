@@ -1177,36 +1177,35 @@ function Test-LayerProvenanceManifestConsistentAfterRollback {
 }
 
 # =============================================================================
-# -- CAPTRACK BROWNFIELD REGRESSION -------------------------------------------
+# -- BROWNFIELD REGRESSION (legacy provenance + null detailFile) ---------------
 # =============================================================================
 
-# --- 27. CapTrack-like brownfield: legacy provenance + null detailFile --------
+# --- 27. Brownfield: legacy provenance + null detailFile ----------------------
 
-function Test-CapTrackBrownfieldSuccessfulUpdate {
-    # Regression fixture reflecting the characteristics that exposed both bugs
-    # during the REAL CapTrack Company Layer acceptance test:
+function Test-BrownfieldSuccessfulUpdate {
+    # Regression fixture for the combination of:
     #   - Legacy provenance (resolved_revision, no installedVersion)
     #   - Layer 1.0.0 installed
     #   - Target Layer 1.2.0 with schemaVersion 1 (same)
     #   - platform-modules.yml with detailFile: null entries
     #   - State manifest already present
     # Verifies that a successful update proceeds to completion.
-    Write-Host "Running Test-CapTrackBrownfieldSuccessfulUpdate..."
+    Write-Host "Running Test-BrownfieldSuccessfulUpdate..."
     $project = New-TempProject
     $pm = "platform-modules-information:`n  modules:`n    - id: MOD1`n      detailFile: null`n    - id: MOD2`n      detailFile: ~`n"
-    $repo = New-FakeLayerRepo -Id "captrack" -Version "1.2.0" -SchemaVersion "1" `
+    $repo = New-FakeLayerRepo -Id "demo-layer" -Version "1.2.0" -SchemaVersion "1" `
         -PlatformModulesContent $pm
-    Install-FakeLayer -ProjectRoot $project -LayerId "captrack" -InstalledVersion "1.0.0" `
+    Install-FakeLayer -ProjectRoot $project -LayerId "demo-layer" -InstalledVersion "1.0.0" `
         -SchemaVersion "1" -InstalledCommit "legacy000commit" `
         -WriteLegacyProvenance $true -WriteStateManifest $true | Out-Null
     try {
         pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
-        Assert-Equal $LASTEXITCODE 0 "CapTrack brownfield update must succeed"
+        Assert-Equal $LASTEXITCODE 0 "brownfield update must succeed"
 
-        $prov = Get-ProvenanceContent -ProjectRoot $project -LayerId "captrack" | ConvertFrom-Json
+        $prov = Get-ProvenanceContent -ProjectRoot $project -LayerId "demo-layer" | ConvertFrom-Json
         Assert-Equal $prov.installedVersion "1.2.0" "provenance must record 1.2.0"
 
-        $smPath = Get-StateManifestPath -ProjectRoot $project -LayerId "captrack"
+        $smPath = Get-StateManifestPath -ProjectRoot $project -LayerId "demo-layer"
         Assert-FileExists $smPath "state manifest must exist after successful update"
         $smContent = Get-Content -LiteralPath $smPath -Raw
         Assert-True ($smContent -match "1\.2\.0") "state manifest must record 1.2.0"
@@ -1217,29 +1216,29 @@ function Test-CapTrackBrownfieldSuccessfulUpdate {
     }
 }
 
-# --- 28. CapTrack brownfield: injected validation failure rolls back entirely --
+# --- 28. Brownfield: injected validation failure rolls back entirely ----------
 
-function Test-CapTrackBrownfieldRollback {
+function Test-BrownfieldRollback {
     # Same brownfield setup as above, but target has a dangling detailFile that
     # triggers validation failure.  Verifies the entire transaction is rolled back:
     # layer dir, provenance, AND state manifest all restored to pre-update state.
-    Write-Host "Running Test-CapTrackBrownfieldRollback..."
+    Write-Host "Running Test-BrownfieldRollback..."
     $project = New-TempProject
     # Target has both null detailFiles AND a dangling ref — null must be skipped,
     # but the dangling ref must still cause validation to fail.
     $pm = "platform-modules-information:`n  modules:`n    - id: MOD1`n      detailFile: null`n    - id: MOD2`n      detailFile: modules/DOES_NOT_EXIST.md`n"
-    $repo = New-FakeLayerRepo -Id "captrack" -Version "1.2.0" -SchemaVersion "1" `
+    $repo = New-FakeLayerRepo -Id "demo-layer" -Version "1.2.0" -SchemaVersion "1" `
         -PlatformModulesContent $pm
-    Install-FakeLayer -ProjectRoot $project -LayerId "captrack" -InstalledVersion "1.0.0" `
+    Install-FakeLayer -ProjectRoot $project -LayerId "demo-layer" -InstalledVersion "1.0.0" `
         -SchemaVersion "1" -InstalledCommit "legacy000commit" `
         -WriteLegacyProvenance $true -WriteStateManifest $true | Out-Null
 
-    $smPath      = Get-StateManifestPath -ProjectRoot $project -LayerId "captrack"
+    $smPath      = Get-StateManifestPath -ProjectRoot $project -LayerId "demo-layer"
     $smBefore    = Get-Content -LiteralPath $smPath -Raw
 
     try {
         pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive
-        Assert-Equal $LASTEXITCODE 1 "CapTrack brownfield with dangling ref must fail"
+        Assert-Equal $LASTEXITCODE 1 "brownfield with dangling ref must fail"
 
         # State manifest restored
         Assert-FileExists $smPath "state manifest must exist after rollback"
@@ -1248,7 +1247,7 @@ function Test-CapTrackBrownfieldRollback {
         Assert-False ($smAfter -match "1\.2\.0") "target version must not appear after rollback"
 
         # Provenance reverted (legacy provenance used resolved_revision — version read from layer.json)
-        $layerDir    = Join-Path $project ".mxagile\layers\captrack"
+        $layerDir    = Join-Path $project ".mxagile\layers\demo-layer"
         $restoredLjm = Get-Content -LiteralPath (Join-Path $layerDir "layer.json") -Raw | ConvertFrom-Json
         Assert-Equal ([string]$restoredLjm.version) "1.0.0" "installed layer.json must be 1.0.0 after rollback"
         Write-Host "  PASSED"
@@ -1401,9 +1400,9 @@ $tests = @(
     "Test-StateManifestByteIdenticalAfterRollback",
     "Test-TargetVersionNotRecordedAfterRollback",
     "Test-LayerProvenanceManifestConsistentAfterRollback",
-    # CapTrack brownfield regression (2)
-    "Test-CapTrackBrownfieldSuccessfulUpdate",
-    "Test-CapTrackBrownfieldRollback"
+    # Brownfield regression (2)
+    "Test-BrownfieldSuccessfulUpdate",
+    "Test-BrownfieldRollback"
 )
 
 Write-Host ""

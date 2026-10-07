@@ -294,7 +294,7 @@ aus Requirements + Spec + UI-Inventar ausreichend ableitbar ist.
 - JA → autonome technische Implementierung
 - NEIN / UNEINDEUTIG → DECISION REQUIRED mit praeziser Frage
 
-Beispiel aus der Praxis (REAL CapTrack):
+Beispiel aus der Praxis:
 - "DEF-01: Requires a new microflow" → TECHNISCHE ARBEIT → implementiere autonom
 - "What calculation formula should be used for budget rollup?" (nicht in Spec) → DECISION REQUIRED
 

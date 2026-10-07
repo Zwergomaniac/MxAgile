@@ -13,7 +13,7 @@ Examples:
   python scripts/resolve_impact.py PAGE-CALENDAR
   python scripts/resolve_impact.py REQ-034
   python scripts/resolve_impact.py SPEC-012
-  python scripts/resolve_impact.py --mockup kidscompass-web
+  python scripts/resolve_impact.py --mockup demo-application
   python scripts/resolve_impact.py --json PAGE-CALENDAR  (structured JSON output)
 
 Output: structured resolution result with requirements, specs, scenarios, pages, warnings.

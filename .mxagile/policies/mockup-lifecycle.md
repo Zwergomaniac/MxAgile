@@ -134,9 +134,9 @@ target_mockup_reason: "Refined after round-1 parity findings — content labels 
 **SPA bundle fields** in `planning/ui-inventory/<PageName>.yaml`:
 
 ```yaml
-page_id: PAGE-CALENDAR
-mockup_name: kidscompass-web                                   # Bundle this screen belongs to
-source_mockup: input-resources/ui-ux/kidscompass-web/index.html  # Bundle entry point (immutable)
+page_id: PAGE-DASHBOARD
+mockup_name: demo-application                                   # Bundle this screen belongs to
+source_mockup: input-resources/ui-ux/demo-application/index.html  # Bundle entry point (immutable)
 target_revision: REV-005                                       # Latest accepted revision
 bundle_hash: sha256:abc123...                                  # Hash of REV-005 bundle
 ```
@@ -149,10 +149,10 @@ source_mockup: input-resources/ui-ux/customer-newedit.html
 target_mockup: planning/target-mockups/Customer_NewEdit.html
 
 # SPA bundle:
-mockup_name: kidscompass-web
+mockup_name: demo-application
 target_revision: REV-005
 bundle_hash: sha256:abc123...
-page_id: PAGE-CALENDAR
+page_id: PAGE-DASHBOARD
 ```
 
 When `source_mockup = target_mockup` (single-file) or no `target_revision` set (SPA), no refinement has occurred.

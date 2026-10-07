@@ -139,9 +139,9 @@ these are enforced as per the project's Implementation Control policy.
 MxAgile does NOT prescribe a specific Git commit sequence as universal — the invariant is
 the lifecycle order, not a specific branching strategy.
 
-## REAL CapTrack Finding
+## Real-World Finding: Pre-Mutation Evidence Gap
 
-In the REAL acceptance run, SCSS was modified before the parity analysis was complete and
+In a real acceptance run, SCSS was modified before the parity analysis was complete and
 before Refinement had accepted the planned corrections. This led to:
 
 - Incomplete evidence baseline

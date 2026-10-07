@@ -169,7 +169,7 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
     *   **IDs generieren:** Erzeuge stabile, lesbare IDs fuer alle Elemente
         (z.B. `PAGE-CUSTOMER-EDIT`, `FIELD-CUSTOMER-NAME`, `ACT-CUSTOMER-SAVE`).
     *   **`mockup_name` setzen:** Wenn die Page aus einem SPA-Bundle stammt, trage den
-        Bundle-Namen in das Feld `mockup_name` ein (z.B. `mockup_name: kidscompass-web`).
+        Bundle-Namen in das Feld `mockup_name` ein (z.B. `mockup_name: demo-application`).
         Bei Single-File-Legacy leer lassen.
     *   **Semantik extrahieren:** Fuehre die Felder `purpose`, `roles`, `sections`,
         `components`, `fields` und `actions` aus der visuellen Analyse.

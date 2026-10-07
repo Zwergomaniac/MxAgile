@@ -385,7 +385,7 @@ try {
     }
 
     # Fake .mpr file (install-core.ps1 requires exactly one)
-    "fake mpr" | Set-Content -Path (Join-Path $tmpF "CapTrack.mpr") -Encoding UTF8
+    "fake mpr" | Set-Content -Path (Join-Path $tmpF "DemoApp.mpr") -Encoding UTF8
 
     # Pre-WP-10 migration state (no artifact_canonicalization field)
     (@(
@@ -407,7 +407,7 @@ try {
     (@(
         'baseline_type: brownfield',
         'created_at: "2026-01-15T10:00:00Z"',
-        'project: CapTrack',
+        'project: DemoApp',
         'source: DFC-AI'
     ) -join "`n") | Set-Content -LiteralPath (Join-Path $tmpF ".mxagile\state\brownfield-baseline.yaml") -Encoding UTF8
 
@@ -440,7 +440,7 @@ try {
     ) -join "`n") | Set-Content -LiteralPath (Join-Path $tmpF "planning\checklists\W01-implementation-checklist.yaml") -Encoding UTF8
 
     # Project AGENT.md (must survive update)
-    "# CapTrack Project`n`nThis is the CapTrack project." | Set-Content -LiteralPath (Join-Path $tmpF "AGENT.md") -Encoding UTF8
+    "# DemoApp Project`n`nThis is the DemoApp project." | Set-Content -LiteralPath (Join-Path $tmpF "AGENT.md") -Encoding UTF8
 
     # Apply reconciliation (simulates the Step 1d of install-core.ps1)
     $reconcileResult = Invoke-MigrationStateReconciliation -ProjectRoot $tmpF

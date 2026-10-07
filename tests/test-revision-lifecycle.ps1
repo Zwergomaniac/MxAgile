@@ -209,7 +209,7 @@ Assert ($gap -match 'done.*ALLE|alle.*done.*erfuellt|alle.*Verifikationsschritte
 Assert ($gap -match 'Invent.*FORBIDDEN|FORBIDDEN.*new requirement|reclassif.*FORBIDDEN') 'forbids inventing new requirement for GAP'
 Assert ($gap -match 'Platform Boundary') 'addresses platform boundary GAPs'
 Assert ($gap -match 'Role Coverage') 'addresses role coverage GAPs'
-Assert ($gap -match 'E4|E3|CeKo|Center') 'references CapTrack scoped roles'
+Assert ($gap -match 'scoped.*role|role.*scope|organisational|scope context') 'addresses scoped role coverage generically'
 
 # ──────────────────────────────────────────────────────────────
 # [10] mockup-lifecycle.md content (WP-02)

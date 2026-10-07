@@ -3,7 +3,7 @@
     SessionStart Bootstrap Safety Tests
 
 .DESCRIPTION
-    Regression suite that guards against the CapTrack-main regression where the
+    Regression suite that guards against the brownfield-main regression where the
     Claude Code VS Code Extension timed out with
     "Subprocess initialization did not complete within 60000ms".
 
@@ -68,9 +68,9 @@ function Assert-NotContains {
 }
 
 # Paths under test
-$templateBootstrap  = Join-Path $ScriptDir "project-templates\brownfield_migration_captrack\.claude\bootstrap-mxcli.sh"
-$testingBootstrap   = Join-Path $ScriptDir ".testing-brownfield_migration_captrack\.claude\bootstrap-mxcli.sh"
-$templateSettings   = Join-Path $ScriptDir "project-templates\brownfield_migration_captrack\.claude\settings.json"
+$templateBootstrap  = Join-Path $ScriptDir "project-templates\brownfield_migration_demo\.claude\bootstrap-mxcli.sh"
+$testingBootstrap   = Join-Path $ScriptDir ".testing-brownfield_migration_demo\.claude\bootstrap-mxcli.sh"
+$templateSettings   = Join-Path $ScriptDir "project-templates\brownfield_migration_demo\.claude\settings.json"
 $installCorePath    = Join-Path $ScriptDir "scripts\install-core.ps1"
 
 Write-Host ""

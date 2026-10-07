@@ -186,11 +186,11 @@ Mixed projects (some SPA bundles, some single-file) are valid. Each mockup type 
 For screens inside a SPA bundle, the page inventory YAML must include:
 
 ```yaml
-page_id: PAGE-CALENDAR
-mockup_name: kidscompass-web          # bundle this screen belongs to
+page_id: PAGE-DASHBOARD
+mockup_name: demo-application         # bundle this screen belongs to
 target_revision: REV-005              # last accepted revision
 bundle_hash: sha256:abc123...         # hash of REV-005 bundle
-source_mockup: input-resources/ui-ux/kidscompass-web/index.html  # bundle entry point
+source_mockup: input-resources/ui-ux/demo-application/index.html  # bundle entry point
 ```
 
 `source_mockup` for SPA screens points to the bundle entry point (`index.html`), not a per-screen file. The `page_id` is the screen's stable identity within the bundle.

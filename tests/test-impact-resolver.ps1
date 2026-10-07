@@ -24,12 +24,12 @@ try {
     New-Item -ItemType Directory -Path $ScenDir | Out-Null
 
     # Create canonical artifacts
-    # PAGE-CALENDAR with a derivedFrom req and an applies_to req
-    Set-Content -Path (Join-Path $PageDir "PAGE-CALENDAR.yaml") -Value "page_id: PAGE-CALENDAR`npurpose: Calendar screen`nmockup_name: kidscompass-web"
-    Set-Content -Path (Join-Path $ReqDir "REQ-010.yml") -Value "ID: REQ-010`nName: Calendar view`nderivedFrom: PAGE-CALENDAR"
-    Set-Content -Path (Join-Path $ReqDir "REQ-011.yml") -Value "ID: REQ-011`nName: Multi-screen filter`nscreens: [PAGE-CALENDAR]"
-    Set-Content -Path (Join-Path $SpecDir "SPEC-010.yml") -Value "ID: SPEC-010`nName: Calendar spec`nrequirements: [REQ-010]"
-    Set-Content -Path (Join-Path $ScenDir "SCEN-010.yaml") -Value "scenario_id: SCEN-010`nscreen_id: PAGE-CALENDAR`ntraceability:`n  requirements: [REQ-010]"
+    # PAGE-DASHBOARD with a derivedFrom req and an applies_to req
+    Set-Content -Path (Join-Path $PageDir "PAGE-DASHBOARD.yaml") -Value "page_id: PAGE-DASHBOARD`npurpose: Dashboard screen`nmockup_name: demo-application"
+    Set-Content -Path (Join-Path $ReqDir "REQ-010.yml") -Value "ID: REQ-010`nName: Dashboard view`nderivedFrom: PAGE-DASHBOARD"
+    Set-Content -Path (Join-Path $ReqDir "REQ-011.yml") -Value "ID: REQ-011`nName: Multi-screen filter`nscreens: [PAGE-DASHBOARD]"
+    Set-Content -Path (Join-Path $SpecDir "SPEC-010.yml") -Value "ID: SPEC-010`nName: Dashboard spec`nrequirements: [REQ-010]"
+    Set-Content -Path (Join-Path $ScenDir "SCEN-010.yaml") -Value "scenario_id: SCEN-010`nscreen_id: PAGE-DASHBOARD`ntraceability:`n  requirements: [REQ-010]"
 
     function Assert-Condition {
         param ($Condition, $Message)
@@ -42,27 +42,27 @@ try {
 
     # --- Test 1: PAGE resolution returns expected requirements ---
     Write-Host "[TEST] Running: PAGE->REQ resolution"
-    $output = & python $ResolverScriptPath --path $TestDir PAGE-CALENDAR 2>&1
-    Assert-Condition ($LASTEXITCODE -eq 0) "resolve_impact.py failed for PAGE-CALENDAR."
-    Assert-Condition ($output -match "REQ-010") "REQ-010 not found in PAGE-CALENDAR resolution."
-    Assert-Condition ($output -match "REQ-011") "REQ-011 (APPLIES_TO) not found in PAGE-CALENDAR resolution."
+    $output = & python $ResolverScriptPath --path $TestDir PAGE-DASHBOARD 2>&1
+    Assert-Condition ($LASTEXITCODE -eq 0) "resolve_impact.py failed for PAGE-DASHBOARD."
+    Assert-Condition ($output -match "REQ-010") "REQ-010 not found in PAGE-DASHBOARD resolution."
+    Assert-Condition ($output -match "REQ-011") "REQ-011 (APPLIES_TO) not found in PAGE-DASHBOARD resolution."
     Write-Host "[PASS] PAGE->REQ resolution"
 
     # --- Test 2: PAGE resolution returns specs ---
     Write-Host "[TEST] Running: PAGE->SPEC resolution"
-    Assert-Condition ($output -match "SPEC-010") "SPEC-010 not found in PAGE-CALENDAR resolution."
+    Assert-Condition ($output -match "SPEC-010") "SPEC-010 not found in PAGE-DASHBOARD resolution."
     Write-Host "[PASS] PAGE->SPEC resolution"
 
     # --- Test 3: PAGE resolution returns scenarios ---
     Write-Host "[TEST] Running: PAGE->scenario resolution"
-    Assert-Condition ($output -match "SCEN-010") "SCEN-010 not found in PAGE-CALENDAR resolution."
+    Assert-Condition ($output -match "SCEN-010") "SCEN-010 not found in PAGE-DASHBOARD resolution."
     Write-Host "[PASS] PAGE->scenario resolution"
 
     # --- Test 4: REQ resolution returns pages ---
     Write-Host "[TEST] Running: REQ->pages resolution"
     $reqOutput = & python $ResolverScriptPath --path $TestDir REQ-010 2>&1
     Assert-Condition ($LASTEXITCODE -eq 0) "resolve_impact.py failed for REQ-010."
-    Assert-Condition ($reqOutput -match "PAGE-CALENDAR") "PAGE-CALENDAR not found in REQ-010 resolution."
+    Assert-Condition ($reqOutput -match "PAGE-DASHBOARD") "PAGE-DASHBOARD not found in REQ-010 resolution."
     Assert-Condition ($reqOutput -match "SPEC-010") "SPEC-010 not found in REQ-010 resolution."
     Write-Host "[PASS] REQ->pages resolution"
 
@@ -75,14 +75,14 @@ try {
 
     # --- Test 6: Bundle resolution via --mockup ---
     Write-Host "[TEST] Running: Bundle resolution"
-    $bundleOutput = & python $ResolverScriptPath --path $TestDir --mockup kidscompass-web 2>&1
-    Assert-Condition ($LASTEXITCODE -eq 0) "resolve_impact.py failed for bundle kidscompass-web."
-    Assert-Condition ($bundleOutput -match "PAGE-CALENDAR") "PAGE-CALENDAR not found in bundle resolution."
+    $bundleOutput = & python $ResolverScriptPath --path $TestDir --mockup demo-application 2>&1
+    Assert-Condition ($LASTEXITCODE -eq 0) "resolve_impact.py failed for bundle demo-application."
+    Assert-Condition ($bundleOutput -match "PAGE-DASHBOARD") "PAGE-DASHBOARD not found in bundle resolution."
     Write-Host "[PASS] Bundle resolution"
 
     # --- Test 7: --json output is valid JSON ---
     Write-Host "[TEST] Running: --json output"
-    $jsonOutput = & python $ResolverScriptPath --path $TestDir --json PAGE-CALENDAR 2>&1
+    $jsonOutput = & python $ResolverScriptPath --path $TestDir --json PAGE-DASHBOARD 2>&1
     Assert-Condition ($LASTEXITCODE -eq 0) "resolve_impact.py --json failed."
     $parsed = $jsonOutput | ConvertFrom-Json
     Assert-Condition ($parsed.query_type -eq "page") "query_type is not 'page' in JSON output."
@@ -100,9 +100,9 @@ try {
     # --- Test 9: Stale index triggers rebuild ---
     Write-Host "[TEST] Running: Stale index auto-rebuild"
     # Add a new requirement after the index was built
-    Set-Content -Path (Join-Path $ReqDir "REQ-012.yml") -Value "ID: REQ-012`nName: Post-index req`nscreens: [PAGE-CALENDAR]"
+    Set-Content -Path (Join-Path $ReqDir "REQ-012.yml") -Value "ID: REQ-012`nName: Post-index req`nscreens: [PAGE-DASHBOARD]"
     # Index is now stale — resolver should detect and rebuild
-    $staleOutput = & python $ResolverScriptPath --path $TestDir --json PAGE-CALENDAR 2>&1
+    $staleOutput = & python $ResolverScriptPath --path $TestDir --json PAGE-DASHBOARD 2>&1
     $staleJson = $staleOutput | ConvertFrom-Json -ErrorAction SilentlyContinue
     if ($staleJson) {
         # After rebuild, REQ-012 should be included

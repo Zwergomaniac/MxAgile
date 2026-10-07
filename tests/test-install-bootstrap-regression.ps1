@@ -156,7 +156,7 @@ Write-Host "--- 5-8: E2E regression - legacy DFC external project ---"
 $fixtureDfc = New-FixtureDirectory "dfc-external"
 try {
     # Minimal DFC project (no MxAgile internal scripts present)
-    New-Item -Path (Join-Path $fixtureDfc "CapTrack.mpr") -ItemType File -Force | Out-Null
+    New-Item -Path (Join-Path $fixtureDfc "DemoApp.mpr") -ItemType File -Force | Out-Null
     $dfcDir = Join-Path $fixtureDfc ".dfc-ai"
     New-Item -Path $dfcDir -ItemType Directory -Force | Out-Null
     Set-Content -Path (Join-Path $dfcDir "version.yaml") -Value 'version: "1.0"' -Encoding UTF8

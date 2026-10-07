@@ -279,7 +279,7 @@ Write-Host "--- E: .mpr file unchanged after bootstrap ---"
 $fixtureE = New-FixtureDirectory "mpr-safety"
 try {
     $mprContent = "FAKE_MPR_BINARY_CONTENT_DO_NOT_MODIFY"
-    $mprPath = Join-Path $fixtureE "CapTrack.mpr"
+    $mprPath = Join-Path $fixtureE "DemoApp.mpr"
     Set-Content -Path $mprPath -Value $mprContent -Encoding UTF8 -NoNewline
 
     $dfcDir = Join-Path $fixtureE ".dfc-ai"

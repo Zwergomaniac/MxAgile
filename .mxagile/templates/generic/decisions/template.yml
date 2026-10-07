@@ -39,9 +39,9 @@ affected_specs: []
 
 # Design Contract link (when this decision originates from a mocketeer-spec)
 design_contract_source_id: null    # DEC-NNN from the Design Contract
-design_contract_ref: null          # e.g. "MOCKUP-CAPTRACK@revision=2"
+design_contract_ref: null          # e.g. "MOCKUP-DEMO-APP@revision=2"
 
 # GAP link (when this decision resolves a GAP classification)
-gap_ref: null    # e.g. "GAP-CAPTRACK-EXPAND-001"
+gap_ref: null    # e.g. "GAP-001-EXPAND"
 
 notes: ""

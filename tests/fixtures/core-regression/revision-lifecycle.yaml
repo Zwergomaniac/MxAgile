@@ -1,43 +1,44 @@
-# CapTrack Revision Lifecycle Fixture
-# Regression fixture — DO NOT MODIFY APPLICATION LOGIC
-# Used by: test-captrack-regression.ps1
-# Purpose: Validates the revision lifecycle invariants for a CapTrack mockup.
-#          REV-001 = SOURCE (original contract, schema_version 1.0 baseline)
-#          REV-002 = REFINED_TARGET (after platform boundary removal, schema 1.1)
+# Synthetic Core Regression Fixture: Revision Lifecycle
+# Tests revision lifecycle invariants: active_target invariant, role preservation,
+# platform boundary effect classification.
+# All domain content is synthetic (DemoApp is not a real project).
+# Framework behavior under test:
+#   - Exactly ONE revision per mockup bundle carries the active-target flag
+#   - Roles preserved across revisions independent of platform boundary changes
+#   - PLATFORM_BOUNDARY effects do NOT create fachliche REQ-NNN
+#   - SCREEN-LOGIN in expected_superseded_ids (not unexpected_missing_ids)
 
 revisions:
   - revision_id: REV-001
-    mockup_id: MOCKUP-CAPTRACK
+    mockup_id: MOCKUP-DEMO-APP
     revision: 1
     previous_revision: null
     lifecycle_status: SOURCE
     refinement_status: ACCEPTED
-    active_target: false    # Superseded by REV-002
+    active_target: false
     change_scope: ""
     artifact_hash: null
 
   - revision_id: REV-002
-    mockup_id: MOCKUP-CAPTRACK
+    mockup_id: MOCKUP-DEMO-APP
     revision: 2
     previous_revision: 1
     lifecycle_status: REFINED_TARGET
     refinement_status: ACCEPTED
-    active_target: true     # THIS is the active target
+    active_target: true
     change_scope: >-
-      Removed login screen (SCREEN-LOGIN) — MB_SSO handles authentication.
-      Role model preserved. E4 COVERAGE_GAP documented.
+      Removed login screen (SCREEN-LOGIN) — SSO_PROVIDER handles authentication.
+      Role model preserved. TeamEntry/TeamReviewer COVERAGE_GAP documented.
     artifact_hash: null
 
-# Active Target Invariant: exactly ONE revision per mockup bundle is the active target.
 active_target_invariant:
-  mockup_id: MOCKUP-CAPTRACK
+  mockup_id: MOCKUP-DEMO-APP
   active_revision: REV-002
   assertion: >-
     At any point in time, exactly one revision per mockup bundle is marked as the active target.
     REV-001 (SOURCE) is not the active target because it was superseded by REV-002.
     Implementation-Agent MUST use REV-002, never REV-001.
 
-# Revision Delta for REV-002
 revision_delta:
   from_revision: 1
   to_revision: 2
@@ -52,17 +53,17 @@ revision_delta:
   affected_ids:
     - SCREEN-LOGIN
     - SCREEN-DEMO-ROLE-SWITCHER
-    - DEC-PLATFORM-001
-    - PLATFORM-MB-SSO
+    - DEC-001
+    - PLATFORM-SSO-PROVIDER
   effects:
     - effect_id: EFF-DELTA-LOGIN-REMOVE
       type: PLATFORM_BOUNDARY
       target: SCREEN-LOGIN
       change: REMOVE
-      description: "Login screen removed — MB_SSO handles authentication"
+      description: "Login screen removed — SSO_PROVIDER handles authentication"
       required_action: REMOVE_AS_SUPERSEDED
       source_ids:
-        - DEC-PLATFORM-001
+        - DEC-001
       downstream_artifacts: []
       affected_roles: []
       affected_screens:
@@ -77,7 +78,7 @@ revision_delta:
       description: "Demo Role Switcher marked as test-only platform mechanism"
       required_action: NO_ACTION
       source_ids:
-        - DEC-PLATFORM-001
+        - DEC-001
       downstream_artifacts: []
       affected_roles: []
       affected_screens:
@@ -85,7 +86,6 @@ revision_delta:
       derived_page: false
       status: OPEN
 
-# Preservation Evidence for REV-002
 preservation:
   status: VERIFIED
   baseline_revision: 1
@@ -93,29 +93,26 @@ preservation:
   evidence_sources:
     - "inline comparison"
   preserved_ids:
-    - REQ-CAPTRACK-001
-    - REQ-CAPTRACK-002
-    - ROLE-APPADMIN
-    - ROLE-E2
-    - ROLE-CENTER-KOORDINATOR
-    - ROLE-CEKO-VERTRETER
-    - ROLE-E3-EINTRAGUNG
-    - ROLE-E3-EINTRAGUNG-VERTRETER
-    - ROLE-E3-UEBERPRUEFUNG
-    - ROLE-E4-EINTRAGUNG
-    - ROLE-E4-UEBERPRUEFUNG
+    - REQ-001
+    - REQ-002
+    - ROLE-ADMIN
+    - ROLE-ORG-LEAD
+    - ROLE-ORG-DELEGATE
+    - ROLE-DEPT-MANAGER
+    - ROLE-DEPT-REVIEWER
+    - ROLE-TEAM-ENTRY
+    - ROLE-TEAM-REVIEWER
   expected_superseded_ids:
     - SCREEN-LOGIN
   unexpected_missing_ids: []
   unexpected_changed_ids: []
   notes:
-    - "All 9 fachliche roles preserved despite MB_SSO platform boundary removal"
+    - "All fachliche roles preserved despite SSO platform boundary removal"
 
-# Fixture assertions
 fixture_assertions:
   - "REV-001 lifecycle_status=SOURCE active_target=false"
   - "REV-002 lifecycle_status=REFINED_TARGET active_target=true"
   - "Exactly one active_target=true across all revisions"
-  - "All 9 CapTrack roles preserved in REV-002 (role model independent of MB_SSO)"
+  - "All fachliche roles preserved in REV-002 (role model independent of SSO provider)"
   - "SCREEN-LOGIN in expected_superseded_ids — not in unexpected_missing_ids"
   - "Effect type PLATFORM_BOUNDARY does NOT create fachliche REQ-NNN"

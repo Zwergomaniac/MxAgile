@@ -47,7 +47,7 @@ Das Erstellen und Verfeinern von Mockups obliegt dem MxMocketeer-Produkt selbst.
    ```json
    {
      "mockup": {
-       "id": "MOCKUP-CAPTRACK",
+       "id": "MOCKUP-DEMO-APP",
        "revision": 3,
        "previous_revision": 2,
        "lifecycle_status": "REFINED_TARGET",

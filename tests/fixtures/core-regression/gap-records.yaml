@@ -1,0 +1,85 @@
+# Synthetic Core Regression Fixture: GAP Records
+# Tests GAP classification routing rules across the three primary GAP types.
+# All domain content is synthetic (DemoApp is not a real project).
+# Framework behavior under test:
+#   - INTERACTION_GAP: does NOT create new REQ-NNN; repair only
+#   - ROLE_GAP: does NOT route to Mockup Refinement; test identity fix
+#   - PLATFORM_BOUNDARY_GAP: repair is REMOVE not ALIGN
+
+gaps:
+  - gap_id: GAP-001-DASHBOARD-EXPAND
+    gap_type: INTERACTION_GAP
+    severity: MATERIAL
+    page_id: PAGE-DASHBOARD
+    description: >-
+      Expandable sections on Dashboard do not respond to click.
+      Expand effect (EFF-SECTION-EXPAND) is missing from implementation.
+      Design Contract defines STATE-SECTION-EXPANDED as CONFIRMED interaction_state.
+    target_state_ref: STATE-SECTION-EXPANDED
+    target_effect_ref: EFF-SECTION-EXPAND
+    implementation_actual: >-
+      Sections are rendered as static panels without an expand control.
+      No expand/collapse toggle present.
+    lifecycle_status: REPAIR_PROPOSED
+    repair_description: >-
+      Add expand/collapse toggle to section header.
+      Implement both EFF-SECTION-EXPAND and EFF-SECTION-COLLAPSE effects.
+    decision_required: false
+    decision_ref: null
+    classification_rule: >-
+      This is INTERACTION_GAP, not a new requirement.
+      The target behavior is CONFIRMED in the Design Contract.
+      A GAP does NOT create a new REQ-NNN. No change to fachliches Soll needed.
+
+  - gap_id: GAP-002-TEAM-ROLE
+    gap_type: ROLE_GAP
+    severity: CRITICAL
+    page_id: null
+    description: >-
+      TeamEntry and TeamReviewer have no demo identity with team scope.
+      Role campaign acceptance gate cannot pass.
+    target_state_ref: null
+    target_effect_ref: null
+    implementation_actual: >-
+      Demo Role Switcher does not include TeamEntry/TeamReviewer with representative
+      team scope context.
+    lifecycle_status: DETECTED
+    repair_description: >-
+      Add TeamEntry and TeamReviewer demo users with team-scoped test data.
+      This is a test infrastructure task, not a fachliche requirement change.
+    decision_required: false
+    decision_ref: null
+    classification_rule: >-
+      ROLE_GAP — missing team-scoped test identity.
+      NOT an infrastructure gap. NOT a platform_boundary issue.
+      Fix: provide representative team scope in demo/test setup.
+
+  - gap_id: GAP-003-PLATFORM-AUTH
+    gap_type: PLATFORM_BOUNDARY_GAP
+    severity: CRITICAL
+    page_id: SCREEN-LOGIN
+    description: >-
+      Login page implemented as app screen instead of delegating to SSO_PROVIDER.
+    target_state_ref: null
+    target_effect_ref: null
+    implementation_actual: >-
+      App-level Mendix login page exists. Should be SSO_PROVIDER boundary.
+    lifecycle_status: DETECTED
+    repair_description: >-
+      DO NOT implement login as app page.
+      Remove app-level login page and configure SSO_PROVIDER as authentication provider.
+      Create DEC-NNN with decision_type: platform_boundary.
+    decision_required: true
+    decision_ref: DEC-001
+    classification_rule: >-
+      PLATFORM_BOUNDARY_GAP — not IMPLEMENTATION_GAP.
+      The repair is to REMOVE the app-level login, not to align it with a mockup.
+      This does NOT generate a new REQ-NNN for login functionality.
+
+fixture_assertions:
+  - "INTERACTION_GAP for missing expandable_area does NOT create new REQ-NNN"
+  - "ROLE_GAP for missing team-scoped identity does NOT route to Mockup Refinement"
+  - "PLATFORM_BOUNDARY_GAP repair is REMOVE not ALIGN"
+  - "GAP for CONFIRMED interaction = REPAIR, not REFINEMENT"
+  - "A purely technical repair does NOT require a new fachliche Decision"
+  - "No production data, no real auth data in any fixture"

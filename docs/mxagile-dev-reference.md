@@ -60,16 +60,16 @@ mxagile-dev test all
 mxagile-dev workspace list
 
 # Create a test workspace from a project template
-mxagile-dev workspace create brownfield_migration_captrack
+mxagile-dev workspace create brownfield_migration_demo
 
 # Classify a project
-mxagile-dev project detect .testing-brownfield_migration_captrack
+mxagile-dev project detect .testing-brownfield_migration_demo
 
 # Show project diagnostics
-mxagile-dev project status .testing-brownfield_migration_captrack
+mxagile-dev project status .testing-brownfield_migration_demo
 
 # Show migration diagnostic status
-mxagile-dev migration status .testing-brownfield_migration_captrack
+mxagile-dev migration status .testing-brownfield_migration_demo
 
 # Install MxAgile into a Mendix project
 mxagile-dev install core /path/to/mendix-project
@@ -101,7 +101,7 @@ The `installer` suite runs `tests/run-installer-tests.ps1 -Test All -SkipMercede
 | `workspace remove <workspace>` | `Remove-Item` (safety-checked) | Only `.testing-*` dirs under repo root |
 
 Available templates are under `project-templates/`:
-- `brownfield_migration_captrack`
+- `brownfield_migration_demo`
 - `brownfield_spec`
 - `brownfield_unspecced`
 - `greenfield`
