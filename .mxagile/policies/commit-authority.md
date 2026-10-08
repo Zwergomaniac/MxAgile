@@ -224,6 +224,31 @@ After committing, the agent MUST:
 The agent MUST NOT produce a final mission report merely because a commit was created.
 Stop only when the mission's genuine stop conditions are reached.
 
+The agent MUST run the Terminal-State Guard (`policies/mission-completion.md`) before
+producing any final mission report. A commit hash, a wave report, or an
+implementation report does NOT satisfy the guard. Only `MISSION_COMPLETE` from the
+Terminal-State Guard permits an unqualified terminal report.
+
+---
+
+## Report Semantics (Non-Terminal)
+
+Creating any of the following does NOT establish mission completion or justify stopping:
+
+- An implementation report / wave delivery notes
+- A file with "delivery-report" in its name
+- A wave report in `planning/wave-reports/`
+- An acceptance campaign result file
+- A verification evidence manifest
+
+These are lifecycle artifacts. They record evidence. They do NOT advance
+`planning/lifecycle/process-state.yaml` to `phase: done` by themselves.
+
+Lifecycle state remains authoritative. `planning/mission/mission-state.yaml`
+(when present) is the mission-level completion register.
+
+See `policies/mission-completion.md § Reporting Semantics` for the full table.
+
 ---
 
 ## Project Instruction Generation

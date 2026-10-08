@@ -388,6 +388,72 @@ Lifecycle-Regeln: `.mxagile/policies/mockup-lifecycle.md`
 
 ---
 
+## Phase-Boundary Continuation (Mandatory)
+
+When the exit condition of the current lifecycle phase becomes true, the agent MUST
+continue to the next phase deterministically. This rule applies regardless of:
+- whether the original user prompt is still in conversational memory;
+- whether a working TODO list or implementation checklist just became empty;
+- whether a checkpoint commit was just created.
+
+Phase continuation is NOT user-interaction-gated unless the next phase requires
+genuine human input (Developer explicit approval for ready → implementing).
+
+### Implementing → Verifying (Critical Rule)
+
+When ALL checklist items reach terminal state (`done | blocked | deferred`):
+
+```
+WAVE_IMPLEMENTATION_COMPLETE reached
+→ persist final checklist state
+→ update planning/lifecycle/process-state.yaml (checkpoint)
+→ checkpoint commit if authorized (policies/commit-authority.md)
+→ run lifecycle re-sync (this policy § Startup Re-Sync)
+→ lifecycle.yaml: implementing.next = [verifying]
+→ ENTER Verifying — begin Verification Plan Creation
+→ do NOT stop
+→ do NOT ask user for phase-transition confirmation
+```
+
+**This transition is deterministic. No user confirmation required.**
+
+If checklist is empty and the agent has NOT entered Verifying, this is a
+framework execution failure. The Terminal-State Guard (policies/mission-completion.md)
+will detect and require continuation.
+
+### Verifying → Done (Critical Rule)
+
+When acceptance gate passes and wave report is written:
+
+```
+ACCEPTANCE_COMPLETE reached
+→ write wave report to planning/wave-reports/
+→ update process-state.yaml: phase = done for this Wave
+→ checkpoint commit if authorized
+→ run lifecycle re-sync
+→ evaluate mission via Terminal-State Guard (policies/mission-completion.md)
+→ if mission criteria remain: determine next Wave/action, continue
+→ if USER_MISSION_COMPLETE: produce MISSION_REPORT, stop
+```
+
+### Empty TODO List is NOT a Stop Condition
+
+When the working TODO list (implementation checklist) becomes empty:
+
+```
+TODO empty
+→ evaluate Wave (all items terminal? verify status)
+→ run lifecycle re-sync
+→ lifecycle.yaml determines next phase
+→ evaluate Mission completion criteria (policies/mission-completion.md)
+→ if mission criteria remain: create next appropriate working plan, continue
+→ if USER_MISSION_COMPLETE confirmed by Terminal-State Guard: stop
+```
+
+A TODO list becoming empty is a re-sync trigger, not a mission-complete signal.
+
+---
+
 ## Runtime-Zustand ist Transient
 
 Die lokale Runtime (`mxcli run --local`, im interaktiven Modus mit `--watch` oder

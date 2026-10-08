@@ -958,5 +958,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Static contract checks for autonomous operating-mode detection hardening (scenarios A-K): CLOSED-AUTONOM/LIVE-SP-CURRENT/LIVE-SP-OTHER/AMBIGUOUS-SP-STATE definitions, detection algorithm, no-question default, mutation recheck, headless platform shortcut, stale PID handling, detector wiring to orchestrator and implementation-agent, process safety (no kill). Pure read-only static validation, no real Studio Pro required."
+  },
+  {
+    "File": "test-mission-completion.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static content checks on mission-completion.md, lifecycle.yaml, lifecycle-resync.md, orchestrator.md, commit-authority.md, implementation-agent.md, and mission-state.schema.json for mission completion hardening (scenarios A-O): completion levels, phase-boundary continuation, terminal-state guard, TODO-mission hierarchy, durable mission contract, partial blockers, human acceptance boundary, reporting semantics, simple developer UX. Pure read-only static validation."
   }
 ]

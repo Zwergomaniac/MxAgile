@@ -1,0 +1,239 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mission-state.schema.json",
+  "title": "MxAgile Mission State",
+  "description": "Durable, Git-tracked mission record. Preserves user mission intent and completion criteria across context loss, TODO-list replacement, and session restarts. Lives at planning/mission/mission-state.yaml.",
+  "type": "object",
+  "required": ["schema_version", "mission_id", "created_at", "objective", "completion_boundary", "criteria"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Always 1 for this release."
+    },
+    "mission_id": {
+      "type": "string",
+      "pattern": "^MISSION-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+$",
+      "description": "Unique mission identifier. Format: MISSION-YYYY-MM-DD-<slug>"
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Date mission was created. YYYY-MM-DD."
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-line statement of the mission objective as understood from the user prompt."
+    },
+    "scope": {
+      "type": "string",
+      "description": "Optional: explicit scope boundary stated by the user. E.g. 'REV-014 all waves', 'REQ-084 only', 'model changes only'."
+    },
+    "completion_boundary": {
+      "type": "string",
+      "enum": [
+        "IMPLEMENTATION_CHANGE_COMPLETE",
+        "WAVE_IMPLEMENTATION_COMPLETE",
+        "REVISION_IMPLEMENTATION_COMPLETE",
+        "VERIFICATION_COMPLETE",
+        "ACCEPTANCE_COMPLETE",
+        "USER_MISSION_COMPLETE"
+      ],
+      "description": "The highest completion level that must be reached for this mission to be considered done. Derived from user prompt and lifecycle defaults."
+    },
+    "scope_boundary": {
+      "type": "string",
+      "enum": [
+        "full_lifecycle",
+        "implementation_only",
+        "implementation_and_model_verification",
+        "no_browser_verification",
+        "custom"
+      ],
+      "default": "full_lifecycle",
+      "description": "Explicit scope restriction if stated by user. 'full_lifecycle' means normal MxAgile lifecycle applies."
+    },
+    "criteria": {
+      "type": "object",
+      "required": ["lifecycle_derived"],
+      "additionalProperties": false,
+      "description": "Completion criteria, split into lifecycle-derived (always present) and user-additional (explicitly requested beyond normal lifecycle).",
+      "properties": {
+        "lifecycle_derived": {
+          "type": "object",
+          "description": "Criteria prescribed by lifecycle.yaml for any implementation mission.",
+          "additionalProperties": false,
+          "properties": {
+            "implementation": {
+              "$ref": "#/definitions/criterion"
+            },
+            "verification": {
+              "$ref": "#/definitions/criterion"
+            },
+            "acceptance": {
+              "$ref": "#/definitions/criterion"
+            },
+            "regression": {
+              "$ref": "#/definitions/criterion"
+            }
+          }
+        },
+        "additional": {
+          "type": "array",
+          "description": "User-additional criteria explicitly stated beyond normal lifecycle scope.",
+          "items": {
+            "$ref": "#/definitions/additional_criterion"
+          }
+        }
+      }
+    },
+    "active_wave": {
+      "type": "string",
+      "description": "Current active Wave identifier. E.g. 'W01'. Updated as waves complete."
+    },
+    "waves_in_scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "All Wave identifiers that must complete for this mission. Derived from execution-waves.md."
+    },
+    "progress": {
+      "type": "object",
+      "description": "Current completion status per completion level.",
+      "additionalProperties": false,
+      "properties": {
+        "implementation": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "complete"],
+          "default": "not_started"
+        },
+        "verification": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "complete"],
+          "default": "not_started"
+        },
+        "acceptance": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "complete"],
+          "default": "not_started"
+        },
+        "mission": {
+          "type": "string",
+          "enum": ["active", "complete", "blocked", "archived"],
+          "default": "active"
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "description": "Active blockers preventing some or all remaining work.",
+      "items": {
+        "type": "object",
+        "required": ["type", "description", "blast_radius"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "INFRASTRUCTURE_GAP",
+              "LOCATOR_UNSTABLE",
+              "ROLE_SWITCH_BLOCKED",
+              "DECISION_REQUIRED",
+              "SCOPE_EXCEEDED",
+              "OTHER"
+            ]
+          },
+          "description": { "type": "string" },
+          "blast_radius": {
+            "type": "string",
+            "enum": ["LOCAL", "REQUIREMENT", "WAVE", "MISSION"],
+            "description": "How much work this blocker actually prevents."
+          },
+          "work_that_can_continue": {
+            "type": "string",
+            "description": "What can still be done despite this blocker."
+          }
+        }
+      }
+    },
+    "checkpoint_commits": {
+      "type": "array",
+      "description": "Git commit hashes created as authorized checkpoints during this mission.",
+      "items": {
+        "type": "object",
+        "required": ["hash", "phase", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "hash": { "type": "string" },
+          "phase": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "terminal_guard_last_run": {
+      "type": "string",
+      "description": "ISO date of the last Terminal-State Guard execution. YYYY-MM-DD."
+    },
+    "terminal_guard_result": {
+      "type": "string",
+      "enum": [
+        "CONTINUE_DETERMINISTICALLY",
+        "WAITING_FOR_GENUINE_DECISION",
+        "WAITING_FOR_HUMAN_ACCEPTANCE",
+        "MISSION_COMPLETE",
+        "MISSION_BLOCKED"
+      ],
+      "description": "Result of the most recent Terminal-State Guard run."
+    }
+  },
+  "definitions": {
+    "criterion": {
+      "type": "object",
+      "required": ["required", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Whether this criterion is required for this mission (may be false for scope-narrowed missions)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "complete", "deferred", "not_applicable"],
+          "default": "pending"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Path to completion evidence artifact (wave report, acceptance campaign result, etc.)."
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "additional_criterion": {
+      "type": "object",
+      "required": ["key", "description", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Short identifier. E.g. 'framework_findings_report', 'parity_audit', 'migration_check'."
+        },
+        "description": {
+          "type": "string",
+          "description": "What must be done to satisfy this criterion."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "complete", "deferred"],
+          "default": "pending"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Path to completion artifact."
+        }
+      }
+    }
+  }
+}

@@ -13,6 +13,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/development-runtime.md` — Warm Local Development Loop
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
+- `.mxagile/policies/mission-completion.md` — Completion Levels, Terminal-State Guard, Phase-Boundary Continuation
 
 ## Architecture Ownership Compliance
 
@@ -210,6 +211,18 @@ Security-Pass umfasst:
 1. Alle Items durchgegangen
 2. Zusammenfassung an Hauptagent: X done, Y blocked, Z deferred
 3. Bei blocked-Items: Begruendung und Vorschlag zur Loesung
+
+**PFLICHT: Checklist-Abschluss ist NICHT Mission-Abschluss.**
+
+Nach Uebermittlung der Zusammenfassung:
+- Der Hauptagent fuehrt Phase-Boundary Continuation aus (WAVE_IMPLEMENTATION_COMPLETE → Verifying)
+- Der Implementation-Agent STOPP — er meldet nur das Checklist-Ergebnis
+- Kein "Mission complete", kein "delivery complete", kein finaler Report hier
+- Vollstaendige Regeln: `policies/mission-completion.md § Phase-Boundary Continuation`
+
+Die Implementation-Gates (`mxcli check`, `docker check`, Build-Erfolg) definieren
+IMPLEMENTATION_CHANGE_COMPLETE — nicht USER_MISSION_COMPLETE.
+Vollstaendige Completion-Level: `policies/mission-completion.md § Completion Levels`.
 
 ## Layout-Entscheidungen
 

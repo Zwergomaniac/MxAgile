@@ -314,6 +314,26 @@ Vollstaendige Evidenz-Level-Definitionen: `policies/evidence-levels.md`
   Er liest Mockup-Screenshots fuer Layout-Entscheidungen (D46).
   Jede Aenderung wird vor Ausfuehrung validiert und dem Entwickler in Klartext beschrieben.
 
+### Phase-Boundary Continuation after Implementing (Mandatory)
+
+When ALL checklist items reach terminal state (`done | blocked | deferred`):
+
+```
+WAVE_IMPLEMENTATION_COMPLETE
+→ persist checklist final state
+→ update planning/lifecycle/process-state.yaml
+→ checkpoint commit (if authorized — policies/commit-authority.md)
+→ lifecycle re-sync (policies/lifecycle-resync.md § Phase-Boundary Continuation)
+→ ENTER Verifying automatically
+→ DO NOT stop, DO NOT ask user for phase-transition confirmation
+```
+
+**lifecycle.yaml prescribes: implementing.next = [verifying]. This transition is
+deterministic and requires no user confirmation.**
+
+An empty implementation checklist is NOT mission complete. It is a re-sync trigger.
+Run the Terminal-State Guard (policies/mission-completion.md) before any "done" claim.
+
 ### Betriebsmodus-Recheck vor erster Mendix-Modell-Mutation
 
 Unmittelbar vor dem ERSTEN `mxcli exec` Aufruf einer Session: Betriebsmodus erneut
@@ -404,6 +424,10 @@ Bei Abweichungen:
 
 - Wave-Report unter `planning/wave-reports/` erstellt
 - Board-Sync als Reporting (wenn Board konfiguriert — optional, D52)
+- **Terminal-State Guard PFLICHT:** Bevor der Agent "fertig" oder "abgeschlossen" meldet,
+  muss die Terminal-State Guard-Pruefung aus `policies/mission-completion.md` ausgefuehrt werden.
+  Ein Wave-Report alleine schliesst NICHT die Mission.
+  Naechste Aktion: lifecycle re-sync → Mission-Evaluation → weiter oder stoppen.
 
 ---
 
@@ -424,6 +448,15 @@ Bei Abweichungen:
   (`planning/wave-reports/`). Ein Agent darf technische Gruenlaufergebnisse
   (`mxcli check`, `docker check`, App-Start) dem Entwickler nicht als vollstaendige
   Verifikation praesentieren, solange Schritt 2 (UI-/Acceptance-Agent) nicht gelaufen ist.
+- **Implementierungsgates sind Pflichtbedingungen fuer Implementation-Completion — kein
+  Gesamtmissions-Abschluss.** Das Bestehen von `mxcli check`, `docker check` oder
+  Lint-Gates ist die Definition von IMPLEMENTATION_CHANGE_COMPLETE. Es beendet NICHT
+  die Verifying-Phase, die Acceptance-Phase oder die User-Mission. Vollstaendige
+  Completion-Level-Definitionen: `policies/mission-completion.md`.
+- **Terminal-State Guard vor jedem "fertig"-Statement:** Bevor ein Agent dem Entwickler
+  mitteilt, dass die Arbeit abgeschlossen ist, muss der Terminal-State Guard aus
+  `policies/mission-completion.md` positiv ausgefuehrt sein (Ergebnis: MISSION_COMPLETE).
+  Nur MISSION_COMPLETE erlaubt einen uneingeschraenkten Abschluss-Report.
 - Gate-Skills sind das primaere Qualitaetssicherungsinstrument. Die Zustandsdatei
   ist diagnostisches Tracking — nicht blockierend, aber verbindlich gefuehrt. Ein
   Agent, der eine Wave implementiert oder verifiziert, aktualisiert `process-state.yaml`
