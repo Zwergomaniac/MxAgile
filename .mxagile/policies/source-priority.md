@@ -33,7 +33,7 @@ Nicht jede Quelle ist fuer jeden Aspekt gleich aussagekraeftig:
 | UI-Layout, Felder, Navigation | Mockup |
 | Geschaeftsregeln, Validierungen, Berechnungen | Requirements-Dokument |
 | Technische Constraints, bestehende Entitaeten | Mendix-Modell |
-| Prioritaet, Reihenfolge, Scope | Board-Stories |
+| Prioritaet, Reihenfolge | Board-Stories (wenn konfiguriert) |
 
 ## Concern-spezifische Autoritaet (mxagile-project.yaml)
 
@@ -90,3 +90,16 @@ aber Pflichtfelder, Validierungen und Berechnungen NICHT vermuten (Requirements-
 Nicht jedes Projekt hat ein Board. Die primaeren Quellen (Mockup + Requirements) kommen immer.
 Wenn ein Board konfiguriert ist, wird es in Discovery als Kontext gelesen und in Verifying
 als Reporting aktualisiert. Fehlendes Board blockiert keinen Gate-Uebergang.
+
+## Board-Scope-Abgrenzung
+
+Board-Stories liefern **Kontext** (Prioritaet, Reihenfolge), aber keine **Scope-Autoritaet**.
+Scope wird ausschliesslich durch MxAgile-Lifecycle autorisiert: Requirements, Decisions,
+Developer-Freigabe, mission-state.yaml.
+
+Die blosse Existenz einer Board-Story autorisiert KEINE Implementierung, keinen
+Wave-Eintritt und keine Mission-Erweiterung. Board-Stories werden nur dann zu
+autorisiertem Scope, wenn der Entwickler oder eine autorisierte Produktautoritaet
+sie explizit als neuen Scope auswaehlt.
+
+Vollstaendiger Board Authority Contract: `policies/backlog-sync.md`.

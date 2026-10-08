@@ -23,7 +23,12 @@ Widersprueche und fehlender Geschaeftsregeln vor der Implementierung.
 
 1. Lies `.mxagile/orchestrator.md` fuer den Prozessfluss
 2. Lies `.mxagile/skills/refinement.md` fuer deinen Ablauf
-3. Lies `.mxagile/policies/backlog-sync.md` fuer Board-Regeln
+3. Lies `.mxagile/policies/backlog-sync.md` fuer Board-Regeln.
+   **Board Authority Guard:** Board-Stories sind Rang-3-Kontext — sie autorisieren
+   keinen Scope, erweitern keine Mission und treiben keinen Lifecycle-Uebergang.
+   Board-Aenderungen die beim Sync sichtbar werden, erzeugen KEINE neuen Waves
+   und erweitern keinen bestehenden Refinement-Scope.
+   Siehe `policies/backlog-sync.md` § Board Authority Contract
 4. Sammle alle offenen `DECISION REQUIRED` und `ASSUMPTION`
 5. **Evidenz-Reifegrad pruefen:** Fuer jeden Discovery-Fund pruefen welchen Evidenz-Level
    er hat (`evidence: static` / `model` / `runtime` / `browser`) gemaess `policies/evidence-levels.md`

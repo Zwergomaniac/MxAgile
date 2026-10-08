@@ -973,5 +973,50 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Static content checks on mission-completion.md, lifecycle.yaml, lifecycle-resync.md, orchestrator.md, commit-authority.md, implementation-agent.md, and mission-state.schema.json for mission completion hardening (scenarios A-O): completion levels, phase-boundary continuation, terminal-state guard, TODO-mission hierarchy, durable mission contract, partial blockers, human acceptance boundary, reporting semantics, simple developer UX. Pure read-only static validation."
+  },
+  {
+    "File": "test-project-release-checkpoint.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static content checks on project-release-checkpoint.md, mission-completion.md, lifecycle.yaml, orchestrator.md, mission-state.schema.json, backlog-sync.md, README.md for project/release completion checkpoint (scenarios A-S): checkpoint trigger/non-trigger, feature-scope completeness check, review profiles, automated test discovery, gap repair, release-readiness result vocabulary, next-scope safety, terminal-state guard integration, simple developer UX. Pure read-only static validation."
+  },
+  {
+    "File": "test-board-authority.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static content checks on backlog-sync.md, source-priority.md, mission-completion.md, project-release-checkpoint.md, orchestrator.md, GLOSSARY.yaml, discovery-agent.md, refinement-agent.md, discovery skill, refinement skill, gate-to-refinement.md, execution-waves.md, planning/README.md for Board authority hardening (scenarios A-H): Board cannot create scope, Board changes cannot reopen Waves, Feature Scope complete before Board considerations, Continue never selects Board story, Board disabled means no Board behavior, completed scope gets optional status reflection, explicit user selection enters normal intake, no Board access needed for existing scope. Pure read-only static validation."
+  },
+  {
+    "File": "test-legacy-completion-reconciliation.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static content checks on legacy-completion-reconciliation.md, project-release-checkpoint.md, mission-completion.md, reconciliation.md, orchestrator.md, GLOSSARY.yaml for legacy completion reconciliation hardening (scenarios A-L): VERIFIED_LEGACY_STATE without replay, CURRENT_REQUIRED_SCOPE for genuine gaps, canonical-state-wins over session cache, stale historical marker handling, partial checklist vs acceptance evidence, deferred NFR/Go-Live scope exclusion, supersession traceability, numbering gap handling, UNKNOWN_REQUIRES_RECONCILIATION, observe-before-mutate in repairs, fresh-session re-sync. Pure read-only static validation."
   }
 ]

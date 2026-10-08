@@ -14,11 +14,16 @@ neuen Arbeitspaket.
    Falls vorhanden: `development.ui_driven`, `source_authority` und `ui.fidelity` lesen.
    Falls nicht vorhanden: Standardverhalten — `ui_driven: false`, alle anderen Defaults.
 
-2. **Board-Sync pruefen** — `sprints/generated/` muss aktuell sein.
+2. **Board-Sync pruefen** (nur wenn Board konfiguriert — optional, D52) —
+   `sprints/generated/` muss aktuell sein.
    Falls nicht: `scripts/sync-epics-stories.ps1` ausfuehren.
+   Board-Sync ist read-only Kontextanreicherung. Es importiert oder autorisiert
+   keinen neuen Scope. Siehe `policies/backlog-sync.md` § Board Authority Contract.
 
-3. **Story lesen** — Board-Snapshot fuer die betreffende Story lesen.
-   Akzeptanzkriterien, Beschreibung und Abhaengigkeiten erfassen.
+3. **Board-Snapshot lesen** (nur wenn Board konfiguriert) — Board-Snapshot fuer die
+   betreffende Story als Rang-3-Kontext lesen. Akzeptanzkriterien, Beschreibung und
+   Abhaengigkeiten erfassen. Board-Stories die nicht zum autorisierten Scope gehoeren,
+   werden NICHT importiert oder als Mission-Erweiterung behandelt.
 
 4. **Input-Resources systematisch inventarisieren** — Vollstaendige Bestandsaufnahme
    BEVOR Discovery-Ergebnisse dokumentiert werden:
@@ -78,7 +83,8 @@ neuen Arbeitspaket.
    kein DECISION REQUIRED erzeugen wenn die Quellen zu verschiedenen Concerns sprechen.
 
 9. **Story-Spezifikation erstellen** — Unter `planning/stories/{STORYPREFIX}-*.md` mit
-   Requirement-ID, Wave-Zuordnung, Quellenangabe und — sofern gemappt — Board-Story-ID.
+   Requirement-ID, Wave-Zuordnung, Quellenangabe und — sofern gemappt und Board
+   konfiguriert — Board-Story-ID (optional; Traceability, nicht Autoritaet).
 
 ## Output
 

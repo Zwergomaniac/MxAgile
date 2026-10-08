@@ -79,12 +79,17 @@ All currently authorized Feature Waves have reached `done` AND the Feature-Scope
 Completeness Check has passed:
 
 - Every Wave in `planning/execution-waves.md` is in terminal state `done`
+  (or classified as `VERIFIED_LEGACY_STATE` — see legacy reconciliation below)
 - No active revision still requires implementation or verification
 - No accepted Requirement is unassigned to a Wave
 - No accepted Acceptance Criterion is known to be unfulfilled without explicit DEFERRED classification
 - No open required change effect remains unresolved
 - Every user-visible Acceptance Criterion is satisfied by a reachable UI surface
   (not only by backend evidence)
+
+**Historical Waves:** A Wave whose stored `phase` is not `done` is not automatically
+`CURRENT_REQUIRED_SCOPE`. Apply legacy reconciliation before concluding incompleteness.
+Full algorithm: `policies/legacy-completion-reconciliation.md`.
 
 **Does NOT imply:** UI/UX parity review done, functional integration verified,
 PROJECT_RELEASE_REVIEW_COMPLETE, or USER_MISSION_COMPLETE.
@@ -142,6 +147,14 @@ The following MUST NOT be treated as USER_MISSION_COMPLETE:
 | Build succeeds | Technical gate — NOT verification, NOT acceptance |
 | All waves done | FEATURE_SCOPE_COMPLETE (pending completeness check) — NOT USER_MISSION_COMPLETE; project/release checkpoint must be evaluated |
 | Implementation checklist wired + backend exists | NOT FEATURE_SCOPE_COMPLETE if UI ACs require reachable surfaces and none exist |
+| Board contains new/unworked stories | NOT authorized scope — Board existence is not scope authorization |
+| Board story changed or added | NOT a Wave reopen/create trigger — Board does not drive lifecycle |
+| Board-Sync discovers unimplemented items | NOT a mission extension — Board context is read-only |
+| Feature Scope complete + Board has more stories | NOT a continuation trigger — next scope requires explicit developer selection |
+| Wave phase=verifying in session cache, canonical process-state shows done | NOT incomplete — canonical state wins; session cache is reconstructed from canonical |
+| Historical report says "Review required", current canonical evidence shows complete | NOT a current work item — stale historical marker does not override canonical evidence |
+| Requirement numbering gap in legacy migration | NOT missing authorized scope — authority must be established before treating as current scope |
+| Old checklist has open item; wave report shows acceptance_gate: passed | NOT currently open — acceptance evidence outranks checklist entry |
 
 ---
 
@@ -339,7 +352,9 @@ Update `planning/mission/mission-state.yaml` as phases complete:
 
 ### Resume
 
-On fresh session or context loss:
+On fresh session or context loss, reconstruct from repository evidence: mission and lifecycle
+state are reproduced from `process-state.yaml` and `mission-state.yaml` — no stale session
+cache required.
 
 ```
 repository evidence
@@ -475,6 +490,12 @@ Developer does NOT need to supervise wave transitions.
 2. Read `planning/lifecycle/process-state.yaml` → current phase
 3. Determine next deterministic action
 4. Continue without mega-prompt
+
+**Board Guard:** "Continue with the project" MUST NEVER select a Board item solely
+because it exists. If no authorized MxAgile scope remains and no active mission
+criteria are outstanding, the correct action is to request product prioritization
+from the developer — not to autonomously import Board stories as next work.
+See `policies/backlog-sync.md` § Board Authority Contract.
 
 ### Scenario D: "Only implement the model changes; don't run browser verification"
 

@@ -11,8 +11,9 @@ Nach Discovery, wenn offene `DECISION REQUIRED` oder `ASSUMPTION` existieren.
 
 1. **Offene Punkte sammeln** — Alle `DECISION REQUIRED` und `ASSUMPTION` aus
    der Story-Spezifikation und verwandten Artefakten auflisten.
-2. **Widersprueche identifizieren** — Quellen (Mockup, Board-Story, bestehendes
-   Modell, Plattformmodul-Regeln) gegeneinander pruefen.
+2. **Widersprueche identifizieren** — Quellen (Mockup, Board-Story als Rang-3-Kontext
+   wenn Board konfiguriert, bestehendes Modell, Plattformmodul-Regeln) gegeneinander
+   pruefen. Board-Aenderungen autorisieren keinen neuen Scope.
 3. **Strukturierte Rueckfragen formulieren** — Fuer jeden offenen Punkt:
    - Frage klar formulieren
    - Kontext geben (welche Quellen sich widersprechen oder was fehlt)

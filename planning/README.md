@@ -1,8 +1,9 @@
 # Abgeleitete Arbeitsartefakte
 
-`planning/` enthaelt versionierte technische Ableitungen aus Mendix-Board-Stories:
-Spezifikationen, Testmatrizen, Traceability- und Abhaengigkeitsmatrizen. Es ist kein
-zweites Backlog und kein zweiter Sprintplan.
+`planning/` enthaelt versionierte technische Ableitungen aus MxAgile-autorisierten
+Requirements und Mockups (Rang-1-Quellen). Wenn ein Mendix Epics Board konfiguriert
+ist, koennen Artefakte optional Board-Story-IDs fuer organisatorische Traceability
+enthalten. Es ist kein zweites Backlog und kein zweiter Sprintplan.
 
 ## Struktur
 
@@ -31,30 +32,42 @@ Eine Story-Spezifikation je Requirement, benannt nach der Requirement-ID.
 | Dokument | Zweck |
 |---|---|
 | `sprint-roadmap.md` | Alle Specs nach Sprint und Feature-/Abo-Tier |
-| `execution-waves.md` | Technische Reihenfolge innerhalb Board-Sprints; fuer FEATURE+ Waves auch Capability/Domain/Module-Ownership |
-| `traceability.md` | Mockup und Specs auf Board-Storys abbilden |
+| `execution-waves.md` | Technische Reihenfolge innerhalb MxAgile-Lifecycle; fuer FEATURE+ Waves auch Capability/Domain/Module-Ownership; optional Board-Traceability |
+| `traceability.md` | Mockup und Specs auf Requirements abbilden (optional Board-Story-IDs) |
 | `backlog-review.md` | Entwickelbarkeit, Risiken, Klaerungsbedarf |
 | `dependency-matrix.md` | **OPTIONAL** — kreuztabellarische Abhaengigkeiten; Wave-Ownership in execution-waves.md ist primaer |
 | `mockup-gesamtplan.md` | Mockup-Strategie: Screens, Rollen, Detailstufen |
 | `mockup-validation-report.md` | Abgleich Mockup gegen Story-Specs |
 | `story-spec.schema.json` | JSON Schema fuer Story-Specs (Validierung + Extraktion) |
 
-## Pflicht-Frontmatter fuer storybezogene Dateien
+## Frontmatter fuer storybezogene Dateien
+
+Pflichtfelder:
+
+```markdown
+---
+state: Current
+---
+```
+
+Zulaessige `state`-Werte: `Current`, `Review required`, `Blocked`, `Superseded`.
+
+Optionale Board-Traceability-Felder (nur wenn Board konfiguriert):
 
 ```markdown
 ---
 board_story: {STORYPREFIX}-123
 source_fingerprint: <Wert aus epics-snapshot.json>
 last_reconciled: 2026-08-20
-state: Current
 board_action: None
 board_action_evidence: Optional summary or test result
 ---
 ```
 
-Zulaessige `state`-Werte: `Current`, `Review required`, `Blocked`, `Superseded`.
 `board_action` ist optional. Zulaessig sind `None`, `Move to Testing`, `Mark Done`,
 `Update Tasks`, `Add Comment` oder eine konkrete manuelle Aktion.
+
+Projekte ohne Board-Integration benoetigen keine Board-Traceability-Felder.
 
 ## Ablauf
 
@@ -76,26 +89,29 @@ und die Zugangsdaten in `.env.mendix` werden ebenfalls nicht versioniert.
 
 ## Implementation Waves
 
-`execution-waves.md` ordnet technische Arbeit innerhalb offizieller Board-Sprints. Waves
-sind kein zweiter Sprintplan und aendern keine Board-Sprintzuordnung.
+`execution-waves.md` ordnet technische Arbeit innerhalb des MxAgile-Lifecycle. Waves
+sind MxAgile-Konstrukte und kein zweiter Sprintplan.
 
 ## Wave Completion And Commits
 
 Jede abgeschlossene Wave erhaelt einen versionierten Bericht unter
-`planning/wave-reports/`. Der Bericht nennt die Board-Story-IDs, den umgesetzten Umfang,
-Testnachweise, offene Gates und die manuell auszufuehrenden Board-Aktionen.
+`planning/wave-reports/`. Der Bericht nennt den umgesetzten Umfang, Requirement-IDs,
+Testnachweise, offene Gates und — wenn Board konfiguriert — Board-Story-IDs und
+manuell auszufuehrende Board-Aktionen.
 
-Wave-relevante Commits nennen die betroffenen Board-Story-IDs explizit, zum Beispiel:
+Wave-relevante Commits nennen die betroffenen Requirement-IDs (und optional Board-Story-IDs)
+explizit, zum Beispiel:
 `feat: implement foundation [{STORYPREFIX}-123] [{STORYPREFIX}-124]`. Die IDs sind technische Traceability
-und haken keine Board-Story automatisch ab. Das manuelle Abhaken erfolgt erst nach
-Pruefung des Wave-Berichts und ueber `scripts/generate-board-action-report.ps1`.
+und haken keine Board-Story automatisch ab. Wenn ein Board konfiguriert ist, erfolgt
+das manuelle Abhaken erst nach Pruefung des Wave-Berichts und ueber
+`scripts/generate-board-action-report.ps1`.
 
 ## Portfolio-Dokumente
 
-- `traceability.md`: Mockup und Fachgrundlage auf Board-Storys abbilden.
+- `traceability.md`: Mockup und Fachgrundlage auf Requirements abbilden (optional Board-Traceability).
 - `backlog-review.md`: Entwickelbarkeit, Risiken und erforderliche Klaerungen bewerten.
 - `dependency-matrix.md`: Optionale kreuztabellarische Abhaengigkeitsmatrix. Wave-uebergreifende
   Abhaengigkeiten und Modul-Ownership werden primaer in `execution-waves.md` festgehalten.
 
-Diese Dokumente beschreiben den aktuellen Board-Snapshot, enthalten aber keine lokale
+Diese Dokumente beschreiben den aktuellen Scope-Stand, enthalten keine lokale
 Statusfuehrung und brauchen kein storybezogenes Frontmatter.
