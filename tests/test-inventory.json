@@ -928,5 +928,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Static checks for the Graphify targeted-scope contract (A-J): enrichment_provider defaults to none, .graphifyignore committed with correct noise exclusions, code surfaces (scripts/tests/) not excluded, graphify-out/ gitignored, scope_fingerprint safety mechanism in graphify_provider.py and schema, native graph independence. Pure read-only static validation."
+  },
+  {
+    "File": "test-commit-authority.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Pure static checks on commit-authority.md and safety-rules.md for autonomous checkpoint commit authority model (scenarios A-M): authority levels, precedence rules, preconditions, granularity, continue-after-commit, and operating mode integration."
   }
 ]

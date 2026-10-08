@@ -5,12 +5,16 @@ Projektspezifische Ergaenzungen gehoeren in `AGENT.md`, nicht hierher.
 
 ## Versionskontrolle
 
-- Agenten duerfen Staging und Commit-Vorschlag vorbereiten.
-- Vor `git commit` nach ausdruecklicher Freigabe fragen, ausser Autopilot-Modus
-  ist explizit aktiviert.
-- `git push` bleibt immer manuell/nutzergesteuert.
-- NIEMALS destruktive Versionskontrollbefehle ohne explizite Nutzeranfrage:
-  `git/hg checkout`, `reset`, `clean`, `stash`, `merge`, `rebase`, `push`.
+- Commit-Autoritaet wird durch `policies/commit-authority.md` bestimmt.
+- Standard: Commits interaktiv vorschlagen und auf Entwicklerbestaetigung warten.
+- Wenn der aktuelle Nutzerauftrag ausdruecklich autonome lokale Checkpoint-Commits
+  delegiert: kohaerente validierte Aenderungen committen; vollstaendiges Autoritaets-
+  und Precondition-Modell siehe `policies/commit-authority.md`.
+- `git push` bleibt immer manuell/nutzergesteuert — Push-Autoritaet wird NIEMALS
+  aus Commit-Autoritaet abgeleitet.
+- NIEMALS destruktive Versionskontrollbefehle ohne explizite Nutzeranfrage im
+  selben Turn: `git reset --hard`, `git rebase` geteilter History, `git commit
+  --amend` veroeffentlichter Commits, `git push --force`, `git clean -f`.
 
 ## Modellaenderungen
 
