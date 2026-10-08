@@ -8,14 +8,17 @@ Do not confuse framework development with a Mendix project that has MxAgile inst
 
 ## Architecture
 
-The public Bootstrap entry points are:
+The canonical public bootstrap entry points are:
 
-- install-mxagile.ps1
-- install-mxagile-mercedes.ps1
+- mxagile-setup.ps1
+- mxagile-setup-mercedes.ps1
 
 Both delegate actual installation to:
 
 - scripts/install-core.ps1
+
+The older `install-mxagile.ps1` and `install-mxagile-mercedes.ps1` are deprecated wrappers
+that delegate to the canonical scripts above.
 
 `install-core.ps1` is also the canonical entry point for existing-project Core synchronization.
 It retires stale framework-owned artifacts and re-installs the current Core payload while
@@ -87,10 +90,10 @@ See `.mxagile/skills/migration.md` and `docs/schemas.md`.
 
 ## Reference Documentation
 
-- [docs/injection-contract.md](MxAi-Dev-System/docs/injection-contract.md) — authoritative artifact ownership contract
-- [docs/architecture.md](MxAi-Dev-System/docs/architecture.md) — detailed architecture diagrams
-- [docs/schemas.md](MxAi-Dev-System/docs/schemas.md) — canonical artifact schema contract (Requirement/Spec/Task)
-- [docs/installation.md](MxAi-Dev-System/docs/installation.md) — installation and Core update guide
+- [docs/injection-contract.md](docs/injection-contract.md) — authoritative artifact ownership contract
+- [docs/architecture.md](docs/architecture.md) — detailed architecture diagrams
+- [docs/schemas.md](docs/schemas.md) — canonical artifact schema contract (Requirement/Spec/Task)
+- [docs/installation.md](docs/installation.md) — installation and Core update guide
 
 ## mxcli
 
