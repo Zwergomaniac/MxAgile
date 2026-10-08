@@ -14,6 +14,7 @@ current wave's verified implementation and produce a traceable acceptance gate r
 - `.mxagile/policies/verification-layers.md` — layer semantics and security dimensions
 - `.mxagile/policies/verification-materialization.md` — materialization boundary; PRESERVE/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE; evidence level selection rule; execution_binding_stale lifecycle
 - `.mxagile/policies/runtime-strategy.md` — local-first runtime strategy for Verifying phase
+- `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
 - `.mxagile/policies/safety-rules.md` — universal safety rules
 
 ## Project Configuration
@@ -70,7 +71,10 @@ Before running any campaign:
    - RUNTIME: app running via `mxcli run --local` (autonomous mode, no `--watch`)?
      See `policies/development-runtime.md` § Runtime Modes.
      Readiness Gate: APPLICATION_REACHABLE must be confirmed before any Playwright interaction.
-     Runtime startup failure → TEST_INFRASTRUCTURE_GAP, not APPLICATION_DEFECT.
+     Startup timeout alone MUST NOT classify as machine load, infrastructure failure, or human gate.
+     Gather evidence, inspect stale processes, attempt bounded recovery before declaring gap.
+     Full contract: `policies/runtime-startup-recovery.md`.
+     Runtime startup failure after exhausted recovery → TEST_INFRASTRUCTURE_GAP, not APPLICATION_DEFECT.
    - FRONTEND: Playwright installed and RUNTIME available?
 
 3. **VPL creation/refresh** — For each TC-NNN in scope:
