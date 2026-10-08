@@ -178,6 +178,14 @@ Assert-FileContains "R.2 README mentions Terminal-State Guard" $ReadMe 'Terminal
 Assert-FileContains "R.3 README mentions durable mission state" $ReadMe 'mission-state'
 Assert-FileContains "R.4 README distinguishes local commit from push" $ReadMe '(?i)local commit.*push|push.*authority|commit authority'
 
+# S: README documents the Project/Release Completion Checkpoint
+Write-Host ""
+Write-Host "TEST S: README documents Project/Release Completion Checkpoint" -ForegroundColor Cyan
+Assert-FileContains "S.1 README mentions Project/Release Completion Checkpoint" $ReadMe '(?i)(project.*release.*checkpoint|feature.*scope.*complet)'
+Assert-FileContains "S.2 README mentions FEATURE_SCOPE_COMPLETE level" $ReadMe 'FEATURE_SCOPE_COMPLETE'
+Assert-FileContains "S.3 README mentions review profiles in non-technical language" $ReadMe '(?i)(Quick Health Check|Integrated Product Review|Release Readiness Review)'
+Assert-FileContains "S.4 README mentions checkpoint policy file" $ReadMe 'project-release-checkpoint'
+
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount
 Write-Host ""

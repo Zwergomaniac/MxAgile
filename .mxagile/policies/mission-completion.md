@@ -73,6 +73,40 @@ Only after ACCEPTANCE_COMPLETE can a Wave transition to `done` in process-state.
 
 **Does NOT imply:** USER_MISSION_COMPLETE unless the wave is the only criterion.
 
+### FEATURE_SCOPE_COMPLETE
+
+All currently authorized Feature Waves have reached `done` AND the Feature-Scope
+Completeness Check has passed:
+
+- Every Wave in `planning/execution-waves.md` is in terminal state `done`
+- No active revision still requires implementation or verification
+- No accepted Requirement is unassigned to a Wave
+- No accepted Acceptance Criterion is known to be unfulfilled without explicit DEFERRED classification
+- No open required change effect remains unresolved
+- Every user-visible Acceptance Criterion is satisfied by a reachable UI surface
+  (not only by backend evidence)
+
+**Does NOT imply:** UI/UX parity review done, functional integration verified,
+PROJECT_RELEASE_REVIEW_COMPLETE, or USER_MISSION_COMPLETE.
+
+Full contract: `policies/project-release-checkpoint.md`
+
+### PROJECT_RELEASE_CHECKPOINT_PENDING
+
+Feature delivery has reached a coherent boundary. Before selecting new product scope
+or assessing Go-Live readiness, the Project/Release Completion Checkpoint must be
+offered or applied.
+
+Full contract: `policies/project-release-checkpoint.md`
+
+### PROJECT_RELEASE_REVIEW_COMPLETE
+
+The selected project-wide review scope has reached its legitimate terminal state.
+Remaining findings are classified. Release-readiness result is available in
+`planning/project-release/`.
+
+Full contract: `policies/project-release-checkpoint.md`
+
 ### USER_MISSION_COMPLETE
 
 Every completion criterion explicitly or implicitly required by the current user
@@ -106,6 +140,8 @@ The following MUST NOT be treated as USER_MISSION_COMPLETE:
 | Wave report written | Acceptance evidence recorded — NOT USER_MISSION_COMPLETE by itself |
 | TODO list empty | Current working plan exhausted — evaluate wave and mission next |
 | Build succeeds | Technical gate — NOT verification, NOT acceptance |
+| All waves done | FEATURE_SCOPE_COMPLETE (pending completeness check) — NOT USER_MISSION_COMPLETE; project/release checkpoint must be evaluated |
+| Implementation checklist wired + backend exists | NOT FEATURE_SCOPE_COMPLETE if UI ACs require reachable surfaces and none exist |
 
 ---
 
@@ -143,9 +179,20 @@ When ACCEPTANCE_COMPLETE is reached:
 2. Update process-state.yaml — phase: done for this Wave
 3. Create checkpoint commit (if authorized)
 4. Run lifecycle re-sync
-5. Evaluate Mission Completion (see Terminal-State Guard below)
-6. If USER_MISSION_COMPLETE: produce MISSION_REPORT, stop
-7. If mission criteria remain: determine next Wave/action, continue
+5. Are all authorized Feature Waves now done?
+   YES →
+     a. Run Feature-Scope Completeness Check (policies/project-release-checkpoint.md)
+        - incomplete: reopen affected scope, continue deterministically
+        - complete: FEATURE_SCOPE_COMPLETE
+     b. Evaluate Project/Release Checkpoint (Terminal-State Guard check 8)
+        - PROJECT_RELEASE_CHECKPOINT_REQUIRED → offer checkpoint, await decision
+        - already offered/decided → respect stored decision
+     c. If review selected: execute per review profile, reach PROJECT_RELEASE_REVIEW_COMPLETE
+   NO →
+     determine next Wave/action, continue
+6. Evaluate Mission Completion (see Terminal-State Guard below)
+7. If USER_MISSION_COMPLETE: produce MISSION_REPORT, stop
+8. If mission criteria remain: determine next action, continue
 ```
 
 ---
@@ -201,6 +248,9 @@ The agent MUST run the Terminal-State Guard:
    evidence requirements that can be completed without genuine human input?
 6. **Genuine blockers:** Is there a genuine blocker that prevents all remaining work?
 7. **Human acceptance boundary:** Does the mission require human approval at this point?
+8. **Feature scope:** If all authorized Feature Waves are `done`, has the
+   Project/Release Completion Checkpoint been evaluated?
+   See `policies/project-release-checkpoint.md`.
 
 ### Guard Results
 
@@ -209,7 +259,8 @@ The agent MUST run the Terminal-State Guard:
 | `CONTINUE_DETERMINISTICALLY` | Lifecycle phase incomplete OR next phase not entered OR unresolved deterministic work | Enter next phase, create next working plan, continue without stopping |
 | `WAITING_FOR_GENUINE_DECISION` | A genuine business decision or DECISION_REQUIRED blocks all remaining work | Report blocking decision to user, stop until resolved |
 | `WAITING_FOR_HUMAN_ACCEPTANCE` | All deterministic steps complete; acceptance explicitly requires human authority | Report acceptance-ready state, present evidence, stop at human gate |
-| `MISSION_COMPLETE` | All USER_MISSION_COMPLETE criteria verified by guard | Produce MISSION_REPORT, stop |
+| `PROJECT_RELEASE_CHECKPOINT_REQUIRED` | All Feature Waves done; checkpoint not yet offered; mission does not exclude it | Offer checkpoint per `policies/project-release-checkpoint.md`; do NOT return MISSION_COMPLETE |
+| `MISSION_COMPLETE` | All USER_MISSION_COMPLETE criteria verified by guard; project/release checkpoint evaluated (offered, run, or legitimately skipped) | Produce MISSION_REPORT, stop |
 | `MISSION_BLOCKED` | A blocker prevents ALL valid remaining actions | Report specific blocker, classify blast radius, stop |
 
 **Only `MISSION_COMPLETE` permits an unqualified "finished" or terminal report.**

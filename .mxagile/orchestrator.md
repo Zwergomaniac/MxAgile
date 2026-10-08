@@ -431,6 +431,89 @@ Bei Abweichungen:
 
 ---
 
+## Feature-Scope Completion & Project/Release Checkpoint
+
+Vollstaendiger Vertrag: `policies/project-release-checkpoint.md`.
+Lifecycle-Definition: `.mxagile/lifecycle.yaml` § `feature_scope_completion`.
+Terminal-State Guard: `policies/mission-completion.md` (Guard Check 8).
+
+Nachdem eine Wave `done` erreicht, prueft der Terminal-State Guard ob alle autorisierten
+Feature-Waves abgeschlossen sind.
+
+```
+LETZTE AUTORISIERTE WAVE DONE
+→ Feature-Scope Completeness Check (project-release-checkpoint.md § Completeness Check)
+    → unvollstaendig:
+        betroffenen Scope erneut eroeffnen (scoped return routing — policies/lifecycle-resync.md)
+        unbetroffene Wave-Ergebnisse erhalten
+        deterministisch fortfahren
+    → vollstaendig: FEATURE_SCOPE_COMPLETE
+        → Project/Release Completion Checkpoint auswerten (Guard Check 8)
+            → mission schließt Checkpoint aus (implementation-only scope):
+                Hinweis ausgeben: "Project/Release Review verfuegbar wenn bereit"
+                MISSION_COMPLETE wenn alle anderen Kriterien erfuellt
+            → Checkpoint noch nicht angeboten:
+                Concise Offer ausgeben (siehe Nutzer-Interaktion unten)
+                Auf Benutzer-Entscheidung warten
+                Entscheidung in mission-state.yaml persistieren
+            → Checkpoint bereits abgelehnt (status: declined):
+                Gespeicherte Entscheidung respektieren
+                MISSION_COMPLETE wenn alle anderen Kriterien erfuellt
+            → Review ausgewaehlt (QUICK_HEALTH_CHECK / INTEGRATED_PRODUCT_REVIEW / RELEASE_READINESS_REVIEW):
+                Review-Profil ausfuehren (policies/project-release-checkpoint.md § Review Profiles)
+                Gap-Repair bei autorisierten Gaps (scoped lifecycle return)
+                Readiness-Result produzieren
+                PROJECT_RELEASE_REVIEW_COMPLETE
+                Terminal-State Guard neu ausfuehren
+                → MISSION_COMPLETE wenn alle Kriterien erfuellt
+```
+
+### Nutzer-Interaktion (Non-Technical)
+
+Der Agent fragt NICHT nach VPL, Verification Economics, Campaign-Taxonomie oder anderen
+Framework-Interna. Die Frage an den Entwickler lautet:
+
+```
+"Der geplante Feature-Scope ist vollstaendig.
+
+Soll ich eine projektweite Abschluss-Review durchfuehren?
+
+Optionen:
+1. Quick Health Check — Erreichbarkeit, Kernpfade, bestehende Tests, offene Gaps
+2. Integrated Product Review — vollstaendige UI/UX-Paritaet, Funktionsparitaet,
+   Cross-Wave-Regression, Rollenkontrolle
+3. Release Readiness Review — alles aus (2) plus NFR/Deployment-Evidence
+4. Ueberspringen"
+```
+
+### Betriebsmodus fuer Integrated Review
+
+Vor Browser-basierter Evidenz im Rahmen der Review: Betriebsmodus erneut pruefen.
+CLOSED-AUTONOM: vollstaendig autonom. LIVE-SP-CURRENT: keine Mendix-Modell-Mutationen;
+Browser-Inspektion und Reporting weiter moeglich.
+
+### Non-Trigger Conditions
+
+Der Checkpoint wird NICHT ausgeloest wenn:
+
+- Eine einzelne Wave `done` ist, waehrend noch weitere autorisierte Waves offen sind
+- Die aktuelle Mission explizit implementation-only begrenzt ist
+- Der Entwickler den Checkpoint in dieser Mission bereits abgelehnt hat
+
+### False Completion Prevention
+
+Folgende Situation MUSS die Feature-Scope Completeness Check ausloesen, NICHT FEATURE_SCOPE_COMPLETE
+direkt deklarieren:
+
+- Backend-Logik existiert
+- Checkliste sagt `done`
+- Acceptance Criteria beschreiben User-sichtbares Verhalten
+- Keine erreichbare UI-Oberflaeche konsumiert die Backend-Logik
+
+Dieser Fall fuehrt zu einem gezielten Ruecklauf in `implementing` fuer betroffene Items.
+
+---
+
 ## Uebergaenge und Ausnahmen
 
 - Ein Uebergang von Discovery oder Refinement direkt zu Implementing darf nur bei

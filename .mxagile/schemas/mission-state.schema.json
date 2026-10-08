@@ -39,6 +39,8 @@
         "REVISION_IMPLEMENTATION_COMPLETE",
         "VERIFICATION_COMPLETE",
         "ACCEPTANCE_COMPLETE",
+        "FEATURE_SCOPE_COMPLETE",
+        "PROJECT_RELEASE_REVIEW_COMPLETE",
         "USER_MISSION_COMPLETE"
       ],
       "description": "The highest completion level that must be reached for this mission to be considered done. Derived from user prompt and lifecycle defaults."
@@ -118,6 +120,16 @@
           "enum": ["not_started", "in_progress", "complete"],
           "default": "not_started"
         },
+        "feature_scope": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "complete"],
+          "default": "not_started"
+        },
+        "project_release_review": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "complete", "skipped"],
+          "default": "not_started"
+        },
         "mission": {
           "type": "string",
           "enum": ["active", "complete", "blocked", "archived"],
@@ -181,10 +193,78 @@
         "CONTINUE_DETERMINISTICALLY",
         "WAITING_FOR_GENUINE_DECISION",
         "WAITING_FOR_HUMAN_ACCEPTANCE",
+        "PROJECT_RELEASE_CHECKPOINT_REQUIRED",
         "MISSION_COMPLETE",
         "MISSION_BLOCKED"
       ],
       "description": "Result of the most recent Terminal-State Guard run."
+    },
+    "project_release_checkpoint": {
+      "type": "object",
+      "description": "Durable state for the Project/Release Completion Checkpoint. See policies/project-release-checkpoint.md.",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["not_evaluated", "offered", "accepted", "declined", "complete"],
+          "default": "not_evaluated",
+          "description": "Current status of the Project/Release Completion Checkpoint in this mission."
+        },
+        "review_profile": {
+          "type": ["string", "null"],
+          "enum": ["QUICK_HEALTH_CHECK", "INTEGRATED_PRODUCT_REVIEW", "RELEASE_READINESS_REVIEW", null],
+          "default": null,
+          "description": "Review profile selected by the developer, or null if not yet selected."
+        },
+        "feature_scope_complete": {
+          "type": ["boolean", "null"],
+          "default": null,
+          "description": "Result of the Feature-Scope Completeness Check. null = not yet run."
+        },
+        "completeness_check_result": {
+          "type": ["string", "null"],
+          "enum": ["passed", "failed", "not_run", null],
+          "default": null,
+          "description": "Outcome of the Feature-Scope Completeness Check."
+        },
+        "completeness_gaps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Descriptions of completeness gaps found, if completeness_check_result = failed."
+        },
+        "review_result": {
+          "type": ["string", "null"],
+          "enum": [
+            "PROJECT_HEALTHY_FOR_CURRENT_ACCEPTED_SCOPE",
+            "PROJECT_HEALTHY_WITH_LIMITATIONS",
+            "PROJECT_GAPS_REQUIRE_REPAIR",
+            "PROJECT_DECISIONS_REQUIRED",
+            "RELEASE_READINESS_NOT_ASSESSED",
+            "RELEASE_READINESS_BLOCKED",
+            "RELEASE_READY_PENDING_HUMAN_APPROVAL",
+            "RELEASE_READY",
+            null
+          ],
+          "default": null,
+          "description": "Release-readiness result produced by the project/release review."
+        },
+        "review_report": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Path to the review report artifact, e.g. planning/project-release/<mission-id>-release-review.yaml."
+        },
+        "skip_reason": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Reason the checkpoint was declined (e.g. 'implementation_only_scope', 'developer_declined')."
+        },
+        "decided_at": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "default": null,
+          "description": "Date the checkpoint offer was decided (accepted or declined). YYYY-MM-DD."
+        }
+      }
     }
   },
   "definitions": {

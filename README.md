@@ -284,6 +284,38 @@ USER_MISSION_COMPLETE           →  all mission criteria satisfied (permits ter
 
 Evidence is classified by layer (STATIC / MODEL / BUILD / RUNTIME / FRONTEND) and security dimension (VISIBILITY / ACCESSIBILITY / AUTHORIZATION / DATA_SCOPE).
 
+## Project/Release Completion Checkpoint
+
+When all authorized Feature Waves reach `done`, MxAgile does not immediately return MISSION_COMPLETE. Instead, it evaluates whether the integrated product has reached a coherent delivery boundary and offers the developer a holistic review before new scope is selected.
+
+The completion levels extend through:
+
+```
+ACCEPTANCE_COMPLETE               →  wave done; acceptance gate passed
+FEATURE_SCOPE_COMPLETE            →  all authorized waves done AND Feature-Scope Completeness Check passed
+PROJECT_RELEASE_CHECKPOINT_PENDING →  coherent boundary reached; checkpoint must be evaluated
+PROJECT_RELEASE_REVIEW_COMPLETE   →  selected review executed; release-readiness result available
+USER_MISSION_COMPLETE             →  all mission criteria satisfied (permits terminal report)
+```
+
+**Feature-Scope Completeness Check** prevents false completion: if backend logic exists but no reachable UI surface exposes it to a user, the wave is not complete regardless of the checklist state.
+
+**Developer offer (non-technical language):**
+
+> "The planned Feature Scope is complete. Before we continue, I can review the project as a whole. Choose: Quick Health Check / Integrated Product Review / Release Readiness Review / Skip."
+
+**Review profiles:**
+
+| Profile | Scope |
+|---|---|
+| Quick Health Check | Cross-wave regression, open blockers, obvious gaps |
+| Integrated Product Review | UI/UX parity, functional parity, role coverage, test automation discovery |
+| Release Readiness Review | Full integrated review plus NFR, privacy, deployment, governance |
+
+**Terminal-State Guard check:** After all Feature Waves are `done`, the guard fires `PROJECT_RELEASE_CHECKPOINT_REQUIRED` if no checkpoint decision has been recorded. This blocks MISSION_COMPLETE until the developer either accepts or declines the review. The decision is persisted in `planning/mission/mission-state.yaml` so the offer is not repeated.
+
+Full contract: `.mxagile/policies/project-release-checkpoint.md`
+
 ## Updating MxAgile
 
 `mxagile-setup.ps1` detects project state and performs the correct operation automatically.
