@@ -943,5 +943,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Pure static checks on commit-authority.md and safety-rules.md for autonomous checkpoint commit authority model (scenarios A-M): authority levels, precedence rules, preconditions, granularity, continue-after-commit, and operating mode integration."
+  },
+  {
+    "File": "test-operating-mode-detection.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static contract checks for autonomous operating-mode detection hardening (scenarios A-K): CLOSED-AUTONOM/LIVE-SP-CURRENT/LIVE-SP-OTHER/AMBIGUOUS-SP-STATE definitions, detection algorithm, no-question default, mutation recheck, headless platform shortcut, stale PID handling, detector wiring to orchestrator and implementation-agent, process safety (no kill). Pure read-only static validation, no real Studio Pro required."
   }
 ]

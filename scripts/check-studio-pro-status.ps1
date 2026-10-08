@@ -46,8 +46,14 @@ try {
     $ProjectPath = [IO.Path]::GetFullPath((Resolve-Path -Path $ProjectPath).Path)
 } catch {
     if ($Json) {
-        [PSCustomObject]@{ isOpen = $null; pid = $null; projectPath = $ProjectPath; error = $_.Exception.Message } |
-            ConvertTo-Json -Compress
+        [PSCustomObject]@{
+            isOpen             = $null
+            pid                = $null
+            projectPath        = $ProjectPath
+            anyStudioProRunning = $null
+            otherProjectPids   = @()
+            error              = $_.Exception.Message
+        } | ConvertTo-Json -Compress
     } else {
         Write-Error $_.Exception.Message
     }
@@ -55,16 +61,21 @@ try {
 }
 
 $projectArgument = $ProjectPath.ToLowerInvariant()
-$existingProjectProcess = Get-CimInstance Win32_Process -Filter "Name='studiopro.exe'" |
+$allStudioProProcesses = @(Get-CimInstance Win32_Process -Filter "Name='studiopro.exe'" -ErrorAction SilentlyContinue)
+$existingProjectProcess = $allStudioProProcesses |
     Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($projectArgument) } |
     Select-Object -First 1
+$otherProcesses = @($allStudioProProcesses |
+    Where-Object { $_ -ne $existingProjectProcess })
 
 if ($existingProjectProcess) {
     if ($Json) {
         [PSCustomObject]@{
-            isOpen      = $true
-            pid         = $existingProjectProcess.ProcessId
-            projectPath = $ProjectPath
+            isOpen             = $true
+            pid                = $existingProjectProcess.ProcessId
+            projectPath        = $ProjectPath
+            anyStudioProRunning = $true
+            otherProjectPids   = @($otherProcesses | ForEach-Object { $_.ProcessId })
         } | ConvertTo-Json -Compress
     } else {
         Write-Host "Studio Pro has this project open (PID $($existingProjectProcess.ProcessId)): '$ProjectPath'."
@@ -74,11 +85,17 @@ if ($existingProjectProcess) {
 
 if ($Json) {
     [PSCustomObject]@{
-        isOpen      = $false
-        pid         = $null
-        projectPath = $ProjectPath
+        isOpen             = $false
+        pid                = $null
+        projectPath        = $ProjectPath
+        anyStudioProRunning = ($allStudioProProcesses.Count -gt 0)
+        otherProjectPids   = @($allStudioProProcesses | ForEach-Object { $_.ProcessId })
     } | ConvertTo-Json -Compress
 } else {
-    Write-Host "Studio Pro does not have this project open: '$ProjectPath'."
+    if ($allStudioProProcesses.Count -gt 0) {
+        Write-Host "Studio Pro does not have this project open, but is running for another project: '$ProjectPath'."
+    } else {
+        Write-Host "Studio Pro does not have this project open: '$ProjectPath'."
+    }
 }
 exit 1

@@ -8,6 +8,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
 - `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Change Significance, Architecture Drift Guard
+- `.mxagile/policies/operating-mode.md` — Betriebsmodus-Erkennung (PFLICHT vor erster Modell-Mutation)
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
 - `.mxagile/policies/development-runtime.md` — Warm Local Development Loop
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules

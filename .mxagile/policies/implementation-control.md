@@ -148,7 +148,8 @@ Repair eine architektur-signifikante Schuld oder ein Ownership-Problem aufdeckt.
 - Keine MDL-Scripts im Chat zeigen — Aenderungen in Klartext beschreiben, Freigabe
   einholen, dann still ausfuehren
 - Alle Bezeichner in MDL mit doppelten Anfuehrungszeichen quoten
-- Betriebsmodus (CLOSED-AUTONOM / LIVE-SP) bestimmt die verfuegbaren Werkzeuge
+- Betriebsmodus (CLOSED-AUTONOM / LIVE-SP-CURRENT / LIVE-SP-OTHER / AMBIGUOUS-SP-STATE)
+  bestimmt die verfuegbaren Werkzeuge — Erkennungsalgorithmus: `policies/operating-mode.md`
 
 ## Security-Timing (D48)
 

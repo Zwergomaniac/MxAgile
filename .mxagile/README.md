@@ -170,10 +170,14 @@ Copilot-Agents ein anderes Format verwenden.
 
 ## Modusabhaengiges Routing
 
-| Modus | Concord/SP-MCP | mxcli | Dateien |
-|---|---|---|---|
-| **CLOSED-AUTONOM** (SP geschlossen) | Nicht verfuegbar | Vollzugriff | Vollzugriff |
-| **LIVE-SP** (SP offen) | Verfuegbar | Vollzugriff | Vollzugriff |
+| Modus | Concord/SP-MCP | mxcli | Dateien | Autononomie |
+|---|---|---|---|---|
+| **CLOSED-AUTONOM** (kein SP fuer dieses Projekt) | Nicht verfuegbar | Vollzugriff | Vollzugriff | Vollautonomes Arbeiten |
+| **LIVE-SP-CURRENT** (SP hat dieses Projekt offen) | Verfuegbar | Vollzugriff | Vollzugriff | Koexistenz-Vertrag |
+| **LIVE-SP-OTHER** (SP laeuft fuer anderes Projekt) | Nicht verfuegbar | Vollzugriff | Vollzugriff | Wie CLOSED-AUTONOM |
+| **AMBIGUOUS-SP-STATE** (Erkennung unvollstaendig) | Unklar | Vollzugriff | Vollzugriff | Sichere Arbeit; Rueckfrage nur vor Modell-Mutation |
+
+Erkennungsalgorithmus: `policies/operating-mode.md`
 
 ## Unterstuetzte Plattformen
 
