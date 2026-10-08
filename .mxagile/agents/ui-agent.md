@@ -14,6 +14,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
 - `.mxagile/policies/mockup-analysis.md` — Mockup-Analyse-Regeln
 - `.mxagile/policies/runtime-strategy.md` — Runtime-Strategie: Local First, Docker by Need
+- `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
 - `.mxagile/policies/evidence-levels.md` — Evidenz-Klassifikation (STATIC/MODEL/RUNTIME/BROWSER)
 - `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules

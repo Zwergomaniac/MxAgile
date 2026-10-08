@@ -30,6 +30,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
 - `.mxagile/policies/mission-completion.md` — Completion Levels, Terminal-State Guard, Phase-Boundary Continuation
+- `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
 
 ## Architecture Ownership Compliance
 

@@ -152,12 +152,28 @@ MDL change
 
 ## Recovery
 
-If the development runtime terminates unexpectedly:
+If the development runtime terminates unexpectedly or does not reach APPLICATION_REACHABLE:
 
-1. Classify the problem: application/model defect, environment issue, database prerequisite,
-   port conflict, unsupported environment
-2. Determine whether restart is useful given the remaining implementation scope
-3. Restart if appropriate — do not abandon valid implementation work because of a runtime failure
+### Evidence-First Rule
+
+A startup timeout, startup silence, or failed APPLICATION_REACHABLE probe is an observation,
+not a diagnosis. Observation alone MUST NOT establish:
+- machine load or insufficient performance
+- infrastructure failure
+- application defect
+- human/external gate
+
+Gather available diagnostic evidence before classifying. Full evidence inventory and bounded
+recovery model: `policies/runtime-startup-recovery.md`.
+
+### Recovery Steps
+
+1. Gather diagnostic evidence (mxcli output, stale processes, build log, port state)
+2. Classify the failing stage (DEPENDENCY_SYNC, BUILD_IN_PROGRESS, RUNTIME_STARTED, etc.)
+3. Inspect for stale/orphan mxbuild or mxcli processes from previous sessions
+4. Apply bounded deterministic recovery (see `policies/runtime-startup-recovery.md`)
+5. If APPLICATION_REACHABLE is established: resume verification — no new mission
+6. If all safe recovery paths exhausted: escalate as TEST_INFRASTRUCTURE_GAP
 
 A local runtime failure during Implementing MUST NOT automatically:
 - Fail the lifecycle phase
@@ -477,11 +493,17 @@ A process MUST NOT be terminated merely because:
 Before starting a new runtime:
 
 1. Check for existing mxcli processes matching the project path
-2. Classify each: OWNED / REUSABLE / FOREIGN / STALE_OWNED / UNKNOWN
-3. If REUSABLE: assess compatibility (project path, db_name, app_port)
-4. If compatible REUSABLE: reuse instead of starting new
-5. If STALE_OWNED: terminate with evidence before starting new
-6. If FOREIGN or UNKNOWN: report and choose alternate port or escalate
+2. Check for existing mxbuild processes matching the project path (they may hold file locks on
+   `deployment/web/` or model compilation artifacts independently of mxcli)
+3. Classify each process: OWNED / REUSABLE / FOREIGN / STALE_OWNED / UNKNOWN
+   (for mxbuild: OWNED_BUILD / STALE_OWNED_BUILD / FOREIGN_BUILD / UNKNOWN_BUILD)
+4. If REUSABLE: assess compatibility (project path, db_name, app_port)
+5. If compatible REUSABLE: reuse instead of starting new
+6. If STALE_OWNED or STALE_OWNED_BUILD: terminate with evidence before starting new
+7. If FOREIGN or UNKNOWN (any process type): report and choose alternate path or escalate
+
+Full mxbuild orphan detection and Safe Build Recovery Ladder:
+`policies/runtime-startup-recovery.md — Orphan / Stale Build Process Handling`
 
 Record runtime ownership in process-state:
 
