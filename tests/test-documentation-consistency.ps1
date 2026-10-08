@@ -137,6 +137,47 @@ Assert-FileNotContains "L.2 README does not recommend mxagile-init.ps1 as active
 Assert-FileNotContains "L.3 README does not recommend mxagile-check-quality.ps1 as active command" $ReadMe 'mxagile-check-quality\.ps1'
 Assert-FileNotContains "L.4 installation.md does not recommend mxagile-refine.ps1 as active command" $InstallDoc 'mxagile-refine\.ps1'
 
+# M: README does not use the legacy project name
+Write-Host ""
+Write-Host "TEST M: README does not use legacy project name" -ForegroundColor Cyan
+Assert-FileNotContains "M.1 README does not use legacy name MxAi-Dev-System" $ReadMe 'MxAi-Dev-System'
+
+# N: README does not expose internal scripts as user commands
+Write-Host ""
+Write-Host "TEST N: README does not expose internal scripts as user commands" -ForegroundColor Cyan
+Assert-FileNotContains "N.1 README does not tell users to call setup-agent-system.ps1" $ReadMe '(?i)run.*setup-agent-system|setup-agent-system.*to initialize'
+
+# O: README mentions all five lifecycle phases from lifecycle.yaml
+Write-Host ""
+Write-Host "TEST O: README mentions all five lifecycle phases" -ForegroundColor Cyan
+Assert-FileContains "O.1 README mentions discovery phase" $ReadMe '(?i)\bdiscovery\b'
+Assert-FileContains "O.2 README mentions refinement phase" $ReadMe '(?i)\brefinement\b'
+Assert-FileContains "O.3 README mentions ready phase" $ReadMe '(?i)\bready\b'
+Assert-FileContains "O.4 README mentions implementing phase" $ReadMe '(?i)\bimplementing\b'
+Assert-FileContains "O.5 README mentions verifying phase" $ReadMe '(?i)\bverifying\b'
+
+# P: Canonical setup scripts exist on disk
+Write-Host ""
+Write-Host "TEST P: Canonical setup scripts exist on disk" -ForegroundColor Cyan
+Assert-True "P.1 mxagile-setup.ps1 exists at root" (Test-Path (Join-Path $ScriptDir "mxagile-setup.ps1")) "mxagile-setup.ps1 not found"
+Assert-True "P.2 mxagile-setup-mercedes.ps1 exists at root" (Test-Path (Join-Path $ScriptDir "mxagile-setup-mercedes.ps1")) "mxagile-setup-mercedes.ps1 not found"
+Assert-True "P.3 scripts/install-core.ps1 exists" (Test-Path (Join-Path $ScriptDir "scripts/install-core.ps1")) "scripts/install-core.ps1 not found"
+Assert-True "P.4 scripts/generate-mxagile-platform-skills.ps1 exists" (Test-Path (Join-Path $ScriptDir "scripts/generate-mxagile-platform-skills.ps1")) "scripts/generate-mxagile-platform-skills.ps1 not found"
+
+# Q: CLAUDE.md does not contain dead MxAi-Dev-System/ link prefix
+Write-Host ""
+Write-Host "TEST Q: CLAUDE.md has no dead MxAi-Dev-System/ link paths" -ForegroundColor Cyan
+$ClaudeMd = Join-Path $ScriptDir "CLAUDE.md"
+Assert-FileNotContains "Q.1 CLAUDE.md does not reference MxAi-Dev-System/ path prefix" $ClaudeMd 'MxAi-Dev-System/'
+
+# R: README documents the autonomy model accurately
+Write-Host ""
+Write-Host "TEST R: README documents autonomy model" -ForegroundColor Cyan
+Assert-FileContains "R.1 README mentions operating-mode detection" $ReadMe 'CLOSED-AUTONOM|operating.mode'
+Assert-FileContains "R.2 README mentions Terminal-State Guard" $ReadMe 'Terminal-State Guard'
+Assert-FileContains "R.3 README mentions durable mission state" $ReadMe 'mission-state'
+Assert-FileContains "R.4 README distinguishes local commit from push" $ReadMe '(?i)local commit.*push|push.*authority|commit authority'
+
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount
 Write-Host ""
