@@ -160,6 +160,40 @@ lifecycle:
 
   terminal_states: [done]
 
+  feature_scope_completion:
+    purpose: >
+      After all currently authorized Feature Waves reach 'done', MxAgile evaluates
+      whether feature delivery has reached a coherent boundary and whether a
+      Project/Release Completion Checkpoint should be offered before selecting new scope.
+      This prevents MISSION_COMPLETE from being returned without evaluating whether the
+      integrated product should receive a holistic review.
+    policy: ".mxagile/policies/project-release-checkpoint.md"
+    trigger_conditions:
+      - "All waves in planning/execution-waves.md are in terminal state done"
+      - "No active revision still requires implementation or verification"
+      - "No accepted Requirement is unassigned to a Wave"
+      - "Current mission reaches a coherent feature-delivery boundary"
+      - "Developer asks whether the project/application/release is ready"
+    non_trigger_conditions:
+      - "One individual Wave is done while more authorized Waves remain in current mission scope"
+      - "Developer gave an explicitly implementation-only scoped mission"
+      - "Current mission intentionally excludes project-wide verification"
+      - "Developer already declined review in current mission (decision stored in mission-state.yaml)"
+    completeness_check_required: true
+    completion_levels:
+      FEATURE_SCOPE_COMPLETE: >
+        All authorized Feature Waves done AND Feature-Scope Completeness Check passed.
+        Does NOT imply project/release review done or USER_MISSION_COMPLETE.
+      PROJECT_RELEASE_CHECKPOINT_PENDING: >
+        Feature delivery at coherent boundary. Checkpoint must be offered/applied before
+        new scope selection or unqualified MISSION_COMPLETE.
+      PROJECT_RELEASE_REVIEW_COMPLETE: >
+        Selected project-wide review reached terminal state; readiness result available.
+    review_profiles:
+      - QUICK_HEALTH_CHECK
+      - INTEGRATED_PRODUCT_REVIEW
+      - RELEASE_READINESS_REVIEW
+
   return_routing:
     principle: >
       Re-enter at the EARLIEST necessary phase for affected scope only.
