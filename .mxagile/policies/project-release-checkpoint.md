@@ -93,6 +93,34 @@ backend logic exists
 → PROJECT_RELEASE_CHECKPOINT would give a false "all waves done" signal
 ```
 
+### Legacy Scope Reconciliation (Step 0)
+
+Before running the completeness checks below, apply legacy reconciliation to any Wave
+or requirement whose canonical `phase` is not yet `done`.
+
+**A Wave with `phase != done` is not automatically `CURRENT_REQUIRED_SCOPE`.**
+
+Full algorithm: `policies/legacy-completion-reconciliation.md`.
+
+```
+historical Waves found with phase != done
+     OR legacy requirement artifacts with unclear status
+     ↓
+Apply Legacy Completion Classification for each item:
+  VERIFIED_LEGACY_STATE            → count as done for this check; record basis
+  CURRENT_REQUIRED_SCOPE           → genuine remaining work; see Completeness Check steps
+  DEFERRED_OUTSIDE_FEATURE_SCOPE   → exclude from completeness check
+  SUPERSEDED                       → exclude; trace to successor artifact
+  GENUINE_DECISION_BLOCKER         → surface to developer; blocks FEATURE_SCOPE_COMPLETE
+  UNKNOWN_REQUIRES_RECONCILIATION  → surface to developer; blocks until classified
+     ↓
+Continue completeness checks below using only CURRENT_REQUIRED_SCOPE items
+```
+
+Do NOT reopen implementation for `VERIFIED_LEGACY_STATE` items.
+Do NOT start `DEFERRED_OUTSIDE_FEATURE_SCOPE` scope.
+Do NOT fabricate authorization for `UNKNOWN_REQUIRES_RECONCILIATION` items.
+
 ### Completeness Checks
 
 Execute all checks that are applicable to the current project:
@@ -226,6 +254,8 @@ Trigger: "Only implement the model changes", "Just implement, don't verify."
 → If checkpoint was previously declined: respect the stored decision.
 → If checkpoint was never offered: present the offer now.
 → Do NOT invent or start new product scope.
+→ Do NOT select a Board story as next work solely because it exists on the Board.
+→ If no authorized scope remains: request product prioritization from the developer.
 
 ---
 
@@ -516,7 +546,9 @@ After Feature Scope completion, MxAgile must NOT autonomously:
 
 - start deferred NFR/go-live scope
 - sync external Board scope for new features
-- choose a backlog feature
+- choose a Board backlog feature
+- select any Board story as next work solely because it exists
+- import or authorize scope from the Board
 - implement technically attractive opportunities
 - resolve unrelated historical Decisions
 
@@ -525,8 +557,16 @@ After Feature Scope completion, MxAgile must NOT autonomously:
 2. Run Feature-Scope Completeness Check
 3. Offer/execute Project/Release Completion Checkpoint
 4. Report integrated readiness result
-5. Only then: identify whether a next authorized scope exists
-6. If none: request product prioritization
+5. Offer organizational Board completion reflection (if Board configured — status only)
+6. Only then: identify whether a next authorized scope exists
+7. If none: request product prioritization from the developer — NOT autonomous Board story selection
+
+**Board Authority Guard (post-checkpoint):**
+Absence of new authorized scope after PROJECT_RELEASE_REVIEW_COMPLETE results in
+product prioritization / user authority, NOT autonomous Board story selection.
+The Board may be mentioned as one surface where the developer can find candidate
+work, but the agent MUST NOT select a Board item without explicit developer direction.
+See `policies/backlog-sync.md` § Board Authority Contract.
 
 ---
 

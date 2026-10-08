@@ -65,25 +65,41 @@ terms:
     MxScrumMaster:
       category: Shared Copilot prompt
       description: Product, backlog, and delivery-planning prompt for Mendix work.
-      agent_hint: When configured, the Mendix Epics Board remains the operational backlog source of truth.
+      agent_hint: When configured, the Mendix Epics Board is an optional organizational status projection for tracking and prioritization. It does not authorize MxAgile scope.
     Mendix_Epics_Board:
       category: Backlog
-      description: Operational source of truth for epics, stories, acceptance criteria, status, and sprint assignment.
-      agent_hint: Do not update Board status, tasks, or sprints in local files or automatically.
+      description: >
+        Optional organizational status projection for epics, stories, acceptance criteria,
+        status, and sprint assignment. Rank 3 context source (policies/source-priority.md).
+        Board content does not create MxAgile scope, authorize implementation, or drive
+        lifecycle transitions. See policies/backlog-sync.md § Board Authority Contract.
+      agent_hint: >
+        Do not update Board status, tasks, or sprints in local files or automatically.
+        Do not treat Board item existence as scope authorization.
+        Do not select Board items as next work without explicit developer selection.
     Derived_work_artifact:
       category: Planning
-      description: Local specification, test, traceability, or dependency artifact derived from a Board story.
-      agent_hint: Reference the Board ID and source fingerprint; never treat it as a second backlog.
+      description: >
+        Local specification, test, traceability, or dependency artifact derived from
+        Requirements and Mockups (Rank 1 sources). When a Board is configured, may
+        carry a Board-Story-ID for organizational traceability.
+      agent_hint: >
+        Board-Story-ID is optional traceability, not authority. Never treat planning/
+        as a second backlog. The authoritative scope source is the MxAgile lifecycle
+        (Requirements, Decisions, mission-state.yaml), not the Board.
     Implementation_Wave:
       category: Planning
       description: >
-        Technical implementation sequence within or across Board sprints.
-        For FEATURE/CROSS_CUTTING/ARCHITECTURALLY_SIGNIFICANT scope, a Wave entry records
-        capability, domain, and Mendix module ownership before implementation begins.
+        Technical implementation sequence within MxAgile authorized scope.
+        Waves are MxAgile lifecycle constructs; they exist independently of any
+        external Board sprint. For FEATURE/CROSS_CUTTING/ARCHITECTURALLY_SIGNIFICANT
+        scope, a Wave entry records capability, domain, and Mendix module ownership
+        before implementation begins.
       agent_hint: >
-        It is not a local sprint. Wave entries for significant scope include Significance,
-        Capability, Domain, Module Ownership, and Architecture Decision fields.
-        See policies/implementation-control.md for Wave Entry Format.
+        Waves are not local sprints and not Board sprints. They are structured by
+        MxAgile lifecycle, not by Board existence. Wave entries for significant scope
+        include Significance, Capability, Domain, Module Ownership, and Architecture
+        Decision fields. See policies/implementation-control.md for Wave Entry Format.
     ASSUMPTION:
       category: Decision status
       description: A statement not confirmed by a source or stakeholder.
@@ -92,6 +108,57 @@ terms:
       category: Decision status
       description: A decision that an agent must not make silently.
       agent_hint: Block only the affected work when the decision materially changes implementation.
+
+  completion_reconciliation:
+    CURRENT_REQUIRED_SCOPE:
+      category: Legacy completion classification
+      description: >
+        Historical Wave or requirement that is accepted, authorized, and not yet
+        fully implemented or verified under the current protocol. Genuine remaining work.
+      agent_hint: Include in FEATURE_SCOPE_COMPLETE check as remaining work. Route to earliest necessary lifecycle phase.
+    VERIFIED_LEGACY_STATE:
+      category: Legacy completion classification
+      description: >
+        Historical Wave or requirement whose implementation and verification occurred under
+        a prior MxAgile generation. Sufficient repository evidence supports completion
+        without protocol-metadata replay. May be counted as done for FEATURE_SCOPE_COMPLETE.
+      agent_hint: >
+        Requires: authorized scope, implementation artifacts, and at least one of
+        (wave report, acceptance campaign, runtime/browser evidence, developer acceptance decision,
+        or absorbing revision with acceptance evidence). Record reconciliation basis in
+        process-state.yaml. Full criteria: policies/legacy-completion-reconciliation.md.
+    DEFERRED_OUTSIDE_FEATURE_SCOPE:
+      category: Legacy completion classification
+      description: >
+        Explicitly deferred scope belonging to a later release, NFR, go-live, or compliance
+        activity. Does not block FEATURE_SCOPE_COMPLETE. May block RELEASE_READY.
+      agent_hint: >
+        Must have documented deferral authority (planning/decisions/ or mission-state.yaml).
+        Undocumented deferrals are UNKNOWN_REQUIRES_RECONCILIATION.
+    SUPERSEDED:
+      category: Legacy completion classification
+      description: >
+        Requirement, revision, Design Contract, or plan replaced by a later accepted artifact.
+        Retained for traceability. Not current scope. Does not create implementation work.
+      agent_hint: >
+        Trace to the superseding artifact. Do not delete the superseded artifact.
+        Do not create work items from superseded scope without explicit re-authorization.
+    GENUINE_DECISION_BLOCKER:
+      category: Legacy completion classification
+      description: >
+        An open business decision, unresolved DECISION_REQUIRED, or human-authority gate
+        that cannot be satisfied without stakeholder input. Blocks FEATURE_SCOPE_COMPLETE
+        until resolved.
+      agent_hint: Surface to developer with clear description of what decision is needed.
+    UNKNOWN_REQUIRES_RECONCILIATION:
+      category: Legacy completion classification
+      description: >
+        Authority or provenance of a historical artifact cannot be established from
+        available evidence. A legitimate reconciliation blocker. Do not fabricate
+        authorization. Do not count as scope until authority is established.
+      agent_hint: >
+        Preserve the artifact. Surface to developer. Do not create requirements,
+        waves, or work items to resolve an UNKNOWN item without developer direction.
 
   security:
     SSO:

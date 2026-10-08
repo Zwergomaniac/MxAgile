@@ -19,7 +19,9 @@ Prueft ob die Discovery-Phase vollstaendig abgeschlossen ist bevor Refinement be
 - [ ] Falls generiertes Mockup: `"approved": true` im mocketeer-spec (Entwicklerfreigabe erteilt)
 - [ ] Bestehendes Modell im betroffenen Modul gelesen
 - [ ] Company Layer Platform-Constraints evaluiert: falls Layer installiert (.mxagile/layers/) → platform-modules.yml gelesen; falls keine Layer → NOT_APPLICABLE
-- [ ] Board-Sync ist aktuell (wenn Board konfiguriert — optional, D52)
+- [ ] Board-Sync ist aktuell (wenn Board konfiguriert — optional, D52).
+      Board-Sync ist Kontextanreicherung; ein fehlender oder veralteter Board-Sync
+      blockiert das Gate NICHT. Neue Board-Stories autorisieren keinen Scope.
 - [ ] **Concern-Reconciliation abgeschlossen (wenn `development.ui_driven = true`):**
       UI-Inventar und Story-Specs auf Widersprueche geprueft.
       Jeder Widerspruch nach konfigurierter `source_authority` aufgeloest oder als

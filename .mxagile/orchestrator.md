@@ -14,6 +14,22 @@ Ownership-Guard: siehe `policies/ownership-guard.md`.
 
 ---
 
+## Board Authority Guard
+
+The external Mendix Epics Board is an **optional organizational status projection**.
+Full contract: `policies/backlog-sync.md` § Board Authority Contract.
+
+Board content MUST NOT create scope, extend missions, authorize implementation,
+create/reopen Waves, or become the default continuation for "Continue with the project."
+
+After Feature Scope completion and Project/Release Checkpoint evaluation:
+- Existing authorized work may be reflected back to the Board as status.
+- New scope requires explicit developer/product-authority selection.
+- Absence of new authorized scope → product prioritization, NOT Board story selection.
+- Projects without Board integration experience no Board-related behavior or prompts.
+
+---
+
 ## ORIENTATION Check (vor FRAMEWORK_CHANGE)
 
 **Vor dem FRAMEWORK_CHANGE-Check** den User-Request auf Orientierungsanfragen pruefen.
@@ -102,6 +118,18 @@ Quellen in Autoritaetsreihenfolge:
 
 Abgeschlossene Lifecycle-Phasen werden NICHT neu durchlaufen, nur weil eine neue
 Agent-Session startet. Konversationsspeicher ist ergaenzend, nicht autoritativ.
+
+**Kanonischer Zustand gewinnt bei Konflikt mit Session-Cache:**
+Wenn `planning/lifecycle/process-state.yaml` eine Wave als `done` zeigt, aber
+`.concord/scratch/process-state.yaml` als `verifying` — gewinnt der kanonische Zustand.
+Session-Cache wird aus dem kanonischen Zustand rekonstruiert, nie umgekehrt.
+
+**Legacy-Completion-Reconciliation bei historischen Waves:**
+Zeigt eine Wave im kanonischen Zustand eine Phase !== `done`, bedeutet das NICHT
+automatisch ausstehende Arbeit. Vor jeder Schlussfolgerung ueber historische Waves:
+Legacy-Completion-Reconciliation anwenden (`policies/legacy-completion-reconciliation.md`).
+Eine Wave kann `VERIFIED_LEGACY_STATE` sein und als abgeschlossen gelten, ohne dass
+Implementierung oder Verifikation unter dem aktuellen Protokoll wiederholt wird.
 
 **Orientierung bei frisch initialisiertem oder adoptiertem Projekt:**
 Falls nach Startup Re-Sync kein Lifecycle-Zustand vorhanden ist (kein
@@ -221,7 +249,8 @@ kann autonom aufgeloest werden?
   - Wenn `ui_driven = true`: UI-Driven Runtime Readiness Gate ausgefuehrt (siehe unten)
 - **Beschreibung:**
   Zwei Agents arbeiten parallel:
-  - **Discovery-Agent:** Analysiert Requirements-Dokument, bestehendes Modell, Board-Stories (optional).
+  - **Discovery-Agent:** Analysiert Requirements-Dokument, bestehendes Modell, Board-Stories als
+    Rang-3-Kontext (optional — Board autorisiert keinen Scope, siehe Board Authority Guard).
     Fuehrt bei `ui_driven = true` das UI-Driven Runtime Readiness Gate aus.
   - **UI-Agent:** Je nach Ausgangslage in einem von zwei Modi:
     - **Generate-Modus:** Kein Mockup vorhanden, aber App-Beschreibung → Wireframe-HTML
@@ -423,7 +452,9 @@ Bei Abweichungen:
 ### Abschluss
 
 - Wave-Report unter `planning/wave-reports/` erstellt
-- Board-Sync als Reporting (wenn Board konfiguriert — optional, D52)
+- Board-Sync als organisatorische Status-Reflektion (wenn Board konfiguriert — optional, D52).
+  Board-Sync in Verifying ist Reporting, nicht Scope-Import. Neue Board-Stories die beim
+  Sync sichtbar werden, autorisieren KEINEN neuen Scope und erweitern KEINE Mission.
 - **Terminal-State Guard PFLICHT:** Bevor der Agent "fertig" oder "abgeschlossen" meldet,
   muss die Terminal-State Guard-Pruefung aus `policies/mission-completion.md` ausgefuehrt werden.
   Ein Wave-Report alleine schliesst NICHT die Mission.
@@ -441,7 +472,15 @@ Nachdem eine Wave `done` erreicht, prueft der Terminal-State Guard ob alle autor
 Feature-Waves abgeschlossen sind.
 
 ```
-LETZTE AUTORISIERTE WAVE DONE
+LETZTE AUTORISIERTE WAVE DONE (oder alle Waves klassifiziert)
+→ Legacy-Completion-Reconciliation (policies/legacy-completion-reconciliation.md)
+    → historische Waves mit phase != done klassifizieren:
+        VERIFIED_LEGACY_STATE            → als done zaehlen; keine Implementierungswiederholung
+        CURRENT_REQUIRED_SCOPE           → genuine Restarbeit; weiter mit Completeness Check
+        DEFERRED_OUTSIDE_FEATURE_SCOPE   → von Completeness Check ausschliessen
+        SUPERSEDED                       → ausschliessen; Nachfolger-Artefakt referenzieren
+        GENUINE_DECISION_BLOCKER         → an Entwickler melden; blockiert bis geloest
+        UNKNOWN_REQUIRES_RECONCILIATION  → an Entwickler melden; blockiert bis klassifiziert
 → Feature-Scope Completeness Check (project-release-checkpoint.md § Completeness Check)
     → unvollstaendig:
         betroffenen Scope erneut eroeffnen (scoped return routing — policies/lifecycle-resync.md)

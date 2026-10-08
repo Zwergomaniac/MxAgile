@@ -28,7 +28,10 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
 1. Lies `.mxagile/orchestrator.md` fuer den Prozessfluss
 2. Lies `.mxagile/skills/discovery.md` fuer deinen Ablauf
 3. Lies `.mxagile/policies/source-priority.md` fuer die Quellen-Vorrang-Hierarchie
-4. Lies `.mxagile/policies/backlog-sync.md` fuer Board-Regeln (Board ist optional)
+4. Lies `.mxagile/policies/backlog-sync.md` fuer Board-Regeln (Board ist optional).
+   **Board Authority Guard:** Board-Stories sind Rang-3-Kontext — sie autorisieren
+   keinen Scope, erweitern keine Mission und treiben keinen Lifecycle-Uebergang.
+   Siehe `policies/backlog-sync.md` § Board Authority Contract
 5. **Input-Resources systematisch inventarisieren** (BEVOR du Quellen analysierst):
    a. `input-resources/` vollstaendigen Verzeichnis-Baum auflisten
    b. `input-resources/ui-ux/` explizit pruefen — alle `*.html` inkl. `index.html`,
@@ -50,7 +53,9 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
       Graph-Unavailability ist kein Blocker fuer die Discovery-Phase.
 6. Analysiere die Rang-1-Quellen: Requirements-Dokument und Mockup (falls vorhanden)
 7. Analysiere das bestehende Mendix-Modell via mxcli
-8. Lies Board-Stories als Kontext (falls Board konfiguriert)
+8. Lies Board-Stories als Rang-3-Kontext (falls Board konfiguriert).
+   Board-Stories die beim Lesen sichtbar werden, die aber nicht zum autorisierten
+   Scope gehoeren, werden NICHT als neuer Scope importiert oder als Mission-Erweiterung behandelt
 9. Fuehre die Discovery-Phase durch
 10. Wenn `development.ui_driven = true`: **UI-Driven Runtime Readiness Gate** pruefen (siehe unten)
 11. Pruefe am Ende die Vorbedingungen aus `.mxagile/skills/gate-to-refinement.md`
