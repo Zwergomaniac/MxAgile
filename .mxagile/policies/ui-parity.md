@@ -17,7 +17,8 @@ Full schema: `.mxagile/schemas/parity-verification.schema.json`
 Related policies:
 - `policies/verification-scenario.md` — material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy
 - `policies/evidence-contract.md` — screenshot lifecycle, temporary vs. canonical evidence, evidence manifest, promotion contract
-- `policies/observe-before-mutate.md` — enforced lifecycle order: observe → parity → reconcile → refine → implement
+- `policies/observe-before-mutate.md` — enforced lifecycle order: observe → parity → finding-reconciliation → reconcile → refine → implement
+- `policies/parity-finding-reconciliation.md` — mandatory observation-vs-interpretation protocol, finding classification, requirement ID authority, planning-state awareness, remediation eligibility gate
 
 ---
 
@@ -416,6 +417,28 @@ The following generic plan applies when a project schedules a full reconciliatio
 6. Test mandatory regression scenario: visual PASS + content FAIL = overall FAIL
 7. Record all results in `planning/parity/` directory
 8. Update `process-state.yaml` with parity reconciliation progress
+
+---
+
+## Parity Is Not Compliance
+
+A dimensional parity result (PASS, FAIL, PARTIAL, NOT_VERIFIED) describes the relationship
+between the running application and a target artifact. It is NOT automatically a compliance
+or requirement verdict.
+
+A parity deviation becomes a requirement violation only after the full reconciliation protocol
+in `policies/parity-finding-reconciliation.md` has established:
+
+1. An authoritative canonical source confirms the required or forbidden behavior.
+2. The behavior is within the current accepted scope.
+3. The finding is classified as `CONFIRMED_REQUIREMENT_VIOLATION`.
+
+Until that protocol completes, findings must be reported as parity observations, not compliance
+defects. In particular:
+
+- `NOT_VERIFIED` and `VERIFICATION_OUTSTANDING` are never equivalent to `FAIL` or `DEFECT`.
+- A role or content difference is a parity observation until contract authority is established.
+- Future/planned functionality must not be reported as a current non-compliance.
 
 ---
 
