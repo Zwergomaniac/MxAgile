@@ -1,0 +1,49 @@
+# Fixture AM: Developer wants to find the latest authoritative UI evidence
+# Scenario G.7: Canonical current location/index is obvious
+# Demonstrates: evidence manifest as single entry point for evidence discovery
+fixture_id: FIXTURE-AM
+description: "A developer joins the project and wants to see the current UI evidence for the Overview page as seen by the Admin role. They should find it through the evidence manifest without needing to know which automation tool produced it or when it was captured."
+discovery_path:
+  step_1:
+    action: "Read active evidence manifest"
+    path: "planning/evidence/manifests/W03-evidence-manifest.yaml"
+    note: "The manifest for the current wave is the canonical index"
+  step_2:
+    action: "Find entry matching screen + role"
+    filter:
+      screen_id: PAGE-OVERVIEW
+      role: Admin
+    result:
+      entry_id: EVD-SCN-OVERVIEW-ADMIN-POPULATED
+      scenario_id: SCN-OVERVIEW-ADMIN-POPULATED
+      parity_result: PASS
+      verified_at: "2026-10-08"
+  step_3:
+    action: "Follow artifact paths"
+    artifacts:
+      - path: "planning/evidence/screenshots/SCN-OVERVIEW-ADMIN-POPULATED/visual_desktop_default.png"
+        dimension: visual
+        source: application
+      - path: "planning/evidence/screenshots/SCN-OVERVIEW-ADMIN-POPULATED/interaction_expand_verified.png"
+        dimension: interaction
+        source: application
+      - path: "planning/evidence/screenshots/SCN-OVERVIEW-ADMIN-POPULATED/state_empty_form.png"
+        dimension: state
+        source: application
+  step_4:
+    action: "Compare against target if needed"
+    target_evidence:
+      - path: "planning/evidence/screenshots/target/SCN-OVERVIEW-ADMIN-POPULATED/visual_desktop_expected.png"
+        source: mockup
+expected_properties:
+  single_entry_point: true
+  scenario_indexed: true
+  current_by_default: true
+  no_tool_specific_knowledge_required: true
+  no_timestamp_browsing_required: true
+  historical_in_separate_namespace: true
+  reference_vs_runtime_distinguishable: true
+# Key validation: evidence discovery follows a deterministic path:
+# manifest → entry → artifact path → file.
+# The developer does not need to know about .concord/, Playwright output
+# directories, or capture timestamps. The manifest IS the canonical index.

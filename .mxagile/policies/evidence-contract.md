@@ -208,3 +208,151 @@ The decision to promote is made by the agent at the time of scenario execution, 
 - Does this materially prove a finding (PASS or FAIL)?
 - Is this a regression baseline?
 - Would a fresh developer/agent need this to understand the current state?
+
+---
+
+## Evidence Lifecycle Stages
+
+Every evidence artifact progresses through a deterministic lifecycle:
+
+```
+CAPTURE → EVALUATE → PROMOTE → REFERENCE → SUPERSEDE
+```
+
+### CAPTURE
+
+Tool or automation produces an artifact in a temporary location (`.concord/screenshots/`,
+Playwright output directory, or other tool-specific working directory).
+
+Temporary artifacts have zero collaboration value after the session ends. They are
+ephemeral by design and may be cleaned up without notice.
+
+### EVALUATE
+
+Agent examines the artifact and determines:
+- Does it materially prove something (PASS, FAIL, or state transition)?
+- Is it a meaningful baseline or regression reference?
+- Is it a duplicate of existing evidence with no additional information?
+
+Artifacts that fail evaluation are not promoted. They remain in their temporary location
+and may be cleaned up.
+
+### PROMOTE
+
+Evaluated artifacts are copied to their canonical persistent location:
+- `planning/evidence/screenshots/<scenario-id>/` for screenshots
+- Recorded in the evidence manifest with full provenance metadata
+
+Promotion follows the existing semantic naming and manifest recording rules above.
+
+### REFERENCE
+
+Promoted evidence is referenced from:
+- Parity verification reports (`planning/parity/`)
+- Acceptance campaign results (`planning/acceptance-campaigns/`)
+- GAP records and repair reports
+- Wave reports
+
+An evidence artifact not referenced by any active report has no standing in the
+verification lifecycle. Unreferenced promoted evidence should be reviewed during
+evidence reconciliation.
+
+### SUPERSEDE
+
+When new evidence is collected for the same scenario, dimension, role, and viewport:
+1. The new evidence is promoted under the same canonical path (overwriting the file).
+2. The evidence manifest entry is updated with the new `promoted_at` date.
+3. If historical traceability is required: the old evidence is moved to
+   `planning/evidence/screenshots/<scenario-id>/_history/<YYYY-MM-DD>/` before
+   the new evidence replaces it.
+4. The `_history/` subdirectory preserves traceability without polluting the
+   current evidence namespace.
+
+Only evidence explicitly required for traceability (audit, compliance, dispute resolution)
+needs to be preserved in `_history/`. Routine supersession may overwrite in place.
+
+---
+
+## Reference vs. Runtime Evidence
+
+Evidence artifacts MUST be distinguishable by source:
+
+| Source | Meaning | Manifest field |
+|---|---|---|
+| `mockup` | Captured from the target mockup/design rendered in Playwright | `source: mockup` |
+| `application` | Captured from the running Mendix application | `source: application` |
+| `reference` | External design reference (PDF, image, Figma export) — not runtime-produced | `source: reference` |
+
+`reference` evidence is immutable input material. It MUST NOT be confused with or
+overwritten by runtime application evidence. Store reference material in
+`input-resources/` (existing convention), not in `planning/evidence/screenshots/`.
+
+When a report cites evidence, the source classification must be unambiguous:
+- "Screenshot matches design" requires both `mockup`/`reference` AND `application` artifacts.
+- "Application renders correctly" requires `application` evidence only.
+- A comparison finding requires evidence from both sides with distinct source tags.
+
+---
+
+## Canonical Evidence Index
+
+A developer or agent seeking the current authoritative UI evidence for a scenario
+MUST be able to locate it without knowing which automation tool produced it or
+when it was captured.
+
+The canonical evidence index is the **evidence manifest** (`planning/evidence/manifests/`):
+
+```
+Developer wants to find: current UI evidence for a specific screen + role
+    → Read the active evidence manifest for the current wave
+    → Find the entry matching the scenario_id, screen_id, and role
+    → Follow the artifact paths to the promoted evidence files
+    → The promoted path IS the canonical current location
+```
+
+### Index Properties
+
+1. **Single entry point:** The evidence manifest for the active wave is THE index.
+   There is no secondary evidence directory structure to discover.
+2. **Scenario-indexed:** Evidence is found by scenario context (screen + role + data state),
+   not by tool, timestamp, or capture session.
+3. **Current by default:** The manifest always points to the latest promoted evidence.
+   Historical evidence is in `_history/` subdirectories, not in the main path.
+4. **Self-describing:** Each manifest entry carries enough metadata (screen_id, role,
+   viewport, parity_result, verified_at) to evaluate relevance without opening the file.
+
+### When No Manifest Exists
+
+If no evidence manifest exists for the active wave, no promoted evidence exists.
+Temporary evidence in `.concord/` is not discoverable through the canonical index
+by design — it must be promoted first.
+
+---
+
+## Evidence Growth Management
+
+Repeated verification runs MUST NOT create an indefinitely growing undifferentiated
+screenshot archive.
+
+### Growth Control Rules
+
+1. **Supersession over accumulation:** New evidence for the same scenario replaces the
+   current evidence at the canonical path. It does not create a new timestamped copy
+   alongside the old one.
+
+2. **Selective history preservation:** Only preserve historical evidence in `_history/`
+   when traceability requires it (audit trail, disputed findings, regression baselines).
+   Routine re-verification overwrites in place.
+
+3. **Temporary cleanup:** `.concord/screenshots/` is ephemeral. Agents and tools may
+   clean up temporary screenshots after promotion or after determining they are not
+   promotable. Do not accumulate sessions of temporary screenshots.
+
+4. **Manifest-driven retention:** If an evidence file is not referenced by any active
+   manifest entry, it is a candidate for cleanup. Evidence referenced only by historical
+   or superseded manifest entries may be archived or removed per project policy.
+
+5. **Binary evidence economy:** Avoid committing large volumes of binary evidence to Git.
+   Promote only meaningful evidence. A full parity run that produces 200 temporary
+   screenshots should result in a bounded set of promoted screenshots (typically
+   one per scenario × dimension × finding direction), not 200 committed files.

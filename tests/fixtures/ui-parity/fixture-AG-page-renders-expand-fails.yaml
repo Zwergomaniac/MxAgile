@@ -1,0 +1,68 @@
+# Fixture AG: Page renders correctly but required expand/collapse behavior fails
+# Scenario G.1: Interaction parity must not be PASS
+# Demonstrates: PAGE_CAPTURED ≠ INTERACTION_VERIFIED
+fixture_id: FIXTURE-AG
+description: "A page renders visually correct and all screenshot-based dimensions pass. However, an expand/collapse control required by current scope does not respond to clicks. Interaction parity must be FAIL despite visual PASS."
+page_id: PAGE-DETAIL-VIEW
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    evidence:
+      - type: screenshot
+        description: "Page renders with correct layout, colors, and spacing"
+        passed: true
+  content:
+    result: PASS
+    required: true
+    evidence:
+      - type: dom_text
+        description: "All labels, headings, and button captions match target"
+        passed: true
+  structure:
+    result: PASS
+    required: true
+    evidence:
+      - type: dom_selector
+        description: "Section headers with expand icons present in DOM"
+        passed: true
+  state:
+    result: FAIL
+    required: true
+    evidence:
+      - type: interaction_test
+        description: "Click on section header does not toggle expanded/collapsed state"
+        passed: false
+    deviations:
+      - concern: expand_collapse_state
+        description: "Section expand/collapse control is present but clicking produces no state change — collapsed content remains hidden"
+        severity: material
+        dimension: state
+  interaction:
+    result: FAIL
+    required: true
+    interaction_proof_level: STRUCTURALLY_OBSERVED
+    evidence:
+      - type: dom_selector
+        selector: ".section-header .expand-icon"
+        description: "Expand icon element exists in DOM"
+        passed: true
+      - type: interaction_test
+        description: "Click on expand icon — no response, no DOM change, no content revealed"
+        passed: false
+    deviations:
+      - concern: expand_collapse_interaction
+        description: "Expand/collapse interaction required by accepted scope does not function. Element is STRUCTURALLY_OBSERVED but not INTERACTION_VERIFIED."
+        severity: material
+        dimension: interaction
+  responsive:
+    result: NOT_APPLICABLE
+    required: false
+    not_applicable_rationale: "Desktop-only project"
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: FAIL
+# Key validation: visual PASS + structure PASS does NOT produce overall PASS
+# when interaction dimension is FAIL. STRUCTURALLY_OBSERVED proof level is
+# insufficient for interaction-bearing elements in accepted scope.

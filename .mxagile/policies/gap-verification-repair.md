@@ -252,6 +252,62 @@ The acceptance gate may pass when:
 - COSMETIC GAPs are either VERIFIED or explicitly DEFERRED with a DEC-NNN.
 - No unresolved DECISION_REQUIRED items remain.
 
+## Reverse Parity GAPs
+
+Standard GAP verification compares: **target → application** (is the target correctly implemented?).
+
+Reverse parity GAPs arise from comparing: **application → target** (does everything in the
+application belong to the current accepted design?).
+
+### Reverse Parity GAP Types
+
+| GAP Type | Description | Example |
+|---|---|---|
+| `REVERSE_SCOPE_GAP` | Application contains a page, section, or navigation item not present in the current accepted design | A legacy admin page remains after the design was simplified |
+| `REVERSE_CONTENT_GAP` | Application displays text, labels, or menu items not in the current design | Old navigation group name persists alongside new structure |
+| `REVERSE_INTERACTION_GAP` | Application provides an interaction (button, link, control) not in the current design | A deprecated export button remains functional |
+| `REVERSE_ROLE_GAP` | Application grants a role access or visibility not specified in the current design | A removed role still has navigation access |
+
+### Reverse Parity Reconciliation Protocol
+
+When a reverse parity GAP is detected:
+
+1. **Do NOT auto-delete or auto-hide** the element. Removal without reconciliation
+   risks destroying intentionally retained functionality.
+
+2. **Classify the element** against authoritative scope:
+   - Is it part of a superseded design that was explicitly replaced? → Check `planning/decisions/`
+   - Is it part of deferred scope retained for a later wave? → Check `planning/execution-waves.md`
+   - Is it a platform boundary element? → Classify per PLATFORM_BOUNDARY_GAP above
+   - Is it completely unknown? → `ORPHANED_IMPLEMENTATION` → DECISION_REQUIRED
+
+3. **Apply existing finding reconciliation** per `policies/parity-finding-reconciliation.md`:
+   - Resolve requirement ID authority for the element
+   - Classify as CONFIRMED_REQUIREMENT_VIOLATION (element should not exist per current scope),
+     CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK (authority unclear), or
+     INFORMATIONAL_COVERAGE_GAP (deferred/future scope)
+
+4. **Record the finding** in the parity report with `direction: reverse`.
+
+5. **Remediation follows standard eligibility** — only CONFIRMED_REQUIREMENT_VIOLATION
+   findings (where the current design explicitly excludes the element) are eligible for
+   autonomous remediation. Ambiguous cases require DECISION_REQUIRED.
+
+### Reverse Parity Economy
+
+Reverse parity detection does NOT require a full application-surface audit on every
+verification run. The efficient approach:
+
+- **During forward parity:** When an agent encounters an application element not present
+  in the UI inventory or target, it records a reverse parity observation. This is
+  opportunistic, not exhaustive.
+- **During full reconciliation:** Reverse parity is evaluated as part of full scope
+  accounting (per `policies/ui-parity.md` § Full Reconciliation).
+- **At Project/Release Checkpoint:** Reverse parity audit of the application navigation
+  and page inventory against the accepted design.
+
+---
+
 ## Interaction GAPs and Effects
 
 When an `INTERACTION_GAP` is found, reference the specific `effects` entries from the UI inventory:

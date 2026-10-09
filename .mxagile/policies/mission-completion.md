@@ -130,6 +130,79 @@ mission has reached its terminal state.
 
 ---
 
+## Runtime Proof Requirement
+
+When the accepted behavior of a requirement or finding is inherently executable or
+runtime-visible — that is, it can only be fully verified by observing the running
+application or its browser-rendered UI — then repository, model, or static validation
+alone is NOT sufficient completion evidence.
+
+### The Principle
+
+```
+IMPLEMENTATION_ARTIFACT_EXISTS   ≠  RUNTIME_PROVEN
+MODEL_CHECK_PASSES               ≠  RUNTIME_BEHAVIOR_VERIFIED
+STATIC_VALIDATION_PASSES         ≠  FRONTEND_INTERACTION_WORKS
+```
+
+### Evidence Level Sufficiency
+
+For each acceptance criterion or finding, the minimum required evidence level is
+determined by the nature of the claim:
+
+| Claim type | Minimum evidence level | Lower levels sufficient? |
+|---|---|---|
+| Entity/attribute exists | MODEL | Yes — MODEL is authoritative |
+| Security rule present in model | MODEL | Yes — MODEL is authoritative |
+| XPath constraint valid | BUILD | MODEL is necessary but insufficient |
+| Page renders for role | FRONTEND | No — MODEL/RUNTIME cannot prove rendering |
+| Button click triggers action | FRONTEND | No — existence ≠ behavior |
+| Interaction produces state change | FRONTEND | No — structure ≠ function |
+| Data displayed in correct scope | FRONTEND | No — MODEL proves rule, not display |
+| Navigation flow works end-to-end | FRONTEND | No — model reachability ≠ runtime flow |
+
+### Completion Gate Integration
+
+Before a finding or requirement with runtime-visible acceptance behavior may progress
+to verified completion:
+
+1. **Determine required evidence level** — per the table above and
+   `policies/verification-layers.md`.
+2. **Check available evidence** — does the collected evidence meet the required level?
+3. **If evidence meets required level:** completion may proceed normally.
+4. **If evidence is below required level:**
+   - **Runtime available:** collect required evidence before marking complete.
+   - **Runtime unavailable:** record `VERIFICATION_GAP` with
+     `gap_reason: RUNTIME_REQUIRED_BUT_UNAVAILABLE`. The finding/requirement
+     stays at `IMPLEMENTATION_COMPLETE`, not `VERIFICATION_COMPLETE`.
+     Preserve the gap rather than silently promoting lower evidence.
+
+### Evidence Reuse
+
+Existing runtime evidence SHOULD be reused when still valid:
+- The test contract for the proof point is `active` (not stale).
+- The implementation for the covered scope has not changed since the evidence was collected.
+- The active target mockup/requirement has not changed since the evidence was collected.
+
+Do NOT require expensive re-runs when valid runtime evidence already exists.
+Do NOT accept stale runtime evidence when the implementation has changed.
+
+### Prohibited Evidence Promotions
+
+The following silent promotions are forbidden:
+
+| What was proven | What must NOT be claimed |
+|---|---|
+| `mxcli check` passes (MODEL) | FRONTEND interaction works |
+| Entity access rule exists (MODEL) | User sees correct data scope (FRONTEND) |
+| Microflow exists (MODEL) | Button triggers microflow successfully (RUNTIME/FRONTEND) |
+| Page accessible in model (MODEL) | Page renders correctly for role (FRONTEND) |
+| Implementation artifact committed | Runtime behavior verified |
+| Checklist item marked done | Acceptance criterion satisfied |
+| Static validation passes | Runtime defect is resolved |
+
+---
+
 ## False Completion Equivalences (Forbidden)
 
 The following MUST NOT be treated as USER_MISSION_COMPLETE:
@@ -155,6 +228,12 @@ The following MUST NOT be treated as USER_MISSION_COMPLETE:
 | Historical report says "Review required", current canonical evidence shows complete | NOT a current work item — stale historical marker does not override canonical evidence |
 | Requirement numbering gap in legacy migration | NOT missing authorized scope — authority must be established before treating as current scope |
 | Old checklist has open item; wave report shows acceptance_gate: passed | NOT currently open — acceptance evidence outranks checklist entry |
+| All pages captured as screenshots | NOT INTERACTION_VERIFIED — page capture proves rendering, not behavior |
+| UI element visible in screenshot | NOT BEHAVIOR_VERIFIED — visibility ≠ functional interaction |
+| Broad parity campaign captured all pages | NOT full parity PASS if interaction/state/role dimensions remain NOT_VERIFIED |
+| Model check passes after fix for runtime defect | NOT runtime-verified — static validation does not prove runtime behavior |
+| Implementation change committed for UI interaction fix | NOT completion — runtime proof required when acceptance behavior is executable |
+| Historical COMPLETED + current runtime shows broken behavior | NOT still complete — current evidence overrides historical completion claim (see `policies/legacy-completion-reconciliation.md`) |
 
 ---
 

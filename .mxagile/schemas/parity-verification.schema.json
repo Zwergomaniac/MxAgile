@@ -142,6 +142,40 @@
         "legacy_provenance": {
           "type": "string",
           "description": "When result=LEGACY_EVIDENCE: describes the original contract semantics and what was verified under the old schema."
+        },
+        "interaction_proof_level": {
+          "type": "string",
+          "enum": ["VISUALLY_OBSERVED", "STRUCTURALLY_OBSERVED", "INTERACTION_VERIFIED", "STATE_VERIFIED", "ROLE_VERIFIED"],
+          "description": "Highest achieved proof level for this dimension. Applicable primarily to the interaction dimension but may be recorded for any dimension to indicate the depth of verification. See policies/ui-parity.md § Interaction Proof Levels."
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["forward", "reverse"],
+          "default": "forward",
+          "description": "forward=design/target compared to application (standard parity). reverse=application compared to design/target (detecting orphaned/legacy UI). See policies/ui-parity.md § Reverse Parity."
+        },
+        "completion_override": {
+          "type": "object",
+          "description": "Present when current evidence overrides a prior completion claim for this dimension. See policies/legacy-completion-reconciliation.md § Current Evidence Override.",
+          "additionalProperties": false,
+          "properties": {
+            "previous_status": {
+              "type": "string",
+              "description": "The status this dimension held before the override (e.g., PASS, LEGACY_EVIDENCE, VERIFIED_LEGACY_STATE)."
+            },
+            "previous_basis": {
+              "type": "string",
+              "description": "Reference to the evidence or record that supported the previous status."
+            },
+            "override_evidence": {
+              "type": "string",
+              "description": "Description of the current evidence that contradicts the previous status."
+            },
+            "override_at": {
+              "type": "string",
+              "description": "ISO date (YYYY-MM-DD) when the override was recorded."
+            }
+          }
         }
       }
     },
@@ -185,6 +219,12 @@
           "type": "string",
           "enum": ["visual", "content", "structure", "state", "interaction", "responsive", "role"],
           "description": "The dimension this deviation belongs to."
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["forward", "reverse"],
+          "default": "forward",
+          "description": "forward=target element missing or wrong in application. reverse=application element not present in target. See policies/ui-parity.md § Reverse Parity and policies/gap-verification-repair.md § Reverse Parity GAPs."
         }
       }
     },

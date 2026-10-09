@@ -1,0 +1,66 @@
+# Fixture AK: Item previously Completed is contradicted by current runtime evidence
+# Scenario G.5: Lifecycle reconciliation reflects new evidence without reopening unrelated work
+# Demonstrates: HISTORICAL_COMPLETION + CURRENT_RUNTIME_CONTRADICTION → targeted override
+fixture_id: FIXTURE-AK
+description: "A requirement was marked ACCEPTANCE_COMPLETE in Wave W01 (2026-08-15). Current runtime verification during Wave W03 reveals that the accepted expand/collapse behavior no longer functions — likely broken by a subsequent model change. The specific completion claim must be invalidated. Unrelated completed work in W01 must NOT be reopened."
+page_id: PAGE-OVERVIEW
+wave_id_original: W01
+wave_id_current: W03
+original_completion:
+  status: ACCEPTANCE_COMPLETE
+  acceptance_gate: passed
+  verified_at: "2026-08-15"
+  wave_report: "planning/wave-reports/W01-wave-report.yaml"
+current_evidence:
+  collected_at: "2026-10-09"
+  evidence_level: FRONTEND
+  finding: "Expand/collapse sections non-functional; click produces no state change"
+  classification: CONFIRMED_REQUIREMENT_VIOLATION
+completion_override:
+  previous_status: PASS
+  previous_basis: "W01 acceptance campaign CAMP-W01-REQ-001: interaction dimension PASS (2026-08-15)"
+  override_evidence: "Runtime verification 2026-10-09: expand/collapse non-functional in current build"
+  override_classification: CONFIRMED_REQUIREMENT_VIOLATION
+  affected_dimensions: [interaction, state]
+  unaffected_dimensions: [visual, content, structure, responsive, role]
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    note: "Visual dimension unaffected by the override — retains original PASS"
+  content:
+    result: PASS
+    required: true
+    note: "Content dimension unaffected — retains original PASS"
+  interaction:
+    result: FAIL
+    required: true
+    interaction_proof_level: STRUCTURALLY_OBSERVED
+    completion_override:
+      previous_status: PASS
+      previous_basis: "W01 acceptance campaign: interaction PASS"
+      override_evidence: "Current runtime: expand/collapse non-functional"
+      override_at: "2026-10-09"
+    deviations:
+      - concern: expand_collapse_interaction
+        description: "Previously verified interaction now fails at runtime. Historical completion overridden by current evidence."
+        severity: material
+        dimension: interaction
+  state:
+    result: FAIL
+    required: true
+    completion_override:
+      previous_status: PASS
+      previous_basis: "W01 acceptance campaign: state PASS"
+      override_evidence: "Current runtime: no state transition on click"
+      override_at: "2026-10-09"
+overall_result: FAIL
+scope_of_override:
+  reopened: [interaction, state]
+  not_reopened: [visual, content, structure, responsive, role]
+  unrelated_waves_affected: false
+  note: "Only the specific contradicted dimensions are invalidated. Wave W01 overall completion is not wholesale reopened. W02 completed work is not affected."
+# Key validation: historical ACCEPTANCE_COMPLETE does not override
+# contradictory current runtime evidence. The override is TARGETED —
+# only the affected dimensions/proof points are invalidated.
+# Traceability to the original completion is preserved.

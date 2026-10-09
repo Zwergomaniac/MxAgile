@@ -420,6 +420,175 @@ The following generic plan applies when a project schedules a full reconciliatio
 
 ---
 
+## Interaction Proof Levels
+
+A screenshot or DOM extraction proves visual or structural state. It does NOT prove that an
+interaction-bearing element actually works when exercised. Interaction proof requires graduated
+evidence levels, recorded per element or concern.
+
+### Proof Level Taxonomy
+
+| Proof Level | What it proves | Evidence type | Sufficient for |
+|---|---|---|---|
+| `VISUALLY_OBSERVED` | Element is visible in screenshot | Screenshot | Visual parity only |
+| `STRUCTURALLY_OBSERVED` | Element exists in DOM with expected selector/type | DOM selector assertion | Structure parity only |
+| `INTERACTION_VERIFIED` | Element responds to the expected trigger (click, expand, select) | Playwright action + result assertion | Interaction parity |
+| `STATE_VERIFIED` | Element produces the expected state transition after interaction | Playwright action + post-action DOM/screenshot | State + interaction parity |
+| `ROLE_VERIFIED` | Element behavior is correct per role (visible/hidden, enabled/disabled, permitted/denied) | Role-specific Playwright session + assertion | Role parity for this element |
+
+### Proof Level Implications
+
+```
+VISUALLY_OBSERVED     does NOT imply STRUCTURALLY_OBSERVED
+STRUCTURALLY_OBSERVED does NOT imply INTERACTION_VERIFIED
+INTERACTION_VERIFIED  does NOT imply STATE_VERIFIED
+STATE_VERIFIED        does NOT imply ROLE_VERIFIED
+```
+
+A higher proof level INCLUDES the evidence of lower levels only when the evidence was
+collected using the higher-level method. Inference across levels is forbidden.
+
+### Interaction-Bearing Element Classes
+
+The following generic interaction classes require at minimum `INTERACTION_VERIFIED` proof
+when they are part of accepted current scope:
+
+- Expand/collapse controls
+- Hierarchical navigation (tree, nested menu)
+- Tabs and tab panels
+- Dropdowns, selectors, pickers
+- Buttons and action triggers
+- Dialogs (open, close, confirm, cancel)
+- Drilldown navigation (list → detail)
+- Filters and search controls
+- Editable controls (input, textarea, checkbox, radio)
+- Conditional visibility triggers (show/hide based on state)
+- Role-dependent interaction differences
+- State transitions (status changes, workflow steps)
+
+This list is not exhaustive. An interaction-bearing element is any UI element whose accepted
+behavior includes a response to user action beyond passive display.
+
+### Proportional Interaction Proof
+
+NOT every interaction-bearing element requires runtime proof in every verification run.
+
+Required interaction proof is determined proportionally from:
+1. **Accepted requirements/contracts** — which interactions are part of current ACs?
+2. **Current scope** — which interactions belong to the active wave?
+3. **Risk** — which interactions have prior findings or known fragility?
+4. **Implementation changes** — which interactions were affected by recent changes?
+5. **Prior findings** — which interactions had FAIL or PARTIAL in prior verification?
+6. **Available runtime capability** — is Playwright/FRONTEND layer available?
+
+When FRONTEND is unavailable, interaction proof gaps must be recorded as
+`VERIFICATION_OUTSTANDING` with `gap_reason: INFRASTRUCTURE_UNAVAILABLE`, not silently
+omitted or promoted to PASS based on MODEL evidence.
+
+### Parity Completeness Guard
+
+A parity verification run MUST NOT claim overall completeness when:
+
+```
+PAGE_CAPTURED              ≠  INTERACTION_VERIFIED
+ELEMENT_VISIBLE            ≠  BEHAVIOR_VERIFIED
+SCREENSHOT_PARITY          ≠  FUNCTIONAL_PARITY
+PLANNING_STATUS_COMPLETE   ≠  RUNTIME_PROVEN
+```
+
+Specifically:
+
+1. A parity run that verified only `visual` and `content` dimensions MUST report
+   `interaction`, `state`, and `role` as `NOT_VERIFIED` — never infer PASS from
+   visual evidence alone.
+
+2. A broad parity campaign that captured all pages MUST NOT set `overall_result: PASS`
+   when required interaction dimensions remain `NOT_VERIFIED`.
+
+3. When an interaction-bearing element is part of accepted current scope and the
+   `interaction` dimension is `NOT_VERIFIED`, the element's interaction proof level
+   is `VISUALLY_OBSERVED` at most — regardless of screenshot quality.
+
+4. A parity report MUST distinguish between "all dimensions verified → PASS" and
+   "visual/content dimensions verified → visual/content PASS, interaction outstanding".
+
+### Recording Interaction Proof
+
+The `interaction` dimension in `parity-verification.schema.json` records proof level
+per evidence item via the existing `evidence.type` field:
+
+| evidence.type | Proof level achieved |
+|---|---|
+| `screenshot` | `VISUALLY_OBSERVED` |
+| `dom_selector` | `STRUCTURALLY_OBSERVED` |
+| `interaction_test` | `INTERACTION_VERIFIED` or `STATE_VERIFIED` (per test scope) |
+| `role_test` | `ROLE_VERIFIED` |
+
+When the `interaction` dimension has `result: PASS`, at least one evidence item of type
+`interaction_test` with `passed: true` must exist for each in-scope interaction concern.
+A dimension with only `screenshot` or `dom_selector` evidence cannot be `PASS` for
+interaction — it is `VISUALLY_OBSERVED` or `STRUCTURALLY_OBSERVED` at most.
+
+---
+
+## Reverse Parity (Application → Design)
+
+Standard parity compares: **design/target → application** (is the design correctly implemented?).
+
+Reverse parity compares: **application → design/target** (does everything in the application
+belong to the current accepted design?).
+
+### Why Reverse Parity Matters
+
+After multiple implementation waves, an application may retain:
+- UI elements from earlier designs that were later revised or removed
+- Navigation items pointing to pages no longer in the accepted design
+- Controls or sections that were experimental or temporary
+- Legacy platform UI that should have been removed or redirected
+
+These elements are invisible to forward parity (design → application) because forward parity
+only checks whether design elements exist in the application — not whether application elements
+exist in the design.
+
+### Reverse Parity Finding Classification
+
+When an application element has no corresponding entry in the current accepted design:
+
+| Classification | Meaning | Action |
+|---|---|---|
+| `DESIGN_CURRENT` | Element matches current accepted design | No action |
+| `LEGACY_RETAINED` | Element from a prior design revision; still implemented | Reconcile against current scope per `policies/parity-finding-reconciliation.md` |
+| `ORPHANED_IMPLEMENTATION` | Element has no traceable design authority | Raise `DECISION_REQUIRED` — do NOT auto-delete |
+| `PLATFORM_BOUNDARY` | Element belongs to platform, not application scope | Classify per `gap-verification-repair.md` PLATFORM_BOUNDARY_GAP |
+| `EXPLICITLY_DEFERRED` | Element retained by explicit decision (DEC-NNN) | Preserve; record decision reference |
+
+### Reverse Parity Protocol
+
+1. **Inventory the application UI surface** — enumerate pages, navigation items, and visible
+   controls from the running application (FRONTEND layer).
+2. **Compare against accepted design inventory** — for each application element, verify it
+   appears in `planning/ui-inventory/` or the active target design.
+3. **Classify unmatched elements** — apply the classification table above.
+4. **Do NOT auto-delete** — `LEGACY_RETAINED` and `ORPHANED_IMPLEMENTATION` elements must be
+   reconciled through the existing finding classification and remediation eligibility flow
+   before any removal.
+5. **Record findings** — reverse parity findings use the same finding format as forward parity,
+   with `direction: reverse` in the deviation record.
+
+### When to Run Reverse Parity
+
+Reverse parity is NOT required on every verification run. It is triggered by:
+- Full reconciliation runs (per the Full Reconciliation section above)
+- Project/Release Completion Checkpoint (per `policies/project-release-checkpoint.md`)
+- Explicit developer request
+- Discovery of unexpected UI during forward parity (opportunistic detection)
+
+Opportunistic detection during forward parity does not require a full reverse parity sweep.
+When a forward parity run encounters an application element not present in the design, it
+records the finding and continues — it does not halt for a complete reverse inventory.
+
+---
+
 ## Parity Is Not Compliance
 
 A dimensional parity result (PASS, FAIL, PARTIAL, NOT_VERIFIED) describes the relationship

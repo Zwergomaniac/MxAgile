@@ -303,6 +303,82 @@ The following MUST NOT cause historical implementation to be repeated:
 
 ---
 
+## Current Evidence Override of Historical Completion
+
+A historical `COMPLETED` or `VERIFIED_LEGACY_STATE` classification is NOT permanent.
+Current executable evidence that contradicts a historical completion claim overrides it.
+
+### The Principle
+
+```
+HISTORICAL_COMPLETION + CURRENT_RUNTIME_CONTRADICTION → COMPLETION_INVALIDATED
+```
+
+A Completed state is a claim that the accepted behavior was verified at a point in time.
+If current runtime verification demonstrates that accepted behavior is now broken,
+the historical completion claim is no longer valid for that specific behavior.
+
+### When Current Evidence Overrides
+
+Current evidence overrides a historical completion claim when ALL of the following hold:
+
+1. The current evidence was collected from the running application (RUNTIME or FRONTEND layer)
+   against the current accepted scope.
+2. The contradicted behavior is part of accepted current scope (not deferred or superseded).
+3. The contradiction is a `CONFIRMED_REQUIREMENT_VIOLATION` per
+   `policies/parity-finding-reconciliation.md` — not merely `VERIFICATION_OUTSTANDING`.
+4. The finding has been classified through the standard observation → interpretation →
+   contract resolution protocol.
+
+### Override Actions
+
+When a current evidence override is confirmed:
+
+1. **Invalidate the specific completion claim** — update the affected verification record
+   (parity dimension, proof point, campaign result) to reflect the new evidence.
+   Set the affected dimension or proof point to `FAIL` with current evidence reference.
+
+2. **Preserve traceability** — record WHY the completion was previously claimed and WHAT
+   new evidence contradicts it:
+   ```yaml
+   completion_override:
+     previous_status: VERIFIED_LEGACY_STATE  # or PASS, or ACCEPTANCE_COMPLETE
+     previous_basis: "Wave report W01 acceptance_gate: passed (2026-08-15)"
+     override_evidence: "Runtime verification 2026-10-09: expand/collapse non-functional"
+     override_classification: CONFIRMED_REQUIREMENT_VIOLATION
+     affected_dimensions: [interaction, state]
+   ```
+
+3. **Scope the invalidation** — only invalidate the specific behavior contradicted by
+   current evidence. Do NOT reopen the entire Wave, requirement, or acceptance campaign
+   when only a specific dimension or proof point is affected.
+
+4. **Route to remediation** — the invalidated finding follows the standard remediation
+   eligibility flow per `policies/autonomous-remediation.md`.
+
+### What Override Does NOT Do
+
+| Override means | Override does NOT mean |
+|---|---|
+| Specific behavior no longer verified | Entire Wave reopened |
+| Targeted re-verification required | Full acceptance campaign re-run |
+| Finding enters standard remediation flow | Historical acceptance invalidated wholesale |
+| Completion claim for this behavior is paused | Unrelated completed work is affected |
+| Traceability preserved | Historical evidence destroyed |
+
+### Integration with Lifecycle Re-Sync
+
+When a current evidence override occurs during lifecycle re-sync or verification:
+
+- If the Wave is currently in `done` phase: the override creates a targeted verification
+  gap that routes to the Verifying sub-phase for the affected proof points only.
+  The Wave does not return to Implementing unless the fix requires model changes.
+- If the Wave is currently in `verifying` phase: the override is absorbed into the
+  current verification run as a new finding.
+- Process-state is updated to reflect the override with the `completion_override` record.
+
+---
+
 ## Observe-Before-Mutate in Reconciliation
 
 Reconciliation of historical state is a READ-THEN-DECIDE sequence. The observe-before-mutate
