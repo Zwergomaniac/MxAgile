@@ -10,6 +10,7 @@ current wave's verified implementation and produce a traceable acceptance gate r
 - `.mxagile/policies/acceptance-campaign.md` — campaign types (REQUIREMENT/ROLE/RISK_CHANGE_IMPACT)
 - `.mxagile/policies/test-defect-protection.md` — APPLICATION_DEFECT vs TEST_DEFECT vs INFRASTRUCTURE_GAP; bounded escalation rule
 - `.mxagile/policies/autonomous-remediation.md` — remediation states; when DECISION_REQUIRED is mandatory
+- `.mxagile/policies/parity-finding-reconciliation.md` — observation vs. interpretation; finding classification; requirement ID authority; planning-state awareness; remediation eligibility gate
 - `.mxagile/policies/test-staleness.md` — CURRENT/STALE/IMPACTED status; staleness cascade
 - `.mxagile/policies/verification-layers.md` — layer semantics and security dimensions
 - `.mxagile/policies/verification-materialization.md` — materialization boundary; PRESERVE/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE; evidence level selection rule; execution_binding_stale lifecycle
@@ -225,10 +226,17 @@ when MODEL can authoritatively prove the specific PP claim.
 
 Apply `policies/autonomous-remediation.md` before acting on any gap:
 
-- `REQUIRED_BUT_UNAVAILABLE`: may scaffold only if reversible, non-business-logic, non-security
-- `EXPLICITLY_FORBIDDEN_BUT_AVAILABLE`: DECISION_REQUIRED always — do not remove without confirmation
+- `REQUIRED_BUT_UNAVAILABLE`: may scaffold only if reversible, non-business-logic, no scope bleed
+- `EXPLICITLY_FORBIDDEN_BUT_AVAILABLE`: autonomous remediation PERMITTED when canonical prohibition is
+  explicit, fix is smallest and reversible, no scope bleed — see `policies/autonomous-remediation.md`;
+  DECISION_REQUIRED only when canonical sources conflict or fix cannot be expressed as a single reversible change
 - `UNSPECIFIED_BUT_AVAILABLE`: DECISION_REQUIRED always — never auto-remove
 - `BUSINESS_EXPECTATION_UNKNOWN`: DECISION_REQUIRED always — no action
+
+Before acting on findings from a large parity or acceptance report, classify each finding per
+`policies/parity-finding-reconciliation.md` § 3. Only `CONFIRMED_REQUIREMENT_VIOLATION` findings
+are eligible for autonomous remediation. Do not batch ineligible findings into the same
+remediation pass.
 
 ## GAP Verification Gate (Pre-Acceptance)
 

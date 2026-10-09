@@ -25,22 +25,32 @@ Implemented as a lifecycle gate before any implementation mutation that affects 
    Record each dimension result separately.
    Identify which dimensions PASS, FAIL, or are NOT_VERIFIED.
 
-3. DISCOVERY RECONCILIATION
+3. FINDING RECONCILIATION
+   Classify each observed deviation per policies/parity-finding-reconciliation.md:
+   - CONFIRMED_REQUIREMENT_VIOLATION
+   - CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK
+   - VERIFICATION_OUTSTANDING
+   - INFORMATIONAL_COVERAGE_GAP
+   Resolve requirement ID authority before citing any identifier as violated.
+   Raise DECISION_REQUIRED for unresolved contract differences before proceeding.
+   This step is REQUIRED before Discovery Reconciliation or Refinement.
+
+4. DISCOVERY RECONCILIATION
    If deviations reveal mismatches between the UI inventory and the running app:
    - Update the UI inventory to reflect the current state
    - Flag conflicts with the mockup/target as DECISION REQUIRED
    Do NOT change SCSS or widgets to force the inventory to match.
 
-4. REFINEMENT ACCEPTED
+5. REFINEMENT ACCEPTED
    Present deviations and proposed corrections to the developer.
    Obtain Refinement gate PASS (gate-to-ready) for the planned changes.
    Widget or content changes must be declared in the Refinement decision.
 
-5. IMPLEMENTATION MUTATION ALLOWED
-   Only after steps 1-4 are complete may SCSS, widget, or content changes be applied.
+6. IMPLEMENTATION MUTATION ALLOWED
+   Only after steps 1-5 are complete may SCSS, widget, or content changes be applied.
    Record the pre-mutation parity state as the baseline for post-mutation comparison.
 
-6. POST-MUTATION RE-VERIFICATION
+7. POST-MUTATION RE-VERIFICATION
    After mutation: re-run affected parity dimensions.
    Confirm the mutation achieved the intended improvement without introducing regressions.
 ```
@@ -53,6 +63,7 @@ An agent that performs steps out of order is in a **LIFECYCLE VIOLATION** state:
 |---|---|---|
 | `MUTATE_BEFORE_OBSERVE` | SCSS or widget changed before parity baseline captured | Revert mutation; complete baseline capture first |
 | `MUTATE_BEFORE_ANALYSE` | SCSS or widget changed after screenshot but before full dimensional analysis | Complete dimensional analysis; redo mutation decision |
+| `MUTATE_BEFORE_FINDING_RECONCILIATION` | Mutation applied after analysis but before findings were classified and requirement IDs resolved | Revert mutation; complete finding reconciliation per `policies/parity-finding-reconciliation.md` first |
 | `MUTATE_BEFORE_REFINEMENT` | Mutation applied before Refinement gate accepted | Revert mutation; obtain Refinement acceptance |
 | `ANALYSE_WITHOUT_BASELINE` | Dimensional analysis attempted without BROWSER evidence baseline | Capture baseline first; analysis without browser evidence has no standing |
 
@@ -80,6 +91,7 @@ Record the current Observe-Before-Mutate lifecycle state in `process-state.yaml`
 | `not_started` | No parity baseline captured yet |
 | `baseline_captured` | Parity verification completed (browser evidence) |
 | `analysis_complete` | All 7 dimensions evaluated and recorded |
+| `finding_reconciliation_complete` | All findings classified; requirement IDs resolved; DECISION_REQUIRED raised for unresolved differences |
 | `reconciliation_complete` | Inventory updated; conflicts flagged |
 | `refinement_accepted` | gate-to-ready passed for planned mutations |
 | `mutation_allowed` | All pre-mutation gates passed; mutation may proceed |
