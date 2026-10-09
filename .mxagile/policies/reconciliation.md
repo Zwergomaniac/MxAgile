@@ -3,6 +3,12 @@
 Canonical contract for how MxAgile handles Core UPDATE, Discovery reconciliation,
 Refinement reconciliation, project structure convergence, and legacy artifact classification.
 
+Related: `policies/legacy-completion-reconciliation.md` — reconciliation of historical
+lifecycle completion state for projects that predate the current completion protocol.
+That policy defines the Legacy Completion Classification Model, canonical state authority
+order, stale historical metadata handling, deferred scope, supersession, and requirement
+migration gaps.
+
 ## Primary Principle
 
 **An MxAgile Core UPDATE must not make an existing mature project behave like a new project.**
@@ -332,3 +338,23 @@ The fresh agent must NOT:
 - Re-run Discovery if acceptable Discovery is present
 - Ask the developer to re-enter decisions already in `planning/decisions/`
 - Recreate Requirements/Specs/Tasks that already exist with valid content
+
+---
+
+## Lifecycle Completion Reconciliation
+
+Projects that have passed through multiple MxAgile generations may have Waves whose
+stored `phase` does not reflect their actual completed state under prior protocols.
+
+This is a distinct lifecycle from Core UPDATE reconciliation: it concerns Wave completion
+state rather than framework structure or schema changes.
+
+Full contract: `policies/legacy-completion-reconciliation.md`.
+
+Summary:
+- `phase != done` does NOT automatically mean `CURRENT_REQUIRED_SCOPE`
+- Apply the Legacy Completion Classification Model before reopening historical scope
+- `VERIFIED_LEGACY_STATE` permits a Wave to be counted as done without protocol replay
+- Canonical state (Git-tracked `process-state.yaml`) outranks session cache
+- Stale historical report markers do not override canonical delivery evidence
+- The Feature-Scope Completeness Check runs legacy reconciliation as Step 0
