@@ -1,0 +1,35 @@
+# Fixture AI: Interaction defect fixed in model, static checks pass, runtime not verified
+# Scenario G.3: Implementation must not be incorrectly promoted to runtime-verified completion
+# Demonstrates: MODEL_CHECK_PASSES ≠ RUNTIME_BEHAVIOR_VERIFIED
+fixture_id: FIXTURE-AI
+description: "An interaction defect (expand/collapse non-functional) was identified and fixed in the Mendix model. mxcli check passes, mxcli lint passes. However, no runtime or browser verification has been performed after the fix. The finding must remain at IMPLEMENTATION_COMPLETE, not VERIFICATION_COMPLETE."
+page_id: PAGE-DETAIL-VIEW
+gap_reference: GAP-001-SECTION-EXPAND
+gap_type: INTERACTION_GAP
+gap_severity: MATERIAL
+implementation_status: done
+static_checks:
+  mxcli_check: PASS
+  mxcli_lint: PASS
+runtime_verification: NOT_PERFORMED
+browser_verification: NOT_PERFORMED
+completion_level: IMPLEMENTATION_CHANGE_COMPLETE
+completion_level_NOT: VERIFICATION_COMPLETE
+verification_gap:
+  gap_type: EVIDENCE_STALE
+  required_evidence_level: FRONTEND
+  available_evidence_level: MODEL
+  gap_reason: "Acceptance behavior is executable (expand/collapse interaction). MODEL evidence proves microflow exists. FRONTEND evidence required to prove the interaction functions in the browser."
+  action: REEXECUTE
+dimensions:
+  interaction:
+    result: NOT_VERIFIED
+    required: true
+    interaction_proof_level: STRUCTURALLY_OBSERVED
+    note: "Model fix applied. Static checks pass. Runtime verification pending — interaction proof level remains STRUCTURALLY_OBSERVED until FRONTEND evidence confirms the fix."
+overall_result: NOT_VERIFIED
+# Key validation: MODEL passes (mxcli check, mxcli lint) after an interaction
+# fix must NOT be treated as VERIFICATION_COMPLETE or ACCEPTANCE_COMPLETE.
+# The finding stays at IMPLEMENTATION_CHANGE_COMPLETE until FRONTEND evidence
+# confirms the runtime behavior. This is the prohibited promotion:
+# MODEL → FRONTEND (silent, without evidence).

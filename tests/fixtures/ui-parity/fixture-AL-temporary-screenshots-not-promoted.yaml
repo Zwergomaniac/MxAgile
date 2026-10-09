@@ -1,0 +1,50 @@
+# Fixture AL: Automation creates hundreds of temporary screenshots
+# Scenario G.6: Only selected meaningful evidence is promoted persistently
+# Demonstrates: evidence growth management and selective promotion
+fixture_id: FIXTURE-AL
+description: "A broad parity campaign runs Playwright against 15 pages, capturing 12 screenshots per page (viewports, states, roles). This produces ~180 temporary screenshots in .concord/screenshots/. Only meaningful evidence — findings (PASS or FAIL), regression baselines, and state transitions — should be promoted to planning/evidence/screenshots/."
+temporary_evidence:
+  location: ".concord/screenshots/"
+  total_captures: 180
+  breakdown:
+    - category: "Redundant viewport captures (identical content at different scroll positions)"
+      count: 45
+      promote: false
+      reason: "Duplicate information — no additional evidence value"
+    - category: "Debug/retry captures (failed navigation, timeout retries)"
+      count: 22
+      promote: false
+      reason: "Transient automation artifacts, not evidence of application state"
+    - category: "Intermediate navigation states (page loading, transition frames)"
+      count: 18
+      promote: false
+      reason: "Not meaningful verification evidence"
+    - category: "Meaningful parity evidence (dimension results, state transitions, findings)"
+      count: 95
+      promote: true
+      reason: "Materially proves PASS, FAIL, or state transition for a verification scenario"
+promoted_evidence:
+  location: "planning/evidence/screenshots/"
+  total_promoted: 42
+  breakdown:
+    - category: "Visual parity per page (1 per page × dimension × finding)"
+      count: 15
+    - category: "Interaction findings (FAIL evidence with before/after)"
+      count: 8
+    - category: "State transition captures (expanded/collapsed, empty/populated)"
+      count: 12
+    - category: "Role comparison captures"
+      count: 7
+  naming_convention: "<scenario-id>/<dimension>_<description>.png"
+  manifest_entries: 42
+evidence_hygiene:
+  supersession_applied: true
+  previous_evidence_moved_to_history: 5
+  unreferenced_promoted_evidence_cleaned: 3
+  temporary_screenshots_remaining: 0
+  note: "After promotion and cleanup: .concord/screenshots/ is empty, planning/evidence/screenshots/ contains 42 current promoted files + 5 historical files in _history/ subdirectories"
+# Key validation: 180 temporary screenshots → 42 promoted evidence files.
+# The promotion is guided by material evidence value, not file count.
+# The manifest is the canonical index — 42 entries pointing to 42 promoted files.
+# A developer can find current evidence by reading the manifest, not by
+# browsing timestamped screenshot directories.

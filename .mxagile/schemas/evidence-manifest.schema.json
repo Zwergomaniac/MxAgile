@@ -46,9 +46,19 @@
         },
         "source": {
           "type": "string",
-          "enum": ["mockup", "application", "unknown"],
+          "enum": ["mockup", "application", "reference", "unknown"],
           "default": "unknown",
-          "description": "mockup=collected from the HTML mockup rendered in Playwright (expected/target). application=collected from the running Mendix application (actual). unknown=legacy artifact without classification."
+          "description": "mockup=collected from the HTML mockup rendered in Playwright (expected/target). application=collected from the running Mendix application (actual). reference=external design reference (PDF, image, Figma export) — immutable input, not runtime-produced. unknown=legacy artifact without classification. See policies/evidence-contract.md § Reference vs. Runtime Evidence."
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "Optional: artifact_id of the evidence this artifact supersedes. When present, the superseded artifact should be in _history/ or marked as historical. See policies/evidence-contract.md § Evidence Lifecycle Stages."
+        },
+        "lifecycle_stage": {
+          "type": "string",
+          "enum": ["promoted", "superseded", "historical"],
+          "default": "promoted",
+          "description": "promoted=current authoritative evidence. superseded=replaced by newer evidence for the same scenario. historical=retained for traceability only."
         },
         "path": {
           "type": "string",

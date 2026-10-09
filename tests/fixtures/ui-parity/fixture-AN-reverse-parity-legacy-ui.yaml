@@ -1,0 +1,49 @@
+# Fixture AN: Old UI remains in the application but not in the current design
+# Scenario G.8: Reverse-parity finding is raised and reconciled, not automatically deleted
+# Demonstrates: application → design direction, LEGACY_RETAINED classification
+fixture_id: FIXTURE-AN
+description: "During a full reconciliation run, a navigation item 'Legacy Reports' is found in the running application. This page does not appear in the current accepted design (ui-inventory or target mockups). It is a remnant from a prior design revision. The finding must be raised as a reverse parity deviation, classified, and reconciled — NOT automatically deleted."
+application_inventory:
+  navigation_items:
+    - name: "Dashboard"
+      in_current_design: true
+    - name: "Kunden"
+      in_current_design: true
+    - name: "Aufträge"
+      in_current_design: true
+    - name: "Legacy Reports"
+      in_current_design: false
+      note: "Navigation item present in application but absent from current accepted design"
+reverse_parity_finding:
+  direction: reverse
+  element: "Navigation item: Legacy Reports"
+  classification: LEGACY_RETAINED
+  evidence:
+    - type: dom_selector
+      selector: ".mx-name-navigationItem-LegacyReports"
+      description: "Navigation item 'Legacy Reports' found in running application DOM"
+      passed: true
+    - type: screenshot
+      description: "Application navigation showing 'Legacy Reports' item"
+      passed: true
+  reconciliation:
+    design_authority_check: "Not present in planning/ui-inventory/ or active target mockups"
+    decision_history_check: "No DEC-NNN found explicitly retaining or removing this item"
+    scope_check: "Not part of current accepted scope (W01-W03 requirements)"
+    result: DECISION_REQUIRED
+    reason: "Element has no current design authority. Cannot determine if intentionally retained or inadvertently left. Developer decision required before removal."
+  auto_delete: false
+  auto_delete_reason: "Reverse parity findings with LEGACY_RETAINED classification must NOT be auto-deleted. The element may be intentionally retained for backwards compatibility, data access, or operational reasons not captured in the current design."
+parity_report_entry:
+  dimension: structure
+  direction: reverse
+  deviations:
+    - concern: orphaned_navigation_item
+      description: "Navigation item 'Legacy Reports' present in application but absent from current accepted design. Classified as LEGACY_RETAINED pending developer decision."
+      severity: material
+      dimension: structure
+      direction: reverse
+# Key validation: reverse parity detection raises the finding but does
+# NOT automatically remove the element. The reconciliation flow classifies
+# it and routes to DECISION_REQUIRED. This preserves intentionally retained
+# functionality while making the discrepancy visible.

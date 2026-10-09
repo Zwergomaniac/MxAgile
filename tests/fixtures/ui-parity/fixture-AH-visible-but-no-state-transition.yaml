@@ -1,0 +1,70 @@
+# Fixture AH: UI element exists and screenshot matches but click produces no state transition
+# Scenario G.2: Visible/visual proof does not satisfy interaction proof
+# Demonstrates: ELEMENT_VISIBLE ≠ BEHAVIOR_VERIFIED
+fixture_id: FIXTURE-AH
+description: "A button is visible, correctly styled, and matches the target mockup. Clicking it should navigate to a detail page. The click produces no navigation — the page stays unchanged. Visual proof must not satisfy interaction proof."
+page_id: PAGE-LIST-VIEW
+dimensions:
+  visual:
+    result: PASS
+    required: true
+    evidence:
+      - type: screenshot
+        description: "Button styled correctly, positioned per mockup"
+        passed: true
+  content:
+    result: PASS
+    required: true
+    evidence:
+      - type: dom_text
+        selector: ".action-button"
+        expected: "Details anzeigen"
+        actual: "Details anzeigen"
+        passed: true
+  structure:
+    result: PASS
+    required: true
+    evidence:
+      - type: dom_selector
+        selector: ".action-button"
+        description: "Button element present in expected location"
+        passed: true
+  state:
+    result: FAIL
+    required: true
+    evidence:
+      - type: interaction_test
+        description: "Click on 'Details anzeigen' button — page does not navigate, no state change observed"
+        passed: false
+    deviations:
+      - concern: button_state_transition
+        description: "Button click should trigger navigation to detail page. No URL change, no page transition, no loading state observed."
+        severity: material
+        dimension: state
+  interaction:
+    result: FAIL
+    required: true
+    interaction_proof_level: VISUALLY_OBSERVED
+    evidence:
+      - type: screenshot
+        description: "Button visible and correctly rendered"
+        passed: true
+      - type: interaction_test
+        description: "Button click produces no navigation response"
+        passed: false
+    deviations:
+      - concern: drilldown_navigation
+        description: "Drilldown navigation from list to detail is part of accepted scope. Button is VISUALLY_OBSERVED but click produces no action. Interaction proof level remains VISUALLY_OBSERVED, not INTERACTION_VERIFIED."
+        severity: material
+        dimension: interaction
+  responsive:
+    result: NOT_APPLICABLE
+    required: false
+    not_applicable_rationale: "Desktop-only project"
+  role:
+    result: NOT_VERIFIED
+    required: true
+overall_result: FAIL
+# Key validation: visual PASS for the button + screenshot match does NOT
+# satisfy the interaction dimension. VISUALLY_OBSERVED proof level is
+# insufficient when the accepted behavior includes a state transition.
