@@ -96,6 +96,22 @@
             "type": ["string", "null"],
             "description": "Human-readable description of the gap when status is COVERAGE_GAP or PRESERVATION_FAILURE."
           },
+          "fixture_contract_complete": {
+            "type": ["boolean", "null"],
+            "description": "Whether the representative fixture for this role is complete per policies/representative-fixture-contract.md. true=IDENTITY+ROLE+DOMAIN_SCOPE+REPRESENTATIVE_STATE+POSITIVE_SCENARIO all satisfied (or not applicable). false=FIXTURE_GAP present. null=not yet assessed."
+          },
+          "fixture_gap_reason": {
+            "type": ["string", "null"],
+            "description": "When fixture_contract_complete=false: the specific missing fixture component. Values: SCOPE_CONTEXT_ABSENT, REPRESENTATIVE_STATE_ABSENT, IDENTITY_SCOPE_MISMATCH, SCOPE_SCENARIO_ABSENT."
+          },
+          "domain_scope_not_applicable": {
+            "type": ["boolean", "null"],
+            "description": "When true: domain scope is genuinely not applicable for this role (global/app role). Must be accompanied by domain_scope_omission_rationale."
+          },
+          "domain_scope_omission_rationale": {
+            "type": ["string", "null"],
+            "description": "Required when domain_scope_not_applicable=true. Explains why domain scope is not applicable for this role."
+          },
           "evidence": {
             "type": "array",
             "items": { "type": "string" },

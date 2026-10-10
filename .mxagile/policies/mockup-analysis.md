@@ -54,6 +54,50 @@ Dieselben Nutzerwege gegen die laufende App pruefen.
 Der mxcli `test-app` Skill und die vorhandene Playwright-Konfiguration sind fuer
 Browser-Automation und die Verifikation der laufenden Mendix-App zu verwenden.
 
+## Szenario-Semantik-Extraktion
+
+Die Mockup-Analyse darf NICHT bei PAGE / CONTROL / VISUAL STATE enden, wenn das
+Mockup Rollen- oder Scope-Semantiken enthaelt.
+
+**Erkennungsregel:** Szenario-Semantiken liegen vor wenn das Mockup eines der
+folgenden zeigt oder impliziert:
+
+- Rolle X sieht nur eigene Daten (scope-abhaengige Filterung)
+- Verschiedene Rollen sehen unterschiedliche Teilmengen von Daten oder Navigation
+- Eine Interaktion ist nur in einem bestimmten Zustand oder einer bestimmten Rolle verfuegbar
+- Ein Label, Wert oder Datensatz bezieht sich erkennbar auf eine Demo-Organisation,
+  ein Demo-Team oder eine Demo-Einheit (scopebezogenes Mock-Data-Beispiel)
+
+**Was bei Szenario-Semantiken zusaetzlich zu dokumentieren ist:**
+
+Fuer jede identifizierte Szenario-Semantik:
+
+```yaml
+scenario_semantic:
+  mockup_evidence: "<was im Mockup beobachtet wurde>"
+  role: "<betroffene Rolle oder ALL>"
+  capability: "<attributierte Faehigkeit / Verhaltensbeschreibung>"
+  scope_dependency: true|false
+  fixture_precondition: "<welche Fixture-Komponente fuer Verifikation benoetigt wird>"
+  positive_scenario: "<was bewiesen werden muss>"
+  negative_scenario: "<was ausgeschlossen werden muss, wenn Scope-Isolation relevant>"
+  verification_implication: "<Voraussetzung fuer den Verifikationsplan>"
+```
+
+**Pflicht-Weitergabe:** Erkannte Szenario-Semantiken muessen in die Story-Spec als
+`scenario_semantics[]`-Liste uebernommen werden. Sie sind Eingabe fuer:
+- Fixture-Anforderungen (policies/representative-fixture-contract.md)
+- Testbarkeits-Gate (skills/gate-to-ready.md)
+- Test-Vertrag-Ableitung (skills/test-contract.md)
+
+**Die Mockup-Analyse erzeugt keine konkreten Fixture-Objekte.** Sie stellt fest,
+dass Fixture-Voraussetzungen existieren — welche konkreten Datensaetze oder
+Organisationsobjekte erstellt werden, ist Sache des Projekts.
+
+**Scope-Semantik ohne konkretes Fixture ist dennoch wertvolle Information.** Ein
+Mockup das zeigt "Rolle X sieht nur eigene Abteilung" beweist, dass scope-abhaengige
+Verifikation erforderlich ist, ohne den Namen der Demo-Abteilung zu definieren.
+
 ## Interpretation
 
 Die Interpretation des Mockups richtet sich nach den Regeln in

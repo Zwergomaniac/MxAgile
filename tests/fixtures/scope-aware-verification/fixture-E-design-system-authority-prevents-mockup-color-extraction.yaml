@@ -1,0 +1,64 @@
+fixture_id: SCOPE-E
+title: "Design-system authority prevents arbitrary mockup color values from becoming authoritative styling requirements"
+policy_references:
+  - policies/source-priority.md
+  - policies/parity-finding-reconciliation.md
+schema_version: 1
+
+scenario:
+  description: >
+    A project has a Company Layer installed with a defined design system.
+    The mockup shows a primary button with hex color #E31937.
+    The implemented button uses design-token var(--color-primary) which resolves to #CC1133.
+    The mockup's #E31937 is not declared as a design token in the company design system.
+
+  project_configuration:
+    company_layer_installed: true
+    company_layer_declares_color_tokens: true
+    primary_color_token: "var(--color-primary)"
+    primary_color_token_value: "#CC1133"
+
+  mockup_color: "#E31937"
+  implemented_color: "var(--color-primary) → #CC1133"
+
+  visual_deviation:
+    observation: "Button color in application differs from mockup color"
+    mockup_value: "#E31937"
+    implementation_value: "#CC1133"
+
+fixture_assertions:
+  - id: E.1
+    claim: "Mockup color #E31937 must NOT be classified as CONFIRMED_REQUIREMENT_VIOLATION when design system is authoritative for styling"
+    expected: true
+    rationale: >
+      The design system / company layer is the styling authority when installed.
+      Arbitrary extraction of hex values from the mockup is prohibited as a styling requirement.
+
+  - id: E.2
+    claim: "Color deviation must be classified as CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK"
+    expected: true
+    rationale: >
+      The authoritative contract (design token definition) has not been resolved to confirm
+      that #E31937 is required. The finding requires DECISION_REQUIRED: which value is correct?
+
+  - id: E.3
+    claim: "Remediation must NOT be triggered based on mockup color extraction alone"
+    expected: true
+    rationale: >
+      Without design-system authority confirming the expected color, autonomous remediation
+      is not eligible. The finding is CONTRACT_CHECK until resolved.
+
+  - id: E.4
+    claim: "If the design system explicitly prescribes #E31937 via a token, the finding becomes CONFIRMED_REQUIREMENT_VIOLATION"
+    expected: true
+    rationale: >
+      When the design system declares a specific token that maps to #E31937 and the
+      implementation uses a different token/value, the finding gains authority basis.
+
+  - id: E.5
+    claim: "Absent a design token conflict, the visual dimension result is CONFLICT (not FAIL)"
+    expected: true
+    rationale: >
+      CONFLICT maps to CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK — an observable
+      difference without resolved authority. The distinction from FAIL is intentional:
+      FAIL requires confirmed requirement violation.

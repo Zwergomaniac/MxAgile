@@ -64,8 +64,12 @@
     },
     "overall_result": {
       "type": "string",
-      "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE"],
-      "description": "Aggregated result across all required dimensions. PASS: all required dimensions are PASS. FAIL: one or more required dimensions are FAILED. PARTIAL: one or more required dimensions are PARTIAL or CONFLICT and none are FAILED. NOT_VERIFIED: no browser verification has been performed. STALE: was PASS but active target has changed since verified_at — must re-verify before claiming PASS."
+      "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED"],
+      "description": "Aggregated result across all required dimensions. PASS: all required dimensions are PASS. FAIL: one or more required dimensions are FAILED. PARTIAL: one or more required dimensions are PARTIAL or CONFLICT and none are FAILED. NOT_VERIFIED: no browser verification has been performed. STALE: was PASS but active target has changed since verified_at — must re-verify before claiming PASS. FIXTURE_BLOCKED: one or more scope-dependent dimensions cannot be evaluated due to an incomplete representative fixture; scope-independent dimensions may still be valid. See policies/representative-fixture-contract.md § FIXTURE_GAP."
+    },
+    "fixture_blocked_reason": {
+      "type": "string",
+      "description": "When overall_result=FIXTURE_BLOCKED: identifies the role and FIXTURE_GAP type that caused the block. Example: 'ROLE-X3: SCOPE_CONTEXT_ABSENT'. Scope-independent dimensions reported as PASS remain valid."
     },
     "regression_scenario": {
       "type": "object",
@@ -113,8 +117,8 @@
       "properties": {
         "result": {
           "type": "string",
-          "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE", "LEGACY_EVIDENCE", "STALE"],
-          "description": "PASS: dimension satisfies the contract. FAIL: concrete deviation found. PARTIAL: some aspects pass, others have minor issues. NOT_VERIFIED: not yet checked. CONFLICT: evidence contradicts requirements. NOT_APPLICABLE: dimension not relevant (rationale required). LEGACY_EVIDENCE: migrated from pre-dimensional record; provenance preserved but not re-verified. STALE: was PASS but active target has changed since verification — re-verify before claiming PASS."
+          "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE", "LEGACY_EVIDENCE", "STALE", "FIXTURE_BLOCKED"],
+          "description": "PASS: dimension satisfies the contract. FAIL: concrete deviation found. PARTIAL: some aspects pass, others have minor issues. NOT_VERIFIED: not yet checked. CONFLICT: evidence contradicts requirements. NOT_APPLICABLE: dimension not relevant (rationale required). LEGACY_EVIDENCE: migrated from pre-dimensional record; provenance preserved but not re-verified. STALE: was PASS but active target has changed since verification — re-verify before claiming PASS. FIXTURE_BLOCKED: representative fixture for the required role/scope is incomplete; scope-dependent claim cannot be evaluated. See policies/representative-fixture-contract.md."
         },
         "not_applicable_rationale": {
           "type": "string",

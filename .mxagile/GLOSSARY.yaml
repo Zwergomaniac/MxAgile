@@ -109,6 +109,90 @@ terms:
       description: A decision that an agent must not make silently.
       agent_hint: Block only the affected work when the decision materially changes implementation.
 
+  verification_scope:
+    RUNTIME_CONFIGURATION_DISCREPANCY:
+      category: Verification classification
+      description: >
+        Classification for the condition where an established local IDE/runtime execution path
+        works but the automated or headless path uses a different effective runtime configuration,
+        causing authentication or startup failures. Diagnosis must occur BEFORE any attempt to
+        mutate credentials or create workaround identities.
+      agent_hint: >
+        Classify before diagnosing credential failures. Required diagnosis order:
+        INTENDED_PROJECT_LOCAL_CONFIG → HEADLESS_RUNTIME_CONFIG → CONFIGURATION_PARITY_CHECK
+        → AUTHENTICATION_ATTEMPT → only then diagnose identity/credential infrastructure.
+        Resolution: permanent project constant_overrides declaration in mxagile-project.yaml.
+        Full policy: policies/local-runtime-profile.md § RUNTIME_CONFIGURATION_DISCREPANCY.
+    FIXTURE_GAP:
+      category: Verification prerequisite gap
+      description: >
+        A scoped role has a verification obligation but the representative fixture is incomplete.
+        FIXTURE_GAP is a verification PREREQUISITE, not merely informational. It must propagate
+        through all subsequent lifecycle phases (discovery → verification → parity → completion)
+        and block only scope-dependent evidence claims for the affected role.
+      agent_hint: >
+        Record in role coverage (representative_scope_present: false, fixture_contract_complete: false).
+        Record in story specification (verification_gap: FIXTURE_GAP, fixture_gap_role: <role_id>).
+        Does NOT block scope-independent evidence or evidence for other roles.
+        Full contract: policies/representative-fixture-contract.md, policies/verification-gap-taxonomy.md.
+    REPRESENTATIVE_FIXTURE:
+      category: Verification concept
+      description: >
+        The complete combination of IDENTITY + ROLE + DOMAIN_SCOPE + REPRESENTATIVE_STATE +
+        POSITIVE_SCENARIO + (NEGATIVE_SCENARIO where applicable) required to exercise and prove
+        scope-dependent behavior. A fixture that omits required components cannot produce
+        DOMAIN_SCOPE_PROOF.
+      agent_hint: >
+        Login success, role assignment, and home routing are NOT components of DOMAIN_SCOPE_PROOF.
+        Domain scope may be omitted only when the role has global/app scope (with explicit rationale).
+        Full contract: policies/representative-fixture-contract.md.
+    DOMAIN_SCOPE_PROOF:
+      category: Verification evidence type
+      description: >
+        Evidence that demonstrates scope-dependent application behavior — i.e., that a scoped role
+        can access its authorized domain objects and cannot access out-of-scope objects.
+        Requires a complete REPRESENTATIVE_FIXTURE. Cannot be produced from login, routing,
+        or empty-state observations alone.
+      agent_hint: >
+        LOGIN_SUCCESS, ROLE_ASSIGNED, HOME_ROUTE_CORRECT, PAGE_REACHABLE, and EMPTY_NAVIGATION
+        do NOT constitute DOMAIN_SCOPE_PROOF. EMPTY_NAVIGATION may indicate scope restriction OR
+        absent data — never classify as DOMAIN_SCOPE_PROOF without representative in-scope data.
+        See policies/representative-fixture-contract.md § EMPTY_NAVIGATION Rule.
+    FIXTURE_BLOCKED:
+      category: Parity finding status
+      description: >
+        A finding or evidence claim that cannot be evaluated because the representative fixture
+        for the required role/scope combination is incomplete (FIXTURE_GAP present).
+        FIXTURE_BLOCKED is NOT a defect — it is a finding-validity gate. Scope-independent
+        findings and findings for other roles are not affected.
+      agent_hint: >
+        Do not report FIXTURE_BLOCKED findings as CONFIRMED_REQUIREMENT_VIOLATION or trigger remediation.
+        Continue the campaign for unblocked proof points. On fixture resolution: re-execute blocked
+        proof points and supersede prior invalid evidence.
+        See policies/parity-finding-reconciliation.md § 8a and policies/representative-fixture-contract.md.
+    VALID_FOR_ROLE_ONLY_NOT_SCOPE:
+      category: Evidence classification
+      description: >
+        Evidence produced with the correct role but without a complete domain scope context.
+        Proves role-level behavior (authentication, routing, global page access) but NOT
+        scope-dependent behavior. Preserved with limitation classification; not discarded.
+        Superseded by DOMAIN_SCOPE_PROOF when a valid fixture becomes available.
+      agent_hint: >
+        Evidence tagged VALID_FOR_ROLE_ONLY_NOT_SCOPE is not discarded. Record what it proves
+        and what it does not prove. When valid scope-dependent proof is produced, the new
+        evidence supersedes this evidence for scope-dependent dimensions only.
+        See policies/representative-fixture-contract.md § Evidence Validity Rules.
+    TEST_FIXTURE_INVALID:
+      category: Evidence classification
+      description: >
+        Evidence produced from an invalid fixture — identity could not authenticate in the required
+        scope context, or domain scope context was absent when required. Does NOT prove attributed
+        behavior. May be stored historically with its limitation classification.
+      agent_hint: >
+        Claims based on TEST_FIXTURE_INVALID evidence must not be promoted to CONFIRMED.
+        Store with lifecycle_stage: superseded when valid proof replaces it.
+        See policies/representative-fixture-contract.md § Evidence Validity Rules.
+
   completion_reconciliation:
     CURRENT_REQUIRED_SCOPE:
       category: Legacy completion classification

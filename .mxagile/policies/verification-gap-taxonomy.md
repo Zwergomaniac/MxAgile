@@ -113,6 +113,59 @@ Rerun the existing executable tests without rewriting them. Do NOT change TC/PP/
 
 ---
 
+### FIXTURE_GAP
+
+**A scoped role has a verification obligation but the representative fixture is incomplete.**
+
+This gap type is specific to scope-dependent verification. It indicates that the role
+exists and its requirements are known, but the fixture required to exercise scope-dependent
+behavior is not yet present or complete.
+
+Applicable when:
+- A role has `required_scope` set (non-null, non-`app`) in role coverage
+- `representative_scope_present: false` in role coverage, OR
+- A domain scope context exists but contains no representative in-scope data, OR
+- A test identity exists but cannot authenticate in the required scope context
+
+**Distinction from VERIFICATION_COVERAGE_GAP:**
+- `VERIFICATION_COVERAGE_GAP`: the TC/PP definition is missing or incomplete
+- `FIXTURE_GAP`: the TC/PP definition may be correct, but the runtime fixture needed
+  to execute it is absent or incomplete
+
+**What FIXTURE_GAP blocks:**
+- Scope-dependent proof points (`DOMAIN_SCOPE_PROOF` claims)
+- Evidence claims depending on scope-dependent behavior for this role
+- Scope-dependent parity conclusions
+
+**What FIXTURE_GAP does NOT block:**
+- Scope-independent verification for the same role (authentication, routing, global pages)
+- Verification of other roles with complete fixtures
+- Visual/layout parity for scope-independent pages
+
+**FIXTURE_GAP is a verification prerequisite.** It MUST be carried forward through all
+subsequent lifecycle phases until resolved. It does not disappear when later phases progress.
+
+**Next action:** Record the gap in the role coverage entry as:
+```yaml
+representative_scope_present: false
+fixture_contract_complete: false
+fixture_gap_reason: "<specific missing component>"
+```
+And in the story specification as `verification_gap: FIXTURE_GAP` with
+`fixture_gap_role: <role_id>`.
+
+For the Testability Gate: a FIXTURE_GAP for a scoped role's scope-dependent proof points
+classifies those proof points as `INFRASTRUCTURE_GAP` in the test contract until the
+fixture is complete. Scope-independent proof points for the same role are not affected.
+
+**Resolution:** When `representative_scope_present` becomes `true` and
+`fixture_contract_complete` becomes `true` in role coverage, re-execute all
+proof points previously classified as FIXTURE_BLOCKED.
+
+Full fixture contract: `policies/representative-fixture-contract.md`.
+
+---
+
 ## Classification Decision Table
 
 | Observation | Correct classification |
@@ -124,6 +177,9 @@ Rerun the existing executable tests without rewriting them. Do NOT change TC/PP/
 | Existing TC/PP/VPL/evidence, implementation changed | `EVIDENCE_STALE` → REEXECUTE |
 | Requirement scope expanded, existing TC partially covers | `VERIFICATION_COVERAGE_GAP` → EXTEND |
 | Requirement AC changed, TC claim affected | Not a gap classification — trigger REASSESS |
+| Scoped role, `representative_scope_present: false` | `FIXTURE_GAP` |
+| Scoped role, scope context exists but no representative data | `FIXTURE_GAP` (REPRESENTATIVE_STATE_ABSENT) |
+| Login/routing evidence used for scope-dependent proof | Not a gap — reclassify evidence as `VALID_FOR_ROLE_ONLY_NOT_SCOPE` |
 
 ---
 

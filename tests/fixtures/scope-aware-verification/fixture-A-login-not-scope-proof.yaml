@@ -1,0 +1,74 @@
+fixture_id: SCOPE-A
+title: "Login, role routing, and page reachability do NOT constitute domain scope proof"
+policy_references:
+  - policies/representative-fixture-contract.md
+  - policies/verification-gap-taxonomy.md
+schema_version: 1
+
+scenario:
+  description: >
+    A scoped role (required_scope: department) has a test identity that authenticates
+    successfully, routes to the correct home page, and can reach a scoped data page.
+    The domain scope context (a representative department object with in-scope records)
+    is absent. The data grid is empty.
+
+  role_coverage:
+    role_id: ROLE-DEPT-MANAGER
+    required_scope: department
+    representative_scope_present: false
+    fixture_contract_complete: false
+    fixture_gap_reason: SCOPE_CONTEXT_ABSENT
+    demo_mode_present: true
+
+  observations:
+    - type: LOGIN_SUCCESS
+      description: "Identity authenticated successfully"
+    - type: HOME_ROUTE_CORRECT
+      description: "Routed to /department-overview as expected for role"
+    - type: PAGE_REACHABLE
+      description: "Department overview page renders without error"
+    - type: EMPTY_NAVIGATION
+      description: "Data grid on department overview page shows 0 records"
+
+fixture_assertions:
+  - id: A.1
+    claim: "LOGIN_SUCCESS does not constitute DOMAIN_SCOPE_PROOF"
+    expected: true
+    rationale: >
+      Authentication proves identity/credential validity only. Scope-dependent filtering
+      cannot be observed from login alone.
+
+  - id: A.2
+    claim: "HOME_ROUTE_CORRECT does not constitute DOMAIN_SCOPE_PROOF"
+    expected: true
+    rationale: >
+      Role-based routing proves the Mendix navigation role assignment. It does not prove
+      that the scope context contains representative data.
+
+  - id: A.3
+    claim: "PAGE_REACHABLE does not constitute DOMAIN_SCOPE_PROOF"
+    expected: true
+    rationale: >
+      Page reachability proves render/access. It does not prove scope-dependent data filtering.
+
+  - id: A.4
+    claim: "EMPTY_NAVIGATION must not be classified as correct scope restriction without representative data"
+    expected: true
+    rationale: >
+      An empty data grid when fixture_contract_complete=false may be caused by absent scope context,
+      absent seed data, or an application defect — not necessarily correct scope restriction.
+      EMPTY_NAVIGATION is ambiguous without representative_scope_present=true AND in-scope data.
+
+  - id: A.5
+    claim: "Evidence from this fixture must be classified VALID_FOR_ROLE_ONLY_NOT_SCOPE for scope-dependent claims"
+    expected: true
+    rationale: >
+      The evidence proves role-level behavior (auth, routing, page access) but NOT scope-dependent
+      data filtering. It must not be promoted to DOMAIN_SCOPE_PROOF.
+
+  - id: A.6
+    claim: "Parity result for scope-dependent role dimension must be FIXTURE_BLOCKED, not PASS"
+    expected: true
+    rationale: >
+      The role dimension parity claim for scope-dependent behavior cannot be evaluated.
+      Overall result for scope-dependent findings is FIXTURE_BLOCKED.

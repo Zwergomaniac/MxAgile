@@ -1,0 +1,83 @@
+fixture_id: SCOPE-D
+title: "Structured mockup scenario semantics create traceable verification preconditions"
+policy_references:
+  - policies/mockup-analysis.md
+  - policies/representative-fixture-contract.md
+  - policies/verification-gap-taxonomy.md
+schema_version: 1
+
+scenario:
+  description: >
+    A mockup contains clearly attributable scenario semantics:
+    - A data grid labeled with a role-specific organizational unit (e.g., shows "My Department Records")
+    - A navigation item visible only for one role
+    - A demo data label that implies a scope context (e.g., "Sales Team Alpha" records visible)
+
+    The mockup analysis must extract these scenario semantics and produce fixture preconditions.
+
+  mockup_observations:
+    - type: SCOPE_RESTRICTED_DATA_GRID
+      mockup_evidence: "Data grid header reads 'Meine Abteilung' and shows records attributed to one unit"
+      role: ROLE-DEPT-MEMBER
+      capability: "User sees only own-department records"
+      scope_dependency: true
+
+    - type: ROLE_CONDITIONAL_NAVIGATION
+      mockup_evidence: "Navigation item 'Management Dashboard' visible only in Manager role mode"
+      role: ROLE-DEPT-MANAGER
+      capability: "Management Dashboard accessible only for Manager role"
+      scope_dependency: false
+
+  expected_mockup_analysis_output:
+    scenario_semantics:
+      - role: ROLE-DEPT-MEMBER
+        capability: "can only see own-department records"
+        scope_dependency: true
+        fixture_precondition: "Representative department context with at least one in-scope record"
+        positive_scenario: "ROLE-DEPT-MEMBER sees records from own department"
+        negative_scenario: "ROLE-DEPT-MEMBER does not see records from other departments"
+        verification_implication: "DOMAIN_SCOPE_PROOF requires representative department + in-scope data"
+
+      - role: ROLE-DEPT-MANAGER
+        capability: "Management Dashboard visible and accessible"
+        scope_dependency: false
+        fixture_precondition: "ROLE-DEPT-MANAGER identity with role assignment"
+        positive_scenario: "Management Dashboard navigation item is present and leads to accessible page"
+        verification_implication: "Standard role-based access verification; no scope context needed"
+
+fixture_assertions:
+  - id: D.1
+    claim: "Mockup analysis that contains scope-restricted data semantics must produce scenario_semantics entries"
+    expected: true
+    rationale: >
+      The mockup analysis must not terminate at PAGE/CONTROL/VISUAL STATE when scope semantics are present.
+      The 'Meine Abteilung' label with departmental records implies scope-dependent filtering.
+
+  - id: D.2
+    claim: "Scope-dependent scenario semantics must declare fixture_precondition"
+    expected: true
+    rationale: >
+      Without a fixture_precondition, the verification plan cannot know what infrastructure is needed.
+      The precondition connects mockup observation to fixture contract requirement.
+
+  - id: D.3
+    claim: "Scope-dependent scenario semantics must declare positive_scenario and negative_scenario"
+    expected: true
+    rationale: >
+      Both sides of scope isolation must be planned: what the role CAN see (positive) and
+      what the role CANNOT see (negative).
+
+  - id: D.4
+    claim: "Non-scope-dependent scenario semantics produce fixture_precondition without domain scope requirement"
+    expected: true
+    rationale: >
+      Role-conditional navigation does not require a domain scope context.
+      The fixture precondition is only the role identity — no organizational context needed.
+
+  - id: D.5
+    claim: "Mockup authority for scenario semantics does not define the concrete fixture objects"
+    expected: true
+    rationale: >
+      The mockup reveals THAT scoped behavior is required. It does not define WHICH department,
+      WHICH record, or WHICH organization object to use in the test fixture.
+      Concrete fixture objects are project-owned.
