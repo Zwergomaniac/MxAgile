@@ -339,6 +339,45 @@ Assert-FileNotContains "Q.L2 policy does not automatically add --ensure-db" `
 
 # ---------------------------------------------------------------------------
 Write-Host ""
+Write-Host "TEST R: Module constant default vs. project local intent" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+# Validates the RUNTIME_CONFIGURATION_DISCREPANCY pattern introduced after a confirmed
+# real-project A/B test: UserCommons.DisableMxAdmin=true (module default) blocked headless
+# MBAdmin login; --constant "UserCommons.DisableMxAdmin=false" restored it.
+# The permanent fix is a project-level constant_overrides declaration, not a CLI override.
+
+# R.1: policy defines RUNTIME_CONFIGURATION_DISCREPANCY classification
+Assert-FileContains "R.1 policy defines RUNTIME_CONFIGURATION_DISCREPANCY" $LocalProf 'RUNTIME_CONFIGURATION_DISCREPANCY'
+
+# R.2: policy prohibits test-identity creation to mask a configuration mismatch
+Assert-FileContains "R.2 policy prohibits test-identity workaround for config mismatch" $LocalProf '(?i)MUST NOT.*test.identity|test.identity.*mask|create.*demo user|workaround'
+
+# R.3: policy defines Studio Pro parity check before classifying discrepancy
+Assert-FileContains "R.3 policy defines Studio Pro parity check" $LocalProf '(?i)Studio Pro parity|parity check'
+
+# R.4: policy distinguishes module constant default from project local override
+Assert-FileContains "R.4 policy distinguishes module constant default from project local override" $LocalProf '(?i)module.*constant.*default|module default.*differ'
+
+# R.5: policy defines temporary diagnostic override as session-only (must be made permanent)
+Assert-FileContains "R.5 policy defines temporary diagnostic override vs permanent project declaration" $LocalProf '(?i)temporary diagnostic|diagnostic.*override|diagnostic.*CLI'
+
+# R.6: policy explicitly prohibits globally forcing any specific constant value (no universal rule)
+Assert-FileContains "R.6 policy explicitly prohibits globally forcing any constant value" $LocalProf '(?i)Do NOT globally force|must not globally force|no universal'
+
+# R.7: development-runtime.md does NOT hard-code any constant name
+Assert-FileNotContains "R.7 development-runtime.md does not hard-code module constant names" $DevRuntime '(?i)UserCommons\.|DisableMxAdmin'
+
+# R.8: policy defines validation boundary between framework and downstream runtime acceptance
+Assert-FileContains "R.8 policy defines FRAMEWORK_VALIDATION vs DOWNSTREAM_RUNTIME_ACCEPTANCE boundary" $LocalProf '(?i)FRAMEWORK_VALIDATION|DOWNSTREAM_RUNTIME_ACCEPTANCE'
+
+# R.9: policy requires downstream runtime acceptance before marking finding fully accepted
+Assert-FileContains "R.9 policy requires downstream acceptance before VERIFIED status" $LocalProf '(?i)downstream.*acceptance.*required|not yet complete|fully accepted'
+
+# R.10: ownership table distinguishes four override categories
+Assert-FileContains "R.10 policy defines four override ownership categories" $LocalProf '(?i)temporary diagnostic|Temporary diagnostic'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
 Write-Host "=" * 60
 $total = $PassCount + $FailCount
 Write-Host "RESULTS: $PassCount passed, $FailCount failed out of $total tests"

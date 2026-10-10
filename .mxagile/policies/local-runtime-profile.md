@@ -229,6 +229,228 @@ The lifecycle for obtaining a testable local application session is:
 
 ---
 
+## Module Constant Default vs. Project Local Intent
+
+### Problem Pattern
+
+Mendix App Store / marketplace modules ship with module constant defaults that reflect
+production or SaaS-optimized behavior rather than local development behavior.
+
+Example: a module ships with `ModuleName.DisableMxAdmin=True` as its model constant default,
+which is appropriate for production environments. The established local development workflow
+requires `False` to enable the local bootstrap administrator configured in the Mendix model
+under App > Security > Administrator.
+
+Studio Pro local execution may provide working local administrator login despite this default
+because Studio Pro may apply a project-level run configuration that MxAgile and mxcli do not
+read — or because Studio Pro has special handling for local administrator accounts.
+
+`mxcli run --local` applies the module/model constant defaults unless explicitly overridden via
+`--constant` flags. When no project-level override is declared, the headless runtime silently
+disagrees with the established Studio Pro local development behavior. The result is
+authentication failure, missing features, or incorrect behavior under headless verification that
+does not occur under Studio Pro — with no error message naming the discrepancy.
+
+### Classification: RUNTIME_CONFIGURATION_DISCREPANCY
+
+Classify headless runtime authentication failure as `RUNTIME_CONFIGURATION_DISCREPANCY` when
+ALL of the following apply:
+
+1. A headless local runtime authentication failure is observed
+2. Studio Pro local execution of the same `.mpr` and database succeeds for the same operation
+3. `mxagile-project.yaml local_runtime.constant_overrides` is empty, absent, or does not
+   cover the relevant constant(s)
+4. No project-level `.env.mendix` value or other configuration source explains the failure
+
+`RUNTIME_CONFIGURATION_DISCREPANCY` is NOT:
+- `CREDENTIAL_VALIDATION_FAILED` — the credentials are correct; the runtime configuration is wrong
+- `SECRET_INPUT_REQUIRED` — no missing secret; the constant override is missing
+- `RUNTIME_START_FAILED` — the runtime started; the application behavior is misconfigured
+
+### Studio Pro Parity Check
+
+Before classifying as `RUNTIME_CONFIGURATION_DISCREPANCY`, verify the discrepancy:
+
+```
+1. Confirm: Studio Pro local run of the same .mpr + database succeeds for the blocked operation
+2. Confirm: mxcli run --local of the same .mpr + database fails for the same operation
+3. Check: Is mxagile-project.yaml local_runtime.constant_overrides empty/absent?
+4. Check: Are any Studio Pro run-configuration files present that declare local overrides?
+   (e.g., .mendix/ directory, Studio Pro project configuration)
+5. Identify: Which constant(s) could explain the behavioral difference?
+```
+
+If Studio Pro also fails: the issue is NOT a configuration discrepancy — it is a model or
+credential problem. Do not classify as `RUNTIME_CONFIGURATION_DISCREPANCY`.
+
+If constant(s) are identified that explain the difference: they are candidates for a project
+`constant_overrides` declaration.
+
+### Ownership of Constant Overrides
+
+Each override has a distinct source, owner, and lifetime:
+
+| Override Category | Source | Applied by | Lifetime |
+|---|---|---|---|
+| Module constant default | Mendix module inside `.mpr` | mxcli — always unless overridden | Permanent model default |
+| Project local override | `mxagile-project.yaml local_runtime.constant_overrides` | mxcli via `--constant` flags | Tracked; survives sessions |
+| Production / environment override | CI/CD config, MxOps deployment config | Deployment tooling | Deployment-scoped |
+| Temporary diagnostic override | `--constant "<name>=<value>"` CLI argument | Developer, single session | Session-only; not persisted |
+
+A temporary diagnostic override (`--constant "..."` at the CLI) is evidence of project intent.
+It MUST be converted into a permanent project declaration in `mxagile-project.yaml` before
+the session is considered resolved. A diagnostic override is NOT a durable fix.
+
+Do NOT globally force a specific constant value as a MxAgile Core default. Each project must
+declare its own intentional local overrides. MxAgile Core must not hard-code module-specific
+constant names.
+
+### Canonical Resolution
+
+When `RUNTIME_CONFIGURATION_DISCREPANCY` is confirmed:
+
+```
+1. Identify the constant(s) whose module default differs from the project's local intent
+2. Confirm with the developer that the local intent is intentional (not a misconfiguration)
+3. Add the override to mxagile-project.yaml under local_runtime.constant_overrides:
+
+   local_runtime:
+     constant_overrides:
+       - name: ModuleName.ConstantName
+         value: "IntendedLocalValue"
+         purpose: "Enables <behavior> for local development — module default (<DefaultValue>) reflects production intent"
+
+4. Re-start the local runtime with the declared override applied via --constant flag
+5. Confirm that the previously failing operation now succeeds
+6. Record RUNTIME_CONFIGURATION_DISCREPANCY as resolved; do NOT create test identities
+```
+
+This declaration is permanent project configuration. It survives session re-sync.
+It must be committed to the repository so all developers and autonomous agents use it.
+
+### Agent Prohibition: No Test-Identity Creation to Mask Configuration Mismatch
+
+When headless authentication fails, agents MUST NOT:
+
+1. Create a new demo user or application user as a login workaround
+2. Reset a demo user's password to gain application access
+3. Modify User Role assignments to work around the missing bootstrap administrator
+4. Use an SSO bypass, demo-user path, or service-user login merely because the intended
+   bootstrap administrator is unavailable
+5. Continue scenario execution via an undocumented identity substitution
+
+These actions mask the root cause (`RUNTIME_CONFIGURATION_DISCREPANCY`) with an authentication
+workaround that may persist after the session and leaves the project in an unexpected state.
+The test evidence produced through such a workaround is unreliable.
+
+**Required response to `RUNTIME_CONFIGURATION_DISCREPANCY`:**
+
+```
+1. Classify precisely as RUNTIME_CONFIGURATION_DISCREPANCY
+2. Do NOT continue verification through alternative identity
+3. Do NOT create or modify user accounts
+4. Perform Studio Pro parity check to confirm and identify the discrepancy
+5. Surface to developer: which constant(s) differ, what the fix is
+6. Request: declaration of intentional local override in mxagile-project.yaml
+7. After fix: re-start runtime with override applied; then resume verification
+```
+
+This prohibition applies even when the temporary workaround would allow verification to
+complete. Evidence produced through an unresolved `RUNTIME_CONFIGURATION_DISCREPANCY` is not
+valid runtime evidence under MxAgile — it does not certify the correct runtime configuration.
+
+### Existing Projects: Migration / Re-Sync
+
+Projects with an established Studio Pro local development workflow that have not yet declared
+explicit `constant_overrides` in `mxagile-project.yaml` are in an implicit configuration
+gap. The headless runtime does not reproduce the Studio Pro local behavior.
+
+Required one-time action for each affected project:
+
+```
+1. Identify the effective constant values that Studio Pro applies locally
+2. Determine which values differ from the module/model defaults
+3. Declare each intentional local override in mxagile-project.yaml constant_overrides
+4. Commit the declaration; inform all developers
+5. No re-sync of mxcli-generated files is required — --constant flags are applied at startup
+```
+
+No `run-local.json` patching, model modification, or database recreation is required.
+The `mxagile-project.yaml` declaration is the durable fix.
+
+### Upstream Finding for mxcli
+
+**Observation:** Studio Pro local execution of a Mendix project provides working local
+administrator login even when the underlying module constant default would disable it.
+`mxcli run --local` does not reproduce this behavior without an explicit `--constant` override.
+
+**Question for mxcli / Mendix:** Where does Studio Pro store and apply its effective local
+constant overrides? Is there a Studio Pro run configuration file (e.g., in the `.mendix/`
+directory or project settings) that mxcli could read to reproduce the same effective
+configuration without requiring a separate `mxagile-project.yaml` declaration?
+
+**Expected mxcli behavior (if supported):**
+- If Studio Pro stores local run configuration in a documented project file, expose a
+  `--studio-pro-compat` or equivalent flag that reads and applies the same overrides
+- If no such file exists, document clearly that local constant overrides must be supplied
+  via `--constant` flags for headless execution to match Studio Pro behavior
+
+**Impact if not resolved:** Every project with module-default constants that differ from
+local development intent must enumerate them manually in `mxagile-project.yaml`. A developer
+who sets up a project in Studio Pro and then runs it headlessly will encounter silent
+behavioral discrepancies that are difficult to diagnose without this policy.
+
+### Validation Boundary: Framework vs. Downstream Runtime Acceptance
+
+MxAgile Core tests (Tier 0–2) validate the generic mechanism — configuration propagation,
+schema correctness, policy coherence, lifecycle semantics — but they do NOT constitute
+end-to-end acceptance of the runtime behavior.
+
+**Framework validation (this repository):**
+
+```
+FRAMEWORK_VALIDATION
+= proves that:
+  - the schema supports constant_overrides declaration
+  - the policy defines RUNTIME_CONFIGURATION_DISCREPANCY correctly
+  - constant_overrides are applied via --constant flags (policy contract)
+  - test-identity workarounds are prohibited (policy contract)
+  - no universal constant value is hard-coded in Core
+```
+
+Framework tests PASS → the generic mechanism is correct.
+Framework tests do NOT prove that `mxcli run --local` behaves correctly for a real project.
+
+**Downstream runtime acceptance (real Mendix project, required for full acceptance):**
+
+```
+DOWNSTREAM_RUNTIME_ACCEPTANCE
+= proves that:
+  1. The project declares its intentional local constant override in mxagile-project.yaml
+  2. mxcli performs a normal headless local startup without an ad-hoc CLI --constant override
+  3. No run-local.json is manually patched
+  4. No temporary demo-user/password workaround is required
+  5. The effective runtime constant value reflects the project declaration (not the module default)
+  6. The configured local Mendix Administrator can authenticate when that is the project's intent
+  7. A project that intentionally DisableMxAdmin=true has that decision respected
+  8. Secrets are not printed, persisted in evidence, or committed
+```
+
+`RUNTIME_CONFIGURATION_DISCREPANCY` is only fully resolved when DOWNSTREAM_RUNTIME_ACCEPTANCE
+has passed for at least one real Mendix project after the framework change is integrated.
+
+**Acceptance finding status:**
+
+| Scope | Validated by | Status |
+|---|---|---|
+| Schema / policy contract | Framework Tier 0–2 tests | Complete after TEST R passes |
+| Real headless Mendix runtime | Downstream project acceptance scenario | Required; not yet complete |
+
+The runtime-bootstrap finding MUST NOT be marked fully accepted (e.g., `gap_lifecycle_status: VERIFIED`)
+until the downstream acceptance scenario has succeeded.
+
+---
+
 ## Runtime Pipeline State Model
 
 The local runtime startup has distinct stages that agents must track and distinguish.
