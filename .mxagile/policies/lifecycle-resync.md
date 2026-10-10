@@ -258,6 +258,62 @@ Verhalten:
 
 `resume_from` im process-state ist ergaenzender Freitext, kein Ersatz fuer Checklisten-Status.
 
+### FOUNDATIONAL_DEFECT
+
+A FOUNDATIONAL_DEFECT interrupt is recognized when, during a parity or acceptance campaign,
+a systemic issue is discovered that invalidates the representative fixture for one or more
+roles or scenarios — making it impossible to produce valid scope-dependent evidence for
+those roles without first repairing the prerequisite.
+
+Examples:
+- The representative scope context was deleted or was never fully created.
+- The test identity used for a scoped role has no access to the required domain context.
+- A RUNTIME_CONFIGURATION_DISCREPANCY causes all scoped authentication attempts to fail.
+- A FIXTURE_GAP is discovered for a role whose proof points are already in progress.
+
+**Behavior:**
+
+1. **Preserve current work:** All completed proof points with valid fixtures remain CONFIRMED.
+   Do not restart the campaign.
+
+2. **Downgrade only affected evidence:** Reclassify evidence for the affected role(s) as
+   `VALID_FOR_ROLE_ONLY_NOT_SCOPE` or `TEST_FIXTURE_INVALID` per
+   `policies/representative-fixture-contract.md` § Evidence Validity Rules.
+   Evidence for unaffected roles and scope-independent dimensions is NOT downgraded.
+
+3. **Record the FIXTURE_GAP:** Update role coverage with `representative_scope_present: false`
+   and `fixture_gap_reason` for the affected role.
+
+4. **Classify affected proof points as FIXTURE_BLOCKED** in the current campaign result.
+
+5. **Re-sync lifecycle prerequisites:** The FIXTURE_GAP is now an open prerequisite.
+   It must appear in process-state and be surfaced for resolution before re-execution.
+
+6. **Repair prerequisite:** The developer or infrastructure must resolve the FIXTURE_GAP.
+   The agent does not create workaround identities or modify scope contexts without authorization.
+
+7. **Re-run only affected proof points:** After fixture repair, re-execute only the
+   FIXTURE_BLOCKED proof points. Resume the original campaign at that point.
+
+8. **Supersede prior invalid evidence:** New valid proof points supersede the prior
+   VALID_FOR_ROLE_ONLY_NOT_SCOPE / TEST_FIXTURE_INVALID evidence with `lifecycle_stage: superseded`.
+
+**FOUNDATIONAL_DEFECT does NOT:**
+- Restart the entire campaign.
+- Invalidate scope-independent findings.
+- Require re-execution of already-confirmed proof points.
+- Authorize workaround test identities.
+
+**Record in process-state:**
+```yaml
+interrupt_class: FOUNDATIONAL_DEFECT
+affected_roles: ["<role_id>"]
+fixture_gap_type: "<gap type>"
+downgraded_evidence_ids: ["<evidence-id>"]
+fixture_blocked_proof_points: ["<PP-NNN>"]
+prerequisite_state: FIXTURE_GAP_OPEN
+```
+
 ### EXPLORATORY / AUSSER-REIHENFOLGE
 
 Beispiele: "Versuche dies zu implementieren, auch wenn es noch nicht Ready ist"

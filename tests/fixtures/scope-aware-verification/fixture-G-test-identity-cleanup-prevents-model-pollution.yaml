@@ -1,0 +1,83 @@
+fixture_id: SCOPE-G
+title: "Temporary verification identity must not silently remain after an isolated test contract"
+policy_references:
+  - policies/test-identity-lifecycle.md
+schema_version: 1
+
+scenario:
+  description: >
+    An isolated verification test creates a demo user for role coverage testing.
+    The test scope closes. Multiple runs have occurred.
+
+  lifecycle_variants:
+    happy_path:
+      scope: docker_isolated_container
+      identity_created: true
+      verification_ran: true
+      scope_closed: true
+      cleanup_executed: true
+      expected_result: "Identity removed; repository state unchanged"
+
+    verification_failure:
+      scope: docker_isolated_container
+      identity_created: true
+      verification_ran: false
+      scope_closed: true
+      cleanup_executed: true
+      expected_result: "Cleanup must run despite verification failure; identity removed"
+
+    interrupted_execution:
+      scope: docker_isolated_container
+      identity_created: true
+      verification_ran: false
+      scope_closed: false
+      cleanup_executed: false
+      expected_result: "PENDING open_scope recorded; cleanup attempted on resume; PERSISTENT_MUTATION if cleanup fails"
+
+    repeated_execution:
+      scope: docker_isolated_container
+      first_run_cleanup: true
+      second_run_identity_precheck: true
+      expected_result: "Second run does not create duplicate identity; idempotent"
+
+    accumulated_identities:
+      generated_pattern: "test_user_*"
+      count_in_project_db: 5
+      canonical_declarations: 0
+      expected_result: "ACCUMULATED_TEST_ARTIFACTS classification; surfaced to developer; not auto-deleted"
+
+fixture_assertions:
+  - id: G.1
+    claim: "Happy path: identity created in isolated scope is removed after scope closes"
+    expected: true
+    rationale: "A properly scoped test leaves no persistent mutation."
+
+  - id: G.2
+    claim: "Verification failure does not bypass cleanup"
+    expected: true
+    rationale: "Cleanup must execute regardless of test outcome to prevent model pollution."
+
+  - id: G.3
+    claim: "Interrupted execution records PENDING open_scope and attempts cleanup on resume"
+    expected: true
+    rationale: "Process-state tracks open scopes to enable cleanup after interruption."
+
+  - id: G.4
+    claim: "Repeated execution does not create duplicate test identities"
+    expected: true
+    rationale: "Idempotency requirement: check for existing identity before creating."
+
+  - id: G.5
+    claim: "5 accumulated test_user_* identities with no canonical declarations triggers ACCUMULATED_TEST_ARTIFACTS"
+    expected: true
+    rationale: "Detection rule: 3+ generated-identity pattern matches without canonical declaration."
+
+  - id: G.6
+    claim: "ACCUMULATED_TEST_ARTIFACTS are surfaced to developer, not auto-deleted"
+    expected: true
+    rationale: "Developer must classify each as CANONICAL, STALE_TEST_ARTIFACT, or UNKNOWN."
+
+  - id: G.7
+    claim: "PERSISTENT_MUTATION classification is issued when cleanup fails"
+    expected: true
+    rationale: "Failed cleanup must not be silently suppressed; the test is not isolated."

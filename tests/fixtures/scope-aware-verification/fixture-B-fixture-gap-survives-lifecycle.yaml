@@ -1,0 +1,80 @@
+fixture_id: SCOPE-B
+title: "FIXTURE_GAP recorded in Discovery propagates through lifecycle and blocks only scope-dependent evidence"
+policy_references:
+  - policies/representative-fixture-contract.md
+  - policies/verification-gap-taxonomy.md
+  - policies/parity-finding-reconciliation.md
+schema_version: 1
+
+scenario:
+  description: >
+    In Discovery, a FIXTURE_GAP is recorded for a scoped role (required_scope: team)
+    because no representative team context exists. The requirement is accepted. The TC
+    is created. Implementation completes. Verification phase begins. The FIXTURE_GAP
+    has NOT been resolved.
+
+  lifecycle_progression:
+    - phase: discovery
+      observation: "representative_scope_present: false for ROLE-TEAM-MEMBER"
+      recorded_gap: "verification_gap: FIXTURE_GAP, fixture_gap_role: ROLE-TEAM-MEMBER"
+
+    - phase: refinement
+      observation: "Story spec carries verification_gap: FIXTURE_GAP from discovery"
+      expected_behavior: "Gap is NOT silently removed — it persists in story spec"
+
+    - phase: gate_to_ready
+      observation: "TC created; scope-dependent PP classified as INFRASTRUCTURE_GAP due to FIXTURE_GAP"
+      expected_behavior: "Scope-independent PP for same role are NOT blocked"
+
+    - phase: implementing
+      observation: "Implementation proceeds; FIXTURE_GAP remains open"
+      expected_behavior: "Implementation completion does not resolve FIXTURE_GAP"
+
+    - phase: verifying
+      observation: "VPL notes FIXTURE_GAP as prerequisite for scope-dependent PP"
+      expected_behavior: "Scope-dependent PP carry status: FIXTURE_BLOCKED in campaign result"
+
+  role_coverage:
+    role_id: ROLE-TEAM-MEMBER
+    required_scope: team
+    representative_scope_present: false
+    fixture_contract_complete: false
+    fixture_gap_reason: SCOPE_CONTEXT_ABSENT
+    demo_mode_present: true
+
+  scope_independent_verification:
+    role_id: ROLE-TEAM-MEMBER
+    login_verified: true
+    routing_verified: true
+    global_page_verified: true
+    scope_dependent_data_verified: false
+
+fixture_assertions:
+  - id: B.1
+    claim: "FIXTURE_GAP recorded in Discovery persists in story specification after refinement"
+    expected: true
+    rationale: "Gap must not be silently removed when the story transitions from discovery to refinement."
+
+  - id: B.2
+    claim: "FIXTURE_GAP persists through implementation completion"
+    expected: true
+    rationale: "Implementation completion does not resolve a fixture infrastructure gap."
+
+  - id: B.3
+    claim: "Scope-dependent proof points carry status FIXTURE_BLOCKED in verification campaign"
+    expected: true
+    rationale: "The PP cannot be executed without representative scope context."
+
+  - id: B.4
+    claim: "Scope-independent proof points for the same role are NOT blocked by FIXTURE_GAP"
+    expected: true
+    rationale: >
+      FIXTURE_GAP blocks only scope-dependent claims. Login, routing, and global page
+      access can still be verified and confirmed.
+
+  - id: B.5
+    claim: "Completion assessment must reflect FIXTURE_BLOCKED for scope-dependent role coverage"
+    expected: true
+    rationale: >
+      A parity or MVP completion report cannot claim full scope-dependent coverage for
+      ROLE-TEAM-MEMBER when FIXTURE_GAP is unresolved.

@@ -1,0 +1,59 @@
+fixture_id: SCOPE-F
+title: "Explicit project decision overrides both design-system and mockup inference for the decided aspect"
+policy_references:
+  - policies/source-priority.md
+schema_version: 1
+
+scenario:
+  description: >
+    A project has a Company Layer with design system tokens.
+    The mockup shows a warning banner in yellow (#FFD700).
+    The design system has no specific warning-banner token.
+    A DEC-NNN decision explicitly states: "Warning banner color: #FF8C00 (deep orange) — agreed
+    with product owner for accessibility reasons."
+
+  project_configuration:
+    company_layer_installed: true
+    company_layer_has_warning_token: false
+
+  decision:
+    id: DEC-042
+    type: design_decision
+    decided_aspect: "warning_banner_color"
+    decided_value: "#FF8C00"
+    rationale: "Accessibility contrast requirement; agreed with product owner"
+    status: accepted
+
+  mockup_color: "#FFD700"
+  design_system_token: null
+  implemented_color: "#FF8C00"
+  decision_color: "#FF8C00"
+
+fixture_assertions:
+  - id: F.1
+    claim: "DEC-042 is the authoritative source for warning_banner_color — overrides both mockup and design system"
+    expected: true
+    rationale: >
+      An explicit project decision (Rank 4 in source-priority.md) overrides all other sources
+      for the decided aspect. The color #FF8C00 is the authoritative value per DEC-042.
+
+  - id: F.2
+    claim: "Mockup color #FFD700 must NOT be extracted as a styling requirement when DEC-042 exists"
+    expected: true
+    rationale: >
+      The mockup's yellow warning color is superseded by the explicit decision. A parity
+      campaign must not flag the #FF8C00 implementation as non-compliant with the mockup.
+
+  - id: F.3
+    claim: "Implementation using #FF8C00 matches DEC-042 and must be classified CONFIRMED (not a violation)"
+    expected: true
+    rationale: >
+      The implementation matches the explicit decision. This is the correct behavior.
+      No finding should be raised for this color.
+
+  - id: F.4
+    claim: "If a later parity run compares #FF8C00 to mockup #FFD700, the visual difference must be classified as ACCEPTED_VARIANT per DEC-042"
+    expected: true
+    rationale: >
+      The decision provides the authority basis for classifying the mockup-vs-implementation
+      difference as ACCEPTED_VARIANT rather than a compliance defect.

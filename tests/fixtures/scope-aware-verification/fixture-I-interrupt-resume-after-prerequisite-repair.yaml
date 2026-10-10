@@ -1,0 +1,91 @@
+fixture_id: SCOPE-I
+title: "Interrupt/resume returns to original campaign after prerequisite repair; valid proof supersedes invalid historical evidence"
+policy_references:
+  - policies/lifecycle-resync.md
+  - policies/representative-fixture-contract.md
+  - policies/parity-finding-reconciliation.md
+schema_version: 1
+
+scenario:
+  description: >
+    A parity campaign is running for ROLE-DEPT-MANAGER. Two proof points have been
+    completed with valid scope-independent evidence. During execution of PP-003
+    (scope-dependent data filtering), the agent discovers that the representative
+    department scope context was deleted. This is a FOUNDATIONAL_DEFECT interrupt.
+
+    Subsequently, the developer creates a new representative department context.
+    The agent must resume the original campaign, re-execute PP-003, and supersede
+    the prior invalid evidence.
+
+  campaign_state_at_interrupt:
+    campaign_id: CAM-W01-ROLE-DEPT-MANAGER
+    completed_proof_points:
+      - id: PP-001
+        claim: "Authentication and role routing correct"
+        status: CONFIRMED
+        scope_dependent: false
+      - id: PP-002
+        claim: "Department overview page accessible and renders without error"
+        status: CONFIRMED
+        scope_dependent: false
+    interrupted_proof_point:
+      id: PP-003
+      claim: "Department overview shows only own-department records"
+      status: FIXTURE_BLOCKED
+      scope_dependent: true
+      interrupt_class: FOUNDATIONAL_DEFECT
+      fixture_gap_type: SCOPE_CONTEXT_ABSENT
+
+  prior_invalid_evidence:
+    evidence_id: EVD-PP003-INVALID
+    collected_at: "2026-10-01"
+    result: "EMPTY_NAVIGATION observed"
+    classification: TEST_FIXTURE_INVALID
+    lifecycle_stage: historical
+
+  prerequisite_repair:
+    action: "Developer created representative department context with 5 in-scope records"
+    representative_scope_present_after: true
+    fixture_contract_complete_after: true
+
+fixture_assertions:
+  - id: I.1
+    claim: "PP-001 and PP-002 (scope-independent) remain CONFIRMED after FOUNDATIONAL_DEFECT interrupt"
+    expected: true
+    rationale: >
+      FOUNDATIONAL_DEFECT downgrades only the affected scope-dependent proof points.
+      Scope-independent confirmed evidence is preserved unchanged.
+
+  - id: I.2
+    claim: "PP-003 is classified FIXTURE_BLOCKED at interrupt time, not FAIL"
+    expected: true
+    rationale: >
+      The scope context was absent — this is a prerequisite issue, not an application defect.
+
+  - id: I.3
+    claim: "After prerequisite repair, PP-003 is re-executed without restarting PP-001 and PP-002"
+    expected: true
+    rationale: >
+      The resume returns to the minimum affected scope. Already-confirmed independent
+      proof points are NOT re-executed.
+
+  - id: I.4
+    claim: "New valid evidence for PP-003 supersedes prior TEST_FIXTURE_INVALID evidence"
+    expected: true
+    rationale: >
+      When valid proof is produced, it supersedes the prior invalid evidence with
+      lifecycle_stage: superseded and superseded_by pointing to new evidence.
+
+  - id: I.5
+    claim: "Prior invalid evidence is preserved historically, not deleted"
+    expected: true
+    rationale: >
+      Historical evidence is preserved for audit traceability. Deletion would obscure
+      when scope-dependent behavior was actually confirmed.
+
+  - id: I.6
+    claim: "Campaign resumes and completes — no full-campaign restart required"
+    expected: true
+    rationale: >
+      FOUNDATIONAL_DEFECT interrupt is repair-and-resume, not restart.
+      Restarting the entire campaign would re-execute already-confirmed work unnecessarily.

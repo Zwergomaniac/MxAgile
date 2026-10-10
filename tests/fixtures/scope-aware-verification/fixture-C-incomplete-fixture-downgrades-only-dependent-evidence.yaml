@@ -1,0 +1,66 @@
+fixture_id: SCOPE-C
+title: "Incomplete fixture downgrades scope-dependent evidence without invalidating unrelated evidence"
+policy_references:
+  - policies/representative-fixture-contract.md
+  - policies/parity-finding-reconciliation.md
+schema_version: 1
+
+scenario:
+  description: >
+    A verification campaign runs for two roles:
+    - ROLE-GLOBAL-ADMIN: global scope (no domain scope requirement). Fixture complete.
+    - ROLE-ORG-REPORTER: required_scope=org. Domain scope context absent (FIXTURE_GAP).
+
+    ROLE-GLOBAL-ADMIN's evidence was collected and confirmed before the FIXTURE_GAP for
+    ROLE-ORG-REPORTER was discovered.
+
+  existing_evidence:
+    - evidence_id: EVD-001
+      role: ROLE-GLOBAL-ADMIN
+      fixture_complete: true
+      dimensions_confirmed: [visual, content, structure, interaction, role]
+      scope_dependent: false
+
+    - evidence_id: EVD-002
+      role: ROLE-ORG-REPORTER
+      fixture_complete: false
+      fixture_gap: SCOPE_CONTEXT_ABSENT
+      dimensions_collected: [visual, content]
+      scope_dependent_dimensions: [role]
+      evidence_classification: VALID_FOR_ROLE_ONLY_NOT_SCOPE
+
+fixture_assertions:
+  - id: C.1
+    claim: "ROLE-GLOBAL-ADMIN evidence remains CONFIRMED after FIXTURE_GAP discovery for ROLE-ORG-REPORTER"
+    expected: true
+    rationale: >
+      The FIXTURE_GAP applies only to ROLE-ORG-REPORTER. Global admin evidence is independent
+      and must NOT be downgraded.
+
+  - id: C.2
+    claim: "ROLE-ORG-REPORTER scope-dependent (role) dimension is downgraded to FIXTURE_BLOCKED"
+    expected: true
+    rationale: >
+      The role dimension for ROLE-ORG-REPORTER cannot be evaluated without domain scope context.
+
+  - id: C.3
+    claim: "ROLE-ORG-REPORTER non-scope-dependent dimensions (visual, content) remain VALID_FOR_ROLE_ONLY_NOT_SCOPE"
+    expected: true
+    rationale: >
+      Visual and content observations were made with the correct role. They prove role-level
+      rendering but not scope-dependent filtering. They are not discarded — classified as
+      VALID_FOR_ROLE_ONLY_NOT_SCOPE.
+
+  - id: C.4
+    claim: "Campaign overall status for ROLE-ORG-REPORTER scope-dependent proof is FIXTURE_BLOCKED, not FAIL"
+    expected: true
+    rationale: >
+      FIXTURE_BLOCKED is a finding-validity gate, not a defect. The classification must not
+      be escalated to FAIL without evidence of an actual defect.
+
+  - id: C.5
+    claim: "Campaign continues after FIXTURE_GAP discovery — only affected proof points are blocked"
+    expected: true
+    rationale: >
+      FIXTURE_GAP for one role does not halt the entire campaign. Unaffected proof points
+      continue to completion.

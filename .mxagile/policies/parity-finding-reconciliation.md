@@ -234,6 +234,83 @@ ordered list without explicit classification labels.
 
 ---
 
+## 8a. Fixture-Gated Findings
+
+Not all findings can be evaluated without a valid representative fixture.
+When a finding depends on scope-dependent behavior, the validity of the fixture
+must be assessed before the finding is classified.
+
+### FIXTURE_BLOCKED
+
+A finding is classified as FIXTURE_BLOCKED when:
+- The finding concerns a role with a scope requirement (`required_scope` non-null / non-`app`), AND
+- `representative_scope_present: false` OR `fixture_contract_complete: false` in role coverage
+  for that role, AND
+- The finding's specific claim depends on scope-dependent behavior.
+
+**FIXTURE_BLOCKED is not a defect classification.** It is a finding-validity gate.
+
+A FIXTURE_BLOCKED finding MUST NOT be:
+- Reported as `CONFIRMED_REQUIREMENT_VIOLATION`
+- Reported as `CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK`
+- Used to trigger remediation
+
+**Allowed actions for FIXTURE_BLOCKED:**
+- Document the finding as FIXTURE_BLOCKED with the specific FIXTURE_GAP that caused it.
+- Continue the campaign — FIXTURE_BLOCKED findings do not halt the entire campaign.
+- On fixture resolution: re-execute the specific proof points, classify findings normally.
+
+### Scope-Independence Rule
+
+FIXTURE_BLOCKED applies only to findings that depend on the scope-specific behavior.
+
+**NOT affected by FIXTURE_BLOCKED:**
+- Visual / layout findings for scope-independent pages
+- Navigation findings for global-role behavior
+- Authentication / role routing findings
+- Findings for other roles with complete fixtures
+- Scope-independent interaction findings on the same page
+
+**Affected by FIXTURE_BLOCKED:**
+- "Role X sees only own data" — depends on representative data in scope
+- "Navigation item absent for out-of-scope resources" — requires scope context + data
+- "Empty data grid" observed — could be scope restriction OR empty fixture (ambiguous without data)
+
+### Evidence from Invalid Fixture
+
+Evidence produced from an invalid fixture (FIXTURE_GAP present) is classified as
+`VALID_FOR_ROLE_ONLY_NOT_SCOPE` for non-scope-dependent dimensions and
+`TEST_FIXTURE_INVALID` for scope-dependent dimensions.
+
+See `policies/representative-fixture-contract.md` § Evidence Validity Rules.
+
+Such evidence is NOT discarded. It is preserved with its limitation classification.
+When a valid fixture becomes available and scope-dependent proof is completed, the
+new evidence SUPERSEDES the prior evidence for scope-dependent dimensions only.
+
+### Completion Gate: No Blocker from Absence
+
+A parity or MVP completion report MUST NOT claim full representative role coverage
+if required scoped fixtures are incomplete.
+
+However, avoid over-blocking:
+- Unrelated visual findings may remain CONFIRMED or PASS.
+- Scope-independent role behavior may remain CONFIRMED or PASS.
+- Only scope-dependent conclusions for the affected role are blocked.
+
+Reports must use explicit status values:
+- `CONFIRMED` — fully evidenced, fixture complete
+- `NOT_VERIFIED` — not yet checked
+- `FIXTURE_BLOCKED` — fixture incomplete for this claim
+- `CONTRACT_CHECK` — authority conflict requires DECISION_REQUIRED
+- `ACCEPTED_VARIANT` — difference is accepted per DEC-NNN or design-system authority
+- `SUPERSEDED` — prior evidence replaced by newer valid proof
+
+**"No blocker found" MUST NOT be inferred from absence of executable scope-dependent scenarios.**
+The absence of a representative fixture is itself a blocker for scope-dependent claims.
+
+---
+
 ## 9. Lifecycle Integration
 
 This policy integrates with `policies/observe-before-mutate.md` as a distinct stage between
