@@ -113,3 +113,37 @@ Do not change mxcli installation without updating the canonical installer.
 - Tier 3+: E2E bootstrap (expensive — run on significant changes only)
 
 See `tests/` directory for existing test suite.
+
+## External Skills
+
+External implementation aids are active in this repository.
+They do not own or replace any MxAgile lifecycle, scope or evidence contract.
+
+**Instruction precedence (highest to lowest):**
+
+1. Explicit current user instruction
+2. MxAgile safety, lifecycle, scope and evidence contracts
+3. Repository-specific rules (this file)
+4. External skills (Ponytail, Superpowers-derived)
+
+**Authority constraints for external skills:**
+
+- Unavailable verification is not passed verification. Failed, unavailable and successful evidence remain distinct.
+- An external skill must not create subagents, worktrees, branches or alternate plans without explicit MxAgile mission permission.
+- Re-check repository state before relying on prior session assumptions.
+- Minimal means smallest *complete* change, not smallest textual diff.
+- Existing validated functionality must be preserved.
+- An external skill must not cause repeated clarification loops when the active mission is already sufficiently specified.
+
+**Active skills** (trigger-loaded on demand, not always loaded):
+
+| Skill | Trigger | Origin |
+|-------|---------|--------|
+| `ponytail` | `/ponytail`, "be lazy", "simplest solution", "yagni" | DietrichGebert/ponytail |
+| `systematic-debugging` | `/systematic-debugging` | obra/superpowers |
+| `verification-before-completion` | `/verification-before-completion` | obra/superpowers |
+| `requesting-code-review` | `/requesting-code-review` | obra/superpowers |
+| `receiving-code-review` | `/receiving-code-review` | obra/superpowers |
+| `diagnosing-agent-session` | `/diagnosing-agent-session` | obra/superpowers (adapted) |
+
+See `docs/external-skills.md` for rationale, provenance and rollback.
