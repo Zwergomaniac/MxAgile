@@ -1,7 +1,16 @@
-version: "1.3"
+version: "1.4"
 min_compatible: "1.0"
 updated: "2026-10-12"
 changes:
+  "1.4":
+    - "Context Lifecycle core completion: manual rollover, pressure evaluation, model-aware policy, harness adapter contract"
+    - "Scripts: Get-MxAgileModelPolicy.ps1, Get-MxAgileContextPressure.ps1, Test-MxAgileRolloverSafety.ps1, Invoke-MxAgileEpochRollover.ps1"
+    - "Schema: rollover_state and rollover_blocked_reasons in context-epoch.schema.json"
+    - "Config: model_profiles, harness_adapter_schema, natural_rollover_boundaries"
+    - "Model profiles: .mxagile/model-profiles.yaml with known model capabilities"
+    - "Harness adapter: .mxagile/schemas/harness-adapter.schema.json (generic adapter contract)"
+    - "Tests: test-context-lifecycle-rollover.ps1 (26 scenarios, Tier 1 FastGate)"
+    - "Feature control: auto_rollover disabled by default; pilot configuration documented"
   "1.3":
     - "Context Lifecycle operational layer: Write/Read/Sync-MxAgileEpochCheckpoint.ps1"
     - "Storage model: .concord/ operational store (gitignored) + planning/lifecycle/ handoff store"

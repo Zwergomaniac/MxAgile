@@ -1,0 +1,11 @@
+# Test fixture: harness adapter with no measurement capability.
+# Simulates a minimal harness that cannot report tokens.
+adapter_version: "1.0"
+model_capability:
+  model_id: "claude-opus-4-6"
+  source: "harness_reported"
+harness_capability:
+  can_report_tokens: false
+  can_start_fresh_context: false
+  can_pass_resume_path: false
+  supports_epoch_transition: false

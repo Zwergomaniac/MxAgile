@@ -623,9 +623,223 @@ The acceptance gate remains `blocked` until this claim is resolved.
 
 ---
 
-## 23. Upgrade / Migration Notes
+## 23. Model-Aware Context Management
+
+Strictly separates three concerns:
+
+### A. Model Capability (physical, factual)
+
+- Physical context-window size
+- Model identifier
+- Harness/provider capability flags
+
+Source: `.mxagile/model-profiles.yaml` (profiles section)
+
+### B. MxAgile Working-Context Policy (configurable)
+
+- Effective working budget
+- Pressure thresholds (ratio-based or absolute)
+- Rollover recommendation threshold
+- Rollover requirement threshold
+- Safety reserve
+
+Source: `.mxagile/model-profiles.yaml` (policy_overrides) or
+`.mxagile/config.yaml` (pressure_thresholds for absolute overrides)
+
+### C. Observed Context State (runtime, external)
+
+- Current context tokens
+- Measurement source (harness/gateway/user)
+- Measurement reliability
+- Measurement timestamp
+
+Source: External harness/gateway adapter (never fabricated locally)
+
+### Resolution Hierarchy
+
+Deterministic, highest priority first:
+
+1. Reliable value supplied by active harness/provider/gateway adapter
+2. Explicitly configured model profile (matched by `model_id`)
+3. Explicitly configured generic fallback (where safe)
+4. **UNKNOWN**
+
+Never fabricate: model identity, context-window size, current token
+consumption, or pressure state. UNKNOWN remains UNKNOWN when reliable
+data is unavailable.
+
+### Operational Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/Get-MxAgileModelPolicy.ps1` | Resolves model capability and working-context policy |
+| `scripts/Get-MxAgileContextPressure.ps1` | Evaluates context pressure from external measurements |
+| `scripts/Test-MxAgileRolloverSafety.ps1` | Checks all rollover safety conditions |
+| `scripts/Invoke-MxAgileEpochRollover.ps1` | Performs complete manual epoch rollover |
+
+---
+
+## 24. Harness / Provider Adapter Contract
+
+Schema: `.mxagile/schemas/harness-adapter.schema.json`
+
+The adapter contract is the smallest generic interface required for an external
+harness, gateway, or provider to integrate with MxAgile Context Lifecycle.
+
+### Adapter Capabilities
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `model_capability.model_id` | string | Model identifier for profile lookup |
+| `model_capability.context_window_tokens` | integer | Physical context-window size |
+| `context_measurement.estimated_context_tokens` | integer | Current context usage |
+| `context_measurement.source` | enum | How the measurement was obtained |
+| `context_measurement.reliability` | enum | Measurement reliability: exact, estimate, stale, unknown |
+| `harness_capability.can_report_tokens` | boolean | Can supply token measurements |
+| `harness_capability.can_start_fresh_context` | boolean | Can programmatically start new session |
+| `harness_capability.supports_epoch_transition` | boolean | Supports full epoch transition protocol |
+| `transition_result` | object | Result of most recent transition attempt |
+
+### Design Constraints
+
+- Generic: not tied to Claude, Copilot, Codex, or any specific provider
+- No hosted service required
+- No external network services required
+- Absent fields are treated as UNKNOWN
+- If the current harness cannot expose a required value, keep it UNKNOWN
+
+---
+
+## 25. Manual Context Epoch Rollover
+
+### 10-Step Rollover Process
+
+1. Determine current mission/lifecycle state (read checkpoint)
+2. Ensure no unsafe operation is in flight (safety check)
+3. Persist required evidence (verify checkpoint has evidence)
+4. Write durable operational checkpoint
+5. Validate the checkpoint
+6. Record rollover reason
+7. Close the current Context Epoch (archive prior checkpoint)
+8. Create/increment the next Epoch identity (EPOCH-NNN → EPOCH-NNN+1)
+9. Expose the state required for a fresh agent context
+10. Require resume/re-sync before work continues
+
+**Invariant:** Manual rollover never silently declares mission completion.
+
+### Rollover State Machine
+
+| State | Meaning |
+|-------|---------|
+| `not_applicable` | No rollover in progress or considered |
+| `rollover_recommended` | Pressure or boundary suggests rollover |
+| `rollover_pending_safe_boundary` | Approved but waiting for safe point |
+| `rollover_ready` | All preconditions met, can proceed |
+| `rollover_performed` | Completed; this is the post-rollover epoch |
+| `rollover_blocked` | Preconditions not met; `rollover_blocked_reasons` lists details |
+| `rollover_unsupported_by_harness` | Harness cannot execute context transition |
+
+### Rollover Safety Conditions
+
+Checked by `Test-MxAgileRolloverSafety.ps1`:
+
+| Condition | Script-checked | Caller-supplied |
+|-----------|---------------|-----------------|
+| Valid checkpoint exists | ✓ | |
+| Feature controls allow rollover | ✓ | |
+| Working tree clean | ✓ | |
+| Mission not in terminal state | ✓ | |
+| No tool call in flight | | ✓ |
+| No file write in flight | | ✓ |
+| No checkpoint write active | | ✓ |
+| No pending commit | | ✓ |
+| Harness supports transition | | ✓ (informational) |
+
+If the harness cannot start a fresh context:
+- Produces a deterministic rollover-ready state
+- Does not pretend a context transition occurred
+- Preserves the checkpoint
+- Exposes the required human/harness action
+
+---
+
+## 26. Natural-Boundary / Opportunistic Rollover
+
+Rollover below a numeric pressure threshold is permitted when a particularly
+clean lifecycle boundary exists and substantial historical context can safely
+be discarded.
+
+### Boundary Classes
+
+Configured in `.mxagile/config.yaml → context_lifecycle.natural_rollover_boundaries`:
+
+| Boundary | Lifecycle Transition |
+|----------|---------------------|
+| `discovery_to_implementation` | discovery → implementing |
+| `implementation_to_verification` | implementing → verifying |
+| `debugging_resolution_to_acceptance` | debugging resolution → acceptance |
+| `completed_work_package_to_next` | completed bounded work package → next |
+
+### Policy
+
+- Do NOT automatically roll over at every phase boundary
+- The policy must consider whether rollover provides value
+- A valid durable checkpoint must exist
+- Set `natural_rollover_boundaries: []` to disable entirely
+
+---
+
+## 27. Guarded Automatic Rollover
+
+### Status: Implemented but DISABLED BY DEFAULT
+
+`context_lifecycle.auto_rollover: false`
+
+Automatic rollover may proceed only when **all** required preconditions are true:
+
+1. Reliable pressure information available
+2. Policy says rollover is required or appropriate
+3. Valid durable checkpoint can be produced
+4. Checkpoint validation succeeds
+5. Evidence is persisted
+6. Repository state has been captured
+7. No unsafe operation is active
+8. Next action is representable
+9. Harness supports the required context transition
+
+If any condition is not met: issue recommendation, defer to next safe boundary.
+
+### Feature Control
+
+```yaml
+context_lifecycle:
+  enabled: true
+  checkpoint_resume: true
+  manual_rollover: true
+  pressure_recommendations: true
+  auto_rollover: true     # ← only when ALL prior stages are proven
+```
+
+### Pilot Configuration (recommended starting point)
+
+```yaml
+context_lifecycle:
+  enabled: true
+  checkpoint_resume: true
+  manual_rollover: true
+  pressure_recommendations: true
+  auto_rollover: false    # ← manual only until confidence is established
+```
+
+---
+
+## 28. Upgrade / Migration Notes
 
 **v1.0 → v1.0 (no change):** No migration needed.
+
+**v1.0 additive (current):** `rollover_state` and `rollover_blocked_reasons`
+added as optional fields. Existing checkpoints remain valid — new fields
+have defaults. No migration script needed.
 
 **Future v1.0 → v1.1 (hypothetical additive):**
 - Add new optional fields to the schema
@@ -644,7 +858,7 @@ The acceptance gate remains `blocked` until this claim is resolved.
 
 ---
 
-## 24. Risk Register
+## 29. Risk Register
 
 | Risk | Likelihood | Impact | Prevention | Detection | Recovery |
 |------|-----------|--------|-----------|-----------|---------|

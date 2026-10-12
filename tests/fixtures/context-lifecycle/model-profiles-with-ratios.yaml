@@ -1,0 +1,17 @@
+# Test fixture: model profiles with configured policy ratios.
+# Used to verify ratio-based pressure threshold resolution.
+profiles:
+  test-model-200k:
+    context_window_tokens: 200000
+  test-model-128k:
+    context_window_tokens: 128000
+
+fallback:
+  context_window_tokens: null
+
+policy_overrides:
+  working_budget_ratio: 0.60
+  pressure_ratio: 0.60
+  rollover_recommended_ratio: 0.75
+  rollover_required_ratio: 0.90
+  safety_reserve_tokens: 20000

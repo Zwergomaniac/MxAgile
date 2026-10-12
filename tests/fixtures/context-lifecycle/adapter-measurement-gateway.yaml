@@ -1,0 +1,17 @@
+# Test fixture: harness adapter with gateway measurement.
+# Simulates a harness that provides token measurement from a gateway.
+adapter_version: "1.0"
+model_capability:
+  model_id: "test-model-200k"
+  context_window_tokens: 200000
+  source: "gateway_reported"
+context_measurement:
+  estimated_context_tokens: 160000
+  source: "gateway_measurement"
+  reliability: "exact"
+  measured_at: "2026-10-12T14:30:00"
+harness_capability:
+  can_report_tokens: true
+  can_start_fresh_context: false
+  can_pass_resume_path: true
+  supports_epoch_transition: false

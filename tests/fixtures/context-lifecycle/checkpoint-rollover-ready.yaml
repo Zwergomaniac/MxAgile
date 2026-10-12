@@ -1,0 +1,71 @@
+# Test fixture: checkpoint in rollover_ready state.
+# Used to verify that rollover can proceed from a ready state.
+schema_version: "1.0"
+
+mission:
+  id: "MISSION-2026-W01-ROLLOVER"
+  objective: "Test rollover readiness"
+  status: active
+  started: "2026-10-12"
+  wave: W01
+
+scope:
+  project: "/test/project"
+
+lifecycle:
+  current_phase: implementing
+  active_context_epoch: EPOCH-001
+  interrupted: false
+
+repository:
+  branch: "main"
+  commit: "abc1234"
+  working_tree_state: clean
+  checkpoint_time: "2026-10-12T14:00:00"
+
+verified:
+  - claim: "Gate-to-ready passed"
+    evidence_reference: "planning/lifecycle/process-state.yaml"
+    verification_method: "gate-to-ready skill"
+    evidence_state: VERIFIED
+    stale_if_commit_changes: false
+
+failed: []
+
+unverified:
+  - claim: "Auto-rollover harness test"
+    reason: harness_limitation
+    evidence_state: UNVERIFIED
+    blocking_or_non_blocking: non_blocking
+
+decisions:
+  - decision: "Implement pressure evaluation before auto-rollover"
+    rationale: "Manual rollover must be proven before enabling auto."
+
+open_gates: []
+
+user_overrides: []
+
+artifacts: []
+
+next_action:
+  description: "Continue W01-03 implementation"
+  safe_to_run: true
+  prerequisites: []
+  checklist_item: "W01-03"
+
+context:
+  epoch_id: EPOCH-001
+  rollover_reason: initial_epoch
+  pressure_state: ROLLOVER_RECOMMENDED
+  context_token_source: user_supplied
+  estimated_context_tokens: 160000
+  hot_context_summary: "Mission: implement Context Lifecycle. Phase: implementing W01. Next: W01-03."
+  epoch_started: "2026-10-12T10:00:00"
+  rollover_state: rollover_ready
+  feature_controls_at_checkpoint:
+    enabled: true
+    checkpoint_resume: true
+    manual_rollover: true
+    pressure_recommendations: true
+    auto_rollover: false

@@ -453,6 +453,25 @@
           "type": "string",
           "description": "ISO datetime when this epoch started."
         },
+        "rollover_state": {
+          "type": "string",
+          "enum": [
+            "not_applicable",
+            "rollover_recommended",
+            "rollover_pending_safe_boundary",
+            "rollover_ready",
+            "rollover_performed",
+            "rollover_blocked",
+            "rollover_unsupported_by_harness"
+          ],
+          "description": "Current rollover lifecycle state. 'not_applicable': no rollover in progress or considered. 'rollover_recommended': pressure or boundary suggests rollover. 'rollover_pending_safe_boundary': rollover approved but waiting for a safe lifecycle boundary. 'rollover_ready': all preconditions met, checkpoint valid, transition can proceed. 'rollover_performed': rollover completed, this is the post-rollover epoch. 'rollover_blocked': rollover requested but preconditions not met (unsafe operation active, checkpoint invalid, etc.). 'rollover_unsupported_by_harness': harness cannot execute context transition."
+        },
+        "rollover_blocked_reasons": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "When rollover_state is 'rollover_blocked', lists the specific conditions preventing rollover.",
+          "default": []
+        },
         "feature_controls_at_checkpoint": {
           "type": "object",
           "additionalProperties": false,
