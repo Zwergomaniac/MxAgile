@@ -1,0 +1,13 @@
+# FIXTURE: Invalid checkpoint — missing required fields
+# Expected: schema validation MUST reject this fixture.
+# Missing: schema_version, scope, repository, context
+
+mission:
+  id: MISSION-INVALID-001
+  objective: "Test that missing required fields are rejected"
+  status: active
+
+lifecycle:
+  current_phase: implementing
+  active_context_epoch: EPOCH-001
+  interrupted: false

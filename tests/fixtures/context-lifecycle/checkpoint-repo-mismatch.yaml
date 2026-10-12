@@ -1,0 +1,49 @@
+# FIXTURE: Checkpoint where repository branch diverged
+# Expected: agent MUST produce conflict state, NOT continue blindly.
+# Branch in checkpoint is "feature/context-lifecycle" but current is "main".
+
+schema_version: "1.0"
+
+mission:
+  id: MISSION-MISMATCH-001
+  objective: "Test conflict detection on branch divergence"
+  status: active
+
+scope:
+  project: "test-project"
+
+lifecycle:
+  current_phase: implementing
+  active_context_epoch: EPOCH-001
+  interrupted: false
+
+repository:
+  branch: "feature/context-lifecycle"
+  commit: "abc1234"
+  working_tree_state: clean
+  checkpoint_time: "2026-10-11T09:00:00Z"
+
+verified: []
+failed: []
+unverified: []
+decisions: []
+open_gates: []
+user_overrides: []
+artifacts: []
+
+next_action:
+  description: "Continue checklist item W01-03"
+  safe_to_run: true
+
+context:
+  epoch_id: EPOCH-001
+  rollover_reason: initial_epoch
+  pressure_state: NORMAL
+  epoch_started: "2026-10-11T08:00:00Z"
+
+# ─── Re-sync assertions for this fixture ───────────────────────────────────────
+# When actual branch = "main" and checkpoint.repository.branch = "feature/context-lifecycle":
+# EXPECTED:
+#   - conflict_type: branch_diverged
+#   - action: inform user, preserve checkpoint, do NOT continue implementing W01-03
+#   - NOT: silently switch branches or discard checkpoint

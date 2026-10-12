@@ -1,0 +1,58 @@
+fixture_id: GOLD-CTX-01
+title: "Scope and parity: wrong-role result must not be accepted as valid parity"
+policy_references:
+  - policies/context-lifecycle.md
+  - policies/lifecycle-resync.md
+  - policies/representative-fixture-contract.md
+schema_version: 1
+
+scenario:
+  description: >
+    A Context Epoch checkpoint is written after a parity campaign for ROLE-ADMIN.
+    The checkpoint marks the parity result as VERIFIED.
+    On resume in a new epoch, the agent discovers the evidence was collected under
+    ROLE-VIEWER (wrong role), not ROLE-ADMIN.
+    The agent must reclassify the claim as FAILED, not continue with it as VERIFIED.
+
+  checkpoint_state:
+    verified:
+      - claim: "Parity PASS for Customer overview page — ROLE-ADMIN"
+        evidence_reference: "planning/acceptance-campaigns/W01/cam-001-result.yaml"
+        verification_method: "acceptance-agent parity campaign"
+        evidence_state: VERIFIED
+        stale_if_commit_changes: false
+
+  resume_discovery:
+    actual_role_used: "ROLE-VIEWER"
+    expected_role: "ROLE-ADMIN"
+    conflict: "Parity evidence was collected under wrong role/user scope"
+
+fixture_assertions:
+  - id: "GOLD-01.1"
+    claim: "Parity result produced under wrong role is reclassified FAILED, not kept VERIFIED"
+    expected: true
+    rationale: >
+      A Context Epoch rollover must not silently promote evidence collected under
+      the wrong scope. VERIFIED claims are only VERIFIED for the scope they were
+      actually evaluated under.
+
+  - id: "GOLD-01.2"
+    claim: "The invalid evidence is preserved historically (not deleted), marked lifecycle_stage: superseded or reclassified"
+    expected: true
+    rationale: >
+      Audit traceability requires that the original evidence remains visible.
+      The reclassification is explicit and recorded.
+
+  - id: "GOLD-01.3"
+    claim: "The agent does not begin verifying next requirements before correcting the scope-parity conflict"
+    expected: true
+    rationale: >
+      A wrong-scope finding is a blocking conflict. Continuing without resolution
+      would produce misleading mission state.
+
+  - id: "GOLD-01.4"
+    claim: "The scope mismatch is recorded as a failed_claim in the updated checkpoint"
+    expected: true
+    rationale: >
+      Failed and reclassified claims must be explicit in the resume contract.
+      Silently discarding them would hide evidence of prior incorrect evaluation.

@@ -1,0 +1,64 @@
+fixture_id: GOLD-CTX-04
+title: "Missing production integration: local fixture must not be labeled productive API acceptance"
+policy_references:
+  - policies/context-lifecycle.md
+  - policies/lifecycle-resync.md
+  - policies/representative-fixture-contract.md
+schema_version: 1
+
+scenario:
+  description: >
+    A Context Epoch checkpoint contains a VERIFIED claim for "MyStructure API integration
+    verified" based on testing against a local sample file (HT_output-sample-local.json).
+    On resume, the agent must not interpret this as verification of the productive API
+    integration. The claim has a validity_scope that explicitly names the local fixture path.
+    Accepting it as productive API acceptance would be a critical evidence substitution error.
+
+  checkpoint_state:
+    verified:
+      - claim: "MyStructure API response parsing verified"
+        evidence_reference: "tests/fixtures/HT_output-sample-local.json"
+        verification_method: "static fixture test — local sample data"
+        evidence_state: VERIFIED
+        stale_if_commit_changes: false
+        validity_scope: "LOCAL FIXTURE ONLY — tests/fixtures/HT_output-sample-local.json. NOT productive API."
+
+  false_promotion_attempted:
+    from: "MyStructure API response parsing verified (local fixture)"
+    to: "Productive API integration verified"
+    why_invalid: >
+      A local fixture test verifies parsing logic against static sample data.
+      It does NOT verify:
+      - Network reachability to the productive API endpoint
+      - Authentication with the productive API
+      - Actual API response format (productive responses may differ from the sample)
+      - Rate limits, error handling in production, or data freshness
+
+fixture_assertions:
+  - id: "GOLD-04.1"
+    claim: "The local fixture claim validity_scope explicitly states it is NOT productive API acceptance"
+    expected: true
+    rationale: >
+      The schema's validity_scope field is the primary guard against this confusion.
+      Every evidence item must have an honest scope declaration.
+
+  - id: "GOLD-04.2"
+    claim: "The agent does not mark acceptance_gate as passed solely on local fixture evidence when productive API is in scope"
+    expected: true
+    rationale: >
+      Acceptance gates require evidence at the appropriate verification layer.
+      A local fixture is at most MODEL or BUILD layer — not RUNTIME or FRONTEND layer.
+
+  - id: "GOLD-04.3"
+    claim: "Productive API integration is listed as UNVERIFIED with reason evidence_unavailable if never tested"
+    expected: true
+    rationale: >
+      Unavailable verification is never equivalent to passed verification.
+      If the productive API has not been tested, the claim must be UNVERIFIED.
+
+  - id: "GOLD-04.4"
+    claim: "On rollover, the local-fixture evidence is preserved as-is and is NOT reclassified as productive evidence"
+    expected: true
+    rationale: >
+      Context Epoch rollover must not promote, demote, or reclassify evidence.
+      The exact evidence_state and validity_scope must survive the rollover unchanged.

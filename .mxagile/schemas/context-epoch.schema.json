@@ -1,0 +1,471 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Context Epoch",
+  "description": "Durable, versioned resume contract for MxAgile Context Lifecycle. A Context Epoch is one continuous agent-session segment within a longer mission. Multiple epochs can span a single mission without carrying the full historical conversation into every subsequent context. CANONICAL FILE: planning/lifecycle/context-epoch.yaml (Git-tracked). LOCAL SCRATCH: .concord/scratch/context-epoch.yaml (gitignored, session cache). NEVER store credentials, tokens, passwords, or sensitive environment values in this file. See .mxagile/policies/context-lifecycle.md.",
+  "type": "object",
+  "required": ["schema_version", "mission", "scope", "lifecycle", "repository", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version for forward-compatibility detection. Increment minor for additive changes, major for breaking changes."
+    },
+    "mission": {
+      "$ref": "#/definitions/mission"
+    },
+    "scope": {
+      "$ref": "#/definitions/scope"
+    },
+    "lifecycle": {
+      "$ref": "#/definitions/lifecycle"
+    },
+    "repository": {
+      "$ref": "#/definitions/repository_state"
+    },
+    "verified": {
+      "type": "array",
+      "description": "Claims that have been positively verified with durable evidence.",
+      "items": { "$ref": "#/definitions/verified_claim" },
+      "default": []
+    },
+    "failed": {
+      "type": "array",
+      "description": "Claims that were evaluated and failed verification.",
+      "items": { "$ref": "#/definitions/failed_claim" },
+      "default": []
+    },
+    "unverified": {
+      "type": "array",
+      "description": "Claims that could not be verified (unavailable evidence, blocked precondition, etc.). Unavailable verification is NEVER equivalent to passed verification.",
+      "items": { "$ref": "#/definitions/unverified_claim" },
+      "default": []
+    },
+    "decisions": {
+      "type": "array",
+      "description": "Key architectural or scope decisions recorded during this mission.",
+      "items": { "$ref": "#/definitions/decision" },
+      "default": []
+    },
+    "open_gates": {
+      "type": "array",
+      "description": "Gates that must pass before the mission or current lifecycle phase can continue.",
+      "items": { "$ref": "#/definitions/open_gate" },
+      "default": []
+    },
+    "user_overrides": {
+      "type": "array",
+      "description": "Explicit user instructions that override default framework behavior. These are preserved across epochs.",
+      "items": { "$ref": "#/definitions/user_override" },
+      "default": []
+    },
+    "artifacts": {
+      "type": "array",
+      "description": "Key artifacts produced or consumed in this mission. References only — no raw content.",
+      "items": { "$ref": "#/definitions/artifact_ref" },
+      "default": []
+    },
+    "next_action": {
+      "$ref": "#/definitions/next_action"
+    },
+    "context": {
+      "$ref": "#/definitions/context_meta"
+    }
+  },
+
+  "definitions": {
+
+    "mission": {
+      "type": "object",
+      "required": ["id", "objective", "status"],
+      "additionalProperties": false,
+      "description": "Mission identity and high-level status. A mission may span multiple Context Epochs.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique mission identifier, e.g. MISSION-2026-W01-CTX."
+        },
+        "objective": {
+          "type": "string",
+          "description": "Human-readable mission goal. Concise — one sentence."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "paused", "interrupted", "complete", "failed"],
+          "description": "Current high-level mission status."
+        },
+        "started": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) when the mission started."
+        },
+        "wave": {
+          "type": "string",
+          "description": "MxAgile wave this mission is executing within, e.g. W01."
+        }
+      }
+    },
+
+    "scope": {
+      "type": "object",
+      "required": ["project"],
+      "additionalProperties": false,
+      "description": "Scope boundaries of the mission. Changes require an explicit user override.",
+      "properties": {
+        "framework": {
+          "type": "string",
+          "description": "Framework layer path or identifier (e.g. .mxagile/)."
+        },
+        "company_layer": {
+          "type": "string",
+          "description": "Company Layer identifier (if any), e.g. mercedes-layer."
+        },
+        "project": {
+          "type": "string",
+          "description": "Consumer project root path or identifier."
+        },
+        "exclusions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths or identifiers explicitly excluded from this mission's scope.",
+          "default": []
+        }
+      }
+    },
+
+    "lifecycle": {
+      "type": "object",
+      "required": ["current_phase", "active_context_epoch"],
+      "additionalProperties": false,
+      "description": "Current position in the MxAgile lifecycle.",
+      "properties": {
+        "current_phase": {
+          "type": "string",
+          "enum": ["discovery", "refinement", "ready", "implementing", "verifying", "done", "unknown"],
+          "description": "Current MxAgile lifecycle phase. Must match lifecycle.yaml phases."
+        },
+        "last_completed_checkpoint": {
+          "type": "string",
+          "description": "Identifier or description of the last completed checkpoint, e.g. 'W01-gate-to-ready-passed'."
+        },
+        "active_context_epoch": {
+          "type": "string",
+          "description": "Current epoch identifier, e.g. EPOCH-001. Increments on every Context Epoch rollover."
+        },
+        "interrupted": {
+          "type": "boolean",
+          "description": "True if the mission is in an interrupted state awaiting re-sync.",
+          "default": false
+        },
+        "interruption_class": {
+          "type": "string",
+          "enum": ["OBSERVATION", "CLARIFICATION", "CHANGE", "PAUSE", "FOUNDATIONAL_DEFECT", "EXPLORATORY"],
+          "description": "Class of the active interruption. See policies/lifecycle-resync.md for semantics."
+        },
+        "interruption_reason": {
+          "type": "string",
+          "description": "Human-readable reason for the current interruption, if any."
+        },
+        "previous_epochs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["epoch_id", "rolled_over"],
+            "additionalProperties": false,
+            "properties": {
+              "epoch_id": { "type": "string" },
+              "rolled_over": { "type": "string", "description": "ISO datetime of rollover." },
+              "rollover_reason": { "type": "string" },
+              "checkpoint_ref": { "type": "string", "description": "Path to the checkpoint file created at rollover, if any." }
+            }
+          },
+          "description": "Ordered history of prior Context Epochs for this mission.",
+          "default": []
+        }
+      }
+    },
+
+    "repository_state": {
+      "type": "object",
+      "required": ["branch", "commit"],
+      "additionalProperties": false,
+      "description": "Repository snapshot at the time this checkpoint was written. Used for re-synchronization staleness detection.",
+      "properties": {
+        "repository_identity": {
+          "type": "string",
+          "description": "Remote origin URL or unique identifier. Used to detect cross-repo re-sync errors."
+        },
+        "branch": {
+          "type": "string",
+          "description": "Git branch name at checkpoint time."
+        },
+        "commit": {
+          "type": "string",
+          "description": "Short or full git commit hash at checkpoint time."
+        },
+        "working_tree_state": {
+          "type": "string",
+          "enum": ["clean", "dirty", "unknown"],
+          "description": "Whether the working tree had uncommitted changes at checkpoint time."
+        },
+        "relevant_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Key paths that were active or modified during this epoch (relative to project root).",
+          "default": []
+        },
+        "checkpoint_time": {
+          "type": "string",
+          "description": "ISO datetime when this checkpoint was written."
+        }
+      }
+    },
+
+    "evidence_state": {
+      "type": "string",
+      "enum": ["VERIFIED", "FAILED", "UNVERIFIED", "STALE", "SUPERSEDED"],
+      "description": "Evidence lifecycle state. VERIFIED=positively confirmed. FAILED=confirmed failed. UNVERIFIED=not yet checked or evidence unavailable (NOT equivalent to passed). STALE=previously VERIFIED but subsequent repository/runtime change may have invalidated it. SUPERSEDED=replaced by newer evidence."
+    },
+
+    "verified_claim": {
+      "type": "object",
+      "required": ["claim", "evidence_reference", "verification_method", "evidence_state"],
+      "additionalProperties": false,
+      "description": "A claim that passed verification with recorded evidence. evidence_state MUST be VERIFIED.",
+      "properties": {
+        "claim": { "type": "string", "description": "Human-readable claim, e.g. 'Gate-to-refinement passed for W01'." },
+        "evidence_reference": { "type": "string", "description": "Path or identifier pointing to durable evidence (never inline raw output)." },
+        "verification_method": { "type": "string", "description": "How verification was performed, e.g. 'gate-to-refinement skill'." },
+        "verification_time_or_sequence": { "type": "string", "description": "ISO datetime or sequence number of verification." },
+        "validity_scope": { "type": "string", "description": "Scope for which this verification is valid, e.g. 'W01 implementing phase'." },
+        "evidence_state": { "$ref": "#/definitions/evidence_state" },
+        "stale_if_commit_changes": {
+          "type": "boolean",
+          "description": "If true, this claim becomes STALE when the repository commit changes.",
+          "default": false
+        }
+      }
+    },
+
+    "failed_claim": {
+      "type": "object",
+      "required": ["claim", "evidence_reference", "failure_summary", "evidence_state"],
+      "additionalProperties": false,
+      "description": "A claim that was verified and failed. evidence_state MUST be FAILED.",
+      "properties": {
+        "claim": { "type": "string" },
+        "evidence_reference": { "type": "string" },
+        "failure_summary": { "type": "string", "description": "Brief description of why the claim failed." },
+        "remediation_state": {
+          "type": "string",
+          "enum": ["open", "in_progress", "resolved", "deferred"],
+          "description": "Current remediation status."
+        },
+        "evidence_state": { "$ref": "#/definitions/evidence_state" }
+      }
+    },
+
+    "unverified_claim": {
+      "type": "object",
+      "required": ["claim", "reason", "evidence_state"],
+      "additionalProperties": false,
+      "description": "A claim where verification was not possible. UNVERIFIED is NEVER equivalent to VERIFIED. Preserving this state across rollover is mandatory.",
+      "properties": {
+        "claim": { "type": "string" },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "evidence_unavailable",
+            "tool_unavailable",
+            "prerequisite_missing",
+            "out_of_scope",
+            "explicitly_deferred",
+            "fixture_blocked",
+            "harness_limitation"
+          ],
+          "description": "Why this claim could not be verified."
+        },
+        "required_verification": { "type": "string", "description": "What would be needed to verify this claim." },
+        "blocking_or_non_blocking": {
+          "type": "string",
+          "enum": ["blocking", "non_blocking"],
+          "description": "Whether this unverified claim blocks the mission from continuing."
+        },
+        "evidence_state": { "$ref": "#/definitions/evidence_state" }
+      }
+    },
+
+    "decision": {
+      "type": "object",
+      "required": ["decision", "rationale"],
+      "additionalProperties": false,
+      "description": "An architectural or scope decision recorded during the mission.",
+      "properties": {
+        "decision": { "type": "string", "description": "The decision itself, in one sentence." },
+        "rationale": { "type": "string", "description": "Why this decision was made." },
+        "affected_scope": { "type": "string", "description": "What scope or artifact this decision affects." },
+        "supersedes": { "type": "string", "description": "Prior decision this supersedes, if any." },
+        "recorded": { "type": "string", "description": "ISO date when this decision was recorded." }
+      }
+    },
+
+    "open_gate": {
+      "type": "object",
+      "required": ["gate", "current_state"],
+      "additionalProperties": false,
+      "description": "A gate that must be evaluated before the mission or phase can progress.",
+      "properties": {
+        "gate": { "type": "string", "description": "Gate identifier, e.g. 'gate_to_ready' for W01." },
+        "required_evidence": { "type": "string", "description": "What evidence is needed to evaluate this gate." },
+        "current_state": {
+          "type": "string",
+          "enum": ["not_evaluated", "in_progress", "passed", "failed", "blocked"],
+          "description": "Current gate evaluation state."
+        }
+      }
+    },
+
+    "user_override": {
+      "type": "object",
+      "required": ["instruction", "still_active"],
+      "additionalProperties": false,
+      "description": "An explicit user instruction that overrides default framework behavior. Preserved across epochs.",
+      "properties": {
+        "instruction": { "type": "string", "description": "The user instruction verbatim or as precise paraphrase." },
+        "applicable_scope": { "type": "string", "description": "What scope this override applies to." },
+        "still_active": {
+          "type": "boolean",
+          "description": "True if this override is still in effect. Set to false when superseded or withdrawn."
+        },
+        "recorded": { "type": "string", "description": "ISO datetime when this override was issued." }
+      }
+    },
+
+    "artifact_ref": {
+      "type": "object",
+      "required": ["id", "type", "path_or_reference"],
+      "additionalProperties": false,
+      "description": "Reference to a key artifact produced or consumed during this mission. No raw content is stored here.",
+      "properties": {
+        "id": { "type": "string", "description": "Artifact identifier, e.g. TC-001, EVD-PP001." },
+        "type": {
+          "type": "string",
+          "enum": [
+            "test_contract",
+            "verification_plan",
+            "evidence_manifest",
+            "campaign_result",
+            "process_state",
+            "checkpoint",
+            "wave_report",
+            "story_spec",
+            "implementation_checklist",
+            "context_epoch",
+            "screenshot",
+            "diagnostic_dump",
+            "other"
+          ],
+          "description": "Artifact type."
+        },
+        "path_or_reference": { "type": "string", "description": "Relative path or external reference URL." },
+        "integrity_metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional integrity metadata for the artifact. No secrets.",
+          "properties": {
+            "size_bytes": { "type": "integer" },
+            "sha256_prefix": { "type": "string", "description": "First 8 chars of SHA-256 hash for quick integrity check." },
+            "last_modified": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "next_action": {
+      "type": "object",
+      "required": ["description"],
+      "additionalProperties": false,
+      "description": "The next safe action to take when resuming this mission from a checkpoint.",
+      "properties": {
+        "description": { "type": "string", "description": "Human-readable description of the next action." },
+        "prerequisites": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Conditions that must be true before this action can be performed.",
+          "default": []
+        },
+        "safe_to_run": {
+          "type": "boolean",
+          "description": "True if the action can be started without additional human confirmation.",
+          "default": false
+        },
+        "checklist_item": {
+          "type": "string",
+          "description": "If resuming an implementing phase, the specific checklist item ID to resume from."
+        }
+      }
+    },
+
+    "context_meta": {
+      "type": "object",
+      "required": ["epoch_id", "pressure_state"],
+      "additionalProperties": false,
+      "description": "Context management metadata for this epoch. Drives rollover recommendations.",
+      "properties": {
+        "epoch_id": {
+          "type": "string",
+          "description": "Current epoch identifier. Format: EPOCH-NNN."
+        },
+        "rollover_reason": {
+          "type": "string",
+          "enum": [
+            "initial_epoch",
+            "manual_rollover",
+            "pressure_recommendation_accepted",
+            "lifecycle_boundary",
+            "interruption_boundary",
+            "auto_rollover"
+          ],
+          "description": "Why this epoch was started."
+        },
+        "pressure_state": {
+          "type": "string",
+          "enum": ["NORMAL", "PRESSURE", "ROLLOVER_RECOMMENDED", "ROLLOVER_REQUIRED"],
+          "description": "Current context pressure level. NORMAL: no action needed. PRESSURE: approaching threshold. ROLLOVER_RECOMMENDED: checkpoint available, rollover advisable. ROLLOVER_REQUIRED: must roll over at next safe boundary. Threshold values are in .mxagile/config.yaml context_lifecycle.pressure_thresholds."
+        },
+        "source_checkpoint": {
+          "type": "string",
+          "description": "Path to the checkpoint file this epoch was resumed from, if any."
+        },
+        "estimated_context_tokens": {
+          "type": "integer",
+          "description": "Externally supplied context size estimate in tokens. Do not compute locally — accept only from harness or gateway measurement."
+        },
+        "context_token_source": {
+          "type": "string",
+          "enum": ["harness_reported", "gateway_measurement", "user_supplied", "unknown"],
+          "description": "How the context size was measured. Absent or 'unknown' means no reliable measurement."
+        },
+        "hot_context_summary": {
+          "type": "string",
+          "description": "Brief (1-3 sentence) summary of HOT context for this epoch — user goal, active phase, next action. Must not contain COLD evidence."
+        },
+        "epoch_started": {
+          "type": "string",
+          "description": "ISO datetime when this epoch started."
+        },
+        "feature_controls_at_checkpoint": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Snapshot of feature control state at the time this checkpoint was written. Allows detection of configuration drift after rollover.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "checkpoint_resume": { "type": "boolean" },
+            "manual_rollover": { "type": "boolean" },
+            "pressure_recommendations": { "type": "boolean" },
+            "auto_rollover": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

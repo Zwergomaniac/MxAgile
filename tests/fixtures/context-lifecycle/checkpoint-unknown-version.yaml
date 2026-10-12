@@ -1,0 +1,25 @@
+# FIXTURE: Checkpoint with unknown schema version
+# Expected: agent MUST NOT read blindly; MUST produce conflict state.
+
+schema_version: "99.0"
+
+mission:
+  id: MISSION-FUTURE-001
+  objective: "Test that unknown schema versions are rejected safely"
+  status: active
+
+scope:
+  project: "some-project"
+
+lifecycle:
+  current_phase: implementing
+  active_context_epoch: EPOCH-001
+  interrupted: false
+
+repository:
+  branch: main
+  commit: "abc1234"
+
+context:
+  epoch_id: EPOCH-001
+  pressure_state: NORMAL

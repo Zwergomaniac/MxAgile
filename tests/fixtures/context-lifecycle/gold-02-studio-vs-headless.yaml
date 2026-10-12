@@ -1,0 +1,65 @@
+fixture_id: GOLD-CTX-02
+title: "Studio Pro vs. headless runtime: SP login does not prove headless startup path"
+policy_references:
+  - policies/context-lifecycle.md
+  - policies/lifecycle-resync.md
+  - policies/development-runtime.md
+schema_version: 1
+
+scenario:
+  description: >
+    A Context Epoch checkpoint records that "Studio Pro application startup verified"
+    as a VERIFIED claim. On resume, the agent interprets this as proof that the
+    headless runtime path (mxcli run --local) also works.
+    This is an invalid inference — the two paths are independent.
+
+  checkpoint_state:
+    verified:
+      - claim: "Studio Pro startup and login verified via interactive session"
+        evidence_reference: ".concord/screenshots/app/studio-pro-login-2026-10-11.png"
+        verification_method: "manual Studio Pro session"
+        evidence_state: VERIFIED
+        stale_if_commit_changes: false
+        validity_scope: "Studio Pro interactive login only"
+
+  false_inference_attempted:
+    from: "Studio Pro startup verified"
+    to: "mxcli run --local startup verified"
+    why_invalid: >
+      Studio Pro interactive login and headless mxcli startup are separate pipelines.
+      A successful Studio Pro login proves only that the Mendix model and credentials
+      work in the Studio Pro environment. It does NOT prove:
+      - That mxcli can start the application
+      - That the REST/API endpoints are reachable headlessly
+      - That provisioning completes without user interaction
+      - That the application is reachable at the expected port
+
+fixture_assertions:
+  - id: "GOLD-02.1"
+    claim: "Studio Pro login evidence is NOT promoted to headless runtime evidence on resume"
+    expected: true
+    rationale: >
+      The Context Epoch resume contract must not conflate evidence with different
+      validity_scope values. VERIFIED for Studio Pro is not VERIFIED for headless.
+
+  - id: "GOLD-02.2"
+    claim: "The headless runtime path is listed as UNVERIFIED after resume if never separately confirmed"
+    expected: true
+    rationale: >
+      Unavailable verification is never equivalent to passed verification.
+      If headless startup was never tested, it must be UNVERIFIED.
+
+  - id: "GOLD-02.3"
+    claim: "The validity_scope field in the verified claim explicitly names Studio Pro"
+    expected: true
+    rationale: >
+      Scope-explicit evidence prevents the Studio Pro/headless confusion at the
+      data level. The schema requires validity_scope for this reason.
+
+  - id: "GOLD-02.4"
+    claim: "Agent cannot mark acceptance_gate as passed solely on Studio Pro evidence when headless path is required"
+    expected: true
+    rationale: >
+      The Verifying phase requires APPLICATION_REACHABLE before Playwright.
+      APPLICATION_REACHABLE can only be confirmed via the headless path (mxcli run --local),
+      not via Studio Pro.

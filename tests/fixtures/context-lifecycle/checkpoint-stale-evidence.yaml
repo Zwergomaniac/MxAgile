@@ -1,0 +1,65 @@
+# FIXTURE: Checkpoint where commit changed after checkpoint was written
+# Expected: claims with stale_if_commit_changes: true become STALE on resume.
+# The repository.commit in this fixture is "abc1234" but current commit is "def5678".
+
+schema_version: "1.0"
+
+mission:
+  id: MISSION-STALE-001
+  objective: "Test STALE evidence detection on commit change"
+  status: active
+  wave: W01
+
+scope:
+  project: "test-project"
+
+lifecycle:
+  current_phase: verifying
+  active_context_epoch: EPOCH-001
+  interrupted: false
+
+repository:
+  branch: main
+  commit: "abc1234"
+  working_tree_state: clean
+  checkpoint_time: "2026-10-10T09:00:00Z"
+
+# At resume time the actual commit is "def5678" (different from checkpoint).
+# The verified claim below has stale_if_commit_changes: true, so it becomes STALE.
+# The second verified claim has stale_if_commit_changes: false, so it stays VERIFIED.
+
+verified:
+  - claim: "Quality gate passed for W01"
+    evidence_reference: "planning/wave-reports/W01-quality-gate.yaml"
+    verification_method: "quality-gate skill"
+    verification_time_or_sequence: "2026-10-10T09:30:00Z"
+    validity_scope: "W01 verifying phase"
+    evidence_state: VERIFIED
+    stale_if_commit_changes: true
+
+  - claim: "gate_to_refinement passed for W01"
+    evidence_reference: "planning/lifecycle/process-state.yaml#W01.gate_to_refinement"
+    verification_method: "gate-to-refinement skill"
+    verification_time_or_sequence: "2026-10-09T14:00:00Z"
+    validity_scope: "W01 discovery-to-refinement"
+    evidence_state: VERIFIED
+    stale_if_commit_changes: false
+
+failed: []
+unverified: []
+decisions: []
+open_gates: []
+user_overrides: []
+artifacts: []
+
+next_action:
+  description: "Re-evaluate quality gate because commit changed"
+  prerequisites:
+    - "Repository state verified — commit differs from checkpoint"
+  safe_to_run: false
+
+context:
+  epoch_id: EPOCH-001
+  rollover_reason: initial_epoch
+  pressure_state: NORMAL
+  epoch_started: "2026-10-10T08:00:00Z"

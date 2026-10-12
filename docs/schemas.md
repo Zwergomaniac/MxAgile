@@ -351,3 +351,26 @@ See `.mxagile/skills/migration.md` for the canonicalization lifecycle.
 | `scripts/migrate-stories.ps1` | — | calls `canonicalize_artifacts.py` | orchestrator |
 | `.mxagile/skills/migration.md` | — | describes canonicalization process | aligned |
 | `docs/schemas.md` | — | authoritative contract | this document |
+
+---
+
+## Context Lifecycle Schema (`planning/lifecycle/context-epoch.yaml`)
+
+Schema: `.mxagile/schemas/context-epoch.schema.json`
+Documentation: `docs/context-lifecycle.md`
+Policy: `.mxagile/policies/context-lifecycle.md`
+
+The Context Epoch schema is NOT an indexed artifact schema.
+It is a **mission management schema** for durable resume contracts.
+
+It is not processed by `build_artifact_index.py` or `canonicalize_artifacts.py`.
+It is written and read by agents following the context lifecycle policy.
+
+| Feature | Status |
+|---------|--------|
+| Canonical file | `planning/lifecycle/context-epoch.yaml` (Git-tracked when feature enabled) |
+| Local cache | `.concord/scratch/context-epoch.yaml` (gitignored) |
+| Enabled by default | No — `context_lifecycle.enabled: false` in config.yaml |
+| Schema version | `1.0` |
+
+See `docs/context-lifecycle.md` for full architecture documentation.

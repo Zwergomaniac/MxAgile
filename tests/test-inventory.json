@@ -1018,5 +1018,35 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Static content checks on legacy-completion-reconciliation.md, project-release-checkpoint.md, mission-completion.md, reconciliation.md, orchestrator.md, GLOSSARY.yaml for legacy completion reconciliation hardening (scenarios A-L): VERIFIED_LEGACY_STATE without replay, CURRENT_REQUIRED_SCOPE for genuine gaps, canonical-state-wins over session cache, stale historical marker handling, partial checklist vs acceptance evidence, deferred NFR/Go-Live scope exclusion, supersession traceability, numbering gap handling, UNKNOWN_REQUIRES_RECONCILIATION, observe-before-mutate in repairs, fresh-session re-sync. Pure read-only static validation."
+  },
+  {
+    "File": "test-context-epoch-schema.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Layer 1+2 static checks on context-epoch.schema.json, policies/context-lifecycle.md, config.yaml context_lifecycle section, and tests/fixtures/context-lifecycle/ YAML fixtures. Validates: schema structure, evidence states, pressure states, feature control defaults, HOT/WARM/COLD policy, re-sync contract, rollover safety, backward compatibility. Pure read-only static validation."
+  },
+  {
+    "File": "test-context-lifecycle-golden-scenarios.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Layer 3 golden scenario checks for Context Lifecycle. Validates five GOLD-CTX fixtures: scope/parity wrong-role rejection, Studio Pro vs headless runtime independence, modeled security staleness, local fixture != productive API, and interrupt/resume without false assumptions. Pure read-only fixture + policy content validation."
   }
 ]

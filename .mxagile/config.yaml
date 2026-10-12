@@ -38,3 +38,52 @@ graphify:
   incremental: true
   # Minimum acceptable graphify CLI version
   version_constraint: ">=0.9.28"
+
+# ---------------------------------------------------------------------------
+# Context Lifecycle
+# Controls durable mission-state, Context Epochs, checkpoint/resume, and
+# context-pressure management.
+# All features are disabled by default for backward compatibility.
+# Enable incrementally: checkpoint_resume → manual_rollover →
+#   pressure_recommendations → auto_rollover (only when prior stages proven).
+# Policy:        .mxagile/policies/context-lifecycle.md
+# Schema:        .mxagile/schemas/context-epoch.schema.json
+# Documentation: docs/context-lifecycle.md
+# ---------------------------------------------------------------------------
+context_lifecycle:
+  # Master switch. When false all sub-features are inactive.
+  enabled: false
+
+  # Write and read planning/lifecycle/context-epoch.yaml
+  checkpoint_resume: false
+
+  # Allow manual Context Epoch rollover via explicit request
+  manual_rollover: false
+
+  # Emit pressure-level recommendations (PRESSURE / ROLLOVER_RECOMMENDED)
+  pressure_recommendations: false
+
+  # Automatically roll over at the next safe lifecycle boundary
+  # Only activate after checkpoint_resume and manual_rollover are proven.
+  auto_rollover: false
+
+  # Context-pressure thresholds (in tokens).
+  # null = threshold unknown — do not compute pressure from token count.
+  # Supply values only when a harness or gateway can deliver reliable counts.
+  # The 150k gateway observation is a measurement boundary for evaluation,
+  # NOT a production threshold to hard-code here.
+  pressure_thresholds:
+    pressure_tokens: null
+    rollover_recommended_tokens: null
+    rollover_required_tokens: null
+
+  # Canonical storage locations (relative to project root)
+  storage:
+    canonical_dir: "planning/lifecycle"
+    epoch_filename: "context-epoch.yaml"
+    scratch_dir: ".concord/scratch"
+
+  # Extension points (future — not active in this implementation)
+  # warm_retrieval_provider: none     # future: rtk
+  # compression_provider: none        # future: context_mode
+  # token_counter: none               # future: api
