@@ -125,10 +125,12 @@ Assert-FileContains "C: SUPERSEDED state defined" $schemaPath '"SUPERSEDED"'
 Assert-FileContains "D: UNVERIFIED != passed" $schemaPath 'UNVERIFIED.*NOT.*equivalent'
 
 # ─── E. Pressure states ───────────────────────────────────────────────────────
+Assert-FileContains "E: UNKNOWN pressure state" $schemaPath '"UNKNOWN"'
 Assert-FileContains "E: NORMAL pressure state" $schemaPath '"NORMAL"'
 Assert-FileContains "E: PRESSURE state" $schemaPath '"PRESSURE"'
 Assert-FileContains "E: ROLLOVER_RECOMMENDED state" $schemaPath '"ROLLOVER_RECOMMENDED"'
 Assert-FileContains "E: ROLLOVER_REQUIRED state" $schemaPath '"ROLLOVER_REQUIRED"'
+Assert-FileContains "E: UNKNOWN semantics documented" $schemaPath 'no reliable.*measurement|cannot authorize'
 
 # ─── F. No secrets ─────────────────────────────────────────────────────────────
 Assert-FileContains "F: Schema warns about secrets" $schemaPath 'credentials|sensitive|secret|NEVER store'
@@ -214,6 +216,7 @@ Assert-FileContains "V: UNVERIFIED blocking claim present" $unverifiedFixture 'b
 Assert-FileContains "V: Acceptance gate blocked by UNVERIFIED" $unverifiedFixture 'current_state: blocked'
 
 # ─── W. Storage config defaults match policy ─────────────────────────────────
+Assert-FileContains "W: Config storage operational_dir (.concord)" $configPath 'operational_dir'
 Assert-FileContains "W: Config storage canonical_dir" $configPath 'planning/lifecycle'
 Assert-FileContains "W: Config storage epoch_filename" $configPath 'context-epoch.yaml'
 Assert-FileContains "W: Config storage scratch_dir" $configPath '\.concord/scratch'

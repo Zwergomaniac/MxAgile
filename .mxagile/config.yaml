@@ -77,10 +77,21 @@ context_lifecycle:
     rollover_recommended_tokens: null
     rollover_required_tokens: null
 
-  # Canonical storage locations (relative to project root)
+  # Storage locations (relative to project root).
+  # Rationale for two-tier model:
+  #   operational_dir: gitignored — written on every checkpoint, avoids git change noise
+  #     and self-interference (git-status check is not polluted by the checkpoint write itself).
+  #   handoff_dir: git-tracked — written only on explicit manual rollover or handoff request.
+  #     Survives fresh clone. Creates git noise only when intentionally committed.
   storage:
-    canonical_dir: "planning/lifecycle"
+    # Primary operational store (gitignored, durable locally).
+    operational_dir: ".concord"
     epoch_filename: "context-epoch.yaml"
+    # Explicit handoff/audit store (git-tracked).
+    # Written only on -WriteHandoffCopy or manual rollover request.
+    handoff_dir: "planning/lifecycle"
+    # Legacy key — kept for backward compatibility; semantically superseded by operational_dir.
+    canonical_dir: "planning/lifecycle"
     scratch_dir: ".concord/scratch"
 
   # Extension points (future — not active in this implementation)

@@ -1,7 +1,13 @@
-version: "1.2"
+version: "1.3"
 min_compatible: "1.0"
 updated: "2026-10-12"
 changes:
+  "1.3":
+    - "Context Lifecycle operational layer: Write/Read/Sync-MxAgileEpochCheckpoint.ps1"
+    - "Storage model: .concord/ operational store (gitignored) + planning/lifecycle/ handoff store"
+    - "Schema: UNKNOWN pressure state (replaces NORMAL when no measurement available)"
+    - "Gitignore: .concord/ excluded from tracking"
+    - "Operational tests: test-context-lifecycle-operational.ps1 (Tier 1, 6 test groups)"
   "1.2":
     - "Context Lifecycle architecture: context-epoch.schema.json, policies/context-lifecycle.md"
     - "config.yaml: context_lifecycle feature controls (all disabled by default)"

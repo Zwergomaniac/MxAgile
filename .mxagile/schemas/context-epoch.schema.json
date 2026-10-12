@@ -429,8 +429,8 @@
         },
         "pressure_state": {
           "type": "string",
-          "enum": ["NORMAL", "PRESSURE", "ROLLOVER_RECOMMENDED", "ROLLOVER_REQUIRED"],
-          "description": "Current context pressure level. NORMAL: no action needed. PRESSURE: approaching threshold. ROLLOVER_RECOMMENDED: checkpoint available, rollover advisable. ROLLOVER_REQUIRED: must roll over at next safe boundary. Threshold values are in .mxagile/config.yaml context_lifecycle.pressure_thresholds."
+          "enum": ["UNKNOWN", "NORMAL", "PRESSURE", "ROLLOVER_RECOMMENDED", "ROLLOVER_REQUIRED"],
+          "description": "Current context pressure level. UNKNOWN: no reliable token measurement available — cannot authorize or suppress rollover decisions (default when no harness/gateway measurement is present). NORMAL: reliable measurement exists and is below the configured pressure threshold. PRESSURE: approaching threshold. ROLLOVER_RECOMMENDED: checkpoint available, rollover advisable. ROLLOVER_REQUIRED: must roll over at next safe boundary. Threshold values are in .mxagile/config.yaml context_lifecycle.pressure_thresholds."
         },
         "source_checkpoint": {
           "type": "string",

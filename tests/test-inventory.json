@@ -1048,5 +1048,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Layer 3 golden scenario checks for Context Lifecycle. Validates five GOLD-CTX fixtures: scope/parity wrong-role rejection, Studio Pro vs headless runtime independence, modeled security staleness, local fixture != productive API, and interrupt/resume without false assumptions. Pure read-only fixture + policy content validation."
+  },
+  {
+    "File": "test-context-lifecycle-operational.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": true,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Operational roundtrip tests for Context Lifecycle scripts (Write/Read/Sync). Creates GUID temp dirs in $env:TEMP with local git repos. Tests: write/read roundtrip, atomic-write safety (.tmp not read), re-sync staleness (VERIFIED->STALE on commit change), evidence preservation (FAILED/UNVERIFIED unchanged), pressure UNKNOWN (no measurement), fresh-context simulation (subprocess reader). No network, no mxcli, no shared state. Subprocess in test F calls Read-MxAgileEpochCheckpoint.ps1 in a fresh PowerShell process."
   }
 ]
