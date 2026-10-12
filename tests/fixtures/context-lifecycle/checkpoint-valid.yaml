@@ -1,0 +1,105 @@
+schema_version: "1.0"
+
+mission:
+  id: MISSION-2026-W01-CTX
+  objective: "Implement MxAgile Context Lifecycle architecture for long-context reduction"
+  status: active
+  started: "2026-10-12"
+  wave: W01
+
+scope:
+  framework: ".mxagile/"
+  project: "d:/Mendix/Mx AI Template for new projects"
+  exclusions: []
+
+lifecycle:
+  current_phase: implementing
+  last_completed_checkpoint: "W01-gate-to-ready-passed"
+  active_context_epoch: EPOCH-002
+  interrupted: false
+  previous_epochs:
+    - epoch_id: EPOCH-001
+      rolled_over: "2026-10-12T10:00:00Z"
+      rollover_reason: lifecycle_boundary
+      checkpoint_ref: "planning/lifecycle/context-epoch-EPOCH-001.yaml"
+
+repository:
+  repository_identity: "origin/main"
+  branch: main
+  commit: "2ed7bf6"
+  working_tree_state: clean
+  relevant_paths:
+    - ".mxagile/schemas/"
+    - ".mxagile/policies/"
+    - "docs/"
+    - "tests/"
+  checkpoint_time: "2026-10-12T11:00:00Z"
+
+verified:
+  - claim: "gate_to_refinement passed for W01"
+    evidence_reference: "planning/lifecycle/process-state.yaml#waves.W01.gates.gate_to_refinement"
+    verification_method: "gate-to-refinement skill"
+    verification_time_or_sequence: "2026-10-12T09:00:00Z"
+    validity_scope: "W01 discovery-to-refinement transition"
+    evidence_state: VERIFIED
+    stale_if_commit_changes: false
+
+  - claim: "gate_to_ready passed for W01"
+    evidence_reference: "planning/lifecycle/process-state.yaml#waves.W01.gates.gate_to_ready"
+    verification_method: "gate-to-ready skill"
+    verification_time_or_sequence: "2026-10-12T10:00:00Z"
+    validity_scope: "W01 refinement-to-implementing transition"
+    evidence_state: VERIFIED
+    stale_if_commit_changes: false
+
+failed: []
+
+unverified:
+  - claim: "context-epoch auto_rollover is harness-safe"
+    reason: harness_limitation
+    required_verification: "Harness token-count API or gateway measurement required"
+    blocking_or_non_blocking: non_blocking
+    evidence_state: UNVERIFIED
+
+decisions:
+  - decision: "Context Lifecycle defaults to disabled for backward compatibility"
+    rationale: "Existing MxAgile projects must continue working without migration"
+    affected_scope: ".mxagile/config.yaml context_lifecycle section"
+    recorded: "2026-10-12"
+
+open_gates:
+  - gate: "acceptance_gate W01"
+    required_evidence: "All campaign results CONFIRMED, no open DECISION_REQUIRED"
+    current_state: not_evaluated
+
+user_overrides: []
+
+artifacts:
+  - id: context-epoch-schema
+    type: context_epoch
+    path_or_reference: ".mxagile/schemas/context-epoch.schema.json"
+  - id: process-state-W01
+    type: process_state
+    path_or_reference: "planning/lifecycle/process-state.yaml"
+
+next_action:
+  description: "Continue implementing checklist — write Layer 1 schema tests"
+  prerequisites:
+    - "context-epoch.schema.json exists and is valid JSON Schema"
+  safe_to_run: true
+
+context:
+  epoch_id: EPOCH-002
+  rollover_reason: lifecycle_boundary
+  pressure_state: NORMAL
+  source_checkpoint: "planning/lifecycle/context-epoch-EPOCH-001.yaml"
+  epoch_started: "2026-10-12T10:00:00Z"
+  hot_context_summary: >
+    Mission: implement Context Lifecycle. Phase: implementing W01.
+    Next: schema tests. Checkpoint and policy written. No blockers.
+  feature_controls_at_checkpoint:
+    enabled: false
+    checkpoint_resume: false
+    manual_rollover: false
+    pressure_recommendations: false
+    auto_rollover: false

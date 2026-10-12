@@ -1,0 +1,61 @@
+fixture_id: GOLD-CTX-03
+title: "Modeled security: user-role and module-role reconciliation must remain evidence-based across epochs"
+policy_references:
+  - policies/context-lifecycle.md
+  - policies/lifecycle-resync.md
+  - policies/evidence-contract.md
+schema_version: 1
+
+scenario:
+  description: >
+    A Context Epoch checkpoint records security role reconciliation as VERIFIED
+    based on model-level inspection (static analysis of the Mendix module roles).
+    On resume in a new epoch, a repository commit was pushed that changed
+    the module role assignment for ROLE-MANAGER.
+    The agent must detect that the security claim is now STALE.
+
+  checkpoint_state:
+    repository:
+      commit: "abc1234"
+    verified:
+      - claim: "Module role assignment for ROLE-MANAGER is complete and consistent with story spec"
+        evidence_reference: "planning/evidence/manifests/W01-security-evidence.yaml"
+        verification_method: "acceptance-agent security dimension check"
+        evidence_state: VERIFIED
+        stale_if_commit_changes: true
+        validity_scope: "W01 modeled security — commit abc1234"
+
+  resume_state:
+    actual_commit: "def5678"
+    changed_files:
+      - "some-module/security/module-roles.xml"
+
+fixture_assertions:
+  - id: "GOLD-03.1"
+    claim: "Security role claim becomes STALE when relevant files change between checkpoint and resume"
+    expected: true
+    rationale: >
+      stale_if_commit_changes: true plus a new commit means the claim must be
+      reclassified as STALE. The agent cannot assume security roles are still
+      correctly configured after a module change.
+
+  - id: "GOLD-03.2"
+    claim: "STALE security claim must be re-evaluated before the acceptance gate can pass"
+    expected: true
+    rationale: >
+      The acceptance gate requires all material security evidence to be VERIFIED,
+      not STALE. A STALE claim is not equivalent to VERIFIED.
+
+  - id: "GOLD-03.3"
+    claim: "Non-security VERIFIED claims that do not depend on the changed files remain VERIFIED"
+    expected: true
+    rationale: >
+      Staleness is scoped. Only claims with stale_if_commit_changes: true become STALE.
+      Claims without this flag or claims for unrelated scope remain as-is.
+
+  - id: "GOLD-03.4"
+    claim: "The agent records the STALE transition explicitly in the updated resume contract"
+    expected: true
+    rationale: >
+      Transparent state transitions in the resume contract ensure that the
+      staleness cannot be accidentally missed in a subsequent epoch.

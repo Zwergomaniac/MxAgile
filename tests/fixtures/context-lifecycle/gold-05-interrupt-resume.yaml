@@ -1,0 +1,88 @@
+fixture_id: GOLD-CTX-05
+title: "Interrupt and resume: side request handled; resume re-syncs without false assumptions"
+policy_references:
+  - policies/context-lifecycle.md
+  - policies/lifecycle-resync.md
+schema_version: 1
+
+scenario:
+  description: >
+    A mission is in the implementing phase, executing checklist item W01-03 (Microflows).
+    The user interrupts with a request: "Show me the current security roles configuration."
+    This is an OBSERVATION interruption. The agent answers the question.
+    Then the agent must resume the mission — re-synchronize repository and lifecycle state
+    — and continue at W01-03, not restart the entire checklist.
+
+  mission_state_at_interrupt:
+    lifecycle_phase: implementing
+    active_epoch: EPOCH-001
+    checklist_progress:
+      - id: W01-01
+        description: "Security Roles"
+        status: done
+      - id: W01-02
+        description: "Domain Model"
+        status: done
+      - id: W01-03
+        description: "Microflows"
+        status: pending
+      - id: W01-04
+        description: "Pages"
+        status: pending
+      - id: W01-05
+        description: "Security Pass"
+        status: pending
+
+  interruption:
+    class: OBSERVATION
+    user_request: "Show me the current security roles configuration"
+    expected_response: "Answer the question about security roles"
+
+  post_interruption_resync:
+    expected_phase: implementing
+    expected_next_item: W01-03
+    expected_lifecycle_unchanged: true
+    expected_w01_01_02_preserved: true
+
+fixture_assertions:
+  - id: "GOLD-05.1"
+    claim: "After the OBSERVATION interruption, lifecycle phase remains implementing"
+    expected: true
+    rationale: >
+      An OBSERVATION (read-only question) must not change the lifecycle phase.
+      The mission was in implementing and must still be in implementing after the answer.
+
+  - id: "GOLD-05.2"
+    claim: "Resume continues at W01-03 — completed items W01-01 and W01-02 are not re-executed"
+    expected: true
+    rationale: >
+      Interrupt/resume must not restart completed work. The checklist is the authoritative
+      resume position. Done items remain done.
+
+  - id: "GOLD-05.3"
+    claim: "The agent does not mark gate_to_ready as passed solely because an OBSERVATION was handled"
+    expected: true
+    rationale: >
+      Handling a conversational interruption is not a gate trigger.
+      Gates are only passed when the gate skill completes a full evaluation.
+
+  - id: "GOLD-05.4"
+    claim: "The agent re-synchronizes lifecycle state from repository artifacts before continuing W01-03"
+    expected: true
+    rationale: >
+      After any interruption, the agent must validate actual repository and lifecycle
+      state before continuing — it cannot rely solely on in-memory assumptions.
+
+  - id: "GOLD-05.5"
+    claim: "The OBSERVATION interruption is not recorded as a user_override in the resume contract"
+    expected: true
+    rationale: >
+      An informational question does not change scope, override framework behavior,
+      or alter the mission. Only scope-changing instructions become user_overrides.
+
+  - id: "GOLD-05.6"
+    claim: "The context-epoch checkpoint written after resume has active_context_epoch unchanged"
+    expected: true
+    rationale: >
+      An OBSERVATION within a single epoch does not trigger a Context Epoch rollover.
+      Epoch changes are triggered by lifecycle boundaries, pressure, or explicit requests.

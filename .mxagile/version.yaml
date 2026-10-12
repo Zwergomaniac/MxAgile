@@ -1,3 +1,10 @@
-version: "1.1"
+version: "1.2"
 min_compatible: "1.0"
-updated: "2026-09-15"
+updated: "2026-10-12"
+changes:
+  "1.2":
+    - "Context Lifecycle architecture: context-epoch.schema.json, policies/context-lifecycle.md"
+    - "config.yaml: context_lifecycle feature controls (all disabled by default)"
+    - "docs/context-lifecycle.md: full architecture documentation"
+  "1.1":
+    - "External skills: Ponytail + Superpowers skills (6 skills)"

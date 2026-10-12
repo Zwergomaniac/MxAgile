@@ -1,0 +1,80 @@
+# FIXTURE: UNVERIFIED claims must survive Context Epoch rollover unchanged
+# Expected: UNVERIFIED is never promoted to VERIFIED across a rollover.
+# This tests that "unavailable verification != passed verification" invariant holds.
+
+schema_version: "1.0"
+
+mission:
+  id: MISSION-UNVERIFIED-001
+  objective: "Test that UNVERIFIED claims survive epoch rollover unchanged"
+  status: active
+
+scope:
+  project: "test-project"
+
+lifecycle:
+  current_phase: verifying
+  active_context_epoch: EPOCH-002
+  interrupted: false
+  previous_epochs:
+    - epoch_id: EPOCH-001
+      rolled_over: "2026-10-12T10:00:00Z"
+      rollover_reason: lifecycle_boundary
+
+repository:
+  branch: main
+  commit: "abc1234"
+  working_tree_state: clean
+  checkpoint_time: "2026-10-12T12:00:00Z"
+
+verified:
+  - claim: "gate_to_ready passed for W01"
+    evidence_reference: "planning/lifecycle/process-state.yaml#W01.gate_to_ready"
+    verification_method: "gate-to-ready skill"
+    verification_time_or_sequence: "2026-10-12T09:00:00Z"
+    validity_scope: "W01 refinement-to-implementing"
+    evidence_state: VERIFIED
+    stale_if_commit_changes: false
+
+failed: []
+
+# These UNVERIFIED claims were carried from EPOCH-001.
+# They must remain UNVERIFIED after rollover to EPOCH-002.
+# The agent must NOT reclassify them as VERIFIED.
+unverified:
+  - claim: "Productive API integration tested end-to-end"
+    reason: evidence_unavailable
+    required_verification: "Live API endpoint access required; not available in local test environment"
+    blocking_or_non_blocking: blocking
+    evidence_state: UNVERIFIED
+
+  - claim: "auto_rollover harness safety confirmed"
+    reason: harness_limitation
+    required_verification: "Harness token-count API integration required"
+    blocking_or_non_blocking: non_blocking
+    evidence_state: UNVERIFIED
+
+decisions: []
+open_gates:
+  - gate: "acceptance_gate W01"
+    required_evidence: "All material UNVERIFIED blocking claims must be resolved or explicitly deferred"
+    current_state: blocked
+
+user_overrides: []
+artifacts: []
+
+next_action:
+  description: "Resolve UNVERIFIED blocking claim: Productive API integration"
+  prerequisites:
+    - "Live API endpoint access available"
+  safe_to_run: false
+
+context:
+  epoch_id: EPOCH-002
+  rollover_reason: lifecycle_boundary
+  pressure_state: NORMAL
+  source_checkpoint: "planning/lifecycle/context-epoch-EPOCH-001.yaml"
+  epoch_started: "2026-10-12T10:00:00Z"
+  hot_context_summary: >
+    Phase: verifying. Acceptance gate blocked: live API not available.
+    Non-blocking: auto_rollover harness safety UNVERIFIED.
