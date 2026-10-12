@@ -94,6 +94,34 @@ context_lifecycle:
     canonical_dir: "planning/lifecycle"
     scratch_dir: ".concord/scratch"
 
+  # Model capability profiles (relative to .mxagile/).
+  # Separates physical model capability from working-context policy.
+  model_profiles: "model-profiles.yaml"
+
+  # Harness adapter contract schema (relative to .mxagile/schemas/).
+  # Defines the generic interface for harness/provider integration.
+  harness_adapter_schema: "harness-adapter.schema.json"
+
+  # Natural lifecycle boundary classes eligible for opportunistic rollover.
+  # Rollover below numeric pressure threshold is permitted when a
+  # particularly clean lifecycle boundary exists AND the policy determines
+  # that rollover provides value at this boundary.
+  # Set to empty list to disable opportunistic rollover entirely.
+  natural_rollover_boundaries:
+    - "discovery_to_implementation"
+    - "implementation_to_verification"
+    - "debugging_resolution_to_acceptance"
+    - "completed_work_package_to_next"
+
+  # Pilot configuration reference.
+  # To enable mature manual features without automatic rollover:
+  #   context_lifecycle:
+  #     enabled: true
+  #     checkpoint_resume: true
+  #     manual_rollover: true
+  #     pressure_recommendations: true
+  #     auto_rollover: false
+
   # Extension points (future — not active in this implementation)
   # warm_retrieval_provider: none     # future: rtk
   # compression_provider: none        # future: context_mode

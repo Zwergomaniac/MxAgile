@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MxAgile Harness Adapter Contract",
+  "description": "Smallest generic adapter contract for external harness, gateway, or provider integration with MxAgile Context Lifecycle. Harness-agnostic: not tied to any specific AI provider. The adapter supplies capability and measurement data when actually available; absent fields are treated as UNKNOWN. No hosted service required. No external network services required. See docs/context-lifecycle.md and .mxagile/policies/context-lifecycle.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "adapter_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Adapter contract version for forward-compatibility detection."
+    },
+    "model_capability": {
+      "$ref": "#/definitions/model_capability",
+      "description": "Physical model capability. Supplied by harness when known."
+    },
+    "context_measurement": {
+      "$ref": "#/definitions/context_measurement",
+      "description": "Observed context-token usage. Supplied when a reliable measurement exists."
+    },
+    "harness_capability": {
+      "$ref": "#/definitions/harness_capability",
+      "description": "What the harness can do for context lifecycle management."
+    },
+    "transition_result": {
+      "$ref": "#/definitions/transition_result",
+      "description": "Result of the most recent session/epoch transition attempt, if any."
+    }
+  },
+
+  "definitions": {
+    "model_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Physical model identity and capability. Values here are factual properties of the model, not policy decisions.",
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "description": "Model identifier as reported by harness or gateway (e.g. 'claude-opus-4-6', 'gpt-4o'). Used for profile lookup in model-profiles.yaml."
+        },
+        "context_window_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Physical context-window size in tokens. Overrides model-profiles.yaml when supplied by harness."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["harness_reported", "gateway_reported", "user_configured", "unknown"],
+          "description": "How this capability information was obtained."
+        }
+      }
+    },
+
+    "context_measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Observed context-token usage at a point in time. Do not fabricate measurements locally. Accept only from harness, gateway, or explicit user input.",
+      "properties": {
+        "estimated_context_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Current context size in tokens as measured or reported."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["harness_reported", "gateway_measurement", "user_supplied", "unknown"],
+          "description": "How this measurement was obtained. 'unknown' means no reliable measurement."
+        },
+        "reliability": {
+          "type": "string",
+          "enum": ["exact", "estimate", "stale", "unknown"],
+          "description": "Reliability classification of the measurement. 'exact': authoritative count from gateway. 'estimate': approximate (e.g. local tokenizer). 'stale': measurement is from a prior request cycle. 'unknown': reliability cannot be determined."
+        },
+        "measured_at": {
+          "type": "string",
+          "description": "ISO datetime or sequence number when this measurement was taken."
+        }
+      }
+    },
+
+    "harness_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Capabilities the harness provides for context lifecycle management.",
+      "properties": {
+        "can_report_tokens": {
+          "type": "boolean",
+          "description": "True if the harness can supply context_measurement. False or absent: token reporting unavailable.",
+          "default": false
+        },
+        "can_start_fresh_context": {
+          "type": "boolean",
+          "description": "True if the harness can programmatically start a fresh agent context (new session/epoch). Required for automatic rollover.",
+          "default": false
+        },
+        "can_pass_resume_path": {
+          "type": "boolean",
+          "description": "True if the harness can pass the checkpoint file path to a new session at startup.",
+          "default": false
+        },
+        "supports_epoch_transition": {
+          "type": "boolean",
+          "description": "True if the harness supports the full epoch transition protocol (checkpoint + fresh context + resume). When false, rollover produces a deterministic rollover-ready state but cannot execute the transition.",
+          "default": false
+        }
+      }
+    },
+
+    "transition_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Result of the most recent session/epoch transition, if the harness attempted one.",
+      "properties": {
+        "attempted": {
+          "type": "boolean",
+          "description": "True if a transition was attempted.",
+          "default": false
+        },
+        "succeeded": {
+          "type": "boolean",
+          "description": "True if the transition completed successfully."
+        },
+        "new_session_id": {
+          "type": "string",
+          "description": "Identifier of the new session, if the harness provides one."
+        },
+        "checkpoint_path": {
+          "type": "string",
+          "description": "Path to the checkpoint file used for the transition."
+        },
+        "failure_reason": {
+          "type": "string",
+          "description": "Why the transition failed, if it did."
+        }
+      }
+    }
+  }
+}

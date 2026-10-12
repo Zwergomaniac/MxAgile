@@ -1063,5 +1063,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Operational roundtrip tests for Context Lifecycle scripts (Write/Read/Sync). Creates GUID temp dirs in $env:TEMP with local git repos. Tests: write/read roundtrip, atomic-write safety (.tmp not read), re-sync staleness (VERIFIED->STALE on commit change), evidence preservation (FAILED/UNVERIFIED unchanged), pressure UNKNOWN (no measurement), fresh-context simulation (subprocess reader). No network, no mxcli, no shared state. Subprocess in test F calls Read-MxAgileEpochCheckpoint.ps1 in a fresh PowerShell process."
+  },
+  {
+    "File": "test-context-lifecycle-rollover.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": true,
+    "UsesGit": true,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Context Lifecycle rollover, pressure, model policy, and adapter tests. Layer 1: static checks on model-profiles.yaml, harness-adapter.schema.json, context-epoch.schema.json rollover_state, config.yaml references, pilot config fixture. Layer 2: policy content validation. Layer 3: operational tests using GUID temp dirs with local git repos — model policy resolution hierarchy (harness/profile/unknown), pressure evaluation (UNKNOWN/NORMAL/PRESSURE/ROLLOVER_RECOMMENDED/ROLLOVER_REQUIRED), rollover safety checks, full manual rollover roundtrip, terminal mission guard, epoch ID increment, prior epoch archival. No network, no mxcli, no shared state."
   }
 ]

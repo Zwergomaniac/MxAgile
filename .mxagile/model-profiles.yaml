@@ -1,0 +1,73 @@
+# MxAgile Model Capability Profiles
+# Managed by: MxAgile Core
+#
+# Separates physical model capability (A) from MxAgile working-context policy (B).
+# See docs/context-lifecycle.md — "Model-Aware Context Management".
+#
+# Resolution hierarchy (deterministic, highest priority first):
+#   1. Reliable value from active harness/provider/gateway adapter
+#   2. Explicitly configured model profile (matched by model_id)
+#   3. Explicitly configured generic fallback (where safe)
+#   4. UNKNOWN
+#
+# context_window_tokens values are documented physical capabilities.
+# Policy fields (ratios, budgets) are intentionally null by default.
+# Configure them explicitly per deployment after measuring actual workload.
+#
+# The 150k gateway observation (90% of token consumption above 150k in a
+# 250k context setup) is evaluation evidence for threshold calibration.
+# It is NOT baked in as a default threshold. See docs/context-lifecycle.md § 2.
+
+profiles:
+  claude-opus-4:
+    context_window_tokens: 200000
+  claude-opus-4-6:
+    context_window_tokens: 200000
+  claude-sonnet-4:
+    context_window_tokens: 200000
+  claude-sonnet-4-5:
+    context_window_tokens: 200000
+  claude-sonnet-5-5:
+    context_window_tokens: 200000
+  claude-haiku-4-5:
+    context_window_tokens: 200000
+  claude-fable-5-1:
+    context_window_tokens: 200000
+  generic-200k:
+    context_window_tokens: 200000
+  generic-128k:
+    context_window_tokens: 128000
+
+# Fallback when no model identifier matches any profile.
+# null = UNKNOWN capability. Pressure cannot be evaluated without measurement.
+fallback:
+  context_window_tokens: null
+
+# Working-context policy overrides.
+# Applied on top of the matched profile's context_window_tokens.
+# All ratios are relative to context_window_tokens (0.0–1.0).
+# Absolute token values override ratio-computed values when both are present.
+#
+# Fields:
+#   working_budget_ratio:          fraction of context window for active work
+#   pressure_ratio:                fraction at which PRESSURE state begins
+#   rollover_recommended_ratio:    fraction at which ROLLOVER_RECOMMENDED
+#   rollover_required_ratio:       fraction at which ROLLOVER_REQUIRED
+#   safety_reserve_tokens:         absolute token count reserved as safety margin
+#
+# All null by default. No defensible universal default exists without
+# deployment-specific measurement. Configure after observing actual workload.
+#
+# Pilot configuration reference (based on 150k gateway observation):
+#   policy_overrides:
+#     working_budget_ratio: 0.60
+#     pressure_ratio: 0.60
+#     rollover_recommended_ratio: 0.75
+#     rollover_required_ratio: 0.90
+#     safety_reserve_tokens: 20000
+policy_overrides:
+  working_budget_ratio: null
+  pressure_ratio: null
+  rollover_recommended_ratio: null
+  rollover_required_ratio: null
+  safety_reserve_tokens: null

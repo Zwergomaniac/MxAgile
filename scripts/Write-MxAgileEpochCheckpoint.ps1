@@ -105,6 +105,30 @@ if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: extract a YAML array block (e.g. verified:, failed:) from content
+# ---------------------------------------------------------------------------
+function Extract-YamlBlock {
+    param([string]$content, [string]$key)
+    if ([string]::IsNullOrEmpty($content)) { return "" }
+    $lines = $content -split "`r?`n"
+    $collecting = $false
+    $result = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in $lines) {
+        if ($line -match "^${key}:\s*\[\]") { return "" }
+        if ($line -match "^${key}:") {
+            $collecting = $true
+            continue
+        }
+        if ($collecting) {
+            if ($line -match '^\S' -and $line -notmatch '^\s') { break }
+            if (-not [string]::IsNullOrWhiteSpace($line)) { $result.Add($line) }
+        }
+    }
+    if ($result.Count -eq 0) { return "" }
+    return ($result -join "`n")
+}
+
+# ---------------------------------------------------------------------------
 # Helper: escape a value for a YAML double-quoted scalar
 # ---------------------------------------------------------------------------
 function Format-YamlStr {
