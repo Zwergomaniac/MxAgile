@@ -23,8 +23,12 @@ __pycache__/
 
 # Generated platform projections (produced by generate-mxagile-platform-skills.ps1)
 # Checked in if you want snapshot history; ignored here to keep repo clean for framework dev
-.agents/
-.claude/skills/
+# NOTE: Only ignore the generated subdirectories, not entire parent dirs — external skills
+# in the same parent directories are source-controlled and must remain trackable.
+.agents/skills/mxagile/
+.agents/skills/dfc/
+.claude/skills/mxagile-*/
+.claude/agents/mxagile-*.md
 .github/
 .grok/
 .hermes/
