@@ -1,0 +1,23 @@
+# Test configuration fixture: only checkpoint_resume enabled.
+# Used by test-context-lifecycle-operational.ps1 to verify
+# that a project with checkpoint_resume=true (and all other
+# features off) behaves correctly.
+#
+# This is NOT a complete .mxagile/config.yaml — it is a fragment
+# for test assertions only.
+context_lifecycle:
+  enabled: true
+  checkpoint_resume: true
+  manual_rollover: false
+  pressure_recommendations: false
+  auto_rollover: false
+  pressure_thresholds:
+    pressure_tokens: null
+    rollover_recommended_tokens: null
+    rollover_required_tokens: null
+  storage:
+    operational_dir: ".concord"
+    epoch_filename: "context-epoch.yaml"
+    handoff_dir: "planning/lifecycle"
+    canonical_dir: "planning/lifecycle"
+    scratch_dir: ".concord/scratch"

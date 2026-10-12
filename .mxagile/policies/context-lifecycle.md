@@ -123,10 +123,15 @@ nicht direkt in den aktiven Kontext geladen.
 
 | Stufe | Bedeutung |
 |-------|-----------|
-| `NORMAL` | Kein Handlungsbedarf |
+| `UNKNOWN` | Keine zuverlässige Tokenmessung verfügbar. Darf keine Rollover-Entscheidungen autorisieren oder unterdrücken. Standardzustand wenn keine Harness-/Gateway-Messung vorliegt. |
+| `NORMAL` | Zuverlässige Messung vorhanden und unterhalb des konfigurierten Schwellenwerts |
 | `PRESSURE` | Nähert sich dem Schwellenwert; Checkpoint empfehlenswert |
 | `ROLLOVER_RECOMMENDED` | Checkpoint verfügbar; Rollover ratsam bei nächster sicherer Grenze |
 | `ROLLOVER_REQUIRED` | Muss bei nächster sicherer Grenze überlaufen |
+
+**UNKNOWN ist nicht NORMAL.**
+NORMAL setzt eine zuverlässige Messung voraus, die unterhalb des Schwellenwerts liegt.
+UNKNOWN bedeutet: kein Messwert verfügbar — der Agent darf weder Rollover anfordern noch unterdrücken.
 
 ### Druckstufen-Eingaben
 
@@ -166,18 +171,34 @@ Agent meldet `NORMAL` wenn keine Messung verfügbar ist.
 
 ## Durable Resume Contract
 
-### Kanonischer Speicherort
+### Speicherorte
 
 ```
-planning/lifecycle/context-epoch.yaml    ← Git-tracked, autoritativ
-.concord/scratch/context-epoch.yaml     ← Lokaler Session-Cache, gitignored
+.concord/context-epoch.yaml           ← Primär operationell, gitignored
+planning/lifecycle/context-epoch.yaml ← Expliziter Handoff/Audit-Store, Git-tracked
 ```
 
-**Priorität:** Kanonische Datei hat Vorrang gegenüber dem lokalen Cache.
+**Zwei-Stufen-Modell** (Rationale: Risikovermeidung):
 
-Wenn `planning/lifecycle/context-epoch.yaml` fehlt: lokalen Cache als Fallback verwenden,
-wenn vorhanden. Das Fehlen des lokalen Caches darf keine kanonische Mission-Information
-zerstören.
+1. **Operationeller Store** (`.concord/context-epoch.yaml`, gitignored)
+   - Geschrieben bei jedem Checkpoint
+   - Kein Git-Lärm im Working Tree
+   - Löst Self-Interference: git-status-Prüfung wird nicht durch den eigenen
+     Checkpoint-Write verfälscht
+   - Verhindert Merge-Konflikte bei paralleler Entwicklung
+   - Verloren bei Fresh Clone — korrekt: Session-State reist nicht via Git
+
+2. **Handoff-Store** (`planning/lifecycle/context-epoch.yaml`, Git-tracked)
+   - Nur bei explizitem Request geschrieben (manueller Rollover, `-WriteHandoffCopy`)
+   - Überlebt Fresh Clone — für echten Missions-Handoff gedacht
+   - Erstellt Git-Change nur wenn bewusst committed
+
+**Priorität beim Lesen:** Operationeller Store (`.concord/`) hat Vorrang.
+Fallback: Handoff-Store (`planning/lifecycle/`).
+Fehlen beider Pfade: kein Checkpoint vorhanden — kein State erfinden.
+
+Das Fehlen des operationellen Stores darf keine kanonische Mission-Information
+zerstören, solange der Handoff-Store existiert.
 
 ### Schema-Version
 
@@ -318,7 +339,7 @@ Wenn Context Lifecycle deaktiviert werden muss:
 
 1. `context_lifecycle.enabled: false` in `.mxagile/config.yaml` setzen
 2. `planning/lifecycle/context-epoch.yaml` nicht löschen (für Audit-Zwecke aufbewahren)
-3. `.concord/scratch/context-epoch.yaml` kann gelöscht werden (nur Session-Cache)
+3. `.concord/context-epoch.yaml` kann gelöscht werden (operationeller Session-Store, gitignored)
 4. Bestehende MxAgile-Prozesse arbeiten unverändert mit `process-state.yaml`
 5. Keine Migration bestehender Projekte erforderlich
 
