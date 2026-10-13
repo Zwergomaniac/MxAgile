@@ -1,7 +1,17 @@
-version: "1.4"
+version: "1.5"
 min_compatible: "1.0"
-updated: "2026-10-12"
+updated: "2026-10-13"
 changes:
+  "1.5":
+    - "Context Optimization & Capability Discovery"
+    - "Capability Registry: .mxagile/capabilities.yaml with SUPPORTED/AVAILABLE/ENABLED/ACTIVE/DEGRADED/UNAVAILABLE state model"
+    - "Capability Resolver: scripts/Get-MxAgileCapabilities.ps1 (authoritative, human+json output, upgrade awareness)"
+    - "Context Optimization config block: context_optimization.rtk and context_optimization.context_mode"
+    - "RTK integration: .mxagile/integrations/rtk.yaml (Apache-2.0, external optional dep, output safety classification)"
+    - "Context Mode integration: .mxagile/integrations/context-mode.yaml (ELv2, external optional dep, anti-dual-memory guarantee)"
+    - "Schema: .mxagile/schemas/capabilities.schema.json"
+    - "Tests: test-capabilities-registry.ps1, test-capabilities-resolver.ps1, test-anti-dual-memory.ps1"
+    - "Docs: docs/capabilities.md, docs/context-optimization.md"
   "1.4":
     - "Context Lifecycle core completion: manual rollover, pressure evaluation, model-aware policy, harness adapter contract"
     - "Scripts: Get-MxAgileModelPolicy.ps1, Get-MxAgileContextPressure.ps1, Test-MxAgileRolloverSafety.ps1, Invoke-MxAgileEpochRollover.ps1"

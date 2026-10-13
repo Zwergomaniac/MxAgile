@@ -123,6 +123,58 @@ context_lifecycle:
   #     auto_rollover: false
 
   # Extension points (future — not active in this implementation)
-  # warm_retrieval_provider: none     # future: rtk
-  # compression_provider: none        # future: context_mode
+  # warm_retrieval_provider: none     # future: context_mode
   # token_counter: none               # future: api
+
+# ---------------------------------------------------------------------------
+# Context Optimization (MxAgile 1.5)
+# Optional adapters that reduce token consumption without affecting lifecycle,
+# evidence, checkpoint or mission-state authority.
+# MxAgile remains the sole authority for all lifecycle decisions.
+# Both adapters are independent; either may be enabled alone.
+# Policy:        .mxagile/integrations/rtk.yaml
+#                .mxagile/integrations/context-mode.yaml
+# Documentation: docs/context-optimization.md
+# Registry:      .mxagile/capabilities.yaml
+# ---------------------------------------------------------------------------
+context_optimization:
+  # Master switch. When false both adapters are inactive regardless of sub-keys.
+  enabled: false
+
+  rtk:
+    # Enable RTK command-output optimization (Bash tool calls only).
+    # Requires: RTK >=0.37.2 installed and 'rtk init -g' hook wired.
+    # Install:  winget install rtk-ai.rtk  (Windows)
+    #           brew install rtk           (macOS/Linux)
+    enabled: false
+
+    # When true, MxAgile preserves raw command output for LOSSLESS_REQUIRED
+    # commands alongside any RTK-optimized representation.
+    preserve_raw_evidence: true
+
+    output_safety:
+      # Default classification when no explicit override matches.
+      # COMPACT_SAFE  — compact representation preserves actionable result.
+      # LOSSLESS_REQUIRED — raw output must be preserved (evidence-critical).
+      # BYPASS        — pass through without optimization.
+      default_classification: COMPACT_SAFE
+
+      # Command patterns that require raw evidence preservation.
+      # These map to LOSSLESS_REQUIRED regardless of RTK's output.
+      lossless_required_patterns:
+        - "playwright"
+        - "mxcli run"
+        - "mxcli test"
+
+  context_mode:
+    # Enable Context Mode WARM-context externalization and retrieval.
+    # Requires: context-mode npm package installed (ELv2 — not bundled by MxAgile).
+    # Install (Claude Code): /plugin marketplace add mksglu/context-mode
+    # Install (npm):          npm install -g context-mode
+    #
+    # ANTI-DUAL-MEMORY GUARANTEE:
+    #   Content returned by Context Mode is RETRIEVED context, not authoritative
+    #   MxAgile evidence. Retrieved content CANNOT promote UNVERIFIED->VERIFIED,
+    #   change gate state, or alter mission lifecycle phase.
+    #   MxAgile evidence always wins when retrieved content conflicts.
+    enabled: false

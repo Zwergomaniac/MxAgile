@@ -1,0 +1,236 @@
+# MxAgile Capability Registry
+# Machine-readable catalog of developer-visible Framework capabilities.
+# Consumed by: scripts/Get-MxAgileCapabilities.ps1 (authoritative resolver).
+# Do NOT load this file directly into every agent conversation.
+# Query through the resolver instead.
+#
+# Capability state model (see docs/capabilities.md for full semantics):
+#   SUPPORTED   — Framework knows how to use this capability
+#   AVAILABLE   — Required environment/dependency detected and compatible
+#   ENABLED     — Project configuration allows use
+#   ACTIVE      — Capability is actually in use in the current context
+#   DEGRADED    — Operating partially or via fallback
+#   UNAVAILABLE — Environment/dependency absent or incompatible
+#
+# Field meanings:
+#   id                            stable snake_case identifier
+#   name                          human-readable label
+#   description                   one-line purpose
+#   category                      context-lifecycle | context-optimization | knowledge-graph | toolchain
+#   version_introduced            MxAgile version that added this capability
+#   default_state                 "off" | "on" (absent config behaves like default_state)
+#   config_location               path to config file relative to project root
+#   config_key                    dot-path to the controlling config key
+#   activation_mechanism          how to enable this capability
+#   requires                      list of capability IDs that must be enabled first
+#   external_dependencies         tools/packages that must be present in the environment
+#   incompatibilities             capability IDs that cannot be active simultaneously
+#   availability_detection        how to detect the capability is available
+#   risk                          low | medium | high (impact of mis-configuration)
+#   docs_ref                      documentation file relative to project root
+#   agent_may_recommend           true = agent may proactively surface this capability
+#   agent_may_activate_config     true = agent may safely edit project config to enable
+#   user_approval_required        true = enabling requires external install or machine mutation
+
+schema_version: "1.0"
+assessed: "2026-10-13"
+
+capabilities:
+
+  # -----------------------------------------------------------------------
+  # Context Lifecycle
+  # -----------------------------------------------------------------------
+
+  - id: context_lifecycle
+    name: "Context Lifecycle"
+    description: "Durable mission state, Context Epochs, and checkpoint/resume across context windows."
+    category: context-lifecycle
+    version_introduced: "1.2"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.enabled"
+    activation_mechanism: "Set context_lifecycle.enabled: true in .mxagile/config.yaml"
+    requires: []
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Always available — no external dependencies required."
+    risk: low
+    docs_ref: "docs/context-lifecycle.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: false
+
+  - id: checkpoint_resume
+    name: "Checkpoint & Resume"
+    description: "Write durable Context Epoch checkpoints and resume missions across context boundaries."
+    category: context-lifecycle
+    version_introduced: "1.3"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.checkpoint_resume"
+    activation_mechanism: "Enable context_lifecycle.enabled and context_lifecycle.checkpoint_resume"
+    requires: [context_lifecycle]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Always available — requires only context_lifecycle.enabled."
+    risk: low
+    docs_ref: "docs/context-lifecycle.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: false
+
+  - id: manual_rollover
+    name: "Manual Context Epoch Rollover"
+    description: "Explicitly roll over to a new Context Epoch at a safe lifecycle boundary."
+    category: context-lifecycle
+    version_introduced: "1.4"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.manual_rollover"
+    activation_mechanism: "Enable checkpoint_resume first, then set context_lifecycle.manual_rollover: true"
+    requires: [checkpoint_resume]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Always available — requires only checkpoint_resume."
+    risk: low
+    docs_ref: "docs/context-lifecycle.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: false
+
+  - id: pressure_recommendations
+    name: "Context Pressure Recommendations"
+    description: "Emit PRESSURE / ROLLOVER_RECOMMENDED / ROLLOVER_REQUIRED advisories based on context measurement."
+    category: context-lifecycle
+    version_introduced: "1.4"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.pressure_recommendations"
+    activation_mechanism: "Enable context_lifecycle.enabled and context_lifecycle.pressure_recommendations. Optionally configure pressure_thresholds or a harness adapter for reliable token measurement."
+    requires: [context_lifecycle]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Always available. Pressure state is UNKNOWN until harness provides token counts."
+    risk: low
+    docs_ref: "docs/context-lifecycle.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: false
+
+  - id: auto_rollover
+    name: "Automatic Context Epoch Rollover"
+    description: "Automatically roll over at the next safe lifecycle boundary when pressure is ROLLOVER_REQUIRED."
+    category: context-lifecycle
+    version_introduced: "1.4"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.auto_rollover"
+    activation_mechanism: "Enable checkpoint_resume, manual_rollover and pressure_recommendations first. Enable auto_rollover only after the manual flow is proven stable in this project."
+    requires: [checkpoint_resume, manual_rollover, pressure_recommendations]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Structurally available. Effective pressure measurement requires harness adapter."
+    risk: medium
+    docs_ref: "docs/context-lifecycle.md"
+    agent_may_recommend: true
+    agent_may_activate_config: false
+    user_approval_required: false
+    notes: "Keep disabled until the manual rollover flow is proven. Risk is medium because premature auto-rollover can interrupt long-running tasks."
+
+  # -----------------------------------------------------------------------
+  # Context Optimization
+  # -----------------------------------------------------------------------
+
+  - id: rtk_optimization
+    name: "RTK Command Output Optimization"
+    description: "Reduce token consumption from Bash command output by routing through RTK (Rust Token Killer). Applicable to Bash tool calls only; built-in tools (Read, Grep, Glob) are unaffected."
+    category: context-optimization
+    version_introduced: "1.5"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_optimization.rtk.enabled"
+    activation_mechanism: "Install RTK (winget install rtk-ai.rtk on Windows), then set context_optimization.rtk.enabled: true. Run 'rtk init -g' to wire the Claude Code PreToolUse hook."
+    requires: []
+    external_dependencies:
+      - id: rtk
+        display_name: "RTK (Rust Token Killer)"
+        executable: rtk
+        version_constraint: ">=0.37.2"
+        install_windows: "winget install rtk-ai.rtk"
+        install_unix: "brew install rtk"
+        license: "Apache-2.0"
+        upstream: "https://github.com/rtk-ai/rtk"
+        assessed_version: "0.37.2+"
+        assessed_date: "2026-10-13"
+    incompatibilities: []
+    availability_detection: "Detect 'rtk' executable in PATH. Parse 'rtk --version' output."
+    risk: low
+    docs_ref: "docs/context-optimization.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: true
+    notes: "Affects only Bash tool calls. Exit codes and success/failure semantics remain authoritative. Raw evidence preserved for LOSSLESS_REQUIRED commands. Hook installation mutates ~/.claude/settings.json — requires user approval."
+
+  - id: context_mode_integration
+    name: "Context Mode WARM Retrieval"
+    description: "Externalize eligible WARM-context material and retrieve it on demand via Context Mode. Reduces active context by offloading large search results, analyses, and historical findings."
+    category: context-optimization
+    version_introduced: "1.5"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_optimization.context_mode.enabled"
+    activation_mechanism: "Install Context Mode (/plugin marketplace add mksglu/context-mode in Claude Code, or: npm install -g context-mode), then set context_optimization.context_mode.enabled: true."
+    requires: []
+    external_dependencies:
+      - id: context_mode
+        display_name: "Context Mode"
+        executable: context-mode
+        npm_package: context-mode
+        claude_plugin: "mksglu/context-mode"
+        version_constraint: ">=1.0.33"
+        install_claude_code: "/plugin marketplace add mksglu/context-mode"
+        install_npm: "npm install -g context-mode"
+        license: "ELv2"
+        upstream: "https://github.com/mksglu/context-mode"
+        assessed_version: "1.0.33+"
+        assessed_date: "2026-10-13"
+        license_note: "ELv2 — source-available, NOT OSI open source. Not redistributed by MxAgile. Must be installed separately."
+    incompatibilities: []
+    availability_detection: "Detect 'context-mode' executable in PATH, or detect Claude Code plugin via /plugin list. Run 'ctx_doctor' MCP tool when available."
+    risk: low
+    docs_ref: "docs/context-optimization.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: true
+    notes: "MxAgile remains the sole authority for evidence states and mission lifecycle. Content returned by Context Mode is RETRIEVED context, never authoritative MxAgile evidence. Retrieved content cannot directly promote UNVERIFIED->VERIFIED or change gate/mission state. Installation requires user approval (external npm/plugin installation)."
+
+  # -----------------------------------------------------------------------
+  # Knowledge Graph
+  # -----------------------------------------------------------------------
+
+  - id: graphify
+    name: "Graphify Code Graph"
+    description: "Enrich the MxAgile artifact graph with a Graphify-generated code graph for deeper structural analysis."
+    category: knowledge-graph
+    version_introduced: "1.0"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "graphify.enabled"
+    activation_mechanism: "Install Graphify CLI (see scripts/install-graphify.ps1), set graphify.enabled: true and enrichment_provider: graphify."
+    requires: []
+    external_dependencies:
+      - id: graphify
+        display_name: "Graphify CLI"
+        executable: graphify
+        version_constraint: ">=0.9.28"
+        install: "scripts/install-graphify.ps1"
+        upstream: "(internal)"
+        assessed_date: "2026-10-13"
+    incompatibilities: []
+    availability_detection: "Detect 'graphify' executable in PATH. Parse 'graphify --version' output."
+    risk: low
+    docs_ref: "docs/mxagile-knowledge-graph.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: true
+    notes: "Requires Graphify CLI installation. Run 'scripts/install-graphify.ps1' for project-local installation."
