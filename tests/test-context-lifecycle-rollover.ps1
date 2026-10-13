@@ -150,7 +150,7 @@ Assert-FileContains "B.9: adapter_version 1.0"              $adapterSchemaPath '
 Assert-FileContains "B.10: No hosted service"               $adapterSchemaPath 'No hosted service|No external network'
 
 Write-Host ""
-Write-Host "--- C: Context Epoch Schema — rollover_state ---" -ForegroundColor Yellow
+Write-Host "--- C: Context Epoch Schema - rollover_state ---" -ForegroundColor Yellow
 
 Assert-FileContains "C.1: rollover_state field in schema"                $epochSchemaPath '"rollover_state"'
 Assert-FileContains "C.2: not_applicable enum value"                     $epochSchemaPath '"not_applicable"'
@@ -163,7 +163,7 @@ Assert-FileContains "C.8: rollover_unsupported_by_harness enum"          $epochS
 Assert-FileContains "C.9: rollover_blocked_reasons array"                $epochSchemaPath '"rollover_blocked_reasons"'
 
 Write-Host ""
-Write-Host "--- D: Config — model profiles and boundary references ---" -ForegroundColor Yellow
+Write-Host "--- D: Config - model profiles and boundary references ---" -ForegroundColor Yellow
 
 Assert-FileContains "D.1: model_profiles reference in config"            $configPath 'model_profiles:'
 Assert-FileContains "D.2: harness_adapter_schema reference"              $configPath 'harness_adapter_schema:'
@@ -288,9 +288,9 @@ $ratioBlock
     [System.IO.File]::WriteAllText($pPath, $profiles, [System.Text.UTF8Encoding]::new($false))
 }
 
-# ─── K: Model policy — harness overrides profile ────────────────────────
+# ─── K: Model policy - harness overrides profile ────────────────────────
 Write-Host ""
-Write-Host "--- K: Model policy — harness overrides profile ---" -ForegroundColor Yellow
+Write-Host "--- K: Model policy - harness overrides profile ---" -ForegroundColor Yellow
 
 $tempK = $null
 try {
@@ -307,9 +307,9 @@ try {
     if ($null -ne $tempK) { Remove-TempProject $tempK }
 }
 
-# ─── L: Model policy — profile lookup by ModelId ────────────────────────
+# ─── L: Model policy - profile lookup by ModelId ────────────────────────
 Write-Host ""
-Write-Host "--- L: Model policy — profile lookup ---" -ForegroundColor Yellow
+Write-Host "--- L: Model policy - profile lookup ---" -ForegroundColor Yellow
 
 $tempL = $null
 try {
@@ -325,9 +325,9 @@ try {
     if ($null -ne $tempL) { Remove-TempProject $tempL }
 }
 
-# ─── M: Model policy — UNKNOWN when no data ─────────────────────────────
+# ─── M: Model policy - UNKNOWN when no data ─────────────────────────────
 Write-Host ""
-Write-Host "--- M: Model policy — UNKNOWN ---" -ForegroundColor Yellow
+Write-Host "--- M: Model policy - UNKNOWN ---" -ForegroundColor Yellow
 
 $tempM = $null
 try {
@@ -345,9 +345,9 @@ try {
     if ($null -ne $tempM) { Remove-TempProject $tempM }
 }
 
-# ─── N: Pressure — UNKNOWN without measurement ──────────────────────────
+# ─── N: Pressure - UNKNOWN without measurement ──────────────────────────
 Write-Host ""
-Write-Host "--- N: Pressure — UNKNOWN without measurement ---" -ForegroundColor Yellow
+Write-Host "--- N: Pressure - UNKNOWN without measurement ---" -ForegroundColor Yellow
 
 $tempN = $null
 try {
@@ -364,9 +364,9 @@ try {
     if ($null -ne $tempN) { Remove-TempProject $tempN }
 }
 
-# ─── O: Pressure — UNKNOWN with measurement but no thresholds ───────────
+# ─── O: Pressure - UNKNOWN with measurement but no thresholds ───────────
 Write-Host ""
-Write-Host "--- O: Pressure — UNKNOWN, measurement but no thresholds ---" -ForegroundColor Yellow
+Write-Host "--- O: Pressure - UNKNOWN, measurement but no thresholds ---" -ForegroundColor Yellow
 
 $tempO = $null
 try {
@@ -383,9 +383,9 @@ try {
     if ($null -ne $tempO) { Remove-TempProject $tempO }
 }
 
-# ─── P: Pressure — NORMAL below threshold ───────────────────────────────
+# ─── P: Pressure - NORMAL below threshold ───────────────────────────────
 Write-Host ""
-Write-Host "--- P: Pressure — NORMAL ---" -ForegroundColor Yellow
+Write-Host "--- P: Pressure - NORMAL ---" -ForegroundColor Yellow
 
 $tempP = $null
 try {
@@ -403,9 +403,9 @@ try {
     if ($null -ne $tempP) { Remove-TempProject $tempP }
 }
 
-# ─── Q: Pressure — PRESSURE at threshold ────────────────────────────────
+# ─── Q: Pressure - PRESSURE at threshold ────────────────────────────────
 Write-Host ""
-Write-Host "--- Q: Pressure — PRESSURE ---" -ForegroundColor Yellow
+Write-Host "--- Q: Pressure - PRESSURE ---" -ForegroundColor Yellow
 
 $tempQ = $null
 try {
@@ -422,9 +422,9 @@ try {
     if ($null -ne $tempQ) { Remove-TempProject $tempQ }
 }
 
-# ─── R: Pressure — ROLLOVER_RECOMMENDED ─────────────────────────────────
+# ─── R: Pressure - ROLLOVER_RECOMMENDED ─────────────────────────────────
 Write-Host ""
-Write-Host "--- R: Pressure — ROLLOVER_RECOMMENDED ---" -ForegroundColor Yellow
+Write-Host "--- R: Pressure - ROLLOVER_RECOMMENDED ---" -ForegroundColor Yellow
 
 $tempR = $null
 try {
@@ -442,9 +442,9 @@ try {
     if ($null -ne $tempR) { Remove-TempProject $tempR }
 }
 
-# ─── S: Pressure — ROLLOVER_REQUIRED ────────────────────────────────────
+# ─── S: Pressure - ROLLOVER_REQUIRED ────────────────────────────────────
 Write-Host ""
-Write-Host "--- S: Pressure — ROLLOVER_REQUIRED ---" -ForegroundColor Yellow
+Write-Host "--- S: Pressure - ROLLOVER_REQUIRED ---" -ForegroundColor Yellow
 
 $tempS = $null
 try {
@@ -461,9 +461,9 @@ try {
     if ($null -ne $tempS) { Remove-TempProject $tempS }
 }
 
-# ─── T: Safety — blocked when feature controls disabled ─────────────────
+# ─── T: Safety - blocked when feature controls disabled ─────────────────
 Write-Host ""
-Write-Host "--- T: Safety — feature controls block ---" -ForegroundColor Yellow
+Write-Host "--- T: Safety - feature controls block ---" -ForegroundColor Yellow
 
 $tempT = $null
 try {
@@ -488,9 +488,9 @@ try {
     if ($null -ne $tempT) { Remove-TempProject $tempT }
 }
 
-# ─── U: Safety — blocked when working tree dirty ────────────────────────
+# ─── U: Safety - blocked when working tree dirty ────────────────────────
 Write-Host ""
-Write-Host "--- U: Safety — working tree dirty ---" -ForegroundColor Yellow
+Write-Host "--- U: Safety - working tree dirty ---" -ForegroundColor Yellow
 
 $tempU = $null
 try {
@@ -518,9 +518,9 @@ try {
     if ($null -ne $tempU) { Remove-TempProject $tempU }
 }
 
-# ─── V: Safety — blocked when caller flags false ────────────────────────
+# ─── V: Safety - blocked when caller flags false ────────────────────────
 Write-Host ""
-Write-Host "--- V: Safety — caller flags false ---" -ForegroundColor Yellow
+Write-Host "--- V: Safety - caller flags false ---" -ForegroundColor Yellow
 
 $tempV = $null
 try {
@@ -545,9 +545,9 @@ try {
     if ($null -ne $tempV) { Remove-TempProject $tempV }
 }
 
-# ─── W: Manual rollover — full operational roundtrip ────────────────────
+# ─── W: Manual rollover - full operational roundtrip ────────────────────
 Write-Host ""
-Write-Host "--- W: Manual rollover — full roundtrip ---" -ForegroundColor Yellow
+Write-Host "--- W: Manual rollover - full roundtrip ---" -ForegroundColor Yellow
 
 $tempW = $null
 try {
@@ -600,9 +600,9 @@ try {
     if ($null -ne $tempW) { Remove-TempProject $tempW }
 }
 
-# ─── X: Manual rollover — blocked on terminal mission ───────────────────
+# ─── X: Manual rollover - blocked on terminal mission ───────────────────
 Write-Host ""
-Write-Host "--- X: Manual rollover — terminal mission ---" -ForegroundColor Yellow
+Write-Host "--- X: Manual rollover - terminal mission ---" -ForegroundColor Yellow
 
 $tempX = $null
 try {
@@ -632,7 +632,7 @@ try {
     if ($null -ne $tempX) { Remove-TempProject $tempX }
 }
 
-# ─── Y: Manual rollover — epoch ID increments correctly ─────────────────
+# ─── Y: Manual rollover - epoch ID increments correctly ─────────────────
 Write-Host ""
 Write-Host "--- Y: Epoch ID increment ---" -ForegroundColor Yellow
 
@@ -661,7 +661,7 @@ try {
     if ($null -ne $tempY) { Remove-TempProject $tempY }
 }
 
-# ─── Z: Manual rollover — prior epoch archived ──────────────────────────
+# ─── Z: Manual rollover - prior epoch archived ──────────────────────────
 Write-Host ""
 Write-Host "--- Z: Prior epoch archived ---" -ForegroundColor Yellow
 
@@ -712,3 +712,5 @@ if ($FailDetails.Count -gt 0) {
 if ($FailCount -gt 0) {
     exit 1
 }
+exit 0
+
