@@ -1078,5 +1078,50 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Context Lifecycle rollover, pressure, model policy, and adapter tests. Layer 1: static checks on model-profiles.yaml, harness-adapter.schema.json, context-epoch.schema.json rollover_state, config.yaml references, pilot config fixture. Layer 2: policy content validation. Layer 3: operational tests using GUID temp dirs with local git repos — model policy resolution hierarchy (harness/profile/unknown), pressure evaluation (UNKNOWN/NORMAL/PRESSURE/ROLLOVER_RECOMMENDED/ROLLOVER_REQUIRED), rollover safety checks, full manual rollover roundtrip, terminal mission guard, epoch ID increment, prior epoch archival. No network, no mxcli, no shared state."
+  },
+  {
+    "File": "test-capabilities-registry.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "MxAgile 1.5 capability registry static validation (scenarios A-T): capabilities.yaml exists and non-empty, schema file exists, required fields on all capabilities, unique snake_case IDs, valid version_introduced, default_state on/off, valid risk values, requires references valid IDs, external_dependencies have id and display_name, agent_may_activate_config false for auto_rollover, context_optimization config block, RTK integration file structure, Context Mode integration file structure, ELv2/Apache-2.0 license documentation, resolver script exists with CmdletBinding, capability-discovery policy, docs/capabilities.md, docs/context-optimization.md, version 1.5. Pure read-only static check."
+  },
+  {
+    "File": "test-capabilities-resolver.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "MxAgile 1.5 capability resolver operational tests (scenarios A-P): syntax valid, expected parameters, no-.mxagile-dir error, JSON output structure (framework_version, capabilities, upgrade_awareness), disabled config reports enabled=false, enabled config reports enabled=true, missing dependency reports unavailable=true, enabled+unavailable not active, context_lifecycle active when enabled, -Capability filter, unknown capability error, CheckUpgrades with no state, UpdateDiscoveryState writes file, last_seen_version read. Uses GUID temp dirs in $env:TEMP with minimal .mxagile fixture. Runs Get-MxAgileCapabilities.ps1 as subprocess. No network, no mxcli."
+  },
+  {
+    "File": "test-anti-dual-memory.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "CRITICAL acceptance requirement (MxAgile 1.5 section 21): anti-dual-memory guarantee validation (scenarios A-R). Static checks that retrieved Context Mode content cannot directly change MxAgile evidence states. Validates: anti_dual_memory_guarantee section, prohibited_promotions (UNVERIFIED->VERIFIED, FAILED->VERIFIED, STALE->VERIFIED), config.yaml ANTI-DUAL-MEMORY comment, docs coverage, retrieved content not authoritative, test_reference, WARM/HOT context mapping, context_mode_may_not authority constraints (evidence states, gate completion, mission completion, lifecycle phase), fallback must_not_block (Resume, Re-Sync, checkpoint, evidence access, normal operation). Pure read-only static check."
   }
 ]

@@ -1,0 +1,106 @@
+# MxAgile RTK Integration Definition
+# RTK (Rust Token Killer) — optional command-output optimization adapter.
+# License: Apache-2.0
+# Upstream: https://github.com/rtk-ai/rtk
+# Assessed: 2026-10-13 (version 0.37.2+, Windows support)
+#
+# Authority model:
+#   RTK is a SUBORDINATE ADAPTER.
+#   It may optimize command output representations.
+#   It has NO authority over lifecycle, evidence, checkpoint or mission state.
+#   Exit codes and success/failure semantics are always authoritative.
+#
+# Output safety classification:
+#   LOSSLESS_REQUIRED — complete canonical output must be preserved
+#   COMPACT_SAFE      — compact representation preserves actionable result
+#   BYPASS            — pass through; do not optimize
+
+integration_version: "1.0"
+assessed_upstream_version: "0.37.2+"
+assessed_date: "2026-10-13"
+license: "Apache-2.0"
+upstream: "https://github.com/rtk-ai/rtk"
+
+detection:
+  executable: rtk
+  version_command: "rtk --version"
+  version_pattern: "^rtk (\\d+\\.\\d+\\.\\d+)"
+  minimum_version: "0.37.2"
+  windows_minimum_version: "0.37.2"
+
+installation:
+  windows: "winget install rtk-ai.rtk"
+  macos: "brew install rtk"
+  linux: "brew install rtk"
+  note: "Do not run remote installer scripts. Use package manager."
+
+hook_integration:
+  claude_code:
+    mechanism: "PreToolUse hook (native binary)"
+    setup_command: "rtk init -g"
+    verify_command: "rtk init --show"
+    scope: "Bash tool calls only. Built-in Claude Code tools (Read, Grep, Glob) are NOT intercepted."
+    uninstall_command: "rtk init -g --uninstall"
+  note: "Hook installation mutates ~/.claude/settings.json. Requires explicit user authorization."
+
+output_safety:
+  LOSSLESS_REQUIRED:
+    description: "Commands where complete canonical output may be required for evidence, security verification, or debugging. Optimized representation shown to agent; raw output preserved where feasible."
+    examples:
+      - "playwright test (acceptance evidence)"
+      - "mxcli run / mxcli test (runtime verification)"
+      - "security scanning tools"
+      - "migration verification runs"
+      - "commands on runtime failure requiring complete trace"
+
+  COMPACT_SAFE:
+    description: "Commands where compact representation preserves the actionable result."
+    examples:
+      - "git status / git log / git diff"
+      - "npm list / pip list"
+      - "tsc / eslint / cargo clippy (success case)"
+      - "docker ps / kubectl get pods"
+      - "ls / find"
+
+  BYPASS:
+    description: "Pass through without optimization."
+    use_when:
+      - "Command not supported by RTK"
+      - "RTK rejects or crashes on this command"
+      - "Optimization result is unusable"
+      - "Non-idempotent mutating command after uncertain prior execution"
+      - "Command semantics are unknown"
+
+fallback:
+  triggers:
+    - "RTK not installed"
+    - "RTK disabled"
+    - "RTK rejects command"
+    - "RTK crashes"
+    - "Installed version incompatible"
+    - "Optimization result unusable"
+  behavior: "Fall back to native command execution. Preserve original exit-code semantics."
+  retry_policy: "Never re-run non-idempotent or mutating commands through a fallback path after uncertain execution."
+
+telemetry:
+  default: "disabled"
+  opt_in_command: "rtk telemetry enable"
+  what_is_collected: "Anonymized command counts, RTK version, OS, tokens saved. No source code, file paths, arguments, secrets, or repository content."
+
+storage:
+  mechanism: "SQLite (default) at system config location"
+  full_output_recall: "Failed or truncated output saved locally as 'rtk recall <hash>'"
+  disable_persistence: "Set mode = 'disabled' in rtk config.toml"
+
+mxagile_authority_contract:
+  rtk_may_not:
+    - "Determine VERIFIED / FAILED / UNVERIFIED / STALE / SUPERSEDED evidence states"
+    - "Decide gate completion"
+    - "Determine mission completion"
+    - "Decide lifecycle phase"
+    - "Decide whether Re-Sync may be skipped"
+    - "Replace canonical MxAgile evidence artifacts"
+  rtk_may:
+    - "Produce a compact representation of command output for agent reasoning"
+    - "Store full output locally for recall"
+    - "Report savings analytics"

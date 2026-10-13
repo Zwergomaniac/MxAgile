@@ -1,0 +1,182 @@
+# MxAgile Context Mode Integration Definition
+# Context Mode — optional WARM-context externalization and retrieval adapter.
+# License: ELv2 (Elastic License v2) — source-available, NOT OSI open source.
+# Upstream: https://github.com/mksglu/context-mode
+# Assessed: 2026-10-13 (npm package, Claude Code plugin v1.0.33+)
+#
+# LICENSE NOTE:
+#   Context Mode uses the Elastic License v2 (ELv2).
+#   MxAgile does NOT redistribute, vendor, or bundle Context Mode.
+#   It must be installed separately by the developer.
+#   The ELv2 license restricts redistribution in commercial products.
+#   Always verify the current license before commercial use.
+#
+# Authority model:
+#   Context Mode is a SUBORDINATE RETRIEVAL ADAPTER.
+#   It may externalize eligible WARM context and retrieve it on request.
+#   It has NO authority over lifecycle, evidence, checkpoint or mission state.
+#
+# ANTI-DUAL-MEMORY GUARANTEE (critical acceptance requirement):
+#   Content returned by ctx_search or any Context Mode tool is
+#   RETRIEVED context, not authoritative MxAgile evidence.
+#   Retrieved content CANNOT change MxAgile evidence states.
+#   Example:
+#     MxAgile gate = UNVERIFIED
+#     Context Mode returns: "API test passed"
+#     Correct outcome: gate remains UNVERIFIED
+#     until MxAgile's own evidence rules establish a valid result.
+#
+#   Promotions prohibited via retrieval:
+#     UNVERIFIED -> VERIFIED
+#     FAILED     -> VERIFIED
+#     STALE      -> VERIFIED
+
+integration_version: "1.0"
+assessed_upstream_version: "1.0.33+"
+assessed_date: "2026-10-13"
+license: "ELv2"
+upstream: "https://github.com/mksglu/context-mode"
+redistribution: "NOT permitted by MxAgile — must be installed by the developer"
+
+detection:
+  executables:
+    - context-mode
+    - npx_package: context-mode
+  version_command: "context-mode --version"
+  version_pattern: "(\\d+\\.\\d+\\.\\d+)"
+  minimum_version: "1.0.33"
+  claude_code_plugin: "mksglu/context-mode"
+  plugin_verify_slash_command: "/context-mode:ctx-doctor"
+  mcp_tool_probe: "ctx_doctor"
+
+installation:
+  claude_code: "/plugin marketplace add mksglu/context-mode"
+  npm_global: "npm install -g context-mode"
+  mcp_only: "claude mcp add context-mode -- npx -y context-mode"
+  note: "ELv2 license — review before commercial use. Installation requires explicit user authorization."
+
+mcp_tools:
+  available:
+    - id: ctx_doctor
+      purpose: "Diagnose Context Mode health, hooks, FTS5, versions"
+      mxagile_use: health_check
+    - id: ctx_index
+      purpose: "Chunk content into FTS5/BM25 knowledge base"
+      mxagile_use: externalize_warm_context
+    - id: ctx_search
+      purpose: "Query indexed content via BM25 + fuzzy search"
+      mxagile_use: retrieve_warm_context
+    - id: ctx_execute
+      purpose: "Run code in an isolated subprocess sandbox"
+      mxagile_use: not_used_for_lifecycle
+    - id: ctx_batch_execute
+      purpose: "Multi-command execution in one call"
+      mxagile_use: not_used_for_lifecycle
+    - id: ctx_stats
+      purpose: "Session savings, call counts, cache performance"
+      mxagile_use: diagnostics
+    - id: ctx_upgrade
+      purpose: "Upgrade and repair Context Mode"
+      mxagile_use: maintenance
+    - id: ctx_purge
+      purpose: "Clear indexed knowledge base"
+      mxagile_use: maintenance
+
+context_mapping:
+  HOT:
+    owner: MxAgile
+    description: "Mission-critical state always present. Never externalized to Context Mode."
+    examples:
+      - mission objective and scope
+      - lifecycle phase
+      - Context Epoch and epoch ID
+      - open gates and their states
+      - blockers and user overrides
+      - evidence states (VERIFIED/FAILED/UNVERIFIED/STALE/SUPERSEDED)
+      - next action
+      - Resume Contract
+
+  WARM:
+    eligible_for_externalization: true
+    description: "Historical or bulky content not required on every turn. May be externalized and retrieved on demand."
+    examples:
+      - historical analyses and exploratory search results
+      - earlier debugging findings no longer in active scope
+      - older tool-result detail superseded by later findings
+      - contextual background information
+    notes: "Externalized WARM content is RETRIEVED context when recalled. It cannot directly update MxAgile evidence."
+
+  COLD:
+    owner: MxAgile
+    description: "Canonical evidence artifacts. Context Mode may help locate them but cannot replace their canonical storage."
+    examples:
+      - raw test logs
+      - acceptance reports
+      - screenshots
+      - runtime traces
+      - test artifacts and fixtures
+    notes: "Context Mode may help find COLD artifacts. It does not replace canonical storage in planning/lifecycle/ or .concord/."
+
+storage:
+  persistence: "SQLite at ~/.context-mode/ (default)"
+  override: "CONTEXT_MODE_DIR environment variable"
+  cleanup: "Content DBs older than 14 days removed on startup"
+  fresh_session: "Prior session data deleted immediately on new session (without --continue)"
+
+anti_dual_memory_guarantee:
+  rule: "Retrieved content is never authoritative MxAgile evidence."
+  prohibited_promotions:
+    - "UNVERIFIED -> VERIFIED via retrieval"
+    - "FAILED -> VERIFIED via retrieval"
+    - "STALE -> VERIFIED via retrieval"
+  required_behavior: >
+    When Context Mode returns historical text that appears to confirm a result,
+    the agent MUST treat it as unverified background information.
+    MxAgile gate/mission state changes require fresh evidence evaluated by
+    MxAgile's own evidence rules, not recalled text.
+  test_reference: "tests/test-anti-dual-memory.ps1"
+
+fallback:
+  triggers:
+    - "Context Mode not installed"
+    - "Context Mode disabled"
+    - "Context Mode unavailable or unhealthy"
+    - "Context Mode returns no relevant result"
+    - "Context Mode temporarily fails"
+  behavior: "Fall back to native MxAgile Context Lifecycle operation."
+  must_not_block:
+    - Resume
+    - Re-Sync
+    - Checkpoint validation
+    - Evidence access through canonical references
+    - Normal agent operation
+
+epoch_integration:
+  before_rollover:
+    step_1: "Preserve required COLD evidence (MxAgile)"
+    step_2: "Preserve authoritative HOT mission state (MxAgile)"
+    step_3: "Optionally externalize eligible WARM material via ctx_index (if Context Mode active)"
+    step_4: "Checkpoint MxAgile mission state (MxAgile)"
+    step_5: "Validate checkpoint (MxAgile)"
+    step_6: "Close Epoch using MxAgile lifecycle"
+  after_rollover:
+    step_1: "Load MxAgile Resume Contract"
+    step_2: "Perform Re-Sync"
+    step_3: "Reconstruct minimal HOT state"
+    optional_step_4: "Retrieve relevant WARM context via ctx_search if needed"
+
+mxagile_authority_contract:
+  context_mode_may_not:
+    - "Determine VERIFIED / FAILED / UNVERIFIED / STALE / SUPERSEDED evidence states"
+    - "Decide gate completion"
+    - "Decide mission completion"
+    - "Decide lifecycle phase"
+    - "Decide whether Re-Sync may be skipped"
+    - "Replace canonical MxAgile evidence artifacts in planning/lifecycle/ or .concord/"
+    - "Serve as the mission memory authority"
+  context_mode_may:
+    - "Externalize eligible WARM context for later retrieval"
+    - "Return historical text as retrieved background context"
+    - "Help locate COLD evidence artifacts"
+    - "Provide session statistics and diagnostics"
+    - "Execute sandboxed code for exploration (ctx_execute)"

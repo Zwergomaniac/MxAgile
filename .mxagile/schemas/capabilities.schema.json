@@ -1,0 +1,159 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:capabilities",
+  "title": "MxAgile Capability Registry",
+  "description": "Machine-readable catalog of developer-visible MxAgile capabilities.",
+  "type": "object",
+  "required": ["schema_version", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version for this registry format."
+    },
+    "assessed": {
+      "type": "string",
+      "description": "ISO date when external dependencies were last assessed."
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "List of framework capabilities.",
+      "items": { "$ref": "#/definitions/Capability" }
+    }
+  },
+  "definitions": {
+    "Capability": {
+      "type": "object",
+      "required": ["id", "name", "description", "category", "version_introduced", "default_state", "config_location", "config_key", "activation_mechanism", "requires", "external_dependencies", "availability_detection", "risk", "docs_ref", "agent_may_recommend", "agent_may_activate_config", "user_approval_required"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Stable snake_case capability identifier."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable capability name."
+        },
+        "description": {
+          "type": "string",
+          "description": "One-line description of the capability's purpose."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["context-lifecycle", "context-optimization", "knowledge-graph", "toolchain"],
+          "description": "Capability category."
+        },
+        "version_introduced": {
+          "type": "string",
+          "description": "MxAgile framework version that introduced this capability."
+        },
+        "default_state": {
+          "type": "string",
+          "enum": ["on", "off"],
+          "description": "Whether capability is on or off when config is absent."
+        },
+        "config_location": {
+          "type": "string",
+          "description": "Path to the configuration file, relative to project root."
+        },
+        "config_key": {
+          "type": "string",
+          "description": "Dot-path to the controlling configuration key."
+        },
+        "activation_mechanism": {
+          "type": "string",
+          "description": "Human-readable instructions for enabling this capability."
+        },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Capability IDs that must be enabled before this one."
+        },
+        "external_dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/ExternalDependency" },
+          "description": "External tools or packages required by this capability."
+        },
+        "incompatibilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Capability IDs that cannot be active at the same time."
+        },
+        "availability_detection": {
+          "type": "string",
+          "description": "How to detect whether this capability is available in the current environment."
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Risk level if this capability is mis-configured."
+        },
+        "docs_ref": {
+          "type": "string",
+          "description": "Documentation file path, relative to project root."
+        },
+        "agent_may_recommend": {
+          "type": "boolean",
+          "description": "Whether an AI agent may proactively surface this capability."
+        },
+        "agent_may_activate_config": {
+          "type": "boolean",
+          "description": "Whether an AI agent may safely edit project config to enable this capability."
+        },
+        "user_approval_required": {
+          "type": "boolean",
+          "description": "Whether enabling requires external software installation or global machine mutation."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional additional notes for agents and operators."
+        }
+      }
+    },
+    "ExternalDependency": {
+      "type": "object",
+      "required": ["id", "display_name"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier for this dependency."
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "executable": {
+          "type": "string",
+          "description": "Executable name to detect in PATH."
+        },
+        "version_constraint": {
+          "type": "string",
+          "description": "Semver constraint string for a compatible version."
+        },
+        "license": {
+          "type": "string",
+          "description": "SPDX license identifier or short description."
+        },
+        "upstream": {
+          "type": "string",
+          "description": "Upstream repository or homepage URL."
+        },
+        "assessed_version": {
+          "type": "string",
+          "description": "Version or revision assessed when this entry was written."
+        },
+        "assessed_date": {
+          "type": "string",
+          "description": "ISO date of the upstream assessment."
+        },
+        "license_note": {
+          "type": "string",
+          "description": "Additional licensing notes relevant to integration decisions."
+        }
+      }
+    }
+  }
+}
