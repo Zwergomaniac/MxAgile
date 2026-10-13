@@ -3,6 +3,9 @@ min_compatible: "1.0"
 updated: "2026-10-13"
 changes:
   "1.5":
+    - "Execution-Environment Intent: policies/execution-intent.md — detect Studio Pro + Concord MCP combination; ask once before choosing live vs headless; separate ENVIRONMENT CAPABILITY from USER INTENT; session-scoped decision state; Re-Sync Cases A/B/C; no lifecycle-gate impact"
+    - "Capability Registry additions: concord_mcp (toolchain), studio_pro_mcp (toolchain) with mcp__concord-v2-mcp__ tool-namespace detection"
+    - "Orchestrator: Startup Re-Sync Schritt 1b — execution intent resolution after operating-mode detection"
     - "Context Optimization & Capability Discovery"
     - "Capability Registry: .mxagile/capabilities.yaml with SUPPORTED/AVAILABLE/ENABLED/ACTIVE/DEGRADED/UNAVAILABLE state model"
     - "Capability Resolver: scripts/Get-MxAgileCapabilities.ps1 (authoritative, human+json output, upgrade awareness)"

@@ -234,3 +234,53 @@ capabilities:
     agent_may_activate_config: true
     user_approval_required: true
     notes: "Requires Graphify CLI installation. Run 'scripts/install-graphify.ps1' for project-local installation."
+
+  # -----------------------------------------------------------------------
+  # Toolchain — Studio Pro MCP and Concord MCP
+  # -----------------------------------------------------------------------
+
+  - id: studio_pro_mcp
+    name: "Studio Pro MCP"
+    description: "Mendix Studio Pro MCP endpoint — direct IDE control from the agent via HTTP at localhost:7782."
+    category: toolchain
+    version_introduced: "1.5"
+    default_state: "off"
+    config_location: ".vscode/mcp.json"
+    config_key: "servers.mendix-studio-pro"
+    activation_mechanism: "Configure 'mendix-studio-pro' in .vscode/mcp.json (type: http, url: http://localhost:7782/mcp). Studio Pro must be running for availability."
+    requires: []
+    external_dependencies:
+      - id: mendix_studio_pro
+        display_name: "Mendix Studio Pro"
+        assessed_date: "2026-10-13"
+    incompatibilities: []
+    availability_detection: "Detect 'mcp__mendix-studio-pro__*' tools in agent tool namespace. Requires operating_mode: LIVE-SP-CURRENT (check-studio-pro-status.ps1). MCP endpoint at http://localhost:7782/mcp must be reachable."
+    risk: low
+    docs_ref: "docs/execution-intent.md"
+    agent_may_recommend: false
+    agent_may_activate_config: false
+    user_approval_required: false
+    notes: "AVAILABLE only when Studio Pro is open for the current project (LIVE-SP-CURRENT). Not a substitute for process-level operating-mode detection. See policies/execution-intent.md."
+
+  - id: concord_mcp
+    name: "Concord MCP"
+    description: "Concord v2 MCP server — bridge between the AI agent, Mendix Studio Pro, and project knowledge."
+    category: toolchain
+    version_introduced: "1.5"
+    default_state: "off"
+    config_location: ".vscode/mcp.json"
+    config_key: "servers.concord-v2-mcp"
+    activation_mechanism: "Configure 'concord-v2-mcp' in .vscode/mcp.json (type: stdio, script: scripts/start-concord-mcp.ps1). The MCP server process must be running for availability."
+    requires: []
+    external_dependencies:
+      - id: concord_v2
+        display_name: "Concord v2 MCP Server"
+        assessed_date: "2026-10-13"
+    incompatibilities: []
+    availability_detection: "Detect 'mcp__concord-v2-mcp__*' tools in agent tool namespace. Secondary: .vscode/mcp.json contains concord-v2-mcp entry (CONFIGURED, not necessarily ACTIVE). Configuration evidence alone does not imply AVAILABLE."
+    risk: low
+    docs_ref: "docs/execution-intent.md"
+    agent_may_recommend: false
+    agent_may_activate_config: false
+    user_approval_required: false
+    notes: "SUPPORTED when .vscode/mcp.json has concord-v2-mcp. AVAILABLE only when mcp__concord-v2-mcp__* tools appear in the agent tool namespace. Combined with studio_pro_mcp AVAILABLE, this constitutes the strong signal for execution-intent resolution. See policies/execution-intent.md."

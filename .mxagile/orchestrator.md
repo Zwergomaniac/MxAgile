@@ -108,6 +108,42 @@ Vollstaendiger Erkennungsalgorithmus: `policies/operating-mode.md`.
 **Verboten:** Den Benutzer nach dem Betriebsmodus fragen, bevor Schritt 3 ausgefuehrt wurde.
 Vollstaendige Regeln fuer erlaubte Rueckfragen: `policies/operating-mode.md § User Question Policy`.
 
+### Schritt 1b — Ausfuehrungs-Intent aufloesen (nur bei LIVE-SP-CURRENT)
+
+Nur ausfuehren wenn Schritt 1 LIVE-SP-CURRENT ergab.
+Vollstaendiger Vertrag: `policies/execution-intent.md`.
+
+```
+Betriebsmodus = LIVE-SP-CURRENT?
+  NEIN → Schritt 2 direkt (kein starkes Signal moeglich)
+
+  JA →
+    Concord MCP erkannt? (mcp__concord-v2-mcp__* Tools im Agent-Tool-Namespace)
+    NEIN/UNKNOWN → Schwaches Signal → Schritt 2 direkt
+
+    JA (Starkes Signal) →
+      Execution-Intent aus .concord/scratch/process-state.yaml laden
+      ├── Intent bereits aufgeloest UND Umgebungssignale unveraendert
+      │     → Schritt 2 direkt (gespeicherte Entscheidung gilt)
+      ├── Explizite Benutzeranweisung im aktuellen Request erkannt
+      │     → Anweisung persistieren → Schritt 2 direkt
+      └── Intent unaufgeloest
+            → GENAU EINE Frage stellen (policies/execution-intent.md § User Question)
+            → Antwort als execution_intent in .concord/scratch/process-state.yaml speichern
+            → Schritt 2 fortsetzen
+```
+
+**Invarianten:**
+- Diese Frage erfuellt KEIN Lifecycle-Gate und aendert KEINEN Missionszustand.
+- Nach der Antwort den urspruenglichen Auftrag ab dem kleinsten sicheren Punkt fortsetzen.
+- Kein Context-Epoch-Rollover, kein Phasenwechsel, keine Evidenz-Promotion.
+- Betriebsmodus-Semantik (LIVE-SP-CURRENT Koexistenz-Vertrag) bleibt unveraendert.
+
+**Re-Sync-Verhalten:** Wenn ein frueherer Ausfuehrungs-Intent als `studio_pro_live`
+persistiert ist, aber Studio Pro oder Concord MCP nicht mehr erkannt werden: geaenderte
+Umgebung melden und auf `normal_headless` wechseln (vollstaendige Regeln:
+`policies/execution-intent.md § Re-Sync Behavior`).
+
 ### Schritt 2 — Lifecycle-Zustand rekonstruieren
 
 Quellen in Autoritaetsreihenfolge:

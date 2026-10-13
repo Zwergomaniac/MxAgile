@@ -1123,5 +1123,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "CRITICAL acceptance requirement (MxAgile 1.5 section 21): anti-dual-memory guarantee validation (scenarios A-R). Static checks that retrieved Context Mode content cannot directly change MxAgile evidence states. Validates: anti_dual_memory_guarantee section, prohibited_promotions (UNVERIFIED->VERIFIED, FAILED->VERIFIED, STALE->VERIFIED), config.yaml ANTI-DUAL-MEMORY comment, docs coverage, retrieved content not authoritative, test_reference, WARM/HOT context mapping, context_mode_may_not authority constraints (evidence states, gate completion, mission completion, lifecycle phase), fallback must_not_block (Resume, Re-Sync, checkpoint, evidence access, normal operation). Pure read-only static check."
+  },
+  {
+    "File": "test-execution-intent.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "MxAgile 1.5 execution-environment intent fix: static contract checks on execution-intent.md, orchestrator.md Schritt 1b, and capabilities.yaml. Covers 15 required scenarios: strong-signal clarification, weak-signal suppression, no-SP suppression, unknown-not-detected, explicit-intent suppression, session-persistence, re-sync Cases A/B/C, no lifecycle-gate impact, no evidence-state change, no epoch-rollover, user-override priority, LIVE-SP-CURRENT backward compatibility, Concord MCP detection via mcp__concord-v2-mcp__ tool namespace, configuration-evidence-not-sufficient. Pure read-only static validation."
   }
 ]
