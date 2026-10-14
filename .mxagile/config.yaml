@@ -52,6 +52,11 @@ graphify:
 # ---------------------------------------------------------------------------
 context_lifecycle:
   # Master switch. When false all sub-features are inactive.
+  # DEFAULT POLICY (MxAgile 1.6, post-acceptance):
+  #   NEW installations: enable enabled/checkpoint_resume/manual_rollover/pressure_recommendations.
+  #   auto_rollover remains false — enable only after manual rollover is proven.
+  #   Existing installations: upgrade contract requires explicit opt-in via project migration.
+  #   Safe defaults for new installations are documented in docs/installation.md.
   enabled: false
 
   # Write and read planning/lifecycle/context-epoch.yaml
@@ -61,10 +66,14 @@ context_lifecycle:
   manual_rollover: false
 
   # Emit pressure-level recommendations (PRESSURE / ROLLOVER_RECOMMENDED)
+  # Note: pressure state is UNKNOWN when no reliable measurement exists.
+  # Recommendations may be enabled while pressure remains UNKNOWN — they will report
+  # UNKNOWN state rather than invent measurements.
   pressure_recommendations: false
 
   # Automatically roll over at the next safe lifecycle boundary
   # Only activate after checkpoint_resume and manual_rollover are proven.
+  # REMAINS false by default — even in new installations.
   auto_rollover: false
 
   # Context-pressure thresholds (in tokens).

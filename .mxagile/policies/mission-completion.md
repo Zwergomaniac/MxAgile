@@ -609,3 +609,82 @@ After a phase-boundary checkpoint commit:
 - Do NOT produce a final report because a commit was created
 
 See commit-authority.md § Continue After Commit.
+
+---
+
+## Final Completion Cleanliness Gate (RF-010)
+
+Immediately before claiming any of the following:
+- campaign complete
+- mission complete
+- working tree clean
+- handoff clean
+
+The agent MUST inspect repository state AFTER the final runtime/test-harness action.
+
+### Rule
+
+```
+last test-harness / runtime action
+    ↓
+git status AFTER action (not before)
+    ↓
+classify remaining changes (see policies/test-harness-cleanup.md)
+    ↓
+TEMPORARY_TEST_HARNESS_ARTIFACT present?
+    YES → clean deterministically → git status again → continue gate
+    NO  → proceed
+
+UNEXPECTED_OR_UNKNOWN changes present?
+    YES → do NOT claim clean completion
+          report unknown changes for developer review
+    NO  → proceed
+
+No unexplained changes remain?
+    YES → completion claim is valid
+```
+
+**Prohibited:**
+- Do NOT accept an earlier git-status check as final evidence if a test harness ran after it.
+- Do NOT claim "working tree clean" if any UNEXPECTED_OR_UNKNOWN changes remain.
+- Do NOT delete UNEXPECTED_OR_UNKNOWN files automatically.
+
+### Regression Pattern (Mode A)
+
+The following failure pattern MUST be caught by this gate:
+
+```
+agent runs git status → "clean"
+    ↓
+test harness activates (MxTest, Playwright, mxunit)
+    ↓
+harness mutates repository (injects *.mxunit, javasource/mxtest/)
+    ↓
+agent claims "mission complete, working tree clean"  ← FORBIDDEN without re-check
+```
+
+The final git status check MUST occur AFTER the last test-harness or runtime action.
+
+---
+
+## Test-Script vs Application Defect Distinction (RF-009)
+
+MxAgile MUST be able to distinguish between:
+
+| Classification | Definition | Example |
+|----------------|-----------|---------|
+| `TEST_SCRIPT_FAILURE` | The test script itself has a bug, wrong selector, or navigation error | Playwright selector not found because test navigates to wrong URL |
+| `APPLICATION_DEFECT` | The application under test behaves incorrectly | Business logic produces wrong result |
+| `TEST_INFRASTRUCTURE_GAP` | The test infrastructure is missing, unavailable, or misconfigured | Runtime not started; MCP not available |
+
+**Rules:**
+- A failed Playwright assertion is NOT necessarily an APPLICATION_DEFECT.
+  Classify first: was the test script the issue, or the application?
+- Test-script findings from specific campaigns (e.g. a campaign-specific Playwright
+  navigation defect) are `PROJECT_SPECIFIC` findings — they MUST NOT
+  enter generic MxAgile Core behavior.
+- The generic classification model above applies to all projects.
+- No campaign-specific navigation names, route patterns, or selector strings belong in Core.
+
+**Documentation rule:** Project/test-suite-specific findings are documented in
+`planning/` or `.concord/` — not in `.mxagile/policies/` or `.mxagile/skills/`.

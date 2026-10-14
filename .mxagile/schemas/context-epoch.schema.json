@@ -101,6 +101,10 @@
         "wave": {
           "type": "string",
           "description": "MxAgile wave this mission is executing within, e.g. W01."
+        },
+        "campaign": {
+          "type": ["string", "null"],
+          "description": "Acceptance or overlay campaign identifier (e.g. 'captrack-abcd', 'hardening-1.6'). Null when not an overlay campaign. Used by Resume to distinguish campaign scope from general project lifecycle."
         }
       }
     },

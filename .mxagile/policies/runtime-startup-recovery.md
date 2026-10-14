@@ -27,6 +27,48 @@ any classification is recorded or reported.
 
 ---
 
+## Ambiguous Start Result ≠ Application Not Started (RF-006)
+
+A background or non-blocking `mxcli run --local` command may produce an ambiguous result
+(no immediate confirmation of success or failure) while the JVM/runtime has already
+started successfully. A second start attempt against a running application WILL fail with:
+
+```
+java.net.BindException: Address already in use
+```
+
+**Rule: AMBIGUOUS_START_RESULT ≠ APPLICATION_NOT_STARTED**
+
+Before retrying after an ambiguous start result:
+
+```
+AMBIGUOUS START RESULT
+    ↓
+1. Check application reachability: HTTP GET http://localhost:<port>/  (timeout 15s)
+   → APPLICATION_REACHABLE? YES → runtime started successfully; do NOT retry
+   → APPLICATION_REACHABLE? NO  → continue to step 2
+
+2. Inspect port/process ownership (where safely supported):
+   netstat -ano | findstr :<port>
+   → Port occupied by intended project process? → runtime is the intended one; reuse
+   → Port occupied by unrelated process?        → different conflict; classify separately
+   → Port not occupied?                         → runtime not started; safe to retry
+
+3. Determine intended project ownership:
+   → Compare process command line / PID with known mxcli/mxbuild PIDs
+   → If intended project runtime: reuse it; do NOT restart
+
+4. Only restart if evidence shows runtime is stale, wrong project, or port is free
+```
+
+**Prohibited:**
+- Do NOT blindly retry `mxcli run --local` after an ambiguous result.
+- Do NOT declare APPLICATION_NOT_STARTED without checking reachability first.
+- Do NOT implement a general process manager for this check.
+  Use mxcli/runtime utilities and OS tools (netstat, Get-Process) for the checks above.
+
+---
+
 ## Startup Failure Response: Evidence-First Model
 
 When a startup attempt does not reach `APPLICATION_REACHABLE` within the configured timeout:

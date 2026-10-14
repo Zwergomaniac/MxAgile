@@ -201,4 +201,4 @@ with `fixture_isolation: NONE` rather than as a standard isolated test.
 - `policies/local-runtime-profile.md` § Agent Prohibition — no identity creation to mask config mismatch
 - `policies/representative-fixture-contract.md` — when a test identity is also a representative scope fixture
 - `schemas/process-state.schema.json` — `test_identity_lifecycle.open_scopes` tracking
-- `tests/verify-demo-user-switcher.test.sh` — example of properly scoped test identity use
+- `tests/verify-demo-login.test.sh` — example of properly scoped test identity use

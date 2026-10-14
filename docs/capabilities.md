@@ -184,3 +184,73 @@ The result includes an `upgrade_awareness.new_capabilities` array listing capabi
 **State file:** `.concord/capability-discovery.yaml` (gitignored, local only).
 
 Agents should not repeatedly announce the same new capabilities. Check once per Framework version change and acknowledge with `-UpdateDiscoveryState`.
+
+---
+
+## Capability Summary UX (RF-Campaign: Section 14)
+
+A normal MxAgile developer should not need to know feature names or read all documentation.
+The Capability Resolver surfaces a concise summary when asked (e.g. `/mxagile status`,
+"what can MxAgile do", "what optimizations are available").
+
+### Desired Output Format
+
+```
+MxAgile 1.6
+
+Core:
+  Context Lifecycle       ACTIVE
+  Checkpoint / Resume     ACTIVE
+  Re-Sync                 ACTIVE
+
+Optional optimization:
+  RTK                     AVAILABLE (not enabled)
+  Context Mode            UNAVAILABLE (not installed)
+  Graphify                UNAVAILABLE (not installed)
+
+Environment:
+  Studio Pro              LIVE-SP-CURRENT (PID 1234)
+  Concord MCP             not detected
+```
+
+**Rules:**
+- Only surface the summary when explicitly requested or at system check.
+- Do NOT flood every prompt with capability state.
+- Only recommend optional capabilities when relevant to the current work.
+- Do NOT repeatedly recommend capabilities the user just declined.
+- Do NOT auto-install external dependencies.
+
+### Recommendation Trigger Examples
+
+| Current work | Relevant recommendation |
+|-------------|------------------------|
+| CLI-output-heavy mission | RTK (if AVAILABLE but not enabled) |
+| Long historical context, multi-epoch workload | Context Mode (if AVAILABLE but not enabled) |
+| Large cross-file code analysis | Graphify (if AVAILABLE but not enabled) |
+
+---
+
+## AI-First Capability Discovery (Section 15)
+
+Agents must be able to answer intent-level questions without relying on model memory:
+
+| User question | Resolver path |
+|---------------|--------------|
+| "Can MxAgile reduce context usage?" | `Get-MxAgileCapabilities.ps1 -Category context-optimization` |
+| "Can this mission survive a new session?" | `Get-MxAgileCapabilities.ps1 -Capability checkpoint_resume` |
+| "What optional optimizations are available?" | `Get-MxAgileCapabilities.ps1` |
+
+The pattern is:
+
+```
+small routing instruction in always-loaded content
+    ↓
+Get-MxAgileCapabilities.ps1 (resolver)
+    ↓
+structured capability output
+    ↓
+agent provides relevant explanation based on actual state
+```
+
+Always-loaded instructions remain concise (routing only). Full capability details
+come from the resolver on demand, not from static always-loaded text.

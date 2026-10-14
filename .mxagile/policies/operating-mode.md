@@ -97,8 +97,11 @@ Record `detection_source: platform_headless`.
 ### Step 3 — Run the canonical detector
 
 ```powershell
-scripts/check-studio-pro-status.ps1 -ProjectPath $currentMpr -Json
+scripts/check-studio-pro-status.ps1 -ProjectPath $currentMpr -Json -TimeoutSeconds 10
 ```
+
+The detector runs with a bounded timeout. A slow or frozen WMI/CIM subsystem MUST NOT
+hang the agent indefinitely. Default timeout: 10 seconds.
 
 Parse JSON output. Interpret exit codes:
 
@@ -107,6 +110,7 @@ Parse JSON output. Interpret exit codes:
 | 0 | isOpen=true | LIVE-SP-CURRENT |
 | 1 | isOpen=false, anyStudioProRunning=false | CLOSED-AUTONOM |
 | 1 | isOpen=false, anyStudioProRunning=true | LIVE-SP-OTHER |
+| 2 | error contains "TIMEOUT" | AMBIGUOUS-SP-STATE (UNKNOWN) |
 | 2 | error / anyStudioProRunning=null | AMBIGUOUS-SP-STATE |
 
 For exit 1:
@@ -114,11 +118,36 @@ For exit 1:
 - `anyStudioProRunning = true` → LIVE-SP-OTHER
 - `anyStudioProRunning = $null` → AMBIGUOUS-SP-STATE
 
+**CRITICAL — Timeout MUST NOT become CLOSED-AUTONOM:**
+
+A detection timeout means the result is UNKNOWN (AMBIGUOUS-SP-STATE).
+Repository/runtime evidence cannot prove CLOSED-AUTONOM from a timeout alone.
+
+```
+detector timed out
+    ↓
+detection_state = UNKNOWN
+    ↓
+operating_mode  = AMBIGUOUS-SP-STATE
+    ↓
+NOT CLOSED-AUTONOM
+```
+
+Rationale: The detector failing to complete does NOT prove Studio Pro is absent.
+It only proves the detection did not succeed within the time bound.
+Setting CLOSED-AUTONOM based on a timeout is a false-safety assumption.
+
 ### Step 4 — Inspect project lock (supplementary)
 
 If the project directory contains a Mendix lock file (`.mpr.lock`, `.lock`, or similar),
-treat it as corroborating evidence for LIVE-SP-CURRENT. Do NOT treat a stale lock as
-conclusive — combine with Step 3 result.
+treat it as corroborating **project-affinity evidence** for LIVE-SP-CURRENT.
+
+**IMPORTANT:** MPR lock evidence MUST NOT:
+- Directly imply user execution intent (`studio_pro_live`)
+- Override a TIMEOUT result (a lock + timeout → still AMBIGUOUS-SP-STATE, not LIVE-SP-CURRENT)
+- Be treated as conclusive without corroborating Step 3 evidence
+
+Combine with Step 3 result only. MPR busy/locked → project-affinity evidence only.
 
 ### Step 5 — Classify
 
@@ -127,8 +156,8 @@ Apply the mode definitions above. Record:
 - `studio_pro_pid` (if relevant)
 - `studio_pro_project_path` (if detected)
 - `other_studio_pro_pids` (if LIVE-SP-OTHER)
-- `detection_source` (script_exit_0 / script_exit_1_no_sp / script_exit_1_other_sp / platform_headless / script_failed)
-- `detection_confidence` (high / medium / ambiguous)
+- `detection_source` (script_exit_0 / script_exit_1_no_sp / script_exit_1_other_sp / platform_headless / script_failed / script_timeout)
+- `detection_confidence` (high / medium / ambiguous / unknown)
 - `detected_at` (ISO timestamp)
 
 ---

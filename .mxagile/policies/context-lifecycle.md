@@ -169,6 +169,95 @@ Agent meldet `NORMAL` wenn keine Messung verfügbar ist.
 
 ---
 
+## Resume Mission Priority (RF-001)
+
+### Zustandsdimensionen beim Resume
+
+Beim Resume müssen vier Zustandsdimensionen klar unterschieden werden:
+
+| Dimension | Beschreibung | Quelle |
+|-----------|-------------|--------|
+| **Allgemeiner Produkt-Lifecycle** | FEATURE_SCOPE_COMPLETE, offene Waves usw. | `planning/lifecycle/process-state.yaml` |
+| **Aktive MxAgile-Mission** | Laufende, nicht abgeschlossene Mission mit aktiver Checkpoint | `context-epoch.yaml` (mission_scope + checkpoint) |
+| **Akzeptanz-/Overlay-Kampagne** | Laufende A/B/C/D-Kampagne oder ähnliche | `context-epoch.yaml` → `mission_scope.campaign` |
+| **Operationelle Context Epoch** | Laufende Epoch mit Druck-Zustand und HOT-Kontext | `context-epoch.yaml` → `epoch_id` |
+
+### Aktive Mission gewinnt bei Resume
+
+Wenn ein gültiger aktiver Missions-Checkpoint existiert, **muss** der Agent diese
+Mission priorisieren — NICHT auf den allgemeinen Produkt-Lifecycle-Zustand zurückfallen.
+
+**Verboten:**
+Ein Agent darf NICHT `FEATURE_SCOPE_COMPLETE` oder einen anderen allgemeinen
+Produkt-Lifecycle-Zustand aus `process-state.yaml` als Begründung verwenden,
+eine laufende Mission (aktiver Checkpoint) zu ignorieren oder zu überschreiben.
+
+**Korrekte Resume-Logik:**
+
+```
+1. Checkpoint lesen (operationeller Store → Handoff-Store → kein Checkpoint)
+2. Checkpoint vorhanden?
+   NEIN → normaler Startup Re-Sync ohne Mission-Priority
+   JA →
+     mission_scope.status = "active" UND checkpoint.is_valid = true?
+     JA → Aktive Mission priorisieren; allgemeinen Lifecycle nur als Kontext verwenden
+     NEIN (status = "completed" oder is_valid = false) →
+       normaler Startup Re-Sync; Checkpoint für Audit aufbewahren
+3. Ambiguität (fehlende Diskriminatoren, fehlende mission_scope.status)?
+   → Ambiguität berichten; Nutzer NICHT auffordern, die Mission selbst zu rekonstruieren
+```
+
+### mission_scope Diskriminator im Checkpoint
+
+Das `context-epoch.yaml`-Schema muss folgende Felder unterstützen:
+
+```yaml
+mission_scope:
+  status: active | completed | suspended
+  description: "<kurze Missionsbezeichnung>"
+  campaign: "<Kampagnenname wenn applicable, sonst null>"
+  mission_id: "<stabile ID, z.B. Ticket-Nummer oder UUID>"
+```
+
+**Rückwärtskompatibilität:**
+
+- Checkpoints OHNE `mission_scope` → verhalten sich wie bisher (kein aktiver
+  Missions-Checkpoint; normaler Startup Re-Sync).
+- Checkpoints MIT `mission_scope.status: active` → Mission-Priority-Regel greift.
+- Checkpoints MIT `mission_scope.status: completed` → kein Mission-Priority; normaler
+  Startup Re-Sync.
+- `mission_scope.status` fehlt aber Checkpoint existiert → behandle als kein aktiver
+  Missions-Checkpoint; berichte Ambiguität wenn Kontext darauf hindeutet.
+
+### Akzeptanz-/Overlay-Kampagne
+
+Laufende Akzeptanz-Kampagnen (wie CapTrack A/B/C/D) nutzen `mission_scope.campaign`
+als Scoping-Diskriminator.
+
+Ein Checkpoint einer laufenden Kampagne hat VORRANG vor `process-state.yaml`
+bezüglich der aktuellen aktiven Arbeit — NICHT bezüglich des Produkt-Lifecycle-Status
+von bereits abgeschlossenen Waves.
+
+### Checkpoint-Durability (Abschnitt 12 Kontrakt)
+
+Ein Checkpoint ist nur gültig, wenn er dauerhaft und innerhalb des beabsichtigten
+Resume-Scopes erreichbar ist:
+
+| Resume-Scope | Gültige Checkpoint-Quelle |
+|-------------|--------------------------|
+| Gleiche Maschine, gleiche Working Copy | Operationeller Store (`.concord/`) ausreichend |
+| Fresh Clone / andere Maschine / expliziter Handoff | Operationeller Store NICHT ausreichend; Handoff-Store (`planning/lifecycle/`) mit committed `context-epoch.yaml` erforderlich |
+
+**Konsequenz:**
+- Lokaler gitignorierter Checkpoint ist KEIN Nachweis für maschinen-übergreifende
+  Missions-Fortsetzbarkeit.
+- Der Agent muss den beabsichtigten Resume-Scope beim Erstellen eines Checkpoints
+  explizit berücksichtigen.
+- Bei explizitem Handoff-Bedarf: `-WriteHandoffCopy` verwenden und den
+  Handoff-Store committen.
+
+---
+
 ## Durable Resume Contract
 
 ### Speicherorte
