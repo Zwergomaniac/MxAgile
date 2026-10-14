@@ -19,13 +19,18 @@ Emit a single-line JSON object instead of human-readable text.
 .OUTPUTS
 Exit code 0  — the project IS open in Studio Pro.
 Exit code 1  — the project is NOT open in Studio Pro.
-Exit code 2  — the check itself failed (e.g. project file not found).
+Exit code 2  — the check itself failed (e.g. project file not found, timeout, permission error).
+
+Exit code 2 with error containing "TIMEOUT" means detection did not complete within
+-TimeoutSeconds. The agent MUST treat this as AMBIGUOUS-SP-STATE (= UNKNOWN), NOT as
+CLOSED-AUTONOM. Absence of a detection result is not proof that Studio Pro is absent.
 #>
 
 [CmdletBinding()]
 param(
     [string]$ProjectPath,
-    [switch]$Json
+    [switch]$Json,
+    [int]$TimeoutSeconds = 10
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,7 +66,37 @@ try {
 }
 
 $projectArgument = $ProjectPath.ToLowerInvariant()
-$allStudioProProcesses = @(Get-CimInstance Win32_Process -Filter "Name='studiopro.exe'" -ErrorAction SilentlyContinue)
+
+# Bounded detection: run CIM query in a background job so we can enforce a timeout.
+# A slow WMI/CIM subsystem must not hang the agent indefinitely.
+$detectionJob = Start-Job -ScriptBlock {
+    param($filter)
+    @(Get-CimInstance Win32_Process -Filter $filter -ErrorAction SilentlyContinue)
+} -ArgumentList "Name='studiopro.exe'"
+
+$completed = Wait-Job -Job $detectionJob -Timeout $TimeoutSeconds
+if (-not $completed) {
+    Remove-Job -Job $detectionJob -Force -ErrorAction SilentlyContinue
+    $timeoutMsg = "Studio Pro detection timed out after ${TimeoutSeconds}s. Result is UNKNOWN (AMBIGUOUS-SP-STATE), NOT CLOSED-AUTONOM."
+    if ($Json) {
+        [PSCustomObject]@{
+            isOpen              = $null
+            pid                 = $null
+            projectPath         = $ProjectPath
+            anyStudioProRunning = $null
+            otherProjectPids    = @()
+            error               = "TIMEOUT: $timeoutMsg"
+            detection_state     = "UNKNOWN"
+        } | ConvertTo-Json -Compress
+    } else {
+        Write-Error $timeoutMsg
+    }
+    exit 2
+}
+
+$allStudioProProcesses = @(Receive-Job -Job $detectionJob -ErrorAction SilentlyContinue)
+Remove-Job -Job $detectionJob -Force -ErrorAction SilentlyContinue
+
 $existingProjectProcess = $allStudioProProcesses |
     Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($projectArgument) } |
     Select-Object -First 1

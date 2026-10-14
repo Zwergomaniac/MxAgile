@@ -261,11 +261,11 @@ if (Test-Path $ctxOptFile) {
     Assert-True 'S. context-optimization.md mentions anti-dual-memory' ($ctxOptText -match 'Anti-Dual-Memory') 'Anti-Dual-Memory guarantee not in doc'
 }
 
-# T. version.yaml is 1.5
-Assert-True 'T. version.yaml updated to 1.5' (Test-Path $versionFile) "Not found: $versionFile"
+# T. version.yaml is 1.6 (updated from 1.5 in hardening pass)
+Assert-True 'T. version.yaml exists' (Test-Path $versionFile) "Not found: $versionFile"
 if (Test-Path $versionFile) {
     $versionText = (Get-Content $versionFile -Raw)
-    Assert-True 'T. version is 1.5' ($versionText -match 'version:\s*"?1\.5"?') "Expected version 1.5, got: $($versionText -split '\n' | Select-Object -First 1)"
+    Assert-True 'T. version is 1.6' ($versionText -match 'version:\s*"?1\.6"?') "Expected version 1.6, got: $($versionText -split '\n' | Select-Object -First 1)"
 }
 
 # ---------------------------------------------------------------------------

@@ -76,6 +76,28 @@ param (
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# =========================================================================
+# PowerShell Version Preflight (RF-005)
+# MxAgile installation requires PowerShell 7+ (pwsh).
+# =========================================================================
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    $installedVersion = $PSVersionTable.PSVersion.ToString()
+    Write-Host ""
+    Write-Host "ERROR: PowerShell 7 or later is required." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Detected: Windows PowerShell $installedVersion"
+    Write-Host "  Required: PowerShell 7+ (pwsh)"
+    Write-Host ""
+    Write-Host "Install PowerShell 7:"
+    Write-Host "  winget install Microsoft.PowerShell"
+    Write-Host "  https://aka.ms/powershell"
+    Write-Host ""
+    Write-Host "Then run this script with:"
+    Write-Host "  pwsh -File mxagile-setup-mercedes.ps1"
+    Write-Host ""
+    exit 1
+}
+
 $CanonicalDistributionUrl    = "https://github.com/Zwergomaniac/MxAgile.git"
 $CanonicalDistributionSubdir = ""   # framework files live at repository root
 

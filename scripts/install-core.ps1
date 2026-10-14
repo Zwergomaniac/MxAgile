@@ -25,6 +25,29 @@ param (
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# =========================================================================
+# PowerShell Version Preflight (RF-005)
+# MxAgile requires PowerShell 7+ (pwsh). Windows PowerShell 5.x is NOT
+# supported — it has known encoding and parsing incompatibilities that cause
+# cryptic mid-install failures. Fail before any state mutation.
+# =========================================================================
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    $installedVersion = $PSVersionTable.PSVersion.ToString()
+    Write-Host ""
+    Write-Host "ERROR: PowerShell 7 or later is required to install or update MxAgile." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Detected: Windows PowerShell $installedVersion"
+    Write-Host "  Required: PowerShell 7+ (pwsh)"
+    Write-Host ""
+    Write-Host "Install PowerShell 7:"
+    Write-Host "  winget install Microsoft.PowerShell"
+    Write-Host "  https://aka.ms/powershell"
+    Write-Host ""
+    Write-Host "Then re-run the setup script with: pwsh -File mxagile-setup.ps1"
+    Write-Host ""
+    exit 1
+}
+
 try {
     # =========================================================================
     # 0. Pre-flight: Legacy DFC-AI Detection

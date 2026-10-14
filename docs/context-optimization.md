@@ -246,3 +246,50 @@ scripts/Get-MxAgileCapabilities.ps1 -Capability context_mode_integration
 ```
 
 Full documentation: `docs/capabilities.md`
+
+---
+
+## Measurement Readiness (RF-Campaign Evidence)
+
+### What Was NOT Measured
+
+The MxAgile A/B/C/D acceptance campaign (2026-10) observed RTK and Context Mode in operation
+but did **not** produce authoritative token benefit measurements:
+
+| Metric | Status |
+|--------|--------|
+| RTK token savings vs. baseline | UNAVAILABLE — not measured in campaign |
+| Context Mode token savings vs. baseline | UNAVAILABLE — not measured in campaign |
+| RTK byte/char estimates | PROXY — not equivalent to model token counts |
+
+**Do NOT cite the A/B/C/D campaign as evidence that RTK or Context Mode saves tokens.**
+
+### How to Collect Real Telemetry
+
+To produce authoritative measurements in future runs:
+
+**For RTK:**
+1. Enable RTK audit mode before workload: `rtk audit enable` (check current CLI docs)
+2. Run identical workloads in baseline (no RTK) and RTK-enabled sessions
+3. Compare model token counts from API response headers (`x-anthropic-tokens-*`)
+4. Report as MEASURED with workload description and session count
+
+**For Context Mode:**
+1. Enable `ctx_stats` collection (Context Mode diagnostics)
+2. Compare context window fill rate across identical workloads with/without Context Mode
+3. Use API token counts, not `ctx_stats` estimates, as authoritative measurements
+
+**Metric classification rules:**
+
+| Source | Classification |
+|--------|---------------|
+| API token count headers | MEASURED |
+| RTK byte/char estimate × 0.25 | ESTIMATED (not MEASURED) |
+| ctx_stats "savings" output | PROXY (not MEASURED) |
+| Qualitative observation | UNAVAILABLE as a numeric claim |
+
+### Defaults After Campaign
+
+RTK and Context Mode remain **disabled by default** because no measured token benefit
+has been established. They become enabled defaults only after reproducible evidence
+demonstrates benefit across representative workloads.

@@ -38,6 +38,66 @@ license: "ELv2"
 upstream: "https://github.com/mksglu/context-mode"
 redistribution: "NOT permitted by MxAgile — must be installed by the developer"
 
+setup_states:
+  description: >
+    Context Mode has four distinct operational states.
+    INSTALLED ≠ REGISTERED ≠ LOADED ≠ ACTIVE.
+    MxAgile MUST distinguish these; only ACTIVE enables ctx_index and ctx_search.
+  states:
+    INSTALLED:
+      meaning: "The context-mode executable or npm package exists on the system."
+      evidence:
+        - "context-mode found in PATH"
+        - "npm ls -g context-mode returns a result"
+      does_not_imply: [REGISTERED, LOADED, ACTIVE]
+      available_operations: []
+
+    REGISTERED:
+      meaning: "Context Mode is configured as an MCP server in project or user MCP config."
+      evidence:
+        - ".vscode/mcp.json contains a context-mode server entry"
+        - "'claude mcp list' shows context-mode"
+        - "~/.claude/settings.json has context-mode in mcpServers"
+      does_not_imply: [LOADED, ACTIVE]
+      available_operations: []
+      note: "REGISTERED without LOADED means the MCP server is not currently running in this session."
+
+    LOADED:
+      meaning: "The MCP server process is running and the agent session has access to its tools."
+      evidence:
+        - "ctx_doctor, ctx_index, ctx_search tools appear in the agent's available tool namespace"
+      does_not_imply: [ACTIVE]
+      available_operations: ["ctx_doctor", "ctx_stats"]
+      note: "LOADED is the minimum state for health checks. ctx_index and ctx_search require ACTIVE."
+
+    ACTIVE:
+      meaning: "Context Mode is LOADED, healthy (ctx_doctor passes), and MxAgile config enables it."
+      evidence:
+        - "ctx_doctor tool call returns healthy status"
+        - "FTS5 index operational"
+        - ".mxagile/config.yaml: context_optimization.context_mode.enabled: true"
+        - ".mxagile/config.yaml: context_optimization.enabled: true"
+      available_operations: ["ctx_doctor", "ctx_index", "ctx_search", "ctx_stats", "ctx_purge", "ctx_upgrade"]
+      note: "Only ACTIVE state permits ctx_index for WARM context externalization."
+
+  resolution_algorithm:
+    step_1: "Check agent tool namespace: ctx_doctor present? → at least LOADED"
+    step_2: "If LOADED: run ctx_doctor — result healthy? → candidate for ACTIVE"
+    step_3: "Check .mxagile/config.yaml: context_optimization.context_mode.enabled = true? → ACTIVE confirmed"
+    step_4: "If not LOADED: check PATH for context-mode executable → INSTALLED"
+    step_5: "If not LOADED: check MCP config files → REGISTERED"
+    step_6: "If none of the above: NOT_PRESENT"
+    final_states: [NOT_PRESENT, INSTALLED, REGISTERED, LOADED, ACTIVE]
+
+  authoring_tool:
+    name: ctx_index
+    purpose: "Chunk content into the FTS5/BM25 knowledge base for WARM context externalization"
+    required_state: ACTIVE
+    note: >
+      ctx_index is the correct tool for WARM context authoring.
+      Do NOT use ctx_store — that tool does not exist in this integration.
+      The authoritative tool list is mcp_tools.available below.
+
 detection:
   executables:
     - context-mode
@@ -48,6 +108,8 @@ detection:
   claude_code_plugin: "mksglu/context-mode"
   plugin_verify_slash_command: "/context-mode:ctx-doctor"
   mcp_tool_probe: "ctx_doctor"
+  setup_state_resolution: "See setup_states.resolution_algorithm above"
+  important: "Executable in PATH alone does NOT imply ACTIVE or LOADED. Use resolution_algorithm."
 
 installation:
   claude_code: "/plugin marketplace add mksglu/context-mode"
