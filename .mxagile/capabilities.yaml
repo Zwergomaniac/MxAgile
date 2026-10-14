@@ -284,3 +284,110 @@ capabilities:
     agent_may_activate_config: false
     user_approval_required: false
     notes: "SUPPORTED when .vscode/mcp.json has concord-v2-mcp. AVAILABLE only when mcp__concord-v2-mcp__* tools appear in the agent tool namespace. Combined with studio_pro_mcp AVAILABLE, this constitutes the strong signal for execution-intent resolution. See policies/execution-intent.md."
+
+  # -----------------------------------------------------------------------
+  # Context Transition (MxAgile 1.7)
+  # -----------------------------------------------------------------------
+
+  - id: context_transition
+    name: "Context Transition Coordinator"
+    description: "Harness-agnostic coordinator for autonomous context compaction and fresh-epoch transitions."
+    category: context-lifecycle
+    version_introduced: "1.7"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.transition.enabled"
+    activation_mechanism: "Enable context_lifecycle.enabled and context_lifecycle.transition.enabled. Requires checkpoint_resume."
+    requires: [checkpoint_resume]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Always structurally available. Effective only when a harness adapter reports SUPPORTED compaction or fresh-context capability."
+    risk: medium
+    docs_ref: "docs/context-transition.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: false
+    notes: "Coordinator script: scripts/Invoke-MxAgileContextTransition.ps1. Capability discovery: scripts/Get-MxAgileTransitionCapabilities.ps1. Risk is medium because incorrect transition can interrupt long-running tasks."
+
+  - id: compact_current_session
+    name: "Compact Current Session"
+    description: "Harness-native compaction of the current session context while preserving mission state."
+    category: context-lifecycle
+    version_introduced: "1.7"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.transition.compact.enabled"
+    activation_mechanism: "Enable context_transition. Effective only when harness adapter reports programmatic or native auto-compaction SUPPORTED."
+    requires: [context_transition]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Run Get-MxAgileTransitionCapabilities.ps1. CompactCurrentSession.Supported=true AND live_validation_status not UNSUPPORTED."
+    risk: medium
+    docs_ref: "docs/context-transition.md"
+    agent_may_recommend: true
+    agent_may_activate_config: false
+    user_approval_required: false
+    notes: "OpenCode: LIVE_HARNESS_UNVERIFIED (programmatic, completion-observable). Claude Code: LOCALLY_VERIFIED (native auto via PreCompact hook). Copilot: UNSUPPORTED. See .mxagile/adapters/*/transition-adapter.yaml."
+
+  - id: fresh_context_epoch
+    name: "Fresh Context Epoch Transition"
+    description: "Transition to a fresh context epoch while preserving the MxAgile mission via checkpoint handoff."
+    category: context-lifecycle
+    version_introduced: "1.7"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.transition.fresh_context.enabled"
+    activation_mechanism: "Enable context_transition. Fresh context is always structurally possible when checkpoint_resume is enabled."
+    requires: [context_transition]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Always structurally AVAILABLE when checkpoint_resume is ENABLED."
+    risk: low
+    docs_ref: "docs/context-transition.md"
+    agent_may_recommend: true
+    agent_may_activate_config: true
+    user_approval_required: false
+    notes: "Requires manual or harness-native fresh session creation. MxAgile writes the handoff checkpoint; the harness or user starts the new session."
+
+  - id: autonomous_compaction
+    name: "Autonomous Compaction"
+    description: "Fully autonomous compaction without user intervention: reliable pressure + safe boundary + supported trigger + observable completion."
+    category: context-lifecycle
+    version_introduced: "1.7"
+    default_state: "off"
+    config_location: ".mxagile/config.yaml"
+    config_key: "context_lifecycle.transition.autonomous"
+    activation_mechanism: "Enable context_transition and set context_lifecycle.transition.autonomous: true. All four conditions must be met: pressure state reliable, safe boundary, supported trigger, observable completion."
+    requires: [context_transition, pressure_recommendations]
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Run Get-MxAgileTransitionCapabilities.ps1 → AutonomousCompactionPossible=true AND context_lifecycle.transition.autonomous=true."
+    risk: high
+    docs_ref: "docs/context-transition.md"
+    agent_may_recommend: true
+    agent_may_activate_config: false
+    user_approval_required: false
+    notes: "High risk because autonomous compaction interrupts long-running work if triggered incorrectly. Enable only after manual and semi-manual paths are proven. Currently LOCALLY_VERIFIED for Claude Code (hook-based). LIVE_HARNESS_UNVERIFIED for OpenCode."
+
+  - id: pre_compact_hook_integration
+    name: "PreCompact Hook Integration"
+    description: "Claude Code PreCompact lifecycle hook that persists MxAgile checkpoint before native compaction."
+    category: context-lifecycle
+    version_introduced: "1.7"
+    default_state: "off"
+    config_location: ".claude/settings.json"
+    config_key: "hooks.PreCompact"
+    activation_mechanism: "Add Invoke-MxAgilePreCompactionCheckpoint.ps1 as a PreCompact hook entry in .claude/settings.json. Requires user authorization."
+    requires: [context_transition]
+    external_dependencies:
+      - id: claude_code_cli
+        display_name: "Claude Code CLI"
+        assessed_date: "2026-10-14"
+    incompatibilities: []
+    availability_detection: "Check .claude/settings.json for hooks.PreCompact entry containing Invoke-MxAgilePreCompactionCheckpoint.ps1."
+    risk: low
+    docs_ref: "docs/context-transition.md"
+    agent_may_recommend: true
+    agent_may_activate_config: false
+    user_approval_required: true
+    notes: "Hook installation requires user authorization (mutates .claude/settings.json). LOCALLY_VERIFIED: hook structure verified. LIVE_HARNESS_UNVERIFIED: live PreCompact firing not tested in this session."

@@ -1,0 +1,11 @@
+# Test fixture: transition configuration with transition disabled
+# Used by: test-context-transition-compat.ps1
+context_lifecycle:
+  enabled: true
+  checkpoint_resume: true
+  manual_rollover: true
+  pressure_recommendations: true
+  auto_rollover: false
+  transition:
+    enabled: false
+    autonomous: false

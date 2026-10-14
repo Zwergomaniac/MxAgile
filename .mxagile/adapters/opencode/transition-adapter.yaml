@@ -1,0 +1,102 @@
+# MxAgile Context Transition Adapter — OpenCode
+# Assessed: 2026-10-14
+# Upstream: https://github.com/sst/opencode
+# Schema: .mxagile/schemas/harness-adapter.schema.json → context_transition
+#
+# UPSTREAM VERIFICATION NOTES:
+#   OpenCode v0.x exposes a local HTTP API server.
+#   Compaction API: POST /api/session/{sessionID}/compact
+#   Idempotency key: optional "id" field in request body
+#   Completion events: session.compaction.started,
+#                      session.compaction.completed,
+#                      session.compaction.failed
+#   Coalescing: repeated pending requests coalesce
+#   One-shot overflow recovery: documented behavior
+#   Session messages durably stored even when active model context replaced
+#   Authentication: local-only, API typically accessible without auth token
+#                   but authentication mechanism must be verified at runtime
+#   LIVE_HARNESS_VERIFIED: NOT verified in this environment (no active OpenCode session)
+
+adapter_version: "1.1"
+
+context_transition:
+  harness_id: opencode
+  harness_version: null
+  assessed_date: "2026-10-14"
+  upstream_docs_ref: "https://github.com/sst/opencode"
+  session_id_visibility: visible
+
+  context_usage:
+    supported: true
+    measurement_type: unknown
+    source: harness_api
+    freshness: unknown
+
+  compact_current_session:
+    supported: true
+    automatic_supported: true
+    programmatic_supported: true
+    provider_native_supported: false
+    completion_observable: true
+    idempotency_supported: true
+    recent_tail_configurable: true
+    programmatic_mechanism: "POST /api/session/{sessionID}/compact with optional idempotency {id}"
+    completion_mechanism: "session.compaction.completed / session.compaction.failed events"
+    live_validation_status: LIVE_HARNESS_UNVERIFIED
+    notes: >
+      Repeated pending requests coalesce — one MxAgile transition identity maps to one
+      compaction. One-shot overflow recovery: if a provider context-overflow occurs,
+      OpenCode performs one automatic compaction attempt. Do not generalize this behavior
+      to other harnesses. Session discovery (base URL, session ID) must be resolved safely
+      at runtime — do not hard-code. Do not hard-code authentication credentials.
+
+  fresh_context:
+    supported: false
+    programmatic_supported: false
+    resume_contract_handoff_supported: false
+    live_validation_status: UNSUPPORTED
+    # OpenCode manages sessions internally; external fresh-session creation
+    # via MxAgile is not a documented/supported pattern.
+
+  hooks:
+    pre_compact: UNKNOWN
+    post_compact: UNKNOWN
+    session_start_after_compact: UNKNOWN
+    hook_config_path: null
+    # OpenCode hook support not confirmed from current upstream documentation.
+    # Do not implement hook-based integration until verified.
+
+# ---------------------------------------------------------------------------
+# Session discovery contract
+# ---------------------------------------------------------------------------
+# MxAgile must resolve the OpenCode session ID safely before any API call.
+# Expected sources (in preference order):
+#   1. OPENCODE_SESSION_ID environment variable
+#   2. OPENCODE_BASE_URL environment variable (base URL without path)
+#   3. localhost default (http://localhost:4096 — verify against current OpenCode defaults)
+#
+# If session ID cannot be resolved: report TRANSITION_BLOCKED, do not guess.
+# If API responds with unexpected status: report TRANSITION_FAILED.
+
+session_discovery:
+  env_session_id: OPENCODE_SESSION_ID
+  env_base_url: OPENCODE_BASE_URL
+  default_base_url: "http://localhost:4096"
+  compact_path_template: "/api/session/{sessionID}/compact"
+  events_path_template: "/api/session/{sessionID}/events"
+
+# ---------------------------------------------------------------------------
+# Compaction request format
+# ---------------------------------------------------------------------------
+compact_request_body:
+  id_field: "id"
+  id_description: "Stable MxAgile transition ID for idempotency. Must be persisted before submission."
+
+# ---------------------------------------------------------------------------
+# Overflow recovery limit
+# ---------------------------------------------------------------------------
+overflow_recovery:
+  max_recovery_attempts: 1
+  description: >
+    OpenCode's documented one-shot overflow recovery. After one attempt,
+    repeated overflow must be reported to the user rather than retried.

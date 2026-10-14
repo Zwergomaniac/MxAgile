@@ -1,0 +1,22 @@
+# Test fixture: transition configuration with all transition features enabled
+# Used by: test-context-transition-*.ps1
+context_lifecycle:
+  enabled: true
+  checkpoint_resume: true
+  manual_rollover: true
+  pressure_recommendations: true
+  auto_rollover: false
+  transition:
+    enabled: true
+    autonomous: true
+    preferred_strategies:
+      - compact_current_session
+      - fresh_context_epoch
+      - external_action_required
+    compact:
+      enabled: true
+      require_valid_checkpoint: true
+      require_safe_boundary: true
+    fresh_context:
+      enabled: true
+    external_action_fallback: true

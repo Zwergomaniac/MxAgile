@@ -1,0 +1,108 @@
+# MxAgile Context Transition Adapter — Claude Code
+# Assessed: 2026-10-14
+# Upstream: https://docs.anthropic.com/claude-code
+# Schema: .mxagile/schemas/harness-adapter.schema.json → context_transition
+#
+# UPSTREAM VERIFICATION NOTES:
+#   Claude Code supports native automatic compaction when context approaches the limit.
+#   Manual compaction: /compact slash command (interactive terminal only).
+#   PreCompact lifecycle hook: hooks.PreCompact in .claude/settings.json
+#     Fires before Claude Code initiates compaction.
+#     MxAgile uses this to persist checkpoint before compaction occurs.
+#   SessionStart hook: hooks.SessionStart — fires on every session start,
+#     including after a compact-triggered fresh session.
+#   Programmatic compaction trigger: NOT documented/supported.
+#     Do not automate /compact by injecting terminal keystrokes.
+#   Context usage: not exposed to hooks/scripts in a structured API form.
+#   LIVE_HARNESS_VERIFIED: Hook structure verified locally (settings.json schema).
+#     Live compaction not triggered in this session (active session must not be
+#     compacted for testing purposes).
+
+adapter_version: "1.1"
+
+context_transition:
+  harness_id: claude_code
+  harness_version: null
+  assessed_date: "2026-10-14"
+  upstream_docs_ref: "https://docs.anthropic.com/claude-code/hooks"
+  session_id_visibility: not_visible
+
+  context_usage:
+    supported: false
+    measurement_type: none
+    source: none
+    freshness: none
+
+  compact_current_session:
+    supported: true
+    automatic_supported: true
+    programmatic_supported: false
+    provider_native_supported: false
+    completion_observable: false
+    idempotency_supported: false
+    recent_tail_configurable: false
+    programmatic_mechanism: null
+    completion_mechanism: null
+    live_validation_status: LOCALLY_VERIFIED
+    notes: >
+      Native auto-compaction is transparent to the agent — Claude Code performs it
+      automatically near the context limit. The PreCompact hook fires before this
+      happens, giving MxAgile the opportunity to persist a checkpoint. There is no
+      documented programmatic trigger (do NOT inject '/compact' via terminal automation).
+      Completion cannot be observed programmatically — the new session starts fresh
+      and fires SessionStart. Classify programmatic triggering as UNSUPPORTED.
+
+  fresh_context:
+    supported: true
+    programmatic_supported: false
+    resume_contract_handoff_supported: false
+    live_validation_status: LOCALLY_VERIFIED
+    # A fresh session starts after compaction via Claude Code's native mechanism.
+    # MxAgile cannot programmatically initiate this — it relies on the PreCompact
+    # checkpoint + SessionStart Re-Sync protocol.
+
+  hooks:
+    pre_compact: SUPPORTED
+    post_compact: UNSUPPORTED
+    session_start_after_compact: SUPPORTED
+    hook_config_path: ".claude/settings.json"
+    # PreCompact hook: hooks.PreCompact array in .claude/settings.json
+    # SessionStart hook: hooks.SessionStart array in .claude/settings.json
+    # Both hooks execute scripts in the project environment.
+    # Installation requires explicit user authorization (mutates settings.json).
+
+# ---------------------------------------------------------------------------
+# Hook integration contract
+# ---------------------------------------------------------------------------
+# PreCompact hook:
+#   Purpose: Run Invoke-MxAgilePreCompactionCheckpoint.ps1 before Claude compacts.
+#   Config location: .claude/settings.json → hooks.PreCompact
+#   Example entry:
+#     {"type": "command", "command": "powershell -File scripts/Invoke-MxAgilePreCompactionCheckpoint.ps1 -ProjectRoot $PWD"}
+#   Execution context: project root directory
+#   Exit code semantics: non-zero exit = hook failure (Claude Code may report this)
+#
+# SessionStart hook:
+#   Purpose: Trigger Re-Sync after compact or fresh session.
+#   Config location: .claude/settings.json → hooks.SessionStart
+#   The hook must check if post_compaction_resync_required = true in the checkpoint
+#   and if so, produce a clear Re-Sync prompt for the agent.
+
+hook_integration:
+  pre_compact_script: "scripts/Invoke-MxAgilePreCompactionCheckpoint.ps1"
+  session_start_resync_check_script: "scripts/Invoke-MxAgilePostCompactionResync.ps1"
+  requires_user_authorization: true
+  install_note: >
+    Hook installation mutates .claude/settings.json. This requires explicit user
+    authorization. MxAgile does not silently install hooks. See docs/context-transition.md
+    for installation instructions.
+
+# ---------------------------------------------------------------------------
+# Compaction summary safety
+# ---------------------------------------------------------------------------
+compaction_summary:
+  is_authoritative_mxagile_state: false
+  may_promote_evidence: false
+  may_satisfy_gates: false
+  may_close_mission: false
+  usage: "Informational only. MxAgile checkpoint and repository evidence win on any conflict."

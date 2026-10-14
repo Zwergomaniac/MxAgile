@@ -1,0 +1,32 @@
+# Test fixture: OpenCode transition adapter (representative)
+# Used by: test-context-transition-adapters.ps1
+adapter_version: "1.1"
+context_transition:
+  harness_id: opencode
+  assessed_date: "2026-10-14"
+  session_id_visibility: visible
+  context_usage:
+    supported: true
+    measurement_type: unknown
+    source: harness_api
+    freshness: unknown
+  compact_current_session:
+    supported: true
+    automatic_supported: true
+    programmatic_supported: true
+    provider_native_supported: false
+    completion_observable: true
+    idempotency_supported: true
+    recent_tail_configurable: true
+    programmatic_mechanism: "POST /api/session/{sessionID}/compact"
+    completion_mechanism: "session.compaction.completed event"
+    live_validation_status: LIVE_HARNESS_UNVERIFIED
+  fresh_context:
+    supported: false
+    programmatic_supported: false
+    resume_contract_handoff_supported: false
+    live_validation_status: UNSUPPORTED
+  hooks:
+    pre_compact: UNKNOWN
+    post_compact: UNKNOWN
+    session_start_after_compact: UNKNOWN

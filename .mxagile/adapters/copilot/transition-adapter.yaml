@@ -1,0 +1,75 @@
+# MxAgile Context Transition Adapter — GitHub Copilot CLI
+# Assessed: 2026-10-14
+# Upstream: https://docs.github.com/copilot
+# Schema: .mxagile/schemas/harness-adapter.schema.json → context_transition
+#
+# UPSTREAM VERIFICATION NOTES:
+#   GitHub Copilot CLI supports session and tool lifecycle hooks.
+#   Hook categories documented: session start/stop, PreToolUse, PostToolUse.
+#   Compaction API: NOT documented in current upstream.
+#   PreCompact hook: NOT confirmed in current upstream.
+#   Programmatic compaction trigger: NOT documented/supported.
+#   Context usage visibility: NOT documented as accessible to hooks/scripts.
+#   Session ID visibility: NOT documented as accessible to agents.
+#   All compaction-related capabilities: UNKNOWN or UNSUPPORTED.
+#
+#   Windows hook scripts must use PowerShell (pwsh or powershell.exe).
+#   Hook paths in copilot config must use supported runtime requirements.
+
+adapter_version: "1.1"
+
+context_transition:
+  harness_id: copilot_cli
+  harness_version: null
+  assessed_date: "2026-10-14"
+  upstream_docs_ref: "https://docs.github.com/copilot"
+  session_id_visibility: unknown
+
+  context_usage:
+    supported: false
+    measurement_type: none
+    source: none
+    freshness: none
+
+  compact_current_session:
+    supported: false
+    automatic_supported: unknown
+    programmatic_supported: false
+    provider_native_supported: false
+    completion_observable: false
+    idempotency_supported: false
+    recent_tail_configurable: false
+    programmatic_mechanism: null
+    completion_mechanism: null
+    live_validation_status: UNSUPPORTED
+    notes: >
+      No compaction API or PreCompact hook confirmed in current GitHub Copilot CLI
+      upstream documentation. Compaction capabilities remain UNKNOWN or UNSUPPORTED.
+      Do not implement compaction integration until verified upstream evidence exists.
+      Do not claim ACTIVE status for Copilot compaction.
+
+  fresh_context:
+    supported: unknown
+    programmatic_supported: false
+    resume_contract_handoff_supported: false
+    live_validation_status: UNKNOWN
+
+  hooks:
+    pre_compact: UNSUPPORTED
+    post_compact: UNSUPPORTED
+    session_start_after_compact: UNKNOWN
+    hook_config_path: null
+    # Session start/stop hooks exist in Copilot CLI, but their ability to
+    # detect post-compaction state is UNKNOWN. Do not assume a PreCompact
+    # hook exists just because session hooks exist.
+
+# ---------------------------------------------------------------------------
+# Fallback behavior for Copilot
+# ---------------------------------------------------------------------------
+fallback:
+  selected_strategy: EXTERNAL_ACTION_REQUIRED
+  reason: "No verified autonomous compaction or fresh-context transition capability."
+  user_guidance: >
+    MxAgile cannot autonomously compact in this Copilot CLI session.
+    Manual action required: start a fresh Copilot session and provide the
+    checkpoint path. See docs/context-transition.md for manual rollover instructions.
