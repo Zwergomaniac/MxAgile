@@ -1138,5 +1138,50 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "MxAgile 1.5 execution-environment intent fix: static contract checks on execution-intent.md, orchestrator.md Schritt 1b, and capabilities.yaml. Covers 15 required scenarios: strong-signal clarification, weak-signal suppression, no-SP suppression, unknown-not-detected, explicit-intent suppression, session-persistence, re-sync Cases A/B/C, no lifecycle-gate impact, no evidence-state change, no epoch-rollover, user-override priority, LIVE-SP-CURRENT backward compatibility, Concord MCP detection via mcp__concord-v2-mcp__ tool namespace, configuration-evidence-not-sufficient. Pure read-only static validation."
+  },
+  {
+    "File": "test-context-transition-coordinator.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": true,
+    "UsesGit": true,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "MxAgile 1.7 Context Transition Coordinator tests (1-12). Layer 1 static checks on new schemas, policy, config, capabilities and scripts. Layer 2 policy logic: DryRun, pressure evaluation, unsafe boundary deferral. Layer 3 operational: temp git repos verify pre-compaction checkpoint, evidence preservation, compaction summary isolation, terminal mission guard, post-resync autonomy. Tests GUID temp dirs, fully parallel-safe."
+  },
+  {
+    "File": "test-context-transition-adapters.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "MxAgile 1.7 harness adapter tests (13-31). OpenCode: capability discovery, session-id contract, idempotency, admitted≠completed, completion-event, failure path, coalescing, overflow limit. Claude Code: PreCompact hook, SessionStart Re-Sync, programmatic=UNSUPPORTED, summary not authoritative, auto_supported=true. Copilot CLI: UNSUPPORTED, no false ACTIVE. Pure static + Get-MxAgileTransitionCapabilities script invocations."
+  },
+  {
+    "File": "test-context-transition-fallback.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "MxAgile 1.7 fallback and compatibility tests (32-40). Compact unsupported→FRESH_CONTEXT_EPOCH, both unsupported→EXTERNAL_ACTION_REQUIRED, Context Mode unavailable does not block, RTK unavailable does not block. Compatibility: lifecycle disabled, old config without transition block, existing epoch schema valid, existing rollover states preserved, no new regressions. CmdletBinding hygiene on new scripts."
   }
 ]

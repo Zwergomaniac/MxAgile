@@ -1,0 +1,30 @@
+# Test fixture: Unsupported/generic transition adapter
+# Used by: test-context-transition-fallback.ps1
+adapter_version: "1.1"
+context_transition:
+  harness_id: generic
+  assessed_date: "2026-10-14"
+  session_id_visibility: unknown
+  context_usage:
+    supported: false
+    measurement_type: unknown
+    source: unknown
+    freshness: unknown
+  compact_current_session:
+    supported: false
+    automatic_supported: false
+    programmatic_supported: false
+    provider_native_supported: false
+    completion_observable: false
+    idempotency_supported: false
+    recent_tail_configurable: false
+    live_validation_status: UNSUPPORTED
+  fresh_context:
+    supported: false
+    programmatic_supported: false
+    resume_contract_handoff_supported: false
+    live_validation_status: UNSUPPORTED
+  hooks:
+    pre_compact: UNSUPPORTED
+    post_compact: UNSUPPORTED
+    session_start_after_compact: UNSUPPORTED

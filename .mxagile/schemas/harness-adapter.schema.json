@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MxAgile Harness Adapter Contract",
-  "description": "Smallest generic adapter contract for external harness, gateway, or provider integration with MxAgile Context Lifecycle. Harness-agnostic: not tied to any specific AI provider. The adapter supplies capability and measurement data when actually available; absent fields are treated as UNKNOWN. No hosted service required. No external network services required. See docs/context-lifecycle.md and .mxagile/policies/context-lifecycle.md.",
+  "description": "Smallest generic adapter contract for external harness, gateway, or provider integration with MxAgile Context Lifecycle. Harness-agnostic: not tied to any specific AI provider. The adapter supplies capability and measurement data when actually available; absent fields are treated as UNKNOWN. No hosted service required. No external network services required. See docs/context-lifecycle.md, docs/context-transition.md and .mxagile/policies/context-lifecycle.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "adapter_version": {
       "type": "string",
-      "const": "1.0",
+      "const": "1.1",
       "description": "Adapter contract version for forward-compatibility detection."
     },
     "model_capability": {
@@ -21,6 +21,10 @@
     "harness_capability": {
       "$ref": "#/definitions/harness_capability",
       "description": "What the harness can do for context lifecycle management."
+    },
+    "context_transition": {
+      "$ref": "#/definitions/context_transition",
+      "description": "Context transition (compaction / fresh epoch) capabilities for this harness. Absent means all capabilities are UNKNOWN."
     },
     "transition_result": {
       "$ref": "#/definitions/transition_result",
@@ -102,6 +106,230 @@
           "type": "boolean",
           "description": "True if the harness supports the full epoch transition protocol (checkpoint + fresh context + resume). When false, rollover produces a deterministic rollover-ready state but cannot execute the transition.",
           "default": false
+        }
+      }
+    },
+
+    "context_transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Context transition capabilities for this harness. Covers compaction and fresh-context strategies. All capability fields use the SUPPORTED/AVAILABLE/ENABLED/ACTIVE/DEGRADED/UNAVAILABLE/UNKNOWN vocabulary. Unknown values remain UNKNOWN — never fabricate capabilities.",
+      "properties": {
+        "harness_id": {
+          "type": "string",
+          "enum": ["opencode", "claude_code", "copilot_cli", "generic", "unknown"],
+          "description": "Which harness this adapter describes."
+        },
+        "harness_version": {
+          "type": ["string", "null"],
+          "description": "Harness version string as detected or reported. Null when unknown."
+        },
+        "assessed_date": {
+          "type": "string",
+          "description": "ISO date when these capabilities were last verified against upstream documentation."
+        },
+        "upstream_docs_ref": {
+          "type": ["string", "null"],
+          "description": "Reference to the upstream documentation or source used for capability assessment."
+        },
+        "session_id_visibility": {
+          "type": "string",
+          "enum": ["visible", "not_visible", "unknown"],
+          "description": "Whether the current session ID is accessible to the agent."
+        },
+        "context_usage": {
+          "$ref": "#/definitions/context_usage_capability"
+        },
+        "compact_current_session": {
+          "$ref": "#/definitions/compact_capability"
+        },
+        "fresh_context": {
+          "$ref": "#/definitions/fresh_context_capability"
+        },
+        "hooks": {
+          "$ref": "#/definitions/hook_capability"
+        },
+        "transition_state": {
+          "$ref": "#/definitions/transition_state_record"
+        }
+      }
+    },
+
+    "context_usage_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How/whether this harness exposes context usage (token counts, ratios).",
+      "properties": {
+        "supported": {
+          "type": "boolean",
+          "description": "True if any form of context usage measurement is supported.",
+          "default": false
+        },
+        "measurement_type": {
+          "type": "string",
+          "enum": ["exact_tokens", "estimated_tokens", "percentage", "none", "unknown"],
+          "description": "Type of measurement available."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["harness_api", "gateway_api", "hook_event", "none", "unknown"],
+          "description": "Where the measurement comes from."
+        },
+        "freshness": {
+          "type": "string",
+          "enum": ["real_time", "per_request", "on_demand", "none", "unknown"],
+          "description": "How current the measurement is."
+        }
+      }
+    },
+
+    "compact_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Whether and how the harness supports compacting the current session context.",
+      "properties": {
+        "supported": {
+          "type": "boolean",
+          "description": "True if any form of compaction is supported (automatic or programmatic).",
+          "default": false
+        },
+        "automatic_supported": {
+          "type": "boolean",
+          "description": "True if the harness compacts automatically near the context limit.",
+          "default": false
+        },
+        "programmatic_supported": {
+          "type": "boolean",
+          "description": "True if MxAgile can programmatically trigger compaction via a documented API or command.",
+          "default": false
+        },
+        "provider_native_supported": {
+          "type": "boolean",
+          "description": "True if the underlying AI provider (not just harness UI) supports native compaction.",
+          "default": false
+        },
+        "completion_observable": {
+          "type": "boolean",
+          "description": "True if compaction completion (success/failure) can be observed programmatically.",
+          "default": false
+        },
+        "idempotency_supported": {
+          "type": "boolean",
+          "description": "True if the compact API supports request-level idempotency (retry-safe IDs).",
+          "default": false
+        },
+        "recent_tail_configurable": {
+          "type": "boolean",
+          "description": "True if the amount of recent context to preserve after compaction can be configured.",
+          "default": false
+        },
+        "programmatic_mechanism": {
+          "type": ["string", "null"],
+          "description": "How programmatic compaction works if supported. E.g. 'POST /api/session/{id}/compact'. Null when not supported."
+        },
+        "completion_mechanism": {
+          "type": ["string", "null"],
+          "description": "How completion is observed. E.g. 'session.compaction.completed event'. Null when not observable."
+        },
+        "live_validation_status": {
+          "type": "string",
+          "enum": ["LOCALLY_VERIFIED", "LIVE_HARNESS_VERIFIED", "LIVE_HARNESS_UNVERIFIED", "UNSUPPORTED", "UNKNOWN"],
+          "description": "Verification status for this capability in the current environment."
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Additional notes about this capability."
+        }
+      }
+    },
+
+    "fresh_context_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Whether and how a fresh context/session can be created for a new Context Epoch.",
+      "properties": {
+        "supported": {
+          "type": "boolean",
+          "description": "True if a fresh context can be started.",
+          "default": false
+        },
+        "programmatic_supported": {
+          "type": "boolean",
+          "description": "True if MxAgile can programmatically initiate a fresh context.",
+          "default": false
+        },
+        "resume_contract_handoff_supported": {
+          "type": "boolean",
+          "description": "True if the checkpoint/resume path can be automatically passed to the new session.",
+          "default": false
+        },
+        "live_validation_status": {
+          "type": "string",
+          "enum": ["LOCALLY_VERIFIED", "LIVE_HARNESS_VERIFIED", "LIVE_HARNESS_UNVERIFIED", "UNSUPPORTED", "UNKNOWN"],
+          "description": "Verification status for this capability."
+        }
+      }
+    },
+
+    "hook_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Lifecycle hook availability for this harness.",
+      "properties": {
+        "pre_compact": {
+          "type": "string",
+          "enum": ["SUPPORTED", "UNSUPPORTED", "UNKNOWN"],
+          "description": "Whether a PreCompact hook fires before compaction."
+        },
+        "post_compact": {
+          "type": "string",
+          "enum": ["SUPPORTED", "UNSUPPORTED", "UNKNOWN"],
+          "description": "Whether a PostCompact/post-compaction hook fires after compaction."
+        },
+        "session_start_after_compact": {
+          "type": "string",
+          "enum": ["SUPPORTED", "UNSUPPORTED", "UNKNOWN"],
+          "description": "Whether a SessionStart hook fires when a new session starts after compaction."
+        },
+        "hook_config_path": {
+          "type": ["string", "null"],
+          "description": "Harness-specific path to hook configuration. Null when not applicable."
+        }
+      }
+    },
+
+    "transition_state_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "State of the most recent or pending context transition.",
+      "properties": {
+        "last_request_id": {
+          "type": ["string", "null"],
+          "description": "Idempotency ID of the last transition request. Null if none."
+        },
+        "last_request_state": {
+          "type": "string",
+          "enum": [
+            "IDLE", "PRESSURE_OBSERVED", "TRANSITION_REQUESTED", "PENDING_SAFE_BOUNDARY",
+            "CHECKPOINT_PREPARING", "CHECKPOINT_VALIDATED", "COMPACTION_ADMITTED",
+            "COMPACTION_RUNNING", "COMPACTION_COMPLETED", "POST_COMPACT_RESYNC_REQUIRED",
+            "FRESH_CONTEXT_READY", "FRESH_CONTEXT_REQUESTED", "TRANSITION_COMPLETED",
+            "TRANSITION_BLOCKED", "TRANSITION_FAILED", "UNSUPPORTED"
+          ],
+          "description": "Current state of the transition state machine."
+        },
+        "last_completed_transition": {
+          "type": ["string", "null"],
+          "description": "ISO datetime of the last successfully completed transition."
+        },
+        "last_error": {
+          "type": ["string", "null"],
+          "description": "Description of the last transition error. Null when no error."
+        },
+        "selected_strategy": {
+          "type": ["string", "null"],
+          "enum": ["COMPACT_CURRENT_SESSION", "FRESH_CONTEXT_EPOCH", "EXTERNAL_ACTION_REQUIRED", null],
+          "description": "Which transition strategy was selected."
         }
       }
     },

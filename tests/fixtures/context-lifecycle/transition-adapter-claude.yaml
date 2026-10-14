@@ -1,0 +1,31 @@
+# Test fixture: Claude Code transition adapter (representative)
+# Used by: test-context-transition-adapters.ps1
+adapter_version: "1.1"
+context_transition:
+  harness_id: claude_code
+  assessed_date: "2026-10-14"
+  session_id_visibility: not_visible
+  context_usage:
+    supported: false
+    measurement_type: none
+    source: none
+    freshness: none
+  compact_current_session:
+    supported: true
+    automatic_supported: true
+    programmatic_supported: false
+    provider_native_supported: false
+    completion_observable: false
+    idempotency_supported: false
+    recent_tail_configurable: false
+    live_validation_status: LOCALLY_VERIFIED
+  fresh_context:
+    supported: true
+    programmatic_supported: false
+    resume_contract_handoff_supported: false
+    live_validation_status: LOCALLY_VERIFIED
+  hooks:
+    pre_compact: SUPPORTED
+    post_compact: UNSUPPORTED
+    session_start_after_compact: SUPPORTED
+    hook_config_path: ".claude/settings.json"

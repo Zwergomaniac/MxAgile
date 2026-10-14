@@ -131,6 +131,58 @@ context_lifecycle:
   #     pressure_recommendations: true
   #     auto_rollover: false
 
+  # ---------------------------------------------------------------------------
+  # Context Transition (MxAgile 1.7)
+  # Autonomous context compaction and fresh-epoch transition coordination.
+  # Requires: context_lifecycle.enabled + context_lifecycle.checkpoint_resume
+  # Policy:        .mxagile/policies/context-transition.md
+  # Documentation: docs/context-transition.md
+  # Registry:      .mxagile/capabilities.yaml (context_transition et al.)
+  # ---------------------------------------------------------------------------
+  transition:
+    # Master switch for the transition coordinator.
+    # When false: no autonomous transition is initiated.
+    # Manual rollover (manual_rollover: true) still functions independently.
+    enabled: false
+
+    # When true: MxAgile may initiate transitions autonomously without asking
+    # the user, provided all conditions are met (pressure reliable, safe
+    # boundary, supported trigger, observable completion).
+    # Enable ONLY after manual/hook-based flows are proven.
+    autonomous: false
+
+    # Strategy preference order. First supported strategy is used.
+    # Options: compact_current_session | fresh_context_epoch | external_action_required
+    preferred_strategies:
+      - compact_current_session
+      - fresh_context_epoch
+      - external_action_required
+
+    compact:
+      # Allow compact_current_session strategy.
+      enabled: true
+
+      # Require a valid checkpoint before triggering compaction.
+      require_valid_checkpoint: true
+
+      # Require a safe lifecycle boundary before compaction.
+      require_safe_boundary: true
+
+      # Harness-specific: number of recent tokens to preserve.
+      # null = harness default. Do not hard-code a universal value.
+      recent_tail_tokens: null
+
+      # Harness-specific: buffer below context limit before compaction.
+      # null = harness default.
+      buffer_tokens: null
+
+    fresh_context:
+      # Allow fresh_context_epoch strategy.
+      enabled: true
+
+    # External action fallback: always available.
+    external_action_fallback: true
+
   # Extension points (future — not active in this implementation)
   # warm_retrieval_provider: none     # future: context_mode
   # token_counter: none               # future: api

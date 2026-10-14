@@ -476,6 +476,40 @@
           "description": "When rollover_state is 'rollover_blocked', lists the specific conditions preventing rollover.",
           "default": []
         },
+        "transition_state": {
+          "type": "string",
+          "enum": [
+            "IDLE", "PRESSURE_OBSERVED", "TRANSITION_REQUESTED", "PENDING_SAFE_BOUNDARY",
+            "CHECKPOINT_PREPARING", "CHECKPOINT_VALIDATED", "COMPACTION_ADMITTED",
+            "COMPACTION_RUNNING", "COMPACTION_COMPLETED", "POST_COMPACT_RESYNC_REQUIRED",
+            "FRESH_CONTEXT_READY", "FRESH_CONTEXT_REQUESTED", "TRANSITION_COMPLETED",
+            "TRANSITION_BLOCKED", "TRANSITION_FAILED", "UNSUPPORTED"
+          ],
+          "description": "Current state of the autonomous context transition state machine. IDLE: no transition in progress. POST_COMPACT_RESYNC_REQUIRED: compaction completed, Re-Sync must run before work continues. TRANSITION_COMPLETED: transition completed and Re-Sync finished. UNSUPPORTED: harness does not support autonomous transition."
+        },
+        "transition_strategy": {
+          "type": ["string", "null"],
+          "enum": ["COMPACT_CURRENT_SESSION", "FRESH_CONTEXT_EPOCH", "EXTERNAL_ACTION_REQUIRED", null],
+          "description": "Which transition strategy is active or was last used."
+        },
+        "transition_request_id": {
+          "type": ["string", "null"],
+          "description": "Idempotency ID for the pending or last transition request. Null when no request is in flight."
+        },
+        "pre_compaction_checkpoint_valid": {
+          "type": ["boolean", "null"],
+          "description": "True if the pre-compaction checkpoint passed validation before compaction was triggered. Null when no compaction has been attempted."
+        },
+        "post_compaction_resync_required": {
+          "type": "boolean",
+          "description": "True if a post-compaction Re-Sync is still required. Set to false only after Re-Sync completes.",
+          "default": false
+        },
+        "compaction_summary_received": {
+          "type": "boolean",
+          "description": "True if a compaction summary from the harness has been received. This is informational only — it does NOT authorize evidence promotion or gate satisfaction.",
+          "default": false
+        },
         "feature_controls_at_checkpoint": {
           "type": "object",
           "additionalProperties": false,
@@ -485,7 +519,9 @@
             "checkpoint_resume": { "type": "boolean" },
             "manual_rollover": { "type": "boolean" },
             "pressure_recommendations": { "type": "boolean" },
-            "auto_rollover": { "type": "boolean" }
+            "auto_rollover": { "type": "boolean" },
+            "transition_enabled": { "type": "boolean" },
+            "autonomous_transition": { "type": "boolean" }
           }
         }
       }

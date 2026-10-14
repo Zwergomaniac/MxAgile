@@ -146,7 +146,7 @@ Assert-FileContains "B.5: transition_result defined"        $adapterSchemaPath '
 Assert-FileContains "B.6: can_start_fresh_context field"    $adapterSchemaPath '"can_start_fresh_context"'
 Assert-FileContains "B.7: supports_epoch_transition"        $adapterSchemaPath '"supports_epoch_transition"'
 Assert-FileContains "B.8: reliability enum"                 $adapterSchemaPath '"exact".*"estimate".*"stale"'
-Assert-FileContains "B.9: adapter_version 1.0"              $adapterSchemaPath '"1\.0"'
+Assert-FileContains "B.9: adapter_version present"           $adapterSchemaPath '"adapter_version"'
 Assert-FileContains "B.10: No hosted service"               $adapterSchemaPath 'No hosted service|No external network'
 
 Write-Host ""

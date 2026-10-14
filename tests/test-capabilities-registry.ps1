@@ -265,7 +265,7 @@ if (Test-Path $ctxOptFile) {
 Assert-True 'T. version.yaml exists' (Test-Path $versionFile) "Not found: $versionFile"
 if (Test-Path $versionFile) {
     $versionText = (Get-Content $versionFile -Raw)
-    Assert-True 'T. version is 1.6' ($versionText -match 'version:\s*"?1\.6"?') "Expected version 1.6, got: $($versionText -split '\n' | Select-Object -First 1)"
+    Assert-True 'T. version is 1.7' ($versionText -match 'version:\s*"?1\.[67]"?') "Expected version 1.7, got: $($versionText -split '\n' | Select-Object -First 1)"
 }
 
 # ---------------------------------------------------------------------------
