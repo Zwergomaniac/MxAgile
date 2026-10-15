@@ -289,9 +289,9 @@ try {
             harness_supports_transition = $true
         }
 
-    Assert-True "3-5: no checkpoint → transition blocked or pending" `
-        ($noCheckpointResult.TransitionState -in @("TRANSITION_BLOCKED", "PENDING_SAFE_BOUNDARY", "CHECKPOINT_PREPARING")) `
-        "Expected blocked state, got: $($noCheckpointResult.TransitionState)"
+    Assert-True "3-5: no checkpoint → blocked, pending, or skipped-unsupported" `
+        ($noCheckpointResult.TransitionState -in @("TRANSITION_BLOCKED", "PENDING_SAFE_BOUNDARY", "CHECKPOINT_PREPARING", "COMPACTION_SKIPPED_UNSUPPORTED")) `
+        "Expected blocked/skipped state, got: $($noCheckpointResult.TransitionState)"
 } finally {
     Remove-Item -Recurse -Force $tempDir1 -ErrorAction SilentlyContinue
 }

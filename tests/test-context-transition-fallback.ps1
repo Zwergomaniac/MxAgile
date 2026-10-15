@@ -87,9 +87,17 @@ Assert-True "33b: Generic DryRun selects EXTERNAL_ACTION_REQUIRED" `
     ($genericDryRun.Strategy -eq "EXTERNAL_ACTION_REQUIRED") `
     "Expected EXTERNAL_ACTION_REQUIRED for generic, got: $($genericDryRun.Strategy)"
 
-Assert-True "33c: Generic DryRun has guidance for user" `
-    (-not [string]::IsNullOrEmpty($genericDryRun.RequiredAction)) `
-    "RequiredAction empty for external action required"
+Assert-True "33c: Generic DryRun: RequiredAction is empty (Autonomy-First: no Human Gate)" `
+    ([string]::IsNullOrEmpty($genericDryRun.RequiredAction)) `
+    "Autonomy-First: RequiredAction must be empty for generic DryRun, got: '$($genericDryRun.RequiredAction)'"
+
+Assert-True "33d: Generic DryRun: MissionContinues=true" `
+    ($genericDryRun.MissionContinues -eq $true) `
+    "MissionContinues must be true for COMPACTION_SKIPPED_UNSUPPORTED DryRun"
+
+Assert-True "33e: Generic DryRun: TransitionState=COMPACTION_SKIPPED_UNSUPPORTED" `
+    ($genericDryRun.TransitionState -eq "COMPACTION_SKIPPED_UNSUPPORTED") `
+    "Expected COMPACTION_SKIPPED_UNSUPPORTED for generic DryRun, got: $($genericDryRun.TransitionState)"
 
 # Test 34: Context Mode unavailable does not block transition
 # Context Mode is an optional optimization — its absence must not block pre-compaction

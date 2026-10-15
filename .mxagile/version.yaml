@@ -1,7 +1,16 @@
-version: "1.7"
+version: "1.7.1"
 min_compatible: "1.0"
-updated: "2026-10-14"
+updated: "2026-10-15"
 changes:
+  "1.7.1":
+    - "Autonomy-First Compaction Hardening: AUTONOMY HAS PRIORITY OVER OPTIONAL CONTEXT OPTIMIZATION"
+    - "Policy: autonomy-first section in context-transition.md — 4 rules, diagnostic vocabulary, Human Gate doctrine"
+    - "Coordinator: EXTERNAL_ACTION_REQUIRED → COMPACTION_SKIPPED_UNSUPPORTED (Success=true, MissionContinues=true, IsHumanGate=false, RequiredAction='')"
+    - "New output fields: DiagnosticState, MissionContinues, IsHumanGate, DiagnosticNote on all coordinator return paths"
+    - "Schema: 5 new transition_state enum values: COMPACTION_USEFUL, COMPACTION_AUTOMATABLE, COMPACTION_SKIPPED_UNSUPPORTED, HARNESS_NATIVE_COMPACTION, CONTEXT_EXHAUSTION_BLOCKING"
+    - "Schema: 3 new context_meta fields: diagnostic_state, mission_continues, is_human_gate"
+    - "Capabilities: CompactionAutomatable field added as explicit alias"
+    - "Tests: test-context-transition-autonomy-hardening.ps1 (tests 41-50, Tier 1 FastGate)"
   "1.7":
     - "Context Transition: autonomous context compaction and fresh-epoch transition orchestration"
     - "Policy: .mxagile/policies/context-transition.md — transition strategies, state machine, pre/post protocols, autonomy rules, idempotency, overflow recovery"

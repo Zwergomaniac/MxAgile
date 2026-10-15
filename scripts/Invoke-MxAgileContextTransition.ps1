@@ -74,6 +74,9 @@
       .HandoffPath          — handoff copy path
       .BlockingConditions   — string[] if blocked
       .RequiredAction       — what to do next (for EXTERNAL_ACTION_REQUIRED)
+      .DiagnosticState      — Autonomy-First classification (see vocabulary)
+      .MissionContinues     — true unless CONTEXT_EXHAUSTION_BLOCKING
+      .IsHumanGate          — true only for CONTEXT_EXHAUSTION_BLOCKING
       .DryRunResult         — readiness summary (when DryRun=true)
 #>
 
@@ -107,7 +110,6 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
-$now = Get-Date -Format 'yyyy-MM-ddTHH:mm:ss'
 
 # ---------------------------------------------------------------------------
 # Step 1: Resolve transition capabilities
@@ -131,6 +133,9 @@ if ($PressureState -notin $actionablePressure) {
     return [PSCustomObject]@{
         Success             = $false
         TransitionState     = "IDLE"
+        DiagnosticState     = $null
+        MissionContinues    = $true
+        IsHumanGate         = $false
         Strategy            = $preferredStrategy
         HarnessId           = $resolvedHarnessId
         TransitionRequestId = $TransitionRequestId
@@ -146,25 +151,60 @@ if ($PressureState -notin $actionablePressure) {
 # DryRun: report readiness without executing (evaluated before safety check)
 # ---------------------------------------------------------------------------
 if ($DryRun) {
+    $autonomousPossible = if ($null -ne $capabilities) { $capabilities.AutonomousCompactionPossible } else { $false }
+    # COMPACTION_AUTOMATABLE is based on harness capability (can it automate?), independent of config flag.
+    $harnessCanAutomate = ($null -ne $capabilities) -and (
+        ($capabilities.CompactCurrentSession.ProgrammaticSupported -and $capabilities.CompactCurrentSession.CompletionObservable) -or
+        ($capabilities.CompactCurrentSession.AutomaticSupported -and $capabilities.Hooks.PreCompact -eq 'SUPPORTED')
+    )
+    $dryRunDiagnostic   = if ($preferredStrategy -eq 'EXTERNAL_ACTION_REQUIRED') { 'COMPACTION_SKIPPED_UNSUPPORTED' } `
+                          elseif ($harnessCanAutomate) { 'COMPACTION_AUTOMATABLE' } `
+                          else { 'COMPACTION_USEFUL' }
     $readiness = @{
         HarnessId              = $resolvedHarnessId
         PreferredStrategy      = $preferredStrategy
         PressureState          = $PressureState
         SafeBoundaryMet        = $true
-        AutonomousPossible     = if ($null -ne $capabilities) { $capabilities.AutonomousCompactionPossible } else { $false }
+        AutonomousPossible     = $autonomousPossible
         CapabilitiesLoaded     = ($null -ne $capabilities -and $capabilities.AdapterLoaded)
+        DiagnosticState        = $dryRunDiagnostic
     }
     return [PSCustomObject]@{
         Success             = $true
-        TransitionState     = "TRANSITION_REQUESTED"
+        TransitionState     = if ($preferredStrategy -eq 'EXTERNAL_ACTION_REQUIRED') { 'COMPACTION_SKIPPED_UNSUPPORTED' } else { 'TRANSITION_REQUESTED' }
+        DiagnosticState     = $dryRunDiagnostic
+        MissionContinues    = $true
+        IsHumanGate         = $false
         Strategy            = $preferredStrategy
         HarnessId           = $resolvedHarnessId
         TransitionRequestId = "DRY_RUN"
         CheckpointPath      = ""
         HandoffPath         = ""
         BlockingConditions  = @()
-        RequiredAction      = "DryRun: would execute $preferredStrategy"
+        RequiredAction      = if ($preferredStrategy -eq 'EXTERNAL_ACTION_REQUIRED') { "" } else { "DryRun: would execute $preferredStrategy" }
         DryRunResult        = $readiness
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Autonomy-First: no autonomous path → COMPACTION_SKIPPED_UNSUPPORTED (NOT a Human Gate)
+# ---------------------------------------------------------------------------
+if ($preferredStrategy -eq 'EXTERNAL_ACTION_REQUIRED' -and -not $Force) {
+    return [PSCustomObject]@{
+        Success             = $true
+        TransitionState     = "COMPACTION_SKIPPED_UNSUPPORTED"
+        DiagnosticState     = "COMPACTION_SKIPPED_UNSUPPORTED"
+        MissionContinues    = $true
+        IsHumanGate         = $false
+        Strategy            = "EXTERNAL_ACTION_REQUIRED"
+        HarnessId           = $resolvedHarnessId
+        TransitionRequestId = ""
+        CheckpointPath      = ""
+        HandoffPath         = ""
+        BlockingConditions  = @()
+        RequiredAction      = ""
+        DryRunResult        = $null
+        DiagnosticNote      = "Compaction beneficial but no autonomous trigger on $resolvedHarnessId. Native harness auto-compaction applies if available. Mission continues."
     }
 }
 
@@ -180,6 +220,9 @@ if (-not $Force) {
             return [PSCustomObject]@{
                 Success             = $false
                 TransitionState     = "PENDING_SAFE_BOUNDARY"
+                DiagnosticState     = "COMPACTION_USEFUL"
+                MissionContinues    = $true
+                IsHumanGate         = $false
                 Strategy            = $preferredStrategy
                 HarnessId           = $resolvedHarnessId
                 TransitionRequestId = $TransitionRequestId
@@ -201,6 +244,9 @@ if (-not (Test-Path -LiteralPath $preCompactScript)) {
     return [PSCustomObject]@{
         Success             = $false
         TransitionState     = "TRANSITION_BLOCKED"
+        DiagnosticState     = $null
+        MissionContinues    = $false
+        IsHumanGate         = $false
         Strategy            = $preferredStrategy
         HarnessId           = $resolvedHarnessId
         TransitionRequestId = $TransitionRequestId
@@ -224,6 +270,9 @@ if (-not $preCompactResult.Success) {
     return [PSCustomObject]@{
         Success             = $false
         TransitionState     = $preCompactResult.TransitionState
+        DiagnosticState     = $null
+        MissionContinues    = $false
+        IsHumanGate         = $false
         Strategy            = $preferredStrategy
         HarnessId           = $resolvedHarnessId
         TransitionRequestId = $preCompactResult.TransitionRequestId
@@ -246,7 +295,6 @@ if ($preferredStrategy -eq 'COMPACT_CURRENT_SESSION') {
     # Harness-specific execution
     if ($resolvedHarnessId -eq 'opencode') {
         # OpenCode: programmatic compact API
-        # Resolve session details from environment
         $sessionId = [System.Environment]::GetEnvironmentVariable('OPENCODE_SESSION_ID')
         $baseUrl   = [System.Environment]::GetEnvironmentVariable('OPENCODE_BASE_URL')
         if ([string]::IsNullOrEmpty($baseUrl)) { $baseUrl = 'http://localhost:4096' }
@@ -255,6 +303,9 @@ if ($preferredStrategy -eq 'COMPACT_CURRENT_SESSION') {
             return [PSCustomObject]@{
                 Success             = $false
                 TransitionState     = "TRANSITION_BLOCKED"
+                DiagnosticState     = "COMPACTION_AUTOMATABLE"
+                MissionContinues    = $false
+                IsHumanGate         = $false
                 Strategy            = 'COMPACT_CURRENT_SESSION'
                 HarnessId           = $resolvedHarnessId
                 TransitionRequestId = $resolvedTransitionId
@@ -266,7 +317,6 @@ if ($preferredStrategy -eq 'COMPACT_CURRENT_SESSION') {
             }
         }
 
-        # Build request body
         $compactBody = @{ id = $resolvedTransitionId } | ConvertTo-Json -Compress
         $compactUrl  = "$baseUrl/api/session/$sessionId/compact"
 
@@ -286,6 +336,9 @@ if ($preferredStrategy -eq 'COMPACT_CURRENT_SESSION') {
             return [PSCustomObject]@{
                 Success             = $false
                 TransitionState     = "TRANSITION_FAILED"
+                DiagnosticState     = "COMPACTION_AUTOMATABLE"
+                MissionContinues    = $false
+                IsHumanGate         = $false
                 Strategy            = 'COMPACT_CURRENT_SESSION'
                 HarnessId           = $resolvedHarnessId
                 TransitionRequestId = $resolvedTransitionId
@@ -298,10 +351,12 @@ if ($preferredStrategy -eq 'COMPACT_CURRENT_SESSION') {
         }
 
         # Request admitted. Completion is async (session.compaction.* events).
-        # We report COMPACTION_ADMITTED — completion observation is harness-managed.
         return [PSCustomObject]@{
             Success             = $true
             TransitionState     = "COMPACTION_ADMITTED"
+            DiagnosticState     = "COMPACTION_AUTOMATABLE"
+            MissionContinues    = $true
+            IsHumanGate         = $false
             Strategy            = 'COMPACT_CURRENT_SESSION'
             HarnessId           = $resolvedHarnessId
             TransitionRequestId = $resolvedTransitionId
@@ -313,13 +368,14 @@ if ($preferredStrategy -eq 'COMPACT_CURRENT_SESSION') {
         }
 
     } elseif ($resolvedHarnessId -eq 'claude_code') {
-        # Claude Code: native auto-compaction with PreCompact hook integration.
-        # The checkpoint has been written. The hook was called (or will be called).
-        # No programmatic trigger is available.
-        # Report that autonomous integration is hook-based.
+        # Claude Code: native auto-compaction via PreCompact + SessionStart hooks.
+        # No programmatic trigger — harness manages compaction transparently.
         return [PSCustomObject]@{
             Success             = $true
             TransitionState     = "CHECKPOINT_VALIDATED"
+            DiagnosticState     = "COMPACTION_AUTOMATABLE"
+            MissionContinues    = $true
+            IsHumanGate         = $false
             Strategy            = 'COMPACT_CURRENT_SESSION'
             HarnessId           = $resolvedHarnessId
             TransitionRequestId = $resolvedTransitionId
@@ -331,40 +387,50 @@ if ($preferredStrategy -eq 'COMPACT_CURRENT_SESSION') {
         }
 
     } else {
-        # Generic or unsupported harness: compaction is not programmatically available.
-        # Fall through to EXTERNAL_ACTION_REQUIRED.
-        $preferredStrategy = 'EXTERNAL_ACTION_REQUIRED'
+        # Generic: compaction is not programmatically available. Should have been
+        # caught by the early COMPACTION_SKIPPED_UNSUPPORTED path above, but
+        # if reached via Force, fall through to FRESH_CONTEXT_EPOCH.
+        $preferredStrategy = 'FRESH_CONTEXT_EPOCH'
     }
 }
 
 if ($preferredStrategy -eq 'FRESH_CONTEXT_EPOCH') {
-    # Fresh context requires manual or harness-native session creation.
-    # The checkpoint (-WriteHandoffCopy) has been written by the pre-compaction protocol.
-    # Report that the checkpoint is ready for a fresh session.
+    # Fresh context: checkpoint ready for a new session.
+    # Autonomy-First: this is informational guidance, not a Human Gate.
+    # Mission continues; a new session can be started when convenient.
     return [PSCustomObject]@{
         Success             = $true
         TransitionState     = "FRESH_CONTEXT_READY"
+        DiagnosticState     = "COMPACTION_USEFUL"
+        MissionContinues    = $true
+        IsHumanGate         = $false
         Strategy            = 'FRESH_CONTEXT_EPOCH'
         HarnessId           = $resolvedHarnessId
         TransitionRequestId = $resolvedTransitionId
         CheckpointPath      = $preCompactResult.CheckpointPath
         HandoffPath         = $preCompactResult.HandoffPath
         BlockingConditions  = @()
-        RequiredAction      = "Checkpoint ready. Start a new session and load: $($preCompactResult.HandoffPath)"
+        RequiredAction      = ""
         DryRunResult        = $null
+        DiagnosticNote      = "Checkpoint ready for fresh session at: $($preCompactResult.HandoffPath). Not a gate — mission continues."
     }
 }
 
-# EXTERNAL_ACTION_REQUIRED fallback
+# Unreachable under normal conditions (caught by early COMPACTION_SKIPPED_UNSUPPORTED).
+# Defensive fallback only.
 return [PSCustomObject]@{
     Success             = $true
-    TransitionState     = "TRANSITION_BLOCKED"
+    TransitionState     = "COMPACTION_SKIPPED_UNSUPPORTED"
+    DiagnosticState     = "COMPACTION_SKIPPED_UNSUPPORTED"
+    MissionContinues    = $true
+    IsHumanGate         = $false
     Strategy            = 'EXTERNAL_ACTION_REQUIRED'
     HarnessId           = $resolvedHarnessId
     TransitionRequestId = $resolvedTransitionId
-    CheckpointPath      = $preCompactResult.CheckpointPath
-    HandoffPath         = $preCompactResult.HandoffPath
-    BlockingConditions  = @("no_autonomous_transition_available: $resolvedHarnessId")
-    RequiredAction      = "Manual action required. Start a new session with checkpoint: $($preCompactResult.HandoffPath)"
+    CheckpointPath      = if ($null -ne $preCompactResult) { $preCompactResult.CheckpointPath } else { "" }
+    HandoffPath         = if ($null -ne $preCompactResult) { $preCompactResult.HandoffPath } else { "" }
+    BlockingConditions  = @()
+    RequiredAction      = ""
     DryRunResult        = $null
+    DiagnosticNote      = "No autonomous transition path. Mission continues. Native harness auto-compaction applies if available."
 }

@@ -483,9 +483,11 @@
             "CHECKPOINT_PREPARING", "CHECKPOINT_VALIDATED", "COMPACTION_ADMITTED",
             "COMPACTION_RUNNING", "COMPACTION_COMPLETED", "POST_COMPACT_RESYNC_REQUIRED",
             "FRESH_CONTEXT_READY", "FRESH_CONTEXT_REQUESTED", "TRANSITION_COMPLETED",
-            "TRANSITION_BLOCKED", "TRANSITION_FAILED", "UNSUPPORTED"
+            "TRANSITION_BLOCKED", "TRANSITION_FAILED", "UNSUPPORTED",
+            "COMPACTION_USEFUL", "COMPACTION_AUTOMATABLE", "COMPACTION_SKIPPED_UNSUPPORTED",
+            "HARNESS_NATIVE_COMPACTION", "CONTEXT_EXHAUSTION_BLOCKING"
           ],
-          "description": "Current state of the autonomous context transition state machine. IDLE: no transition in progress. POST_COMPACT_RESYNC_REQUIRED: compaction completed, Re-Sync must run before work continues. TRANSITION_COMPLETED: transition completed and Re-Sync finished. UNSUPPORTED: harness does not support autonomous transition."
+          "description": "Current state of the autonomous context transition state machine. IDLE: no transition in progress. POST_COMPACT_RESYNC_REQUIRED: compaction completed, Re-Sync must run before work continues. TRANSITION_COMPLETED: transition completed and Re-Sync finished. UNSUPPORTED: harness does not support autonomous transition. COMPACTION_USEFUL: compaction would be beneficial but is not blocking. COMPACTION_AUTOMATABLE: autonomous path is available and will be used. COMPACTION_SKIPPED_UNSUPPORTED: no autonomous path; skipped; NOT a Human Gate; mission continues. HARNESS_NATIVE_COMPACTION: harness handled compaction natively. CONTEXT_EXHAUSTION_BLOCKING: execution impossible without compaction; only valid Human Gate."
         },
         "transition_strategy": {
           "type": ["string", "null"],
@@ -509,6 +511,23 @@
           "type": "boolean",
           "description": "True if a compaction summary from the harness has been received. This is informational only — it does NOT authorize evidence promotion or gate satisfaction.",
           "default": false
+        },
+        "diagnostic_state": {
+          "type": ["string", "null"],
+          "enum": [null, "COMPACTION_USEFUL", "COMPACTION_AUTOMATABLE", "COMPACTION_SKIPPED_UNSUPPORTED",
+                   "HARNESS_NATIVE_COMPACTION", "CONTEXT_EXHAUSTION_BLOCKING"],
+          "description": "Autonomy-First diagnostic classification. COMPACTION_SKIPPED_UNSUPPORTED, COMPACTION_USEFUL, and HARNESS_NATIVE_COMPACTION are NOT Human Gates. CONTEXT_EXHAUSTION_BLOCKING is the only valid Human Gate.",
+          "default": null
+        },
+        "mission_continues": {
+          "type": ["boolean", "null"],
+          "description": "True if the agent continues mission execution without user intervention after this transition event. False only for CONTEXT_EXHAUSTION_BLOCKING.",
+          "default": null
+        },
+        "is_human_gate": {
+          "type": ["boolean", "null"],
+          "description": "True only for CONTEXT_EXHAUSTION_BLOCKING. All other compaction diagnostic states are not Human Gates.",
+          "default": null
         },
         "feature_controls_at_checkpoint": {
           "type": "object",
