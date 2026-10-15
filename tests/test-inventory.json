@@ -1183,5 +1183,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "MxAgile 1.7 fallback and compatibility tests (32-40). Compact unsupported→FRESH_CONTEXT_EPOCH, both unsupported→EXTERNAL_ACTION_REQUIRED, Context Mode unavailable does not block, RTK unavailable does not block. Compatibility: lifecycle disabled, old config without transition block, existing epoch schema valid, existing rollover states preserved, no new regressions. CmdletBinding hygiene on new scripts."
+  },
+  {
+    "File": "test-context-transition-autonomy-hardening.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": false,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "MxAgile 1.7.1 Autonomy-First hardening (41-50). Unsupported harness: ROLLOVER_RECOMMENDED/REQUIRED → COMPACTION_SKIPPED_UNSUPPORTED, Success=true, no /compact request, no new-session request, IsHumanGate=false, MissionContinues=true, RequiredAction empty, TransitionState≠TRANSITION_COMPLETED. OpenCode DryRun: COMPACTION_AUTOMATABLE. Claude Code DryRun: COMPACTION_AUTOMATABLE, CompactionAutomatable=true. Evidence isolation: skip cannot promote evidence. Policy + schema contain 5 diagnostic states."
   }
 ]

@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.7.1] — 2026-10-15
+
+### Added: Autonomy-First Compaction Hardening
+
+**Invariant:** `AUTONOMY HAS PRIORITY OVER OPTIONAL CONTEXT OPTIMIZATION.`
+
+A useful or recommended compaction is never by itself a reason to interrupt
+mission execution or request user action.
+
+**Behavior for unsupported harnesses (generic, copilot):**
+- Returns `COMPACTION_SKIPPED_UNSUPPORTED` (not `TRANSITION_BLOCKED`)
+- `Success=true`, `MissionContinues=true`, `IsHumanGate=false`, `RequiredAction=""`
+- No `/compact` user request. No new-session demand. Mission continues.
+- Native harness auto-compaction applies if available.
+
+**New diagnostic vocabulary (none of the first four are Human Gates):**
+- `COMPACTION_USEFUL` — beneficial but not blocking
+- `COMPACTION_AUTOMATABLE` — autonomous path available (OpenCode, Claude Code)
+- `COMPACTION_SKIPPED_UNSUPPORTED` — skipped; not a gate; mission continues
+- `HARNESS_NATIVE_COMPACTION` — harness handled compaction natively
+- `CONTEXT_EXHAUSTION_BLOCKING` — only valid Human Gate (actual execution failure)
+
+**Schema additions (additive):** `diagnostic_state`, `mission_continues`, `is_human_gate`
+in `context_meta`; 5 new `transition_state` enum values.
+
+**Tests:** `test-context-transition-autonomy-hardening.ps1` (tests 41-50, Tier 1 FastGate).
+
 ## [1.7] — 2026-10-14
 
 ### Added: Autonomous Context Transition (Compaction & Fresh Epoch)

@@ -237,9 +237,17 @@ Assert-True "31: Copilot DryRun selects EXTERNAL_ACTION_REQUIRED" `
     ($copilotDryRun.Strategy -eq "EXTERNAL_ACTION_REQUIRED") `
     "Expected EXTERNAL_ACTION_REQUIRED for copilot, got: $($copilotDryRun.Strategy)"
 
-Assert-True "31b: Copilot DryRun has RequiredAction guidance" `
-    (-not [string]::IsNullOrEmpty($copilotDryRun.RequiredAction)) `
-    "RequiredAction should be non-empty for unsupported harness"
+Assert-True "31b: Copilot DryRun: RequiredAction is empty (Autonomy-First: no Human Gate)" `
+    ([string]::IsNullOrEmpty($copilotDryRun.RequiredAction)) `
+    "Autonomy-First: RequiredAction must be empty for unsupported harness DryRun, got: '$($copilotDryRun.RequiredAction)'"
+
+Assert-True "31c: Copilot DryRun: MissionContinues=true" `
+    ($copilotDryRun.MissionContinues -eq $true) `
+    "MissionContinues must be true for COMPACTION_SKIPPED_UNSUPPORTED DryRun"
+
+Assert-True "31d: Copilot DryRun: IsHumanGate=false" `
+    ($copilotDryRun.IsHumanGate -eq $false) `
+    "IsHumanGate must be false for COMPACTION_SKIPPED_UNSUPPORTED DryRun"
 
 # ============================================================
 # Summary

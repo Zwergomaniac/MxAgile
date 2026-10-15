@@ -10,6 +10,61 @@ Basiert auf: `.mxagile/policies/context-lifecycle.md`
 
 ---
 
+## Autonomy-First Compaction Invariant
+
+**AUTONOMY HAS PRIORITY OVER OPTIONAL CONTEXT OPTIMIZATION.**
+
+Eine nützliche oder empfohlene Komprimierung ist NIEMALS allein ein Grund,
+die Missionsausführung zu unterbrechen oder eine Benutzeraktion anzufordern.
+
+### Verhalten nach Harness-Fähigkeit
+
+**1. Harness unterstützt verifizierten autonomen Komprimierungsmechanismus:**
+- Checkpoint schreiben
+- Sichere Grenze abwarten
+- Autonom komprimieren
+- Re-Sync ausführen
+- Arbeit OHNE Nutzeranfrage fortsetzen
+
+**2. Harness unterstützt KEINEN verifizierten autonomen Komprimierungs-Trigger:**
+- `COMPACTION_SKIPPED_UNSUPPORTED` aufzeichnen
+- Checkpoint-Bereitschaft erhalten (für Hooks wo sinnvoll)
+- Nutzer NICHT bitten, `/compact` einzugeben
+- KEIN Human Gate erstellen
+- Mission NICHT pausieren
+- Neue Session NICHT erzwingen
+- Normal weiterarbeiten
+- Native harness-eigene Auto-Komprimierung anwenden lassen wenn verfügbar
+
+**3. Harness führt native automatische Komprimierung durch:**
+- PreCompact verwenden wo unterstützt (MxAgile Mission Truth persistieren)
+- PostCompact/Compact-Boundary-Handling verwenden wo unterstützt
+- Re-Sync ausführen
+- Autonom fortsetzen
+
+**4. Fresh-Context-Rollover folgt derselben Regel:**
+Wenn MxAgile es nicht autonom initiieren kann, darf es eine
+sonst funktionsfähige Mission nicht nur zur Optimierung unterbrechen.
+
+### Eskalations-Schwelle
+
+**Nur eskalieren wenn** die weitere Missionsausführung selbst unsicher oder
+unmöglich ist — NICHT weil Kontext-Optimierung nicht verfügbar ist.
+
+### Diagnostisches Zustandsvokabular
+
+| Zustand | Bedeutung | Human Gate? |
+|---------|-----------|-------------|
+| `COMPACTION_USEFUL` | Komprimierung wäre vorteilhaft, blockiert nicht | NEIN |
+| `COMPACTION_AUTOMATABLE` | Autonomer Pfad vorhanden und wird genutzt | NEIN |
+| `COMPACTION_SKIPPED_UNSUPPORTED` | Kein autonomer Trigger; übersprungen; Mission läuft weiter | NEIN |
+| `HARNESS_NATIVE_COMPACTION` | Harness hat Komprimierung nativ durchgeführt | NEIN |
+| `CONTEXT_EXHAUSTION_BLOCKING` | Ausführung ohne Komprimierung unmöglich | **JA** |
+
+Die ersten vier Zustände sind **keine** Human Gates.
+
+---
+
 ## Primäres Invariant
 
 **MxAgile Mission Truth überlebt Kontext-Komprimierung unabhängig von der

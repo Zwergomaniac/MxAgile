@@ -245,6 +245,7 @@ $result = [PSCustomObject]@{
     AutonomousEnabled          = $autonomousEnabled
     PreferredStrategy          = $preferredStrategy
     AutonomousCompactionPossible = $autonomousCompactionPossible
+    CompactionAutomatable      = $autonomousCompactionPossible
     Reason                     = $reason
     RawAdapter                 = $adapterContent
 }
