@@ -150,6 +150,11 @@ Wenn der Entwickler einen neuen Generate-Zyklus anstosst:
 Trigger: Phase ist `discovery` und Mockups unter `input-resources/ui-ux/` vorhanden.
 Laeuft parallel zum Discovery-Agent.
 
+Der Reference Preflight in `policies/mockup-analysis.md` ist auch bei direkten/ad-hoc
+Analyze- und Verify-Auftraegen Pflicht und darf nicht durch vorhandene Inventare oder eine
+uebernommene Conversation-History ersetzt werden. Vorhandene, nachweislich aktuelle Artefakte
+gezielt wiederverwenden; fehlende oder unklare Coverage an der Originalevidenz nachpruefen.
+
 Wenn `development.ui_driven = true`: Dieser Modus ist PFLICHT wenn ein HTML-Mockup
 vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne abgeschlossenes Inventar.
 

@@ -60,25 +60,41 @@ overall_result = PASS
     when ALL required dimensions have result = PASS
 
 overall_result = FAIL
-    when ANY required dimension has result = FAILED
+    when ANY required dimension has result = FAIL
 
 overall_result = PARTIAL
-    when NO required dimension is FAILED
+    when NO required dimension is FAIL, NOT_VERIFIED, STALE, or FIXTURE_BLOCKED
     AND at least one required dimension is PARTIAL or CONFLICT
 
 overall_result = NOT_VERIFIED
-    when NO browser verification has been performed
-    (all required dimensions are NOT_VERIFIED or LEGACY_EVIDENCE)
+    when any required dimension is NOT_VERIFIED and no required dimension is FAIL, STALE,
+    or FIXTURE_BLOCKED
+    OR when no browser verification has been performed and all required dimensions are
+       NOT_VERIFIED or LEGACY_EVIDENCE
 ```
 
-A required dimension that is `FAILED`, `PARTIAL`, `NOT_VERIFIED`, `CONFLICT`, or `STALE`
+A required dimension that is `FAIL`, `PARTIAL`, `NOT_VERIFIED`, `CONFLICT`, `STALE`, or
+`FIXTURE_BLOCKED`
 **MUST prevent overall PASS**.
+
+`NOT_VERIFIED` is not a failure. When no required dimension is `FAIL`, any required
+`NOT_VERIFIED` keeps the aggregate `NOT_VERIFIED` rather than promoting mixed partial evidence
+to `PARTIAL`.
 
 `LEGACY_EVIDENCE` dimensions do not prevent overall PASS if the remaining required dimensions
 all PASS — but the overall result must note the partial evidence coverage.
 
-`NOT_APPLICABLE` requires a `not_applicable_rationale` in the dimension record. Without rationale,
-it is treated as `NOT_VERIFIED`.
+`NOT_APPLICABLE` requires a non-empty `not_applicable_rationale` in the dimension record. The
+schema rejects a missing or empty rationale; legacy records that bypass schema validation are
+treated as `NOT_VERIFIED`.
+
+### Unresolved Multi-Blocker Precedence
+
+Existing rules and fixtures resolve `FAIL` over other results and `NOT_VERIFIED` over `PARTIAL`
+when both occur. They do not define the aggregate when multiple other blockers coexist, such as
+`STALE` with `NOT_VERIFIED` or `FIXTURE_BLOCKED` with `PARTIAL`. Do not invent a precedence or
+finalize an overall result for these combinations. Preserve each dimension result and surface the
+specific aggregation decision point; overall PASS remains prohibited.
 
 ---
 
@@ -410,13 +426,13 @@ Use full reconciliation when:
 The following generic plan applies when a project schedules a full reconciliation run:
 
 1. Load all pages from `planning/ui-inventory/`
-2. For each page: create or reset the parity-verification file
-3. Run Playwright in `authenticated_session_ready` state
-4. Verify all 7 dimensions per page
-5. Special attention to content dimension (navigation labels, form labels, button captions)
-6. Test mandatory regression scenario: visual PASS + content FAIL = overall FAIL
-7. Record all results in `planning/parity/` directory
-8. Update `process-state.yaml` with parity reconciliation progress
+2. Load the existing parity-verification file; create one only when absent
+3. Preserve dimensions whose current evidence is valid and reusable
+4. Run Playwright in `authenticated_session_ready` state for missing, stale, or insufficient evidence
+5. Verify the affected dimensions and scenarios; do not reset valid dimensions
+6. Special attention to content dimension (navigation labels, form labels, button captions)
+7. Test mandatory regression scenario: visual PASS + content FAIL = overall FAIL
+8. Record new evidence in `planning/parity/` and update `process-state.yaml` reconciliation progress
 
 ---
 

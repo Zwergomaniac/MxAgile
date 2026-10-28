@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MxAgile UI Parity Verification",
-  "description": "Multi-dimensional parity verification result for a UI page or component. Produced by UI-Agent Verify mode. See .mxagile/policies/ui-parity.md for the full contract. AGGREGATION RULE: overall_result=PASS only when all REQUIRED dimensions are PASS. Any FAILED, PARTIAL, or NOT_VERIFIED required dimension causes overall_result=FAIL.",
+  "description": "Multi-dimensional parity verification result for a UI page or component. Produced by UI-Agent Verify mode. See .mxagile/policies/ui-parity.md for the full contract. A required FAIL yields overall FAIL; required NOT_VERIFIED prevents PASS and remains NOT_VERIFIED when there is no FAIL, STALE, or FIXTURE_BLOCKED; PARTIAL is not FAIL. Required FAIL, PARTIAL, NOT_VERIFIED, CONFLICT, STALE, or FIXTURE_BLOCKED prevents overall PASS. LEGACY_EVIDENCE may coexist with PASS only when all remaining required dimensions are PASS. Precedence among multiple non-FAIL blockers is unresolved in the policy.",
   "type": "object",
   "required": ["page_id", "verified_at", "evidence_level", "dimensions", "overall_result"],
   "additionalProperties": false,
@@ -65,7 +65,7 @@
     "overall_result": {
       "type": "string",
       "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED"],
-      "description": "Aggregated result across all required dimensions. PASS: all required dimensions are PASS. FAIL: one or more required dimensions are FAILED. PARTIAL: one or more required dimensions are PARTIAL or CONFLICT and none are FAILED. NOT_VERIFIED: no browser verification has been performed. STALE: was PASS but active target has changed since verified_at — must re-verify before claiming PASS. FIXTURE_BLOCKED: one or more scope-dependent dimensions cannot be evaluated due to an incomplete representative fixture; scope-independent dimensions may still be valid. See policies/representative-fixture-contract.md § FIXTURE_GAP."
+      "description": "Aggregate across required dimensions. FAIL: at least one required dimension is FAIL. NOT_VERIFIED: at least one required dimension is NOT_VERIFIED and none is FAIL, STALE, or FIXTURE_BLOCKED, or no browser verification exists and all required dimensions are NOT_VERIFIED/LEGACY_EVIDENCE. PARTIAL: a required dimension is PARTIAL or CONFLICT, with no required FAIL, NOT_VERIFIED, STALE, or FIXTURE_BLOCKED. STALE and FIXTURE_BLOCKED prevent PASS. Precedence among multiple non-FAIL blockers is unresolved; see policies/ui-parity.md."
     },
     "fixture_blocked_reason": {
       "type": "string",
@@ -113,7 +113,21 @@
       "type": "object",
       "required": ["result"],
       "additionalProperties": false,
-      "description": "Result for one parity dimension. required=true dimensions that are FAILED, PARTIAL, or NOT_VERIFIED prevent overall PASS.",
+      "description": "Result for one parity dimension. Required FAIL, PARTIAL, NOT_VERIFIED, CONFLICT, STALE, or FIXTURE_BLOCKED dimensions prevent overall PASS.",
+      "allOf": [
+        {
+          "if": {
+            "properties": { "result": { "const": "NOT_APPLICABLE" } },
+            "required": ["result"]
+          },
+          "then": {
+            "required": ["not_applicable_rationale"],
+            "properties": {
+              "not_applicable_rationale": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ],
       "properties": {
         "result": {
           "type": "string",

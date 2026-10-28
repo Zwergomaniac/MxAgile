@@ -143,6 +143,9 @@ Assert ($dcIntake -match 'ASSUMPTION_REQUIRES_APPROVAL') 'maps ASSUMPTION_REQUIR
 Assert ($dcIntake -match 'cannot\[\]') 'handles cannot[] negative permissions'
 Assert ($dcIntake -match 'design_contract_provenance') 'specifies design_contract_provenance recording'
 Assert ($dcIntake -match 'Read-only') 'states mockup is read-only during intake'
+Assert ($dcIntake -match 'interaction_states.*effects.*flows|effects.*flows') 'checks screen, interaction, effect, and flow coverage'
+Assert ($dcIntake -match 'MUST NOT be reported as `COMPLETE`|MUST NOT.*COMPLETE') 'incomplete reference coverage cannot be reported complete'
+Assert ($dcIntake -match 'mockup\.id.*mockup\.revision|mockup\.revision.*active source') 'validates Contract identity against active source revision'
 # Correction 2: operation-aware intake
 Assert ($dcIntake -match 'Operation-Level|operation.*level|CANNOT UPDATE.*CANNOT READ|CAN READ.*CAN UPDATE' -or
         $dcIntake -match 'Inference prohibition|inference.*prohibited') `
@@ -308,6 +311,15 @@ Assert ($da -match 'mocketeer-spec') 'references mocketeer-spec detection'
 Assert ($da -match 'cannot\[\]') 'handles cannot[] from Design Contract'
 Assert ($da -match 'test_contract_signal') 'emits test_contract_signal for Refinement'
 Assert ($da -match 'BUILD') 'references BUILD evidence level'
+
+$mockupAnalysis = FileContent (Join-Path $RepoRoot '.mxagile/policies/mockup-analysis.md')
+Assert ($mockupAnalysis -match 'Reference Preflight and Evidence Reuse') 'requires reference preflight for UI tasks'
+Assert ($mockupAnalysis -match 'direct or ad-hoc') 'preflight applies to direct/ad-hoc requests'
+Assert ($mockupAnalysis -match 'target_revision.*bundle_hash') 'checks SPA inventory freshness'
+Assert ($mockupAnalysis -match 'Bounded Context Handoff') 'defines a bounded UI context handoff'
+Assert ($mockupAnalysis -match 'Do not pass complete\s+conversation history by default') 'does not inherit full history by default'
+$uiAgent = FileContent (Join-Path $RepoRoot '.mxagile/agents/ui-agent.md')
+Assert ($uiAgent -match 'direkten/ad-hoc') 'UI-Agent applies preflight to direct/ad-hoc assignments'
 
 # ──────────────────────────────────────────────────────────────
 # [14] lifecycle.yaml: WP2 extensions + VPL timing correction

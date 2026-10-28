@@ -10,7 +10,7 @@
     Test cases:
     A. Seven parity dimensions defined in canonical schema
     B. Aggregation: overall PASS requires all required dimensions PASS
-    C. Aggregation: single FAILED dimension causes overall FAIL
+    C. Aggregation: single FAIL dimension causes overall FAIL
     D. Content parity is a first-class dimension (not screenshot-only)
     E. Mandatory regression scenario: visual PASS + content FAIL = overall FAIL
     F. Observe-Before-Mutate lifecycle defined and enforced
@@ -101,11 +101,12 @@ Assert-FileContains "B.3 policy states required dimension rules" $ParityPol 'req
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "TEST C: Single FAILED dimension causes overall FAIL" -ForegroundColor Cyan
+Write-Host "TEST C: Single FAIL dimension causes overall FAIL" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
 Assert-FileContains "C.1 policy states FAIL aggregation rule" $ParityPol 'overall_result = FAIL'
-Assert-FileContains "C.2 policy states ANY required FAILED causes overall FAIL" $ParityPol 'ANY required dimension'
+Assert-FileContains "C.2 policy states ANY required FAIL causes overall FAIL" $ParityPol 'ANY required dimension has result = FAIL'
+Assert-FileNotContains "C.4 policy does not use FAILED as a status" $ParityPol 'result\s*=\s*FAILED'
 Assert-FileContains "C.3 schema has FAIL status in overall_result enum" $ParitySchema '"FAIL"'
 
 # ---------------------------------------------------------------------------
@@ -179,6 +180,8 @@ Write-Host "TEST J: NOT_VERIFIED required dimension blocks overall PASS" -Foregr
 
 Assert-FileContains "J.1 schema overall_result description states NOT_VERIFIED blocks PASS" $ParitySchema 'NOT_VERIFIED'
 Assert-FileContains "J.2 policy states NOT_VERIFIED required dimension must prevent PASS" $ParityPol 'NOT_VERIFIED.*prevent|prevent.*PASS'
+Assert-FileContains "J.3 policy keeps unverified required dimensions NOT_VERIFIED, not FAIL" $ParityPol 'keeps the aggregate\s+`NOT_VERIFIED`'
+Assert-FileContains "J.4 unresolved non-FAIL blocker precedence is explicit" $ParityPol 'Unresolved Multi-Blocker Precedence'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

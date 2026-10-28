@@ -409,6 +409,9 @@ Before Discovery intake may report `COMPLETE`, validate all of the following:
 7. Source supersession chains are recorded in `id_map` as `source_superseded_by` entries.
 8. Prose alone is not the sole holder of a required source-to-canonical mapping.
 9. Every canonical Requirement derived from a Design Contract has a `source_ac_coverage` entry for every material source AC. Missing or incomplete `source_ac_coverage` when source ACs exist is a `TRACEABILITY_ERROR`. (See AC COVERAGE COMPLETENESS.)
+10. Compare declared `screens[]`, screen `interaction_states[]` and `effects[]`, and `flows[]` with the active HTML/bundle and UI inventory. Record each source screen/flow in `id_map`; map it to its inventory page where possible, or mark it `EXCLUDED` with a reason. Missing, partial, or ambiguous screen/interaction coverage must be recorded in `partial_reason` and intake MUST NOT be reported as `COMPLETE`.
+11. A complete inventory for the Design Contract does not establish complete UI-reference coverage. Independently record screens or interactions visible in the active original but absent from the Contract or inventory as coverage gaps; do not infer their absence from an empty Contract array.
+12. Confirm that the Contract `mockup.id` and `mockup.revision` match the active source reference. An older revision, missing revision, or unverified inventory freshness is stale/unassessed evidence and MUST NOT be silently reused as current.
 
 ## INTAKE RESULT SEMANTICS
 
@@ -421,7 +424,7 @@ Before Discovery intake may report `COMPLETE`, validate all of the following:
 | Confirmed material decision with no canonical disposition | `TRACEABILITY_ERROR` |
 | Source-to-canonical mapping unresolvable | `TRACEABILITY_ERROR` |
 | ID collision detected without new canonical allocation | `TRACEABILITY_ERROR` |
-| Sufficient content with minor gaps | `PARTIAL` (with `partial_reason`) |
+| Sufficient content with minor gaps, including incomplete reference coverage or unverified freshness | `PARTIAL` (with `partial_reason`) |
 
 **A `TRACEABILITY_ERROR` blocks Refinement from starting.** The error must be resolved before
 the intake can be upgraded to `COMPLETE` or `PARTIAL`. Refinement must not begin with a known

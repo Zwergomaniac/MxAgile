@@ -4,6 +4,40 @@ Diese Regeln werden primaer vom **UI-Agent** (`agents/ui-agent.md`) ausgefuehrt.
 In Discovery generiert oder analysiert der UI-Agent Mockups und erzeugt das YAML-Feldinventar.
 In Verifying vergleicht er das Inventar gegen die laufende App.
 
+## Reference Preflight and Evidence Reuse
+
+Run this preflight for every Analyze or Verify invocation, including a direct or ad-hoc
+request outside the Discovery orchestration:
+
+1. Identify the accepted scope and the active reference for that scope. Keep source mockup
+  (scope intent) distinct from active target mockup (visual/interaction verification).
+2. Locate existing UI inventories, scenarios, parity evidence, and embedded Design Contract
+  intake for that exact reference and revision. Reuse them only after checking their provenance.
+3. For an SPA bundle, verify `target_revision` and `bundle_hash` against the active bundle using
+  `scripts/artifact_hashing.py`. A mismatch is stale evidence. For a single-file mockup, verify
+  the recorded source/target paths and accepted version; if freshness cannot be established,
+  mark it UNASSESSED and inspect the active original rather than assuming it is current.
+4. Compare the Design Contract's declared screens, interaction states, effects, and flows with
+  the UI inventory and requested scope. List missing or ambiguous coverage explicitly. An
+  empty or partial Contract section is not proof that the corresponding source has no content.
+5. Reopen original HTML, bundle files, screenshots, or the running app whenever provenance,
+  freshness, or coverage is incomplete, stale, ambiguous, or insufficient for the requested
+  verification. Existing inventories guide targeted inspection; they never replace required
+  visual or functional evidence.
+
+### Bounded Context Handoff
+
+For a bounded UI analysis or parity assignment, provide the agent a context package containing
+the task and accepted scope, active source and target paths, revision, relevant inventories and
+scenarios, known gaps, evidence paths, and expected result format. Do not pass complete
+conversation history by default. Use inherited history only when a specific unresolved decision
+or constraint cannot be represented in that package, and state why it is needed. Original
+evidence must remain accessible to the agent for independent inspection.
+
+Return a concise result with findings, uncovered or stale items, and source/evidence paths.
+Do not return the full source material as a substitute for findings, and do not claim complete
+coverage when any required reference or verification dimension remains unassessed.
+
 ## Verzeichnis-Konventionen
 
 - `input-resources/ui-ux/` — aktuelle Mockups (Kunden-Artefakte oder freigegebene generierte)

@@ -121,6 +121,7 @@ Write-Host ""
 Write-Host "TEST G: NOT_APPLICABLE requires rationale" -ForegroundColor Cyan
 Assert-FileContains "G.1 parity schema has not_applicable_rationale field" $ParSchema 'not_applicable_rationale'
 Assert-FileContains "G.2 policy states NOT_APPLICABLE requires rationale" $ParityPol 'NOT_APPLICABLE.*requires.*rationale'
+Assert-FileContains "G.2a schema requires a non-empty NOT_APPLICABLE rationale" $ParSchema '(?s)"const":\s*"NOT_APPLICABLE".*?"required":\s*\[\s*"not_applicable_rationale"\s*\].*?"minLength":\s*1'
 $fixC2 = Get-Content -LiteralPath (Join-Path $FixDir "fixture-C-desktop-pass-mobile-fail.yaml") -Raw
 Assert-True "G.3 fixture-A NOT_APPLICABLE has rationale (desktop-only)" ($fixA -match 'not_applicable_rationale')
 
@@ -149,6 +150,8 @@ Assert-FileExists "J.2 fixture I exists" (Join-Path $FixDir "fixture-I-populated
 $fixI = Get-Content -LiteralPath (Join-Path $FixDir "fixture-I-populated-state-without-mockdata.yaml") -Raw
 Assert-True "J.3 fixture-I status is blocked" ($fixI -match 'status: blocked')
 Assert-True "J.4 fixture-I overall is NOT_VERIFIED" ($fixI -match 'overall_result: NOT_VERIFIED')
+Assert-True "J.5 fixture-I keeps PARTIAL plus required NOT_VERIFIED at overall NOT_VERIFIED" `
+    (($fixI -match 'result: PARTIAL') -and ($fixI -match 'result: NOT_VERIFIED') -and ($fixI -match 'overall_result: NOT_VERIFIED'))
 
 # K: Mock-data prerequisite may use different identity than target verification
 Write-Host ""
@@ -166,6 +169,8 @@ Assert-FileContains "L.1 policy states identical UI contracts do not require dup
 Assert-FileExists "L.2 fixture K exists" (Join-Path $FixDir "fixture-K-identical-role-contracts-no-duplicate.yaml")
 $fixK = Get-Content -LiteralPath (Join-Path $FixDir "fixture-K-identical-role-contracts-no-duplicate.yaml") -Raw
 Assert-True "L.3 fixture-K documents identical contracts" ($fixK -match 'identical UI contract')
+Assert-True "L.4 fixture-K valid NOT_APPLICABLE includes rationale" `
+    (($fixK -match 'result: NOT_APPLICABLE') -and ($fixK -match 'not_applicable_rationale:'))
 
 # M: Materially different role behavior creates separate required scenario
 Write-Host ""
@@ -288,6 +293,7 @@ Write-Host "TEST AA: Stale evidence requires re-verification" -ForegroundColor C
 Assert-FileContains "AA.1 parity schema has STALE result status" $ParSchema '"STALE"'
 Assert-FileContains "AA.2 parity schema has target_changed_at for staleness detection" $ParSchema 'target_changed_at'
 Assert-FileContains "AA.3 ui-parity.md defines when record becomes STALE" $ParityPol 'STALE.*when'
+Assert-FileContains "AA.4 stale required evidence cannot yield overall PASS" $ParityPol '(?s)STALE.*FIXTURE_BLOCKED.*MUST prevent overall PASS'
 
 # AB: Requirements/Specs/Tasks retain stable identifiers
 Write-Host ""
@@ -327,6 +333,7 @@ Assert-FileContains "AF.2 full reconciliation is full scope accounting" $ParityP
 Assert-FileContains "AF.3 full reconciliation preserves REUSABLE evidence" $ParityPol 'REUSABLE'
 Assert-FileContains "AF.4 full reconciliation targets only LEGACY_INSUFFICIENT, STALE, MISSING" $ParityPol 'LEGACY_INSUFFICIENT'
 Assert-FileContains "AF.5 full reconciliation does NOT discard authoritative valid evidence" $ParityPol 'does NOT mean discarding'
+Assert-FileContains "AF.7 full reconciliation example preserves existing evidence" $ParityPol 'create one only when absent|do not reset valid dimensions'
 Assert-FileContains "AF.6 process-state parity_reconciliation has full mode" $ProcState '"full"'
 
 # AG: Full reconciliation resumes after interruption
