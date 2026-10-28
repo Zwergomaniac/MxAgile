@@ -16,6 +16,17 @@ Projektspezifische Ergaenzungen gehoeren in `AGENT.md`, nicht hierher.
   selben Turn: `git reset --hard`, `git rebase` geteilter History, `git commit
   --amend` veroeffentlichter Commits, `git push --force`, `git clean -f`.
 
+## Begrenzte Artefakt-Edits
+
+- Bei ausdruecklich begrenzten Artefakt-Edits die kleinste konsistente Aenderung
+  ausfuehren.
+- Zusaetzliche Findings, Open Items, Tracking-Eintraege oder semantische
+  Erweiterungen nicht allein zur Vervollstaendigung erzeugen.
+- Folgeaenderungen sind nur zulaessig, wenn Schema, Invarianten oder ausdruecklich
+  akzeptierter Scope sie verlangen.
+- Autonomie erlaubt selbststaendige Ausfuehrung innerhalb des Scopes, nicht dessen
+  Erweiterung.
+
 ## Modellaenderungen
 
 - NIEMALS Model-Elemente (Entities, Attributes, Associations, Microflows, Pages,

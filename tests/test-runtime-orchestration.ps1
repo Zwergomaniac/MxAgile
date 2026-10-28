@@ -75,6 +75,8 @@ $implAgentPath   = Join-Path $ScriptDir ".mxagile/agents/implementation-agent.md
 $accAgentPath    = Join-Path $ScriptDir ".mxagile/agents/acceptance-agent.md"
 $uiAgentPath     = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 $discAgentPath   = Join-Path $ScriptDir ".mxagile/agents/discovery-agent.md"
+$refAgentPath    = Join-Path $ScriptDir ".mxagile/agents/refinement-agent.md"
+$safetyRulesPath = Join-Path $ScriptDir ".mxagile/policies/safety-rules.md"
 $orchestrator    = Join-Path $ScriptDir ".mxagile/orchestrator.md"
 $lifecycleYaml   = Join-Path $ScriptDir ".mxagile/lifecycle.yaml"
 $qualityGate     = Join-Path $ScriptDir ".mxagile/skills/quality-gate.md"
@@ -349,6 +351,7 @@ Write-Host "--- Section L: Generated projections updated ---"
 $genAccAgent  = Join-Path $ScriptDir ".claude/agents/mxagile-acceptance-agent.md"
 $genUiAgent   = Join-Path $ScriptDir ".claude/agents/mxagile-ui-agent.md"
 $genDiscAgent = Join-Path $ScriptDir ".claude/agents/mxagile-discovery-agent.md"
+$genRefAgent  = Join-Path $ScriptDir ".claude/agents/mxagile-refinement-agent.md"
 $genQualGate  = Join-Path $ScriptDir ".claude/skills/mxagile-quality-gate/SKILL.md"
 
 Assert-FileContains "L.1 generated acceptance-agent has autonomous mode" `
@@ -362,6 +365,24 @@ Assert-FileContains "L.3 generated discovery-agent has autonomous mode" `
 
 Assert-FileContains "L.4 generated quality-gate references Runtime Modes" `
     $genQualGate '(?i)Runtime Modes|autonomen Verifikationsmodus'
+
+Assert-FileContains "L.5 bounded artifact edits use the smallest consistent change" `
+    $safetyRulesPath '(?i)kleinste konsistente Aenderung'
+
+Assert-FileContains "L.6 bounded artifact edits prohibit unrequired additions" `
+    $safetyRulesPath '(?i)Zusaetzliche Findings, Open Items, Tracking-Eintraege oder semantische\s+Erweiterungen nicht allein zur Vervollstaendigung erzeugen'
+
+Assert-FileContains "L.7 follow-up edits require schema, invariant, or accepted-scope need" `
+    $safetyRulesPath '(?i)Schema, Invarianten oder ausdruecklich\s+akzeptierter Scope sie verlangen'
+
+Assert-FileContains "L.8 autonomy does not expand scope" `
+    $safetyRulesPath '(?i)Autonomie erlaubt selbststaendige Ausfuehrung innerhalb des Scopes, nicht dessen\s+Erweiterung'
+
+Assert-FileContains "L.9 refinement agent consumes universal safety rules" `
+    $refAgentPath '\.mxagile/policies/safety-rules\.md'
+
+Assert-FileContains "L.10 generated refinement agent consumes universal safety rules" `
+    $genRefAgent '\.mxagile/policies/safety-rules\.md'
 
 Write-Host ""
 
