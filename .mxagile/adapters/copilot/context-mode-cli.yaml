@@ -1,0 +1,22 @@
+# MxAgile Context Mode Adapter — GitHub Copilot CLI
+# Consumed by: scripts/Get-MxAgileCapabilities.ps1 (context_mode_integration, -Harness copilot_cli)
+# Upstream: https://github.com/mksglu/context-mode (README "GitHub Copilot CLI")
+# Assessed: release v1.0.169 (2026-06-29), main @ 397137b0cfc2 (2026-10-28)
+#
+# Flat scalar keys only. No automatic installation. Not a projection of the Claude config.
+# Detection (read-only, home = $COPILOT_HOME or ~/.copilot):
+#   mcp     : "context-mode" in <home>/mcp-config.json   (written by 'copilot mcp add')
+#   hooks   : <home>/hooks/context-mode.json with 'context-mode hook copilot-cli ...' commands
+#   plugin  : directory named *context-mode* under <home> (heuristic; upstream documents no stable path)
+# Hooks without MCP registration are inert (no tools) and reported as misconfigured.
+
+harness_id: "copilot_cli"
+upstream_ref: "mksglu/context-mode v1.0.169 / 397137b0cfc2"
+assessed_date: "2026-10-28"
+integration_modes: "plugin (copilot plugin install, MCP + hooks + skill), manual (copilot mcp add + hooks file)"
+health_probe: "Type 'ctx stats' / call ctx_doctor in the Copilot CLI session once; or run 'context-mode doctor' in a shell (confirms hook + MCP registration)."
+setup_project: "No documented project-local install; Copilot CLI configuration is user-level (COPILOT_HOME or ~/.copilot)."
+setup_global: "npm install -g context-mode, then: copilot plugin install mksglu/context-mode:configs/copilot-cli (MCP + hooks), or manually: copilot mcp add context-mode -- context-mode and hooks file ~/.copilot/hooks/context-mode.json; restart Copilot CLI."
+verify: "Type 'ctx stats' in a Copilot CLI session; run 'context-mode doctor'."
+repair_hint: "Register the MCP server (copilot mcp add context-mode -- context-mode) and keep ~/.copilot/hooks/context-mode.json; hooks alone provide no tools. MxAgile does not edit this configuration."
+health_hint: "Run 'context-mode doctor'. Hooks fail open, so a stale global context-mode only disables routing; upgrade with npm install -g context-mode@latest."

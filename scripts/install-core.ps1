@@ -397,6 +397,17 @@ try {
     }
     Write-Host "[OK] Canonical MxAgile payload installed."
 
+    # Capability resolver: framework-owned tool inside .mxagile/ (cleared and re-copied on every
+    # install/update by Step 1c.1), so it is never stale and never touches project-owned scripts/.
+    $resolverSource = Join-Path $PSScriptRoot "Get-MxAgileCapabilities.ps1"
+    if (-not (Test-Path -LiteralPath $resolverSource -PathType Leaf)) {
+        throw "Get-MxAgileCapabilities.ps1 not found in script directory: $resolverSource"
+    }
+    $destToolsDir = Join-Path $destMxAgile "tools"
+    New-Item -ItemType Directory -Path $destToolsDir -Force | Out-Null
+    Copy-Item -LiteralPath $resolverSource -Destination (Join-Path $destToolsDir "Get-MxAgileCapabilities.ps1") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/Get-MxAgileCapabilities.ps1 (on-demand only)."
+
     # =========================================================================
     # Core Installation Provenance
     # Writes machine-readable identity to .mxagile/state/core-provenance.json so
@@ -462,6 +473,9 @@ try {
                 "scripts/generate-mxagile-platform-skills.ps1"
             )
             consumer_note      = "Distribution-owned scripts are NOT consumer project artifacts. Their absence in a consumer project is expected and normal, never a defect."
+            project_distributed = @(
+                ".mxagile/tools/Get-MxAgileCapabilities.ps1"
+            )
         }
     }
     $coreProv | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $coreProvPath -Encoding UTF8

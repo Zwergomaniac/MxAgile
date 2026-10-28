@@ -363,6 +363,11 @@ When starting, resuming, or picking up work, follow this order:
    initialization or adoption), OR if the user asks how MxAgile works: follow
    `.mxagile/policies/user-orientation.md`. Orientation is brief and never blocks the user's request.
 
+7. **Optional capabilities, on demand only** — never at startup. When an optional capability could
+   clearly help the current task, query only that capability through
+   `.mxagile/policies/capability-discovery.md`. Installed does not mean usable; never assume health;
+   an unavailable or failing optional capability never blocks the normal MxAgile path.
+
 Detailed policy: `.mxagile/policies/lifecycle-resync.md`
 '@
 

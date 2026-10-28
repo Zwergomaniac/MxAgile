@@ -1,0 +1,23 @@
+# MxAgile Context Mode Adapter — Claude Code
+# Consumed by: scripts/Get-MxAgileCapabilities.ps1 (context_mode_integration, -Harness claude_code)
+# Upstream: https://github.com/mksglu/context-mode (README "Claude Code")
+# Assessed: release v1.0.169 (2026-06-29), main @ 397137b0cfc2 (2026-10-28)
+#
+# Flat scalar keys only (read by a line-based parser). No automatic installation.
+# Detection (performed by the resolver, read-only):
+#   plugin   : enabledPlugins "context-mode@..." = true in ~/.claude/settings.json,
+#              .claude/settings.json or .claude/settings.local.json
+#   mcp_only : "context-mode" server entry in <project>/.mcp.json or ~/.claude.json
+#   hooks    : bundled with the plugin; absent for MCP-only
+# Health: agent-observed ctx_doctor / ctx_stats result (resolver does not call tools).
+
+harness_id: "claude_code"
+upstream_ref: "mksglu/context-mode v1.0.169 / 397137b0cfc2"
+assessed_date: "2026-10-28"
+integration_modes: "plugin (recommended: hooks + 11 MCP tools), mcp_only (tools only, no hooks/routing)"
+health_probe: "Call ctx_doctor (or ctx_stats) once per session via the MCP tool namespace; slash command /context-mode:ctx-doctor. Cache the result; never per model turn."
+setup_project: "Project-local: claude mcp add --scope project context-mode -- npx -y context-mode (MCP-only, no hooks; writes .mcp.json)."
+setup_global: "Recommended (plugin, hooks + tools): /plugin marketplace add mksglu/context-mode, then /plugin install context-mode@context-mode, then restart or /reload-plugins."
+verify: "/context-mode:ctx-doctor — all checks should show [x]."
+repair_hint: "Check 'claude mcp list' and /plugin; run /context-mode:ctx-doctor. Do not run both plugin and a duplicate MCP entry unless intended. MxAgile does not edit this configuration."
+health_hint: "Run /context-mode:ctx-doctor (or the context-mode doctor CLI). If the MCP server reports CONNECT_TIMEOUT, restart the session or reinstall; MxAgile continues with native fallback meanwhile."

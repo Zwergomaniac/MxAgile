@@ -111,12 +111,12 @@ Full technical specification: `.mxagile/integrations/rtk.yaml`
 | Field | Value |
 |-------|-------|
 | Repository | `https://github.com/mksglu/context-mode` |
-| Assessed version | 1.0.33+ |
-| Assessed date | 2026-10-13 |
+| Assessed version | 1.0.169 (release 2026-06-29), main @ `397137b0cfc2` (2026-10-28) |
+| Assessed date | 2026-10-28 |
 | License | **ELv2 (Elastic License v2)** |
 | Redistribution | **NOT permitted by MxAgile** — must be installed by the developer |
 | Windows support | Yes |
-| Integration mechanism | Claude Code plugin + MCP tools |
+| Integration mechanism | Harness-specific: plugin and/or MCP + hooks (Claude Code, Copilot CLI, VS Code Copilot); native OpenCode plugin |
 | Storage | SQLite at `~/.context-mode/` |
 
 ### License Warning
@@ -128,6 +128,26 @@ Context Mode uses the **Elastic License v2 (ELv2)**. ELv2 is source-available bu
 Context Mode externalizes bulky content to a local SQLite+FTS5 knowledge base. The agent can retrieve relevant content on demand via `ctx_search`. This prevents large exploratory results, historical analyses, and debugging findings from consuming active context window.
 
 ### Installation
+
+The setup path differs per harness; the same MCP stdio config is not valid everywhere. The resolver
+(`scripts/Get-MxAgileCapabilities.ps1 -Capability context_mode_integration -Harness <id>`) reports
+the state and a compact, harness-specific guidance; the source of that guidance is
+`.mxagile/adapters/<harness>/context-mode*.yaml`. MxAgile never installs or edits configuration.
+
+| Harness (`-Harness`) | Upstream form | Detected (read-only) |
+|----------------------|---------------|----------------------|
+| `claude_code` | plugin (hooks + tools) or MCP-only | `enabledPlugins` in `~/.claude/settings.json`, `.claude/settings*.json`; `.mcp.json`, `~/.claude.json` |
+| `copilot_cli` | `copilot plugin install` or `copilot mcp add` + hooks file | `~/.copilot/mcp-config.json`, `~/.copilot/hooks/context-mode.json` (`COPILOT_HOME` honoured) |
+| `vscode_copilot` | project files | `.vscode/mcp.json`, `.github/hooks/context-mode.json`; global `context-mode` binary |
+| `opencode` | native plugin (`opencode.json` `plugin`) | `opencode.json(c)` project + `~/.config/opencode/` |
+
+OpenCode: `plugin ["context-mode"]` together with `mcp.context-mode` registers zero tools upstream. MxAgile
+reports this as `misconfigured` (degraded) and does not repair it; remove the legacy entry or run
+`context-mode upgrade` yourself.
+
+Health is never inferred from files: the agent may pass one session-cached `ctx_doctor`/`ctx_stats`
+result (`-ContextModeHealth healthy|failed|timeout`); otherwise it stays `unknown` and the capability is
+not `active`. Without a usable Context Mode MxAgile continues with its native fallback.
 
 **Claude Code (recommended):**
 ```

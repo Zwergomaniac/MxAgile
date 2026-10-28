@@ -179,7 +179,7 @@ capabilities:
     default_state: "off"
     config_location: ".mxagile/config.yaml"
     config_key: "context_optimization.context_mode.enabled"
-    activation_mechanism: "Install Context Mode (/plugin marketplace add mksglu/context-mode in Claude Code, or: npm install -g context-mode), then set context_optimization.context_mode.enabled: true."
+    activation_mechanism: "Set up Context Mode for the current harness (setup path: see integration.guidance from the resolver and .mxagile/adapters/*/context-mode*.yaml; user-run, never automatic), then set context_optimization.context_mode.enabled: true."
     requires: []
     external_dependencies:
       - id: context_mode
@@ -196,7 +196,7 @@ capabilities:
         assessed_date: "2026-10-13"
         license_note: "ELv2 — source-available, NOT OSI open source. Not redistributed by MxAgile. Must be installed separately."
     incompatibilities: []
-    availability_detection: "Detect 'context-mode' executable in PATH, or detect Claude Code plugin via /plugin list. Run 'ctx_doctor' MCP tool when available."
+    availability_detection: "Harness-specific and read-only (resolver field 'integration'): plugin/MCP/hooks configuration of the identified harness (Claude Code, Copilot CLI, VS Code Copilot, OpenCode). available=true means a runtime exists, NOT that it works; active requires integration.usable, i.e. an agent-observed healthy ctx_doctor/ctx_stats probe (-ContextModeHealth). Unknown health is never reported as healthy."
     risk: low
     docs_ref: "docs/context-optimization.md"
     agent_may_recommend: true

@@ -11,6 +11,7 @@ changes:
     - "Schema: 3 new context_meta fields: diagnostic_state, mission_continues, is_human_gate"
     - "Capabilities: CompactionAutomatable field added as explicit alias"
     - "Tests: test-context-transition-autonomy-hardening.ps1 (tests 41-50, Tier 1 FastGate)"
+    - "Context Mode harness integration: per-harness detection (Claude Code, Copilot CLI, VS Code Copilot, OpenCode) in the capability resolver, adapters/*/context-mode*.yaml, health evidence never inferred, tests/test-context-mode-harness.ps1"
   "1.7":
     - "Context Transition: autonomous context compaction and fresh-epoch transition orchestration"
     - "Policy: .mxagile/policies/context-transition.md — transition strategies, state machine, pre/post protocols, autonomy rules, idempotency, overflow recovery"

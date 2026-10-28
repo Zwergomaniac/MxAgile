@@ -1,0 +1,132 @@
+<#
+.SYNOPSIS
+    Capability discovery routing + resolver distribution contract
+
+.DESCRIPTION
+    Static: the startup routing rule is short, generic, lazy and does not explain Context Mode;
+    nothing in install/startup scripts invokes the resolver.
+    E2E (GUID temp project, real install-core.ps1): fresh install and existing-project update
+    distribute .mxagile/tools/Get-MxAgileCapabilities.ps1, the installed resolver is reachable
+    and returns harness-specific guidance, never executes context-mode, and a repeated update
+    is idempotent while project-owned files are preserved.
+
+    No network is required by this test itself; install-core may skip network-dependent steps.
+#>
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$Scripts  = Join-Path $RepoRoot 'scripts'
+$Installer = Join-Path $Scripts 'install-core.ps1'
+$ResolverSrc = Join-Path $Scripts 'Get-MxAgileCapabilities.ps1'
+
+$PassCount = 0; $FailCount = 0; $FailDetails = @()
+function Assert-True {
+    param([string]$TestName, [bool]$Condition, [string]$Message = '')
+    if ($Condition) { Write-Host "  PASS: $TestName" -ForegroundColor Green; $script:PassCount++ }
+    else { Write-Host "  FAIL: $TestName -- $Message" -ForegroundColor Red; $script:FailCount++; $script:FailDetails += "  FAIL: $TestName -- $Message" }
+}
+
+$Temps = @()
+function New-TempDir { $p = Join-Path $env:TEMP "mxagile-disc-$(New-Guid)"; New-Item -ItemType Directory -Path $p | Out-Null; $script:Temps += $p; return $p }
+
+Write-Host ""
+Write-Host "=== Capability Discovery Routing & Distribution Tests ===" -ForegroundColor Cyan
+
+try {
+# --- Static: routing rule ---------------------------------------------------
+Write-Host "--- Routing rule ---" -ForegroundColor Yellow
+$inject = Get-Content (Join-Path $Scripts 'apply-project-agent-instructions.ps1') -Raw
+$m = [regex]::Match($inject, '(?s)\$MxAgileStartupBlock = @''\r?\n(.*?)\r?\n''@')
+Assert-True 'startup block extractable' $m.Success 'block not found'
+$block = $m.Groups[1].Value
+$rule = [regex]::Match($block, '(?s)7\. \*\*Optional capabilities.*?(?=\r?\n\r?\nDetailed policy)').Value
+Assert-True 'rule 7 present and routes to capability-discovery policy' ($rule -match 'capability-discovery\.md') 'rule/policy ref missing'
+Assert-True 'rule is lazy: on demand, never at startup' (($rule -match 'on demand') -and ($rule -match 'never at startup')) $rule
+Assert-True 'rule states installed != usable, no invented health, non-blocking' (($rule -match 'Installed does not mean usable') -and ($rule -match 'never assume health') -and ($rule -match 'never blocks')) $rule
+Assert-True 'rule queries only the relevant capability' ($rule -match 'only that capability') $rule
+Assert-True 'rule is short (<= 6 lines)' (($rule -split "`n").Count -le 6) "lines=$(($rule -split "`n").Count)"
+Assert-True 'always-on block does not explain Context Mode' ($block -notmatch '(?i)context[- _]mode|ctx_') 'Context Mode leaked into always-on text'
+Assert-True 'no "run at every startup" instruction' ($block -notmatch '(?i)every (start|session)|at startup.*Get-MxAgile|run capability discovery') 'startup probe instruction'
+
+# nothing in installer/startup scripts invokes the resolver
+$invokers = Get-ChildItem $Scripts -Filter *.ps1 -File | Where-Object { $_.Name -ne 'Get-MxAgileCapabilities.ps1' } |
+    Where-Object { (Get-Content $_.FullName -Raw) -match '(?m)^\s*(&|\.)\s*.*Get-MxAgileCapabilities' }
+Assert-True 'no script invokes the resolver automatically' (@($invokers).Count -eq 0) (($invokers | ForEach-Object Name) -join ', ')
+
+$policy = Get-Content (Join-Path $RepoRoot '.mxagile/policies/capability-discovery.md') -Raw
+Assert-True 'policy names installed resolver path and lazy -Capability use' (($policy -match '\.mxagile/tools/Get-MxAgileCapabilities\.ps1') -and ($policy -match '-Capability <id>') -and ($policy -match 'Never run it at startup')) 'policy incomplete'
+Assert-True 'policy maps large-raw-data tasks to context_mode_integration' ($policy -match 'Large raw data.*context_mode_integration') 'task mapping missing'
+Assert-True 'policy gives compact answer template using integration.guidance' (($policy -match 'integration\.guidance') -and ($policy -match 'normal MxAgile fallback')) 'template missing'
+
+# --- E2E: fresh install -------------------------------------------------------------
+Write-Host "--- Fresh install ---" -ForegroundColor Yellow
+$proj = New-TempDir
+New-Item -ItemType File -Path (Join-Path $proj 'project.mpr') | Out-Null
+$null = & pwsh -NoProfile -File $Installer -ProjectRoot $proj 2>&1
+Assert-True 'fresh install exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+$tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
+Assert-True 'resolver distributed to .mxagile/tools' (Test-Path $tool) 'tool missing'
+Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-FileHash $tool).Hash -eq (Get-FileHash $ResolverSrc).Hash)) 'hash differs'
+Assert-True 'no scripts/ directory created in project' (-not (Test-Path (Join-Path $proj 'scripts'))) 'project-owned scripts/ touched'
+Assert-True 'startup did not run resolver (no discovery state)' (-not (Test-Path (Join-Path $proj '.concord/capability-discovery.yaml'))) 'discovery state written'
+foreach ($f in 'AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md') {
+    $p = Join-Path $proj $f
+    if (Test-Path $p) {
+        $t = Get-Content $p -Raw
+        Assert-True "$f carries rule 7 without Context Mode text" (($t -match 'Optional capabilities, on demand only') -and ($t -notmatch '(?i)context-mode')) 'rule missing or leaked'
+    }
+}
+$prov = Get-Content (Join-Path $proj '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
+Assert-True 'provenance lists project-distributed tool' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Get-MxAgileCapabilities.ps1') 'provenance missing entry'
+
+# installed agent reaches resolver (default project root = installed project) and gets guidance
+$bin = New-TempDir
+$marker = Join-Path $bin 'executed.marker'
+Set-Content (Join-Path $bin 'context-mode.cmd') "@echo executed> `"$marker`"`r`n@echo 1.0.169" -Encoding ASCII
+$savedPath = $env:PATH
+$savedEnv = @{}
+foreach ($n in 'MXAGILE_HARNESS','CLAUDECODE','OPENCODE_SESSION_ID','OPENCODE_BASE_URL') { $savedEnv[$n] = [Environment]::GetEnvironmentVariable($n); [Environment]::SetEnvironmentVariable($n, $null) }
+try {
+    $env:PATH = $bin
+    $homeDir = New-TempDir
+    $json = & $tool -Capability context_mode_integration -Format json -Harness opencode -HomeDir $homeDir | ConvertFrom-Json
+    $i = $json.capabilities[0].integration
+    Assert-True 'installed resolver resolves the installed project root' ($json.project_root -eq $proj) "root=$($json.project_root)"
+    Assert-True 'targeted discovery returns harness-specific guidance' (($i.status -eq 'installed_not_configured') -and (($i.guidance -join ' ') -match 'opencode\.json')) "status=$($i.status)"
+    Assert-True 'discovery never executes context-mode' (-not (Test-Path $marker)) 'context-mode executed'
+    Assert-True 'unusable Context Mode does not block (fallback intact)' (($i.usable -eq $false) -and ($i.fallback.blocks_mxagile -eq $false) -and ($LASTEXITCODE -eq 0)) 'blocked'
+    $json2 = & $tool -Capability context_lifecycle -Format json | ConvertFrom-Json
+    Assert-True 'small-task capability query does not touch Context Mode' ((-not (Test-Path $marker)) -and (@($json2.capabilities).Count -eq 1)) 'probe happened'
+} finally {
+    $env:PATH = $savedPath
+    foreach ($n in $savedEnv.Keys) { [Environment]::SetEnvironmentVariable($n, $savedEnv[$n]) }
+}
+
+# --- E2E: existing-project update + idempotence ---------------------------------------------
+Write-Host "--- Existing project update ---" -ForegroundColor Yellow
+Set-Content $tool '# tampered' -Encoding UTF8
+Set-Content (Join-Path $proj '.mxagile/tools/stale.ps1') '# stale' -Encoding UTF8
+New-Item -ItemType Directory -Path (Join-Path $proj 'scripts') | Out-Null
+Set-Content (Join-Path $proj 'scripts/mine.ps1') '# project-owned' -Encoding UTF8
+$null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
+Assert-True 'update exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+$srcHash = (Get-FileHash $ResolverSrc).Hash
+Assert-True 'update restores resolver to current distribution version' ((Get-FileHash $tool).Hash -eq $srcHash) 'not restored'
+Assert-True 'update retires stale files in .mxagile/tools' (-not (Test-Path (Join-Path $proj '.mxagile/tools/stale.ps1'))) 'stale file kept'
+Assert-True 'update preserves project-owned scripts/' ((Get-Content (Join-Path $proj 'scripts/mine.ps1') -Raw) -match 'project-owned') 'project file lost'
+$null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
+Assert-True 'repeated update exit 0 and tool hash unchanged (idempotent)' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash)) 'not idempotent'
+$agents = Get-Content (Join-Path $proj 'AGENTS.md') -Raw
+Assert-True 'repeated update does not duplicate rule 7' (([regex]::Matches($agents, 'Optional capabilities, on demand only')).Count -eq 1) 'rule duplicated'
+} finally {
+    foreach ($t in $Temps) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }
+}
+
+Write-Host ""
+Write-Host "=== Results ===" -ForegroundColor Cyan
+Write-Host "  Passed: $PassCount" -ForegroundColor Green
+Write-Host "  Failed: $FailCount" -ForegroundColor $(if ($FailCount -gt 0) { 'Red' } else { 'Green' })
+if ($FailCount -gt 0) { $FailDetails | ForEach-Object { Write-Host $_ -ForegroundColor Red }; exit 1 }
+exit 0

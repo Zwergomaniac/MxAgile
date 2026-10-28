@@ -31,9 +31,10 @@
 #     FAILED     -> VERIFIED
 #     STALE      -> VERIFIED
 
-integration_version: "1.0"
-assessed_upstream_version: "1.0.33+"
-assessed_date: "2026-10-13"
+integration_version: "1.1"
+assessed_upstream_version: "1.0.169"
+assessed_upstream_commit: "397137b0cfc2007f48f837c52958f9ec811db9c5"
+assessed_date: "2026-10-28"
 license: "ELv2"
 upstream: "https://github.com/mksglu/context-mode"
 redistribution: "NOT permitted by MxAgile — must be installed by the developer"
@@ -111,11 +112,58 @@ detection:
   setup_state_resolution: "See setup_states.resolution_algorithm above"
   important: "Executable in PATH alone does NOT imply ACTIVE or LOADED. Use resolution_algorithm."
 
+harness_integration:
+  description: >
+    Context Mode is integrated differently per harness. The same MCP stdio config is NOT valid
+    everywhere. Detection is read-only and lives in scripts/Get-MxAgileCapabilities.ps1
+    (capability context_mode_integration, JSON field `integration`); per-harness setup/repair/health
+    guidance lives in the platform adapters. MxAgile never installs, enables or edits harness config.
+  adapters:
+    claude_code: ".mxagile/adapters/claude/context-mode.yaml"
+    copilot_cli: ".mxagile/adapters/copilot/context-mode-cli.yaml"
+    vscode_copilot: ".mxagile/adapters/copilot/context-mode-vscode.yaml"
+    opencode: ".mxagile/adapters/opencode/context-mode.yaml"
+  upstream_forms:
+    claude_code: "plugin (hooks + 11 MCP tools) or MCP-only (tools, no hooks)"
+    copilot_cli: "copilot plugin (MCP + hooks) or manual (copilot mcp add + ~/.copilot/hooks/context-mode.json)"
+    vscode_copilot: "project files .vscode/mcp.json + .github/hooks/context-mode.json, global context-mode binary"
+    opencode: "native in-process plugin via opencode.json plugin [context-mode]; NOT a stdio MCP server"
+  opencode_conflict: >
+    plugin ["context-mode"] together with mcp.context-mode makes OpenCode register zero ctx_* tools
+    (upstream upgrade note). MxAgile reports status misconfigured (degraded, not usable) and does not
+    delete or repair the entry. Legacy mcp.context-mode without plugin is reported as legacy_mcp (degraded).
+  harness_id_resolution: "-Harness parameter, MXAGILE_HARNESS, CLAUDECODE=1, OPENCODE_SESSION_ID/OPENCODE_BASE_URL; otherwise unknown (never guessed from files)."
+  status_values:
+    not_installed: "Supported but no runtime/config for this harness -> unavailable; setup guidance."
+    installed_not_configured: "Runtime present, not configured for this harness -> available, not active; setup guidance."
+    misconfigured: "Config present but known-broken (conflict, inert hooks) -> degraded, not usable."
+    configured_health_unknown: "Configured, no health evidence in this session -> degraded, not usable (UNKNOWN is not HEALTHY)."
+    configured_unhealthy: "Configured, probe failed or timed out -> degraded, not usable."
+    healthy: "Configured (or tools observed) and probe succeeded -> usable; active only if project config enables it."
+    harness_unknown: "Harness not identified -> not usable, degraded when enabled."
+    harness_unsupported: "No adapter for this harness -> unavailable."
+  mapping_to_capability_states:
+    available: "A runtime for the identified harness exists. NOT proof the integration works."
+    enabled: "context_optimization.context_mode.enabled in project config."
+    degraded: "Configured but misconfigured/unhealthy/unverified."
+    active: "available AND enabled AND integration.usable (healthy evidence)."
+  health:
+    evidence_source: "Agent-observed result of ONE bounded ctx_doctor/ctx_stats call, passed as -ContextModeHealth healthy|failed|timeout. The resolver performs no MCP call."
+    rules:
+      - "At most once per session (cache the result); never per model turn."
+      - "No large output; no blocking startup wait; a timeout is recorded as 'timeout' and the session continues natively."
+      - "Absent evidence stays 'unknown' and is never reported as healthy."
+  setup_guidance_rules:
+    - "Guidance comes from the adapter file of the identified harness; project-local vs global paths are stated separately where upstream documents both."
+    - "The agent states the setup path compactly and continues with the native fallback."
+    - "No automatic installation, no package-manager command executed by the agent, no silent global config change."
+
 installation:
   claude_code: "/plugin marketplace add mksglu/context-mode"
   npm_global: "npm install -g context-mode"
   mcp_only: "claude mcp add context-mode -- npx -y context-mode"
   note: "ELv2 license — review before commercial use. Installation requires explicit user authorization."
+  harness_specific: "See harness_integration.adapters — the commands above are Claude Code / generic only."
 
 mcp_tools:
   available:
@@ -205,7 +253,17 @@ fallback:
     - "Context Mode unavailable or unhealthy"
     - "Context Mode returns no relevant result"
     - "Context Mode temporarily fails"
+    - "Context Mode installed but not configured for the current harness"
+    - "Context Mode not loaded in this session"
+    - "Health probe failed or timed out"
+    - "Harness unknown or unsupported"
   behavior: "Fall back to native MxAgile Context Lifecycle operation."
+  order:
+    - "existing deterministic helpers"
+    - "scoped/bounded semantic delegation (if required and available)"
+    - "targeted direct read"
+  forbidden: "Full-repository read as automatic fallback."
+  test_reference: "tests/test-context-mode-harness.ps1"
   must_not_block:
     - Resume
     - Re-Sync

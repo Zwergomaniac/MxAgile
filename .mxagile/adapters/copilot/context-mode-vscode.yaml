@@ -1,0 +1,22 @@
+# MxAgile Context Mode Adapter — VS Code Copilot
+# Consumed by: scripts/Get-MxAgileCapabilities.ps1 (context_mode_integration, -Harness vscode_copilot)
+# Upstream: https://github.com/mksglu/context-mode (README "VS Code Copilot")
+# Assessed: release v1.0.169 (2026-06-29), main @ 397137b0cfc2 (2026-10-28)
+#
+# Flat scalar keys only. No automatic installation.
+# Only the upstream-documented, project-scoped files are modelled:
+#   mcp   : servers["context-mode"] in <project>/.vscode/mcp.json
+#   hooks : <project>/.github/hooks/context-mode.json (PreToolUse, PostToolUse, SessionStart)
+# Runtime: global 'context-mode' binary (npm install -g context-mode), Node >= 22.5, Copilot Chat v0.32+.
+# User-profile MCP configuration is a VS Code feature but not documented by context-mode: not modelled.
+
+harness_id: "vscode_copilot"
+upstream_ref: "mksglu/context-mode v1.0.169 / 397137b0cfc2"
+assessed_date: "2026-10-28"
+integration_modes: "project files (.vscode/mcp.json + .github/hooks/context-mode.json)"
+health_probe: "Type 'ctx stats' in Copilot Chat once; context-mode tools should appear and respond. 'context-mode doctor' in a shell for diagnostics."
+setup_project: "npm install -g context-mode; create .vscode/mcp.json with servers.context-mode.command = context-mode; create .github/hooks/context-mode.json (PreToolUse/PostToolUse/SessionStart -> 'context-mode hook vscode-copilot <event>'); restart VS Code."
+setup_global: "Not documented upstream for VS Code Copilot beyond the global npm binary."
+verify: "Open Copilot Chat and type 'ctx stats'."
+repair_hint: "Ensure .vscode/mcp.json registers the context-mode server and the global context-mode binary is on PATH; hooks without the MCP entry provide no tools. MxAgile does not edit this configuration."
+health_hint: "Run 'context-mode doctor'; restart VS Code after config changes. MxAgile continues with native fallback meanwhile."

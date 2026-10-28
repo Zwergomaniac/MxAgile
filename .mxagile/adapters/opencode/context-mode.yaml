@@ -1,0 +1,25 @@
+# MxAgile Context Mode Adapter — OpenCode
+# Consumed by: scripts/Get-MxAgileCapabilities.ps1 (context_mode_integration, -Harness opencode)
+# Upstream: https://github.com/mksglu/context-mode (README "OpenCode")
+# Assessed: release v1.0.169 (2026-06-29), main @ 397137b0cfc2 (2026-10-28)
+#
+# Flat scalar keys only. No automatic installation, no automatic config repair.
+# OpenCode uses a NATIVE in-process TypeScript plugin, not a stdio MCP server:
+#   plugin     : "context-mode" in the "plugin" array of opencode.json(c)
+#                (project root or ~/.config/opencode/opencode.json; scopes are merged)
+#   legacy_mcp : "mcp.context-mode" entry (older setup)
+# Upstream warning: plugin AND mcp.context-mode together => OpenCode registers ZERO ctx_* tools.
+# MxAgile reports that state as misconfigured (degraded) and never edits the file.
+# Upstream remedy is 'context-mode upgrade' (user-run); a disabled mcp entry ("enabled": false) is ignored.
+
+harness_id: "opencode"
+upstream_ref: "mksglu/context-mode v1.0.169 / 397137b0cfc2"
+assessed_date: "2026-10-28"
+integration_modes: "plugin (native, hooks in-process), legacy_mcp (outdated, no plugin hooks)"
+health_probe: "Type 'ctx stats' in the OpenCode session once; ctx_* tools must be registered. Absence of the tools with a plugin entry present indicates a misconfiguration."
+setup_project: "Add to opencode.json in the project root: { \"plugin\": [\"context-mode\"] }; optionally copy configs/opencode/AGENTS.md; restart OpenCode."
+setup_global: "Same plugin entry in ~/.config/opencode/opencode.json (global); restart OpenCode."
+verify: "Type 'ctx stats' in the OpenCode session."
+repair_hint: "Do not keep plugin [\"context-mode\"] together with mcp.context-mode. Remove the legacy mcp.context-mode entry yourself or run 'context-mode upgrade' (preserves other MCP servers). MxAgile does not edit opencode.json."
+legacy_hint: "Only a legacy mcp.context-mode entry exists. Upstream now uses the plugin path; migrate by adding plugin [\"context-mode\"] and removing the mcp entry (never both)."
+health_hint: "Check that ctx_* tools are registered (ctx stats). If missing despite the plugin entry, look for a legacy mcp.context-mode entry. MxAgile continues with native fallback meanwhile."
