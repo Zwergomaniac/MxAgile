@@ -1167,7 +1167,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "MxAgile 1.5 execution-environment intent fix: static contract checks on execution-intent.md, orchestrator.md Schritt 1b, and capabilities.yaml. Covers 15 required scenarios: strong-signal clarification, weak-signal suppression, no-SP suppression, unknown-not-detected, explicit-intent suppression, session-persistence, re-sync Cases A/B/C, no lifecycle-gate impact, no evidence-state change, no epoch-rollover, user-override priority, LIVE-SP-CURRENT backward compatibility, Concord MCP detection via mcp__concord-v2-mcp__ tool namespace, configuration-evidence-not-sufficient. Pure read-only static validation."
+    "Reason": "LIVE-SP operating-mode and tool-routing contract tests R1-R8: deterministic same-project routing, CLOSED-AUTONOM versus UNKNOWN, normalized path identity, MCP health/project-context evidence, Concord fallback behavior, mxcli prohibition for LIVE-SP model mutations, ambiguity-only user escalation, and same-session freshness. Static policy/wiring checks; real process and MCP runtime require a harness-level test."
   },
   {
     "File": "test-context-transition-coordinator.ps1",

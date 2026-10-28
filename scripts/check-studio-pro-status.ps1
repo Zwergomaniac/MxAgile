@@ -35,6 +35,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
+if ((Split-Path -Leaf $projectRoot) -eq '.mxagile') {
+    $projectRoot = Split-Path -Parent $projectRoot
+}
 
 try {
     if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
@@ -66,12 +69,13 @@ try {
 }
 
 $projectArgument = $ProjectPath.ToLowerInvariant()
+$projectPattern = "(?i)(?<![^\s`"'=])$([regex]::Escape($projectArgument))(?=$|[\s`"'])"
 
 # Bounded detection: run CIM query in a background job so we can enforce a timeout.
 # A slow WMI/CIM subsystem must not hang the agent indefinitely.
 $detectionJob = Start-Job -ScriptBlock {
     param($filter)
-    @(Get-CimInstance Win32_Process -Filter $filter -ErrorAction SilentlyContinue)
+    @(Get-CimInstance Win32_Process -Filter $filter -ErrorAction Stop)
 } -ArgumentList "Name='studiopro.exe'"
 
 $completed = Wait-Job -Job $detectionJob -Timeout $TimeoutSeconds
@@ -94,11 +98,51 @@ if (-not $completed) {
     exit 2
 }
 
+if ($detectionJob.State -eq 'Failed') {
+    $jobError = $detectionJob.ChildJobs[0].JobStateInfo.Reason.Message
+    Remove-Job -Job $detectionJob -Force -ErrorAction SilentlyContinue
+    $failureMsg = "Studio Pro process detection failed. Result is UNKNOWN (AMBIGUOUS-SP-STATE), NOT CLOSED-AUTONOM. $jobError"
+    if ($Json) {
+        [PSCustomObject]@{
+            isOpen              = $null
+            pid                 = $null
+            projectPath         = $ProjectPath
+            anyStudioProRunning = $null
+            otherProjectPids    = @()
+            error               = $failureMsg
+            detection_state     = "UNKNOWN"
+        } | ConvertTo-Json -Compress
+    } else {
+        Write-Error $failureMsg
+    }
+    exit 2
+}
+
 $allStudioProProcesses = @(Receive-Job -Job $detectionJob -ErrorAction SilentlyContinue)
 Remove-Job -Job $detectionJob -Force -ErrorAction SilentlyContinue
 
+$unreadableProcesses = @($allStudioProProcesses |
+    Where-Object { [string]::IsNullOrWhiteSpace($_.CommandLine) })
+if ($unreadableProcesses.Count -gt 0) {
+    $unreadableMsg = "Studio Pro is running but its project path cannot be read. Result is UNKNOWN (AMBIGUOUS-SP-STATE), NOT LIVE-SP-OTHER or CLOSED-AUTONOM."
+    if ($Json) {
+        [PSCustomObject]@{
+            isOpen              = $null
+            pid                 = $null
+            projectPath         = $ProjectPath
+            anyStudioProRunning = $true
+            otherProjectPids    = @($unreadableProcesses | ForEach-Object { $_.ProcessId })
+            error               = $unreadableMsg
+            detection_state     = "UNKNOWN"
+        } | ConvertTo-Json -Compress
+    } else {
+        Write-Error $unreadableMsg
+    }
+    exit 2
+}
+
 $existingProjectProcess = $allStudioProProcesses |
-    Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($projectArgument) } |
+    Where-Object { $_.CommandLine -and [regex]::IsMatch($_.CommandLine, $projectPattern) } |
     Select-Object -First 1
 $otherProcesses = @($allStudioProProcesses |
     Where-Object { $_ -ne $existingProjectProcess })

@@ -104,7 +104,7 @@ flowchart TD
 
 ## Operating-Mode Detection
 
-The agent detects Mendix Studio Pro status **before any model mutation**. The detection is deterministic — the agent runs `scripts/check-studio-pro-status.ps1` and classifies the result. Asking the user is forbidden before this check runs.
+The agent detects Mendix Studio Pro status **before any model mutation**. The detection is deterministic — the agent runs `.mxagile/tools/check-studio-pro-status.ps1` and classifies the result. Asking the user is forbidden before this check runs.
 
 | Mode | Studio Pro state | Agent behavior |
 |---|---|---|

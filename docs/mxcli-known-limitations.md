@@ -52,7 +52,7 @@ These limitations inform how MxAgile selects verification paths.
 
 **Recommended alternative:**
 - Use port-based reachability check (`HTTP GET localhost:<port>`) instead of PID attachment.
-- Use `scripts/check-studio-pro-status.ps1` for Studio Pro process detection.
+- Use `.mxagile/tools/check-studio-pro-status.ps1` for Studio Pro process detection.
 - Do not rely on PID attachment for APPLICATION_REACHABLE verification.
 
 ---

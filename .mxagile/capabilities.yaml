@@ -254,13 +254,13 @@ capabilities:
         display_name: "Mendix Studio Pro"
         assessed_date: "2026-10-13"
     incompatibilities: []
-    availability_detection: "Detect 'mcp__mendix-studio-pro__*' tools in agent tool namespace. Requires operating_mode: LIVE-SP-CURRENT (check-studio-pro-status.ps1). MCP endpoint at http://localhost:7782/mcp must be reachable."
+    availability_detection: "Tool namespace presence means offered, not healthy. Require operating_mode: LIVE-SP-CURRENT from check-studio-pro-status.ps1, a successful non-mutating MCP call, and evidence that the endpoint is bound to the current project before marking usable for an operation."
     risk: low
     docs_ref: "docs/execution-intent.md"
     agent_may_recommend: false
     agent_may_activate_config: false
     user_approval_required: false
-    notes: "AVAILABLE only when Studio Pro is open for the current project (LIVE-SP-CURRENT). Not a substitute for process-level operating-mode detection. See policies/execution-intent.md."
+    notes: "Not a substitute for process-level operating-mode detection. Configuration or tool presence alone does not prove health or project identity. See policies/operating-mode.md."
 
   - id: concord_mcp
     name: "Concord MCP"
@@ -277,13 +277,13 @@ capabilities:
         display_name: "Concord v2 MCP Server"
         assessed_date: "2026-10-13"
     incompatibilities: []
-    availability_detection: "Detect 'mcp__concord-v2-mcp__*' tools in agent tool namespace. Secondary: .vscode/mcp.json contains concord-v2-mcp entry (CONFIGURED, not necessarily ACTIVE). Configuration evidence alone does not imply AVAILABLE."
+    availability_detection: "Tool namespace presence means offered, not healthy. Require a successful non-mutating MCP call and evidence that the endpoint context is bound to the current project before marking usable for an operation. .vscode/mcp.json is CONFIGURED evidence only."
     risk: low
     docs_ref: "docs/execution-intent.md"
     agent_may_recommend: false
     agent_may_activate_config: false
     user_approval_required: false
-    notes: "SUPPORTED when .vscode/mcp.json has concord-v2-mcp. AVAILABLE only when mcp__concord-v2-mcp__* tools appear in the agent tool namespace. Combined with studio_pro_mcp AVAILABLE, this constitutes the strong signal for execution-intent resolution. See policies/execution-intent.md."
+    notes: "Concord MCP is a fallback for LIVE-SP-CURRENT model mutations only after health and current-project context are confirmed. It does not determine the operating mode. See policies/operating-mode.md."
 
   # -----------------------------------------------------------------------
   # Context Transition (MxAgile 1.7)

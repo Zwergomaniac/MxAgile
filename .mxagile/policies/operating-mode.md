@@ -32,7 +32,9 @@ Behavior:
 
 Conditions (all required):
 - `check-studio-pro-status.ps1` returns `isOpen = true` for the current `.mpr`.
-- PID and project path confirmed.
+- PID and the normalized absolute `.mpr` path are confirmed. Path matching is
+  case-insensitive on Windows and must match a complete command-line argument,
+  not a project-name or path substring.
 
 Behavior:
 - Apply safe coexistence contract (see `policies/consistency-check.md`).
@@ -59,6 +61,8 @@ Conditions (any one triggers):
 - Permission denied reading process list (OS restriction) — AMBIGUOUS-SP-STATE, not falsely closed.
 - `anyStudioProRunning` is `$null` (detection unavailable).
 - Conflicting signals from multiple evidence sources.
+- A successful Studio-Pro-MCP identity probe reports a different project from
+  the `.mpr` confirmed by the process detector.
 - Process exists but project path in command line cannot be read.
 
 Behavior:
@@ -69,6 +73,42 @@ Behavior:
 - If ambiguity remains at the mutation boundary, ask ONE precise question that reports
   what was detected (see User Question Policy below).
 - Do NOT block the entire assignment at startup.
+
+---
+
+## Tool Routing After Mode Detection
+
+`operating_mode` is determined by the process/project detector above. MCP health
+and project context determine whether an MCP route is usable; they do not create
+another operating-mode state machine.
+
+If Studio-Pro-MCP exposes project identity and a successful read-only probe
+conflicts with the detector's current `.mpr` path, use the existing
+`AMBIGUOUS-SP-STATE` for that conflict. Never call it `LIVE-SP-CURRENT` for the
+current project until a recheck resolves the disagreement.
+
+Before choosing a tool for any Mendix model operation, use the current mode and
+the following routing contract:
+
+| Mode | Model mutation route | mxcli |
+|---|---|---|
+| `LIVE-SP-CURRENT` | Studio-Pro-MCP first. Concord MCP is the existing fallback only when a successful read-only probe confirms it is healthy and bound to this project. | Never use mxcli for model mutations, including `mxcli exec`. Do not fall back to mxcli after an MCP failure. Read-only mxcli operations remain subject to their own operation contract. |
+| `CLOSED-AUTONOM` | Autonomous route | Use mxcli when available and authorized. |
+| `LIVE-SP-OTHER` | Autonomous route for the current project; do not touch the foreign Studio Pro process. | Use mxcli when available and authorized for the current project. |
+| `AMBIGUOUS-SP-STATE` | Safe non-model work only until the required recheck resolves the mode. | No model mutation through mxcli while mode is ambiguous. |
+
+Tool namespace presence means a tool is offered by the harness. It does NOT by
+itself prove health, successful operation, or correct project context. Count an
+MCP route as usable only after a successful non-mutating call and evidence that
+the endpoint is bound to the current project. Configuration files and installed
+tools are not runtime evidence. If no available MCP operation can establish that
+evidence, do not claim the route is healthy. In `LIVE-SP-CURRENT`, block the
+specific mutation rather than trying mxcli.
+
+Mode detection must happen before mxcli/Studio-Pro-MCP/Concord-MCP selection.
+Re-use the Startup Re-Sync result and its existing mutation-boundary recheck; do
+not run a second Studio Pro detector or ask the user when the evidence is
+conclusive.
 
 ---
 
@@ -97,7 +137,7 @@ Record `detection_source: platform_headless`.
 ### Step 3 — Run the canonical detector
 
 ```powershell
-scripts/check-studio-pro-status.ps1 -ProjectPath $currentMpr -Json -TimeoutSeconds 10
+& ./.mxagile/tools/check-studio-pro-status.ps1 -ProjectPath $currentMpr -Json -TimeoutSeconds 10
 ```
 
 The detector runs with a bounded timeout. A slow or frozen WMI/CIM subsystem MUST NOT
@@ -187,7 +227,8 @@ Operating mode can change after session start (user opens Studio Pro mid-session
 
 RECHECK is required:
 1. At lifecycle/session re-sync (Startup Re-Sync per `orchestrator.md`).
-2. Immediately before the first Mendix model mutation (`mxcli exec` call).
+2. Immediately before the first Mendix model mutation through the mode-allowed route
+  (Studio-Pro-MCP, Concord MCP, or mxcli as permitted above).
 3. After a PAUSE/resume where process state may have changed.
 4. When process evidence changes (e.g. lock file appears).
 
@@ -225,7 +266,7 @@ NEVER ask a generic context-free question such as:
 
 ### Windows (local developer workstation)
 
-Studio Pro may be running. Full detection applies. Use `scripts/check-studio-pro-status.ps1`.
+Studio Pro may be running. Full detection applies. Use `.mxagile/tools/check-studio-pro-status.ps1`.
 
 `Get-CimInstance Win32_Process` is the correct mechanism (not `wmic`).
 `Get-Process studiopro` is acceptable as a lightweight fallback but does not expose
@@ -287,7 +328,8 @@ On fresh session / resume:
 | Consumer | Where operating-mode applies |
 |---|---|
 | `orchestrator.md` § Startup Re-Sync | First operating-mode check after project root is established |
-| `orchestrator.md` § Implementing | Recheck before first `mxcli exec` call |
+| `orchestrator.md` § Implementing | Recheck before the first model mutation through the selected route |
 | `policies/implementation-control.md` | Tool availability by mode |
 | `policies/consistency-check.md` | CE0066: already calls detector before opening SP |
-| `scripts/check-studio-pro-status.ps1` | Canonical detector — single implementation |
+| `scripts/check-studio-pro-status.ps1` | Canonical detector source |
+| `.mxagile/tools/check-studio-pro-status.ps1` | Installed copy, refreshed by every Core install/update |

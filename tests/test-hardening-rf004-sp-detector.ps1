@@ -163,38 +163,76 @@ try {
 }
 
 # -----------------------------------------------------------------------
-# Test 9: Execution-intent policy: ask-once behavior preserved
+# Test 9: Known operating mode does not trigger an execution-mode question
 # -----------------------------------------------------------------------
-$t = "Execution-intent policy: ask exactly once for strong signal"
+$t = "Execution-intent policy: known mode routes without asking"
 try {
     $execIntentFile = Join-Path $repoRoot ".mxagile\policies\execution-intent.md"
     $content = Get-Content $execIntentFile -Raw
-    if (($content -match "exactly once") -or ($content -match "ask.*once") -or ($content -match "GENAU EINE")) {
+    if (($content -match "known mode.*without asking") -and ($content -match "not a user-selected")) {
         Pass $t
     } else {
-        Fail $t "execution-intent.md does not preserve ask-once behavior"
+        Fail $t "execution-intent.md does not route a known mode automatically"
     }
 } catch {
     Fail $t "Exception: $_"
 }
 
 # -----------------------------------------------------------------------
-# Test 10: No false LIVE_SP_CURRENT when Concord MCP unknown
+# Test 10: MCP tool presence is not health or project identity
 # -----------------------------------------------------------------------
-$t = "Execution-intent policy: weak signal does NOT trigger live-mode question"
+$t = "Execution-intent policy: tool presence does NOT imply healthy same-project route"
 try {
     $execIntentFile = Join-Path $repoRoot ".mxagile\policies\execution-intent.md"
     $content = Get-Content $execIntentFile -Raw
-    $hasWeakSignal = ($content -match "Weak Signal") -or ($content -match "weak.*signal")
-    $hasSuppression = ($content -match "NEIN.*stellt") -or
-                      ($content -match "Do NOT interrupt") -or
-                      ($content -match "NEIN.*kein") -or
-                      ($content -match "NOT.*ask") -or
-                      ($content -match "do not ask")
-    if ($hasWeakSignal -and $hasSuppression) {
+    $hasHealthBoundary = $content -match "tool appears in the active tool set.*Successful operation"
+    $hasIdentityBoundary = $content -match "identity returned by the endpoint"
+    if ($hasHealthBoundary -and $hasIdentityBoundary) {
         Pass $t
     } else {
-        Fail $t "execution-intent.md does not clearly suppress weak-signal question (hasWeakSignal=$hasWeakSignal, hasSuppression=$hasSuppression)"
+        Fail $t "execution-intent.md does not distinguish tool presence, health, and project identity"
+    }
+} catch {
+    Fail $t "Exception: $_"
+}
+
+# -----------------------------------------------------------------------
+# Test 11: Project path matching requires a complete command-line argument
+# -----------------------------------------------------------------------
+$t = "Detector: exact normalized MPR argument match"
+try {
+    $projectArgument = 'C:\work\App.mpr'.ToLowerInvariant()
+    $projectPattern = "(?i)(?<![^\s`"'=])$([regex]::Escape($projectArgument))(?=$|[\s`"'])"
+    $sameProject = 'studiopro.exe -project "c:\work\app.mpr"'
+    $similarPrefix = 'studiopro.exe -project "c:\work\app.mpr-backup"'
+    $similarSuffix = 'studiopro.exe -project "c:\work\app.mprBackup"'
+    $matchesSame = [regex]::IsMatch($sameProject, $projectPattern)
+    $matchesPrefix = [regex]::IsMatch($similarPrefix, $projectPattern)
+    $matchesSuffix = [regex]::IsMatch($similarSuffix, $projectPattern)
+    if ($matchesSame -and -not $matchesPrefix -and -not $matchesSuffix) {
+        Pass $t
+    } else {
+        Fail $t "Expected only the exact path to match (same=$matchesSame, prefix=$matchesPrefix, suffix=$matchesSuffix)"
+    }
+} catch {
+    Fail $t "Exception: $_"
+}
+
+# -----------------------------------------------------------------------
+# Test 12: Failed CIM probe or unreadable command line remains UNKNOWN
+# -----------------------------------------------------------------------
+$t = "Detector: CIM failure and unreadable command line remain UNKNOWN"
+try {
+    $content = Get-Content $detectorScript -Raw
+    $probeFailsClosed = ($content -match 'Get-CimInstance Win32_Process.*-ErrorAction Stop') -and
+                        ($content -match '\$detectionJob\.State -eq .Failed.')
+    $unreadableIsUnknown = ($content -match '\$unreadableProcesses') -and
+                           ($content -match 'AMBIGUOUS-SP-STATE.*NOT LIVE-SP-OTHER or CLOSED-AUTONOM') -and
+                           ($content -match 'detection_state\s*=\s*"UNKNOWN"')
+    if ($probeFailsClosed -and $unreadableIsUnknown) {
+        Pass $t
+    } else {
+        Fail $t "CIM failure/unreadable process can still be classified as absent or foreign (probe=$probeFailsClosed, unreadable=$unreadableIsUnknown)"
     }
 } catch {
     Fail $t "Exception: $_"

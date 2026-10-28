@@ -89,7 +89,7 @@ Return routing is **scoped**: only affected stories return to earlier phases; un
 MxAgile agents **may autonomously:**
 
 - Inspect repository and lifecycle state
-- Determine operating mode via `scripts/check-studio-pro-status.ps1` — never by asking
+- Determine operating mode via `.mxagile/tools/check-studio-pro-status.ps1` — never by asking
 - Execute deterministic lifecycle work (discovery, refinement, implementation, verification)
 - Create authorized local checkpoint git commits (see `policies/commit-authority.md`)
 - Re-sync after phase transitions and continue into the next phase without user confirmation

@@ -6,9 +6,10 @@
     Static: the startup routing rule is short, generic, lazy and does not explain Context Mode;
     nothing in install/startup scripts invokes the resolver.
     E2E (GUID temp project, real install-core.ps1): fresh install and existing-project update
-    distribute .mxagile/tools/Get-MxAgileCapabilities.ps1, the installed resolver is reachable
-    and returns harness-specific guidance, never executes context-mode, and a repeated update
-    is idempotent while project-owned files are preserved.
+    distribute .mxagile/tools/Get-MxAgileCapabilities.ps1 and
+    .mxagile/tools/check-studio-pro-status.ps1; the installed resolver is reachable,
+    never executes context-mode, and repeated update is idempotent while project-owned
+    files are preserved.
 
     No network is required by this test itself; install-core may skip network-dependent steps.
 #>
@@ -20,6 +21,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Scripts  = Join-Path $RepoRoot 'scripts'
 $Installer = Join-Path $Scripts 'install-core.ps1'
 $ResolverSrc = Join-Path $Scripts 'Get-MxAgileCapabilities.ps1'
+$StudioProDetectorSrc = Join-Path $Scripts 'check-studio-pro-status.ps1'
 
 $PassCount = 0; $FailCount = 0; $FailDetails = @()
 function Assert-True {
@@ -67,8 +69,13 @@ New-Item -ItemType File -Path (Join-Path $proj 'project.mpr') | Out-Null
 $null = & pwsh -NoProfile -File $Installer -ProjectRoot $proj 2>&1
 Assert-True 'fresh install exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
 $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
+$detector = Join-Path $proj '.mxagile/tools/check-studio-pro-status.ps1'
 Assert-True 'resolver distributed to .mxagile/tools' (Test-Path $tool) 'tool missing'
 Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-FileHash $tool).Hash -eq (Get-FileHash $ResolverSrc).Hash)) 'hash differs'
+Assert-True 'Studio Pro detector distributed to .mxagile/tools' (Test-Path $detector) 'detector missing'
+Assert-True 'distributed detector equals canonical source' ((Test-Path $detector) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash)) 'hash differs'
+$detectorResult = (& $detector -Json -TimeoutSeconds 30 | ConvertFrom-Json)
+Assert-True 'installed detector resolves project root by default' ($detectorResult.projectPath -eq (Join-Path $proj 'project.mpr')) "projectPath=$($detectorResult.projectPath)"
 Assert-True 'no scripts/ directory created in project' (-not (Test-Path (Join-Path $proj 'scripts'))) 'project-owned scripts/ touched'
 Assert-True 'startup did not run resolver (no discovery state)' (-not (Test-Path (Join-Path $proj '.concord/capability-discovery.yaml'))) 'discovery state written'
 foreach ($f in 'AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md') {
@@ -79,7 +86,8 @@ foreach ($f in 'AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md') {
     }
 }
 $prov = Get-Content (Join-Path $proj '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
-Assert-True 'provenance lists project-distributed tool' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Get-MxAgileCapabilities.ps1') 'provenance missing entry'
+Assert-True 'provenance lists project-distributed resolver' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Get-MxAgileCapabilities.ps1') 'provenance missing resolver entry'
+Assert-True 'provenance lists project-distributed detector' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/check-studio-pro-status.ps1') 'provenance missing detector entry'
 
 # installed agent reaches resolver (default project root = installed project) and gets guidance
 $bin = New-TempDir
@@ -107,6 +115,7 @@ try {
 # --- E2E: existing-project update + idempotence ---------------------------------------------
 Write-Host "--- Existing project update ---" -ForegroundColor Yellow
 Set-Content $tool '# tampered' -Encoding UTF8
+Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content (Join-Path $proj '.mxagile/tools/stale.ps1') '# stale' -Encoding UTF8
 New-Item -ItemType Directory -Path (Join-Path $proj 'scripts') | Out-Null
 Set-Content (Join-Path $proj 'scripts/mine.ps1') '# project-owned' -Encoding UTF8
@@ -114,10 +123,11 @@ $null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdat
 Assert-True 'update exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
 $srcHash = (Get-FileHash $ResolverSrc).Hash
 Assert-True 'update restores resolver to current distribution version' ((Get-FileHash $tool).Hash -eq $srcHash) 'not restored'
+Assert-True 'update restores detector to current distribution version' ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) 'not restored'
 Assert-True 'update retires stale files in .mxagile/tools' (-not (Test-Path (Join-Path $proj '.mxagile/tools/stale.ps1'))) 'stale file kept'
 Assert-True 'update preserves project-owned scripts/' ((Get-Content (Join-Path $proj 'scripts/mine.ps1') -Raw) -match 'project-owned') 'project file lost'
 $null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
-Assert-True 'repeated update exit 0 and tool hash unchanged (idempotent)' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash)) 'not idempotent'
+Assert-True 'repeated update exit 0 and tool hashes unchanged (idempotent)' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash)) 'not idempotent'
 $agents = Get-Content (Join-Path $proj 'AGENTS.md') -Raw
 Assert-True 'repeated update does not duplicate rule 7' (([regex]::Matches($agents, 'Optional capabilities, on demand only')).Count -eq 1) 'rule duplicated'
 } finally {

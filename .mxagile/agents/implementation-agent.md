@@ -132,7 +132,11 @@ Effects mit `type: PLATFORM_BOUNDARY` erzeugen KEINE Implementierungsaufgaben.
 Erster Schritt vor jeder Ausfuehrung: Feld-Inventar in konkrete Mendix-Artefakte uebersetzen.
 
 - `suggested_mendix_type` aus dem Inventar als Ausgangspunkt
-- Bestehendes Modell via mxcli pruefen (Konventionen, bestehende Entities)
+- Vor jeder Modell-Toolauswahl den aktuellen Betriebsmodus aus Startup Re-Sync verwenden;
+   bei einer spaeteren Modellmutation den vorgeschriebenen Recheck ausfuehren.
+- Bestehendes Modell ueber die im Betriebsmodus zulaessige Route pruefen: LIVE-SP-CURRENT
+   nutzt Studio-Pro-MCP zuerst und Concord MCP nur als bestaetigten Fallback; CLOSED-AUTONOM
+   und LIVE-SP-OTHER nutzen die autonome mxcli-Route.
 - Company Layer pruefen: Gibt es Layer-spezifische Modul- oder UI-Vorgaben fuer diesen Artefakt-Typ?
 - Mapping-Entscheidungen in der Checkliste dokumentieren bevor ausgefuehrt wird
 - Bei `standard_widget: false`: Marketplace-Empfehlung aus Refinement verwenden
@@ -142,9 +146,16 @@ Erster Schritt vor jeder Ausfuehrung: Feld-Inventar in konkrete Mendix-Artefakte
 Pro Checklisten-Item:
 
 1. MDL-Script erstellen (unter `mdlsource/`)
-2. Validieren: `mxcli check <script>.mdl -p <project>.mpr --references`
+2. Betriebsmodus vor der Toolauswahl beachten. In LIVE-SP-CURRENT keine mxcli-Modellmutation
+   ausfuehren; Studio-Pro-MCP hat Vorrang, Concord MCP ist nur der bestaetigte Fallback.
+   Wenn keine dieser Routen nachweislich gesund und an dieses Projekt gebunden ist, das
+   Item blockieren statt mxcli zu versuchen. In CLOSED-AUTONOM/LIVE-SP-OTHER:
+   `mxcli check <script>.mdl -p <project>.mpr --references` verwenden.
 3. Dem Entwickler die Aenderung in Klartext beschreiben (kein MDL im Chat)
-4. Nach Freigabe: `mxcli exec <script>.mdl -p <project>.mpr`
+4. Nach Freigabe: in LIVE-SP-CURRENT die Modellmutation ueber Studio-Pro-MCP ausfuehren;
+   Concord MCP nur als bestaetigten Fallback verwenden. `mxcli exec` und andere
+   mxcli-Modellmutationen sind in LIVE-SP-CURRENT verboten. In CLOSED-AUTONOM/
+   LIVE-SP-OTHER: `mxcli exec <script>.mdl -p <project>.mpr`.
 5. Wenn Development Runtime laeuft (`--watch`): Warten bis Runtime die Aenderung uebernimmt
 6. Bei runtime-relevantem Item: Runtime-Ergebnis als Entwicklungs-Feedback pruefen
 7. Item als `done` markieren
@@ -168,6 +179,10 @@ mxcli run --local -p <project>.mpr --watch
 ```
 
 **Ablauf mit warmem Runtime:**
+
+Dieser mxcli-Ablauf gilt fuer CLOSED-AUTONOM und LIVE-SP-OTHER. In LIVE-SP-CURRENT
+gelten die MCP-Routen und das mxcli-Modellmutationsverbot aus
+`policies/operating-mode.md`.
 
 ```
 MDL-Aenderung

@@ -92,7 +92,7 @@ Vollstaendiger Erkennungsalgorithmus: `policies/operating-mode.md`.
 ```
 1. Projektroot und .mpr-Pfad bestimmen (lifecycle-resync.md § Projektroot)
 2. Plattform pruefen — Linux/headless → CLOSED-AUTONOM sofort
-3. scripts/check-studio-pro-status.ps1 -ProjectPath <mpr> -Json ausfuehren
+3. & ./.mxagile/tools/check-studio-pro-status.ps1 -ProjectPath <mpr> -Json ausfuehren
 4. Ergebnis klassifizieren:
      isOpen = true                     → LIVE-SP-CURRENT
      isOpen = false, anyStudioProRunning = false → CLOSED-AUTONOM
@@ -108,41 +108,23 @@ Vollstaendiger Erkennungsalgorithmus: `policies/operating-mode.md`.
 **Verboten:** Den Benutzer nach dem Betriebsmodus fragen, bevor Schritt 3 ausgefuehrt wurde.
 Vollstaendige Regeln fuer erlaubte Rueckfragen: `policies/operating-mode.md § User Question Policy`.
 
-### Schritt 1b — Ausfuehrungs-Intent aufloesen (nur bei LIVE-SP-CURRENT)
+### Schritt 1b — Toolroute fuer Mendix-Operationen
 
-Nur ausfuehren wenn Schritt 1 LIVE-SP-CURRENT ergab.
-Vollstaendiger Vertrag: `policies/execution-intent.md`.
+Keine zweite Mode-Ermittlung und keine Nutzerfrage bei eindeutigem Ergebnis.
+Vor einer modellbezogenen Toolauswahl den in Schritt 1 bestimmten Modus und den
+Routevertrag aus `policies/operating-mode.md` verwenden.
 
-```
-Betriebsmodus = LIVE-SP-CURRENT?
-  NEIN → Schritt 2 direkt (kein starkes Signal moeglich)
+- `LIVE-SP-CURRENT`: Studio-Pro-MCP direkt zuerst. Concord MCP nur als
+  vorhandener Fallback, wenn ein erfolgreicher read-only Aufruf Gesundheit und
+  aktuellen Projektkontext bestaetigt. mxcli-Modellmutationen sind verboten.
+- `CLOSED-AUTONOM` oder `LIVE-SP-OTHER`: autonome Route fuer das aktuelle Projekt.
+- `AMBIGUOUS-SP-STATE`: sichere Arbeit fortsetzen, vor der ersten Modellmutation
+  erneut pruefen und nur bei verbleibender Ambiguitaet eine gezielte Frage stellen.
 
-  JA →
-    Concord MCP erkannt? (mcp__concord-v2-mcp__* Tools im Agent-Tool-Namespace)
-    NEIN/UNKNOWN → Schwaches Signal → Schritt 2 direkt
-
-    JA (Starkes Signal) →
-      Execution-Intent aus .concord/scratch/process-state.yaml laden
-      ├── Intent bereits aufgeloest UND Umgebungssignale unveraendert
-      │     → Schritt 2 direkt (gespeicherte Entscheidung gilt)
-      ├── Explizite Benutzeranweisung im aktuellen Request erkannt
-      │     → Anweisung persistieren → Schritt 2 direkt
-      └── Intent unaufgeloest
-            → GENAU EINE Frage stellen (policies/execution-intent.md § User Question)
-            → Antwort als execution_intent in .concord/scratch/process-state.yaml speichern
-            → Schritt 2 fortsetzen
-```
-
-**Invarianten:**
-- Diese Frage erfuellt KEIN Lifecycle-Gate und aendert KEINEN Missionszustand.
-- Nach der Antwort den urspruenglichen Auftrag ab dem kleinsten sicheren Punkt fortsetzen.
-- Kein Context-Epoch-Rollover, kein Phasenwechsel, keine Evidenz-Promotion.
-- Betriebsmodus-Semantik (LIVE-SP-CURRENT Koexistenz-Vertrag) bleibt unveraendert.
-
-**Re-Sync-Verhalten:** Wenn ein frueherer Ausfuehrungs-Intent als `studio_pro_live`
-persistiert ist, aber Studio Pro oder Concord MCP nicht mehr erkannt werden: geaenderte
-Umgebung melden und auf `normal_headless` wechseln (vollstaendige Regeln:
-`policies/execution-intent.md § Re-Sync Behavior`).
+Tool-Namenspraesenz oder MCP-Konfiguration allein beweist weder Health noch
+Projektidentitaet. Ist eine Route nicht belegbar, die konkrete Mutation blockieren;
+in LIVE-SP-CURRENT nicht auf mxcli ausweichen. Details:
+`policies/execution-intent.md`.
 
 ### Schritt 2 — Lifecycle-Zustand rekonstruieren
 
@@ -371,7 +353,7 @@ Vollstaendige Evidenz-Level-Definitionen: `policies/evidence-levels.md`
 - **Exit Gate:** Alle Checklisten-Items abgearbeitet
 - **Pflichtartefakte:**
   - Mendix-Mapping dokumentiert in der Checkliste
-  - MDL-Scripts validiert (`mxcli check --references`) und ausgefuehrt (`mxcli exec`)
+  - Mendix-Modellaenderungen ueber die im Betriebsmodus zulaessige Route validiert und ausgefuehrt
   - Wave-Schnitt eingehalten
   - Checklisten-Items als `done`/`blocked`/`deferred` markiert
 - **Beschreibung:**
@@ -401,12 +383,14 @@ Run the Terminal-State Guard (policies/mission-completion.md) before any "done" 
 
 ### Betriebsmodus-Recheck vor erster Mendix-Modell-Mutation
 
-Unmittelbar vor dem ERSTEN `mxcli exec` Aufruf einer Session: Betriebsmodus erneut
-pruefen (scripts/check-studio-pro-status.ps1 -Json ausfuehren). Vollstaendige Regeln:
+Unmittelbar vor der ERSTEN Mendix-Modell-Mutation einer Session ueber die im Betriebsmodus
+zulaessige Route: Betriebsmodus erneut pruefen
+(& ./.mxagile/tools/check-studio-pro-status.ps1 -Json ausfuehren). Vollstaendige Regeln:
 `policies/operating-mode.md § Mutation Recheck`.
 
 Bei CLOSED-AUTONOM oder LIVE-SP-OTHER: sofort fortfahren.
-Bei LIVE-SP-CURRENT: Koexistenz-Vertrag anwenden (policies/consistency-check.md).
+Bei LIVE-SP-CURRENT: Studio-Pro-MCP zuerst, Concord MCP nur als bestaetigten Fallback;
+mxcli-Modellmutationen sind verboten (`policies/operating-mode.md`).
 Bei AMBIGUOUS-SP-STATE: eine Rueckfrage stellen (policies/operating-mode.md § User Question Policy).
 
 ### Development Runtime (Warm Local Loop)

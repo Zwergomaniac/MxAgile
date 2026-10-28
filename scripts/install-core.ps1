@@ -408,6 +408,13 @@ try {
     Copy-Item -LiteralPath $resolverSource -Destination (Join-Path $destToolsDir "Get-MxAgileCapabilities.ps1") -Force
     Write-Host "[OK] Distributed .mxagile/tools/Get-MxAgileCapabilities.ps1 (on-demand only)."
 
+    $studioProDetectorSource = Join-Path $PSScriptRoot "check-studio-pro-status.ps1"
+    if (-not (Test-Path -LiteralPath $studioProDetectorSource -PathType Leaf)) {
+        throw "check-studio-pro-status.ps1 not found in script directory: $studioProDetectorSource"
+    }
+    Copy-Item -LiteralPath $studioProDetectorSource -Destination (Join-Path $destToolsDir "check-studio-pro-status.ps1") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/check-studio-pro-status.ps1."
+
     # =========================================================================
     # Core Installation Provenance
     # Writes machine-readable identity to .mxagile/state/core-provenance.json so
@@ -474,7 +481,8 @@ try {
             )
             consumer_note      = "Distribution-owned scripts are NOT consumer project artifacts. Their absence in a consumer project is expected and normal, never a defect."
             project_distributed = @(
-                ".mxagile/tools/Get-MxAgileCapabilities.ps1"
+                ".mxagile/tools/Get-MxAgileCapabilities.ps1",
+                ".mxagile/tools/check-studio-pro-status.ps1"
             )
         }
     }

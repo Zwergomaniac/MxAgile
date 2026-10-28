@@ -45,7 +45,7 @@ in MDL geschrieben oder versioniert.
 
 Wenn MxBuild oder der Konsistenzcheck `CE0066` meldet:
 
-1. Agent prueft mit `scripts/check-studio-pro-status.ps1`, ob dieses Projekt bereits
+1. Agent prueft mit `.mxagile/tools/check-studio-pro-status.ps1`, ob dieses Projekt bereits
    offen ist — keine Rueckfrage beim Entwickler. Falls nicht, oeffnet der Agent es
    selbst mit `scripts/open-studio-pro.ps1`.
 2. Im betroffenen Domain Model **Update security** ausfuehren (Entwickler)
