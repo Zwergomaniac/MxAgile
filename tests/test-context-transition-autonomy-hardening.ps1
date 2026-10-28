@@ -188,7 +188,30 @@ Assert-True "49c: Claude Code DryRun: MissionContinues=true" `
     "MissionContinues must be true for Claude Code DryRun"
 
 # Verify Claude Code capabilities still show autonomous path
-$cap49 = & $capabilitiesScript -ProjectRoot $ScriptDir -HarnessId "claude_code"
+$cap49Root = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
+try {
+    $cap49AdapterDir = Join-Path $cap49Root ".mxagile\adapters\claude"
+    $null = New-Item -ItemType Directory -Path $cap49AdapterDir -Force
+    Copy-Item -LiteralPath (Join-Path $ScriptDir ".mxagile\adapters\claude\transition-adapter.yaml") `
+        -Destination $cap49AdapterDir
+
+    $cap49Config = @"
+context_lifecycle:
+  enabled: true
+  transition:
+    enabled: true
+    autonomous: false
+"@
+    [System.IO.File]::WriteAllText(
+        (Join-Path (Join-Path $cap49Root ".mxagile") "config.yaml"),
+        $cap49Config,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
+    $cap49 = & $capabilitiesScript -ProjectRoot $cap49Root -HarnessId "claude_code"
+} finally {
+    Remove-Item -LiteralPath $cap49Root -Recurse -Force -ErrorAction SilentlyContinue
+}
 Assert-True "49d: Claude Code: CompactionAutomatable=true" `
     ($cap49.CompactionAutomatable -eq $true) `
     "Claude Code CompactionAutomatable must be true, got: $($cap49.CompactionAutomatable)"

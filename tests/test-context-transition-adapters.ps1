@@ -250,6 +250,48 @@ Assert-True "31d: Copilot DryRun: IsHumanGate=false" `
     "IsHumanGate must be false for COMPACTION_SKIPPED_UNSUPPORTED DryRun"
 
 # ============================================================
+# Scoped Transition Configuration Tests
+# ============================================================
+
+Write-Host "`n[Scoped Transition Configuration Tests]" -ForegroundColor Cyan
+
+$configTestRoot = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
+$configTestMxAgile = Join-Path $configTestRoot ".mxagile"
+$null = New-Item -ItemType Directory -Path $configTestMxAgile -Force
+
+try {
+    $configCases = @(
+        @{ Name = 'lifecycle=false, transition=false'; Lifecycle = 'false'; Transition = 'false'; Expected = $false },
+        @{ Name = 'lifecycle=true, transition=false'; Lifecycle = 'true'; Transition = 'false'; Expected = $false },
+        @{ Name = 'lifecycle=true, transition=true'; Lifecycle = 'true'; Transition = 'true'; Expected = $true }
+    )
+
+    foreach ($case in $configCases) {
+        $configContent = @"
+context_lifecycle:
+  enabled: $($case.Lifecycle)
+  transition:
+    enabled: $($case.Transition)
+    autonomous: true
+unrelated_feature:
+  enabled: true
+"@
+        [System.IO.File]::WriteAllText(
+            (Join-Path $configTestMxAgile "config.yaml"),
+            $configContent,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+
+        $configResult = & $capabilitiesScript -ProjectRoot $configTestRoot -HarnessId "generic"
+        Assert-True "Scoped config: $($case.Name)" `
+            ($configResult.TransitionEnabled -eq $case.Expected) `
+            "Expected TransitionEnabled=$($case.Expected), got: $($configResult.TransitionEnabled)"
+    }
+} finally {
+    Remove-Item -LiteralPath $configTestRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# ============================================================
 # Summary
 # ============================================================
 

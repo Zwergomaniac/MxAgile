@@ -142,6 +142,53 @@ function Get-YamlStringValue {
     return $null
 }
 
+function Get-YamlSectionContent {
+    param([string]$Content, [string]$SectionName)
+
+    $sectionPattern = "^([ \t]*)$([regex]::Escape($SectionName)):[ \t]*(?:#.*)?$"
+    $sectionIndent = $null
+    $sectionLines = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($line in ($Content -split '\r?\n')) {
+        if ($null -eq $sectionIndent) {
+            if ($line -match $sectionPattern) {
+                $sectionIndent = $Matches[1].Length
+            }
+            continue
+        }
+
+        if ($line -match '^[ \t]*$') {
+            $sectionLines.Add($line)
+            continue
+        }
+
+        $lineIndent = [regex]::Match($line, '^[ \t]*').Length
+        if ($lineIndent -le $sectionIndent) { break }
+        $sectionLines.Add($line)
+    }
+
+    if ($null -eq $sectionIndent) { return $null }
+    return ($sectionLines -join "`n")
+}
+
+function Get-YamlDirectBoolValue {
+    param([string]$Content, [string]$Key)
+
+    $sectionIndent = $null
+    foreach ($line in ($Content -split '\r?\n')) {
+        if ($line -match '^[ \t]*$') { continue }
+        $sectionIndent = [regex]::Match($line, '^[ \t]*').Length
+        break
+    }
+
+    if ($null -eq $sectionIndent) { return $null }
+    $keyPattern = "(?m)^[ \t]{$sectionIndent}$([regex]::Escape($Key)):[ \t]*(true|false)[ \t]*(?:#.*)?$"
+    if ($Content -match $keyPattern) {
+        return $Matches[1] -eq 'true'
+    }
+    return $null
+}
+
 # ---------------------------------------------------------------------------
 # Main resolution
 # ---------------------------------------------------------------------------
@@ -180,12 +227,29 @@ $autonomousEnabled = $false
 $configPath = Join-Path $ProjectRoot ".mxagile\config.yaml"
 if (Test-Path -LiteralPath $configPath) {
     $cfgRaw = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
-    $lifecycleEnabled = $cfgRaw -match '(?m)^\s*enabled:\s*true'
-    $transitionBlock  = $cfgRaw -match '(?ms)transition:'
-    $transitionEnabledFlag = $cfgRaw -match '(?m)^\s*transition_enabled:\s*true'
-    $autonomousFlag   = $cfgRaw -match '(?m)^\s*autonomous:\s*true'
-    $transitionEnabled = $lifecycleEnabled -and ($transitionBlock -or $true)  # present = enabled-capable
-    $autonomousEnabled = $lifecycleEnabled -and $autonomousFlag
+    $lifecycleConfig = Get-YamlSectionContent -Content $cfgRaw -SectionName 'context_lifecycle'
+    $transitionConfig = if ($null -ne $lifecycleConfig) {
+        Get-YamlSectionContent -Content $lifecycleConfig -SectionName 'transition'
+    } else {
+        $null
+    }
+    $lifecycleEnabledFlag = if ($null -ne $lifecycleConfig) {
+        Get-YamlDirectBoolValue -Content $lifecycleConfig -Key 'enabled'
+    } else {
+        $false
+    }
+    $transitionEnabledFlag = if ($null -ne $transitionConfig) {
+        Get-YamlDirectBoolValue -Content $transitionConfig -Key 'enabled'
+    } else {
+        $false
+    }
+    $autonomousFlag = if ($null -ne $transitionConfig) {
+        Get-YamlDirectBoolValue -Content $transitionConfig -Key 'autonomous'
+    } else {
+        $false
+    }
+    $transitionEnabled = ($lifecycleEnabledFlag -eq $true) -and ($transitionEnabledFlag -eq $true)
+    $autonomousEnabled = ($lifecycleEnabledFlag -eq $true) -and ($transitionEnabledFlag -eq $true) -and ($autonomousFlag -eq $true)
 }
 
 # Select preferred strategy
