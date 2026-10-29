@@ -224,6 +224,9 @@ if (Test-Path $cmFile) {
     Assert-True 'M. context-mode.yaml has fallback section' ($cmText -match 'fallback:') 'fallback: section missing'
     Assert-True 'M. context-mode.yaml has mxagile_authority_contract' ($cmText -match 'mxagile_authority_contract:') 'mxagile_authority_contract: section missing'
     Assert-True 'M. context-mode.yaml has epoch_integration' ($cmText -match 'epoch_integration:') 'epoch_integration: section missing'
+    Assert-True 'M. ownership matrix separates repo, user, and session state' (($cmText -match 'ownership:') -and ($cmText -match 'repo_git_tracked:') -and ($cmText -match 'user_machine_owned:') -and ($cmText -match 'session_owned:')) 'ownership matrix incomplete'
+    Assert-True 'M. self-service action classes and runtime git ignores are defined' (($cmText -match 'self_service_policy:') -and ($cmText -match 'SAFE_AUTOMATIC:') -and ($cmText -match 'REQUIRES_USER_APPROVAL:') -and ($cmText -match 'REQUIRES_RESTART:') -and ($cmText -match 'UNSUPPORTED:') -and ($cmText -match 'git_tracking:')) 'self-service or git tracking policy incomplete'
+    Assert-True 'M. ambiguous harness evidence fails closed' ($cmText -match 'harness_ambiguous') 'ambiguous harness status missing'
 }
 
 # N. Context Mode documents ELv2 license

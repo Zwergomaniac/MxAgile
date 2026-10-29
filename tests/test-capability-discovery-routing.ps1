@@ -22,6 +22,7 @@ $Scripts  = Join-Path $RepoRoot 'scripts'
 $Installer = Join-Path $Scripts 'install-core.ps1'
 $ResolverSrc = Join-Path $Scripts 'Get-MxAgileCapabilities.ps1'
 $StudioProDetectorSrc = Join-Path $Scripts 'check-studio-pro-status.ps1'
+$CapabilityPolicySrc = Join-Path $RepoRoot '.mxagile/policies/capability-discovery.md'
 
 $PassCount = 0; $FailCount = 0; $FailDetails = @()
 function Assert-True {
@@ -66,6 +67,9 @@ $concordOrder = $policy.IndexOf('concord_discover')
 Assert-True 'G1. MxAgile resolver precedes Concord discovery guidance' (($resolverOrder -ge 0) -and ($concordOrder -gt $resolverOrder)) 'resolver ordering missing'
 Assert-True 'G1/G2. Concord discovery is not treated as Context Mode capability evidence' (($policy -match 'must not replace or precede') -and ($policy -match 'Concord discovery')) 'Concord substitution warning missing'
 Assert-True 'policy separates live tool inventory, health and task-required operations' (($policy -match '-ContextModeToolsObserved') -and ($policy -match '-ContextModeRequiredTools') -and ($policy -match 'Never reuse health from an earlier session')) 'runtime contract incomplete'
+Assert-True 'policy requires host-attested harness and fails closed on mismatch' (($policy -match 'MXAGILE_HARNESS') -and ($policy -match 'harness_ambiguous') -and ($policy -match 'never pass a guessed')) 'harness attestation rules missing'
+Assert-True 'policy separates Concord source and terminal origin from harness' (($policy -match 'Concord under Claude remains') -and ($policy -match 'Windows Terminal') -and ($policy -match 'Studio-Pro-integrated terminal')) 'Concord/terminal semantics missing'
+Assert-True 'policy defines task-specific hooks and self-service action classes' (($policy -match 'ContextModeHooksRequired') -and ($policy -match 'REQUIRES_USER_APPROVAL') -and ($policy -match 'REQUIRES_RESTART') -and ($policy -match 'UNSUPPORTED')) 'action routing incomplete'
 Assert-True 'large-source fallback explicitly forbids direct full read' (($policy -match 'NOT_VERIFIABLE_FOR_CM_TEST') -and ($policy -match 'leave the large source unread')) 'large-source fallback missing'
 
 # --- E2E: fresh install -------------------------------------------------------------
@@ -74,10 +78,14 @@ $proj = New-TempDir
 New-Item -ItemType File -Path (Join-Path $proj 'project.mpr') | Out-Null
 $null = & pwsh -NoProfile -File $Installer -ProjectRoot $proj 2>&1
 Assert-True 'fresh install exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+$freshGitignore = Get-Content (Join-Path $proj '.gitignore') -Raw
+Assert-True 'fresh install ignores project-local Context Mode runtime roots' (($freshGitignore -match '(?m)^\.context-mode/\r?$') -and ($freshGitignore -match '(?m)^\.github/context-mode/\r?$')) 'runtime roots missing from .gitignore'
 $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
 $detector = Join-Path $proj '.mxagile/tools/check-studio-pro-status.ps1'
 $contextAdapter = Join-Path $proj '.mxagile/adapters/copilot/context-mode-cli.yaml'
 $contextIntegration = Join-Path $proj '.mxagile/integrations/context-mode.yaml'
+$capabilityPolicy = Join-Path $proj '.mxagile/policies/capability-discovery.md'
+Assert-True 'capability discovery policy included in fresh install' ((Test-Path $capabilityPolicy) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'policy missing or hash differs'
 Assert-True 'resolver distributed to .mxagile/tools' (Test-Path $tool) 'tool missing'
 Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-FileHash $tool).Hash -eq (Get-FileHash $ResolverSrc).Hash)) 'hash differs'
 Assert-True 'Context Mode Copilot adapter included in fresh install' (Test-Path $contextAdapter) 'adapter missing'
@@ -110,6 +118,7 @@ $savedEnv = @{}
 foreach ($n in 'MXAGILE_HARNESS','CLAUDECODE','OPENCODE_SESSION_ID','OPENCODE_BASE_URL') { $savedEnv[$n] = [Environment]::GetEnvironmentVariable($n); [Environment]::SetEnvironmentVariable($n, $null) }
 try {
     $env:PATH = $bin
+    [Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', 'opencode')
     $homeDir = New-TempDir
     $json = & $tool -Capability context_mode_integration -Format json -Harness opencode -HomeDir $homeDir | ConvertFrom-Json
     $i = $json.capabilities[0].integration
@@ -133,11 +142,17 @@ Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content $contextAdapter '# tampered' -Encoding UTF8
 Set-Content $contextIntegration '# tampered' -Encoding UTF8
+Set-Content $capabilityPolicy '# tampered' -Encoding UTF8
 Set-Content (Join-Path $proj '.mxagile/tools/stale.ps1') '# stale' -Encoding UTF8
 New-Item -ItemType Directory -Path (Join-Path $proj 'scripts') | Out-Null
 Set-Content (Join-Path $proj 'scripts/mine.ps1') '# project-owned' -Encoding UTF8
+$projectGitignore = Join-Path $proj '.gitignore'
+Set-Content $projectGitignore "# project-owned`ncustom-runtime/`n" -Encoding UTF8
 $null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
 Assert-True 'update exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+Assert-True 'update restores capability discovery policy' ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash) 'policy not restored'
+$updatedGitignore = Get-Content $projectGitignore -Raw
+Assert-True 'update preserves project .gitignore and adds runtime ignores' (($updatedGitignore -match 'project-owned') -and ($updatedGitignore -match 'custom-runtime/') -and ($updatedGitignore -match '(?m)^\.context-mode/\r?$') -and ($updatedGitignore -match '(?m)^\.github/context-mode/\r?$')) "project .gitignore was overwritten or runtime ignores missing: $updatedGitignore"
 $srcHash = (Get-FileHash $ResolverSrc).Hash
 Assert-True 'update restores resolver to current distribution version' ((Get-FileHash $tool).Hash -eq $srcHash) 'not restored'
 Assert-True 'update restores detector to current distribution version' ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) 'not restored'
@@ -148,7 +163,9 @@ Assert-True 'update restores Context Mode integration contract' ((Get-FileHash $
 Assert-True 'update retires stale files in .mxagile/tools' (-not (Test-Path (Join-Path $proj '.mxagile/tools/stale.ps1'))) 'stale file kept'
 Assert-True 'update preserves project-owned scripts/' ((Get-Content (Join-Path $proj 'scripts/mine.ps1') -Raw) -match 'project-owned') 'project file lost'
 $null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
-Assert-True 'repeated update exit 0 and Context Mode payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash)) 'not idempotent'
+Assert-True 'repeated update exit 0 and Context Mode payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'not idempotent'
+$repeatedGitignore = Get-Content $projectGitignore -Raw
+Assert-True 'repeated update does not duplicate Context Mode ignore entries' ((([regex]::Matches($repeatedGitignore, '(?m)^\.context-mode/\r?$')).Count -eq 1) -and (([regex]::Matches($repeatedGitignore, '(?m)^\.github/context-mode/\r?$')).Count -eq 1)) 'ignore entries duplicated'
 $agents = Get-Content (Join-Path $proj 'AGENTS.md') -Raw
 Assert-True 'repeated update does not duplicate rule 7' (([regex]::Matches($agents, 'Optional capabilities, on demand only')).Count -eq 1) 'rule duplicated'
 } finally {

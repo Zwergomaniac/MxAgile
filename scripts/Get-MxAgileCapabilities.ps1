@@ -40,8 +40,9 @@
 .PARAMETER Harness
     Harness for the optional Context Mode integration check: auto (default),
     claude_code, copilot_cli, vscode_copilot, opencode, other.
-    auto = MXAGILE_HARNESS env, CLAUDECODE=1, OPENCODE_SESSION_ID/OPENCODE_BASE_URL;
-    otherwise the harness stays unknown (never guessed from files).
+    auto = current-session MXAGILE_HARNESS attestation, CLAUDECODE=1, or
+    OPENCODE_SESSION_ID/OPENCODE_BASE_URL. Contradictory evidence is ambiguous.
+    A caller-supplied harness requires matching current-session evidence; otherwise it is ambiguous.
 
 .PARAMETER ContextModeHealth
     Health evidence observed by the agent in the current session (one bounded,
@@ -59,6 +60,9 @@ Context Mode tool inventory when ContextModeToolsObserved is set.
 .PARAMETER ContextModeRequiredTools
 Context Mode operations required for the current task. Usability is not established
 unless these operations are present in ContextModeTools.
+
+.PARAMETER ContextModeHooksRequired
+The current task requires automatic routing hooks, not only direct ctx_* operations.
 
 .PARAMETER HomeDir
     User home used to read global harness configuration (read-only). Defaults to
@@ -109,6 +113,8 @@ param(
     [string[]]$ContextModeTools = @(),
 
     [string[]]$ContextModeRequiredTools = @(),
+
+    [switch]$ContextModeHooksRequired,
 
     [string]$HomeDir = ''
 )
@@ -403,13 +409,54 @@ function Read-JsonLenient {
 
 function Resolve-HarnessId {
     param([string]$Requested)
-    if ($Requested -ne 'auto') { return $Requested }
+    $evidence = @()
     $envH = [Environment]::GetEnvironmentVariable('MXAGILE_HARNESS')
-    if ($envH -in @('claude_code', 'copilot_cli', 'vscode_copilot', 'opencode')) { return $envH }
-    if ($envH -eq 'claude') { return 'claude_code' }
-    if ([Environment]::GetEnvironmentVariable('CLAUDECODE') -eq '1') { return 'claude_code' }
-    if ([Environment]::GetEnvironmentVariable('OPENCODE_SESSION_ID') -or [Environment]::GetEnvironmentVariable('OPENCODE_BASE_URL')) { return 'opencode' }
-    return 'unknown'
+    if ($envH -in @('claude_code', 'copilot_cli', 'vscode_copilot', 'opencode', 'other')) {
+        $evidence += [ordered]@{ id = $envH; source = 'MXAGILE_HARNESS' }
+    } elseif ($envH -eq 'claude') {
+        $evidence += [ordered]@{ id = 'claude_code'; source = 'MXAGILE_HARNESS' }
+    }
+    if ([Environment]::GetEnvironmentVariable('CLAUDECODE') -eq '1') {
+        $evidence += [ordered]@{ id = 'claude_code'; source = 'CLAUDECODE' }
+    }
+    if ([Environment]::GetEnvironmentVariable('OPENCODE_SESSION_ID') -or [Environment]::GetEnvironmentVariable('OPENCODE_BASE_URL')) {
+        $evidence += [ordered]@{ id = 'opencode'; source = 'OpenCode session environment' }
+    }
+
+    $detectedIds = @($evidence | ForEach-Object { $_.id } | Sort-Object -Unique)
+    if ($detectedIds.Count -gt 1) {
+        return [pscustomobject]@{
+            id = 'unknown'; source = 'conflicting_runtime_evidence'; ambiguous = $true
+            conflict = "Runtime markers identify different harnesses: $($detectedIds -join ', ')."
+        }
+    }
+    if ($Requested -ne 'auto') {
+        if ($detectedIds.Count -eq 0) {
+            return [pscustomobject]@{
+                id = 'unknown'; source = 'unattested_caller'; ambiguous = $true
+                conflict = "Requested harness '$Requested' has no current-session runtime attestation."
+            }
+        }
+        if ($detectedIds.Count -eq 1 -and $Requested -ne $detectedIds[0]) {
+            return [pscustomobject]@{
+                id = 'unknown'; source = 'caller_runtime_conflict'; ambiguous = $true
+                conflict = "Requested harness '$Requested' conflicts with current-session evidence '$($detectedIds[0])'."
+            }
+        }
+        return [pscustomobject]@{
+            id = $Requested
+            source = ($evidence | Select-Object -First 1).source
+            ambiguous = $false
+            conflict = ''
+        }
+    }
+    if ($detectedIds.Count -eq 1) {
+        return [pscustomobject]@{
+            id = $detectedIds[0]; source = (($evidence | ForEach-Object source | Sort-Object -Unique) -join ', ')
+            ambiguous = $false; conflict = ''
+        }
+    }
+    return [pscustomobject]@{ id = 'unknown'; source = 'none'; ambiguous = $false; conflict = '' }
 }
 
 function New-ContextModeDetection {
@@ -595,11 +642,13 @@ function Resolve-ContextModeIntegration {
         [bool]$ToolsObserved,
         [string[]]$SessionTools,
         [string[]]$RequiredTools,
+        [bool]$HooksRequired,
         [bool]$Enabled,
         [string]$AdapterBase
     )
 
-    $harnessId = Resolve-HarnessId -Requested $HarnessRequested
+    $harnessEvidence = Resolve-HarnessId -Requested $HarnessRequested
+    $harnessId = $harnessEvidence.id
     $observedTools = @()
     if ($ToolsObserved) {
         $observedTools = @($SessionTools | ForEach-Object { "$($_)".Trim() } |
@@ -623,6 +672,8 @@ function Resolve-ContextModeIntegration {
     }
     $r = [ordered]@{
         harness = $harnessId
+        harness_source = $harnessEvidence.source
+        harness_conflict = $harnessEvidence.conflict
         platform_supported = ($ContextModeAdapterFiles.ContainsKey($harnessId))
         runtime_present = $false
         loaded = if ($loadState -eq 'unknown') { $null } else { $loadState -eq 'loaded' }
@@ -630,6 +681,7 @@ function Resolve-ContextModeIntegration {
         load_source = if ($ToolsObserved) { 'agent_observed_tool_namespace' } else { 'none' }
         loaded_tools = $observedTools
         required_tools = @($RequiredTools)
+        hooks_required = $HooksRequired
         missing_required_tools = $missingRequiredTools
         integration_mode = 'none'
         configured = $false
@@ -644,19 +696,28 @@ function Resolve-ContextModeIntegration {
         evidence = @()
         guidance = @()
         automatic_action = 'none'
+        action_classification = 'SAFE_AUTOMATIC'
+        restart_required = $false
         fallback = $fallback
         upstream_ref = ''
     }
 
     if ($harnessId -eq 'unknown') {
         $r.runtime_present = (Test-ContextModeBinary) -or ($loadState -eq 'loaded')
-        $r.reason = 'Harness not identified (set -Harness or MXAGILE_HARNESS); integration cannot be verified, so Context Mode is not treated as usable.'
-        $r.guidance = @('Identify the harness (claude_code | copilot_cli | vscode_copilot | opencode) to get setup guidance.')
+        if ($harnessEvidence.ambiguous) {
+            $r.status = 'harness_ambiguous'
+            $r.reason = $harnessEvidence.conflict + ' Context Mode is not treated as usable; use the actual host harness, not a tool source or terminal origin.'
+            $r.guidance = @('Do not retry with a guessed harness. Resolve the current session host identity; Concord discovery is not harness evidence.')
+        } else {
+            $r.reason = 'Current-session harness evidence is unavailable; integration cannot be verified, so Context Mode is not treated as usable.'
+            $r.guidance = @('The host may attest claude_code, copilot_cli, vscode_copilot, or opencode for this session. Otherwise keep the harness unknown.')
+        }
         $r.findings = @($sessionFindings)
         return $r
     }
     if (-not $r.platform_supported) {
         $r.status = 'harness_unsupported'
+        $r.action_classification = 'UNSUPPORTED'
         $r.reason = "Harness '$harnessId' has no MxAgile Context Mode adapter; native MxAgile fallback applies."
         return $r
     }
@@ -691,12 +752,14 @@ function Resolve-ContextModeIntegration {
     if ($d.misconfigured) {
         $r.status = 'misconfigured'
         $r.setup_needed = $true
+        $r.action_classification = 'REQUIRES_USER_APPROVAL'
         $r.reason = "Context Mode is misconfigured for $harnessId" + $(if ($d.conflict) { " ($($d.conflict))" } else { '' }) + '; treated as degraded, not usable. No config was changed.'
         $r.guidance = @(Get-AdapterScalar $adapter 'repair_hint')
     } elseif ($d.configured) {
         if (-not $d.runtime_present -and $loadState -ne 'loaded') {
             $r.status = 'configured_runtime_missing'
             $r.setup_needed = $true
+            $r.action_classification = 'REQUIRES_USER_APPROVAL'
             $r.reason = "Context Mode is configured for $harnessId, but its required runtime executable was not detected."
             $r.guidance = @(& $setupGuidance)
         } else { switch ($loadState) {
@@ -704,7 +767,16 @@ function Resolve-ContextModeIntegration {
                 $r.status = 'configured_not_loaded'
                 $r.setup_needed = $true
                 $r.reason = "Context Mode is configured for $harnessId, but no ctx_* tools are present in this session."
-                $r.guidance = @(Get-AdapterScalar $adapter 'load_hint')
+                $r.action_classification = 'REQUIRES_RESTART'
+                $r.restart_required = $true
+                if ($harnessId -eq 'claude_code' -and $d.mode -eq 'mcp_only' -and $HooksRequired) {
+                    $r.action_classification = 'REQUIRES_USER_APPROVAL'
+                    $r.guidance = @(Get-AdapterScalar $adapter 'hooks_required_hint')
+                } elseif ($harnessId -eq 'claude_code' -and $d.mode -eq 'mcp_only') {
+                    $r.guidance = @(Get-AdapterScalar $adapter 'mcp_only_load_hint')
+                } else {
+                    $r.guidance = @(Get-AdapterScalar $adapter 'load_hint')
+                }
             }
             'unknown' {
                 $r.status = 'configured_load_unknown'
@@ -712,10 +784,16 @@ function Resolve-ContextModeIntegration {
                 $r.guidance = @(Get-AdapterScalar $adapter 'runtime_probe')
             }
             default {
-                if (-not $hooksConfigured) {
+                if (-not $hooksConfigured -and $HooksRequired) {
                     $r.status = 'loaded_hooks_missing'
+                    $r.action_classification = 'REQUIRES_USER_APPROVAL'
+                    $r.restart_required = $true
                     $r.reason = "Context Mode tools are loaded, but the $harnessId integration has no configured routing hooks; not usable."
-                    $r.guidance = @(Get-AdapterScalar $adapter 'repair_hint')
+                    if ($harnessId -eq 'claude_code' -and $d.mode -eq 'mcp_only') {
+                        $r.guidance = @(Get-AdapterScalar $adapter 'hooks_required_hint')
+                    } else {
+                        $r.guidance = @(Get-AdapterScalar $adapter 'repair_hint')
+                    }
                 } else { switch ($effectiveHealth) {
                     'healthy' {
                         if (-not $Enabled) {
@@ -757,10 +835,12 @@ function Resolve-ContextModeIntegration {
         $r.guidance = @(& $setupGuidance)
     } elseif ($d.runtime_present) {
         $r.status = 'installed_not_configured'; $r.setup_needed = $true
+        $r.action_classification = 'REQUIRES_USER_APPROVAL'
         $r.reason = "Context Mode is installed but not configured for $harnessId."
         $r.guidance = @(& $setupGuidance)
     } else {
         $r.status = 'not_installed'; $r.setup_needed = $true
+        $r.action_classification = 'REQUIRES_USER_APPROVAL'
         $r.reason = "Context Mode is supported for $harnessId but not set up. Native MxAgile fallback applies."
         $r.guidance = @(& $setupGuidance)
     }
@@ -850,7 +930,7 @@ function Resolve-Capability {
     if ($Cap.id -eq 'context_mode_integration') {
         $int = Resolve-ContextModeIntegration -Root $ProjectRoot -Home_ $HomeDir -HarnessRequested $Harness `
             -Health $ContextModeHealth -ToolsObserved $ContextModeToolsObserved.IsPresent `
-            -SessionTools $ContextModeTools -RequiredTools $ContextModeRequiredTools `
+            -SessionTools $ContextModeTools -RequiredTools $ContextModeRequiredTools -HooksRequired $ContextModeHooksRequired.IsPresent `
             -Enabled $configEnabled -AdapterBase $mxagileDir
         $resolved.integration = $int
         $versionDegraded = $resolved.degraded
@@ -858,7 +938,7 @@ function Resolve-Capability {
             { $_ -in @('not_installed', 'harness_unsupported') } {
                 $resolved.available = $false; $resolved.unavailable = $true; $resolved.degraded = $false
             }
-            { $_ -in @('misconfigured', 'configured_runtime_missing', 'configured_load_unknown', 'configured_not_loaded', 'loaded_health_unknown', 'loaded_unhealthy', 'loaded_hooks_missing', 'loaded_unconfigured', 'task_tools_missing', 'task_fit_unknown') } {
+            { $_ -in @('misconfigured', 'configured_runtime_missing', 'configured_load_unknown', 'configured_not_loaded', 'loaded_health_unknown', 'loaded_unhealthy', 'loaded_hooks_missing', 'loaded_unconfigured', 'task_tools_missing', 'task_fit_unknown', 'harness_ambiguous') } {
                 $resolved.available = $int.runtime_present; $resolved.unavailable = (-not $int.runtime_present)
                 $resolved.degraded = ($configEnabled -and $int.runtime_present)
             }

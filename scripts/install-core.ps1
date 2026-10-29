@@ -25,6 +25,27 @@ param (
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function Add-ContextModeRuntimeGitIgnore {
+    param([Parameter(Mandatory = $true)][string]$Root)
+
+    $gitignorePath = Join-Path $Root '.gitignore'
+    $content = if (Test-Path -LiteralPath $gitignorePath -PathType Leaf) {
+        [System.IO.File]::ReadAllText($gitignorePath)
+    } else { '' }
+    $existing = @($content -split '\r?\n' | ForEach-Object { $_.Trim().TrimStart('/').Replace('\', '/') })
+    $required = @('.context-mode/', '.github/context-mode/')
+    $missing = @($required | Where-Object { $_ -notin $existing })
+    if ($missing.Count -eq 0) { return }
+
+    $newline = if ($content -match "`r`n") { "`r`n" } else { "`n" }
+    $block = '# MxAgile Context Mode runtime state (session-owned; do not commit)' + $newline + ($missing -join $newline) + $newline
+    if ($content.Length -gt 0) {
+        $separator = if ($content -match '(\r\n|\n|\r)$') { $newline } else { $newline + $newline }
+        $block = $separator + $block
+    }
+    [System.IO.File]::AppendAllText($gitignorePath, $block, [System.Text.UTF8Encoding]::new($false))
+}
+
 # =========================================================================
 # PowerShell Version Preflight (RF-005)
 # MxAgile requires PowerShell 7+ (pwsh). Windows PowerShell 5.x is NOT
@@ -169,6 +190,8 @@ try {
     # Derive project name from .mpr filename (authoritative Mendix project identity).
     # Materialize into mxagile-project.yaml after mxagile-init.ps1 runs (Step 1a).
     $mprProjectName = [System.IO.Path]::GetFileNameWithoutExtension($mprFiles[0].Name)
+
+    Add-ContextModeRuntimeGitIgnore -Root $ProjectRoot
 
     # Step 1a: MxAgile directory scaffold  -  also installs mxcli.exe
     $initScript = Join-Path $PSScriptRoot "mxagile-init.ps1"

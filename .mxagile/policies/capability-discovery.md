@@ -59,6 +59,14 @@ scripts/Get-MxAgileCapabilities.ps1
 loaded_tools, health, required_tools, usable, status, guidance, fallback). For a relevant large-data
 task, use this order once:
 
+- Determine the active host from the current agent runtime, not from its MCP/tool providers. Set
+  `MXAGILE_HARNESS` only for this resolver process when the host is Copilot CLI or VS Code Copilot;
+  Claude Code and OpenCode runtime markers are also detected directly. Do not persist this variable
+  globally. `-Harness` must match current-session evidence; without it the result is
+  `harness_ambiguous`. If no host identity is available, use `auto` and accept `harness_unknown`.
+- Concord-MCP is a capability source, never the harness: Concord under Claude remains
+  `claude_code`; Concord under Copilot remains the actual Copilot harness. Windows Terminal,
+  Studio-Pro-integrated terminal, `COPILOT_HOME`, and VS Code terminal variables do not change it.
 - Query the resolver first. In Copilot/Concord contexts, `concord_discover` is not the MxAgile
   resolver and must not replace or precede the relevant capability query.
 - Inspect the current harness's actual registered tool inventory. Do not infer LOADED from packages,
@@ -71,13 +79,21 @@ task, use this order once:
 - Pass the operation(s) required by this task via `-ContextModeRequiredTools`; `integration.usable`
   requires supported + installed + configured + loaded + healthy + MxAgile enabled + every required
   operation present. A healthy adapter without task-operation evidence is not usable for that task.
+- Pass `-ContextModeHooksRequired` only when this task needs automatic routing interception. A task
+  that explicitly uses loaded `ctx_*` operations may use MCP-only mode without hooks; if routing
+  hooks are required, MCP-only is not sufficient and the adapter's plugin path is user-global.
 - A configured-but-not-loaded result gets the adapter's single restart/reload hint. A health failure
   gets one diagnostic path only; no retry loop.
 - Not installed / not configured / misconfigured / unhealthy / unknown or unsupported harness:
   continue with the normal MxAgile fallback (deterministic helpers, bounded semantic delegation,
   targeted direct read; never a full-repository read) and, if useful, state the harness-specific
   `integration.guidance` compactly.
-- Never install, enable or edit harness configuration (e.g. `opencode.json`) on the agent's own authority.
+- Never silently install global packages/plugins, change user-global harness configuration, or touch
+  credentials. A reversible project-local setup edit is allowed only when the user's request
+  authorizes that project setup and existing MxAgile autonomy rules permit the file mutation.
+- Follow `integration.action_classification`: `SAFE_AUTOMATIC` for permitted local/read-only work,
+  `REQUIRES_USER_APPROVAL` for user/machine mutations, `REQUIRES_RESTART` for one reported reload
+  (no retry), and `UNSUPPORTED` with normal fallback.
 - For a large source such as HTML, do not use a direct full read as fallback; if the required Context Mode
   operation is unavailable, report `NOT_VERIFIABLE_FOR_CM_TEST` and leave the large source unread.
 - Context Mode never owns lifecycle state, gates, evidence validity or mission completion.
@@ -88,8 +104,12 @@ Compact answer from the resolver output alone (no adapter files need to be read)
 > The normal MxAgile fallback stays available.
 > Setup path for your harness: `integration.guidance` (project/global/verify lines).
 
-`integration.harness` comes from `-Harness` (`claude_code`, `copilot_cli`, `vscode_copilot`, `opencode`)
-or is detected from the environment; if it is `unknown`, say so instead of guessing.
+`integration.harness` is attested by the current runtime. Never pass a guessed `-Harness`; caller
+assertions without matching session evidence resolve to `harness_ambiguous`. `unknown` is not a
+reason to ask the user to route manually; continue with fallback unless this is an explicit CM test.
+
+When a user action is required, report compactly: what is missing, why MxAgile cannot do it
+autonomously, the exact action, whether reload/restart follows, and that normal fallback continues.
 
 Details: `.mxagile/integrations/context-mode.yaml#harness_integration`.
 
@@ -112,6 +132,11 @@ An agent MUST NOT:
 
 For project-config-only changes (`user_approval_required: false`):
 An agent may edit `.mxagile/config.yaml` when clearly authorized by the user's request.
+
+For project-local Context Mode configuration:
+Only create or change reversible, non-secret project files when the user's request authorizes that
+setup and repository autonomy rules permit it. Preserve unrelated configuration. Do not use this
+permission for global package/plugin installation.
 
 For external installation (`user_approval_required: true`):
 Do not silently install. Report what is needed and wait for user confirmation.

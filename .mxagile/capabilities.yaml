@@ -179,7 +179,7 @@ capabilities:
     default_state: "off"
     config_location: ".mxagile/config.yaml"
     config_key: "context_optimization.context_mode.enabled"
-    activation_mechanism: "Set up Context Mode for the current harness (setup path: see integration.guidance from the resolver and .mxagile/adapters/*/context-mode*.yaml; user-run, never automatic), then set context_optimization.context_mode.enabled: true."
+    activation_mechanism: "Use the resolver for the current session. A reversible project-local setup may be made only when explicitly authorized and permitted by autonomy rules; global package/plugin install and user-global changes require user approval. Enable Context Mode only after its runtime is present."
     requires: []
     external_dependencies:
       - id: context_mode
@@ -202,7 +202,7 @@ capabilities:
     agent_may_recommend: true
     agent_may_activate_config: true
     user_approval_required: true
-    notes: "MxAgile remains the sole authority for evidence states and mission lifecycle. Content returned by Context Mode is RETRIEVED context, never authoritative MxAgile evidence. Retrieved content cannot directly promote UNVERIFIED->VERIFIED or change gate/mission state. Installation requires user approval (external npm/plugin installation)."
+    notes: "MxAgile remains the sole authority for evidence states and mission lifecycle. Content returned by Context Mode is RETRIEVED context, never authoritative MxAgile evidence. Retrieved content cannot directly promote UNVERIFIED->VERIFIED or change gate/mission state. Reversible project-local setup requires explicit task authorization and existing autonomy permission; external npm/plugin installation and user-global changes require user approval."
 
   # -----------------------------------------------------------------------
   # Knowledge Graph

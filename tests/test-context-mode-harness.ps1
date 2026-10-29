@@ -75,13 +75,16 @@ $OriginalPath = $env:PATH
 
 function Invoke-Cm {
     param($Fx, [string]$Harness, [string]$Health = 'unknown', [bool]$WithBinary = $false, [switch]$Raw,
-        [switch]$ToolsObserved, [string[]]$Tools = @(), [string[]]$RequiredTools = @())
+        [switch]$ToolsObserved, [switch]$HooksRequired, [switch]$Unattested, [string]$RuntimeHarness = '',
+        [string[]]$Tools = @(), [string[]]$RequiredTools = @())
     $savedEnv = @{}
     foreach ($n in 'MXAGILE_HARNESS', 'CLAUDECODE', 'OPENCODE_SESSION_ID', 'OPENCODE_BASE_URL', 'COPILOT_HOME') {
         $savedEnv[$n] = [Environment]::GetEnvironmentVariable($n)
         [Environment]::SetEnvironmentVariable($n, $null)
     }
     [Environment]::SetEnvironmentVariable('COPILOT_HOME', (Join-Path $Fx.Home '.copilot'))
+    $sessionHarness = if ($RuntimeHarness) { $RuntimeHarness } elseif ($Harness -ne 'auto' -and -not $Unattested) { $Harness } else { '' }
+    if ($sessionHarness) { [Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', $sessionHarness) }
     $env:PATH = if ($WithBinary) { $BinWith } else { $BinWithout }
     try {
         $resolverArgs = @{
@@ -92,6 +95,7 @@ function Invoke-Cm {
             $resolverArgs.ContextModeToolsObserved = $true
             $resolverArgs.ContextModeTools = $Tools
         }
+        if ($HooksRequired) { $resolverArgs.ContextModeHooksRequired = $true }
         if ($RequiredTools.Count -gt 0) { $resolverArgs.ContextModeRequiredTools = $RequiredTools }
         $out = & $Resolver @resolverArgs 2>&1
         $code = $LASTEXITCODE
@@ -132,6 +136,8 @@ foreach ($rel in $adapterFiles) {
 }
 $ocAdapter = Get-Content (Join-Path $ScriptDir '.mxagile/adapters/opencode/context-mode.yaml') -Raw
 Assert-True 'OpenCode adapter documents plugin + legacy MCP incompatibility' (($ocAdapter -match 'ZERO ctx_\* tools') -and ($ocAdapter -match 'repair_hint:')) 'conflict doc missing'
+$claudeAdapter = Get-Content (Join-Path $ScriptDir '.mxagile/adapters/claude/context-mode.yaml') -Raw
+Assert-True 'Claude adapter distinguishes MCP-only reload from approved plugin setup' (($claudeAdapter -match '(?m)^mcp_only_load_hint:') -and ($claudeAdapter -match '(?m)^hooks_required_hint:') -and ($claudeAdapter -match 'explicit approval')) 'MCP-only action guidance missing'
 
 # --- 1. Not installed ----------------------------------------------------------
 Write-Host "--- 1 not installed ---" -ForegroundColor Yellow
@@ -202,8 +208,12 @@ $r = Invoke-Cm $fx 'claude_code' -WithBinary $true
 $i = $r.Cap.integration
 Assert-True '5. MCP-only mode detected, hooks absent' ($i.integration_mode -eq 'mcp_only' -and $i.components.hooks -eq 'absent' -and $i.components.mcp -eq $true) "mode=$($i.integration_mode) hooks=$($i.components.hooks)"
 Assert-True '5. MCP-only reports no-routing finding' (($i.findings -join ' ') -match 'no hooks') ($i.findings -join '|')
+$r = Invoke-Cm $fx 'claude_code' -WithBinary $true -ToolsObserved
+Assert-True '5. unloaded MCP-only gives one restart action, not plugin-install ambiguity' ($r.Cap.integration.status -eq 'configured_not_loaded' -and $r.Cap.integration.action_classification -eq 'REQUIRES_RESTART' -and $r.Cap.integration.restart_required -eq $true -and (($r.Cap.integration.guidance -join ' ') -match 'MCP-only')) "status=$($r.Cap.integration.status) guidance=$($r.Cap.integration.guidance -join '|')"
 $r = Invoke-Cm $fx 'claude_code' -Health 'healthy' -ToolsObserved -Tools @('ctx_doctor', 'ctx_execute_file') -RequiredTools @('ctx_execute_file')
-Assert-True '5. loaded and healthy MCP-only stays non-usable without routing hooks' ($r.Cap.integration.status -eq 'loaded_hooks_missing' -and $r.Cap.integration.components.hooks_loaded -eq $false -and $r.Cap.integration.usable -eq $false) "status=$($r.Cap.integration.status)"
+Assert-True '5. MCP-only is usable for direct required tools when hooks are not needed' ($r.Cap.integration.status -eq 'healthy' -and $r.Cap.integration.usable -eq $true -and $r.Cap.integration.components.hooks_loaded -eq $false) "status=$($r.Cap.integration.status)"
+$r = Invoke-Cm $fx 'claude_code' -Health 'healthy' -ToolsObserved -HooksRequired -Tools @('ctx_doctor', 'ctx_execute_file') -RequiredTools @('ctx_execute_file')
+Assert-True '5. MCP-only is not usable when the task requires routing hooks' ($r.Cap.integration.status -eq 'loaded_hooks_missing' -and $r.Cap.integration.action_classification -eq 'REQUIRES_USER_APPROVAL' -and $r.Cap.integration.restart_required -eq $true -and $r.Cap.integration.usable -eq $false) "status=$($r.Cap.integration.status)"
 $fx = New-Fixture
 $null = Write-Fx $fx.Home '.claude/settings.json' '{ "enabledPlugins": { "context-mode@context-mode": false } }'
 $r = Invoke-Cm $fx 'claude_code'
@@ -261,6 +271,11 @@ try {
     [Environment]::SetEnvironmentVariable('WT_SESSION', $savedWtSession)
 }
 Assert-True 'G5. Studio Pro and Windows Terminal origin do not change equal project/session evidence' (($windowsTerminal.Cap.integration.status -eq $studioProTerminal.Cap.integration.status) -and ($windowsTerminal.Cap.integration.usable -eq $studioProTerminal.Cap.integration.usable) -and ($windowsTerminal.Cap.state.active -eq $studioProTerminal.Cap.state.active)) 'terminal origin changed capability semantics'
+$fx = New-Fixture
+$r = Invoke-Cm $fx 'claude_code' -RuntimeHarness 'copilot_cli' -WithBinary $true
+Assert-True 'G6. Copilot runtime evidence rejects a Claude harness override' ($r.Cap.integration.status -eq 'harness_ambiguous' -and $r.Cap.integration.harness -eq 'unknown' -and ($r.Cap.integration.harness_conflict -match 'copilot_cli') -and $r.Cap.integration.usable -eq $false) "status=$($r.Cap.integration.status) harness=$($r.Cap.integration.harness)"
+$r = Invoke-Cm $fx 'auto' -RuntimeHarness 'copilot_cli' -WithBinary $true
+Assert-True 'G6. auto harness detection honors the current Copilot session attestation' ($r.Cap.integration.harness -eq 'copilot_cli' -and $r.Cap.integration.harness_source -eq 'MXAGILE_HARNESS') "harness=$($r.Cap.integration.harness) source=$($r.Cap.integration.harness_source)"
 
 # --- 7. VS Code Copilot --------------------------------------------------------------
 Write-Host "--- 7 VS Code Copilot ---" -ForegroundColor Yellow
@@ -281,8 +296,8 @@ $fx = New-Fixture
 $null = Write-Fx $fx.Root '.vscode/mcp.json' $vsMcp
 $r = Invoke-Cm $fx 'vscode_copilot' -WithBinary $true
 Assert-True '7. mcp without hooks -> configured, hooks absent, load unverified' ($r.Cap.integration.configured -eq $true -and $r.Cap.integration.components.hooks -eq 'absent' -and $r.Cap.integration.status -eq 'configured_load_unknown') "status=$($r.Cap.integration.status)"
-$r = Invoke-Cm $fx 'vscode_copilot' -WithBinary $true -Health 'healthy' -ToolsObserved -Tools @('ctx_doctor', 'ctx_execute_file') -RequiredTools @('ctx_execute_file')
-Assert-True '7. loaded VS Code MCP without hooks is not usable' ($r.Cap.integration.status -eq 'loaded_hooks_missing' -and $r.Cap.integration.usable -eq $false) "status=$($r.Cap.integration.status)"
+$r = Invoke-Cm $fx 'vscode_copilot' -WithBinary $true -Health 'healthy' -ToolsObserved -HooksRequired -Tools @('ctx_doctor', 'ctx_execute_file') -RequiredTools @('ctx_execute_file')
+Assert-True '7. loaded VS Code MCP without hooks is not usable when hooks are required' ($r.Cap.integration.status -eq 'loaded_hooks_missing' -and $r.Cap.integration.usable -eq $false) "status=$($r.Cap.integration.status)"
 $fx = New-Fixture
 $null = Write-Fx $fx.Root '.github/hooks/context-mode.json' $vsHooks
 $r = Invoke-Cm $fx 'vscode_copilot' -WithBinary $true
@@ -348,15 +363,18 @@ $fx = New-Fixture
 $r = Invoke-Cm $fx 'auto' -WithBinary $true -Health 'healthy'
 Assert-True '12. unknown harness: not usable, not active even with binary + healthy claim' ($r.Cap.integration.status -eq 'harness_unknown' -and $r.Cap.integration.usable -eq $false -and $r.Cap.state.active -eq $false) "status=$($r.Cap.integration.status)"
 Assert-True '12. unknown harness: degraded when enabled (unverifiable)' ($r.Cap.state.degraded -eq $true) 'expected degraded'
+$r = Invoke-Cm $fx 'claude_code' -Unattested
+Assert-True '12. caller-supplied harness without session attestation is ambiguous' ($r.Cap.integration.status -eq 'harness_ambiguous' -and $r.Cap.integration.harness -eq 'unknown' -and $r.Cap.integration.usable -eq $false) "status=$($r.Cap.integration.status)"
 $r = Invoke-Cm $fx 'other'
 Assert-True '12. unsupported harness: unavailable, fallback non-blocking' ($r.Cap.integration.status -eq 'harness_unsupported' -and $r.Cap.state.unavailable -eq $true -and $r.Cap.integration.fallback.blocks_mxagile -eq $false -and $r.Code -eq 0) "status=$($r.Cap.integration.status)"
-$env:MXAGILE_HARNESS = 'opencode'
+$savedHarness = [Environment]::GetEnvironmentVariable('MXAGILE_HARNESS')
+[Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', 'opencode')
 try {
     $null = Write-Fx $fx.Root 'opencode.json' '{ "plugin": ["context-mode"] }'
     $out = & $Resolver -Format json -ProjectRoot $fx.Root -HomeDir $fx.Home 2>&1 | ConvertFrom-Json
     $c = $out.capabilities | Where-Object { $_.id -eq 'context_mode_integration' }
     Assert-True '12. auto detection via MXAGILE_HARNESS' ($c.integration.harness -eq 'opencode') "harness=$($c.integration.harness)"
-} finally { Remove-Item Env:\MXAGILE_HARNESS -ErrorAction SilentlyContinue }
+} finally { [Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', $savedHarness) }
 
 # --- 13. No side effects ----------------------------------------------------------------------------
 Write-Host "--- 13 no side effects ---" -ForegroundColor Yellow
@@ -377,9 +395,15 @@ Set-Content -Path (Join-Path $probeBin 'context-mode.cmd') -Value "@echo execute
 $null = Write-Fx $probeBin 'node_modules/context-mode/package.json' '{ "name": "context-mode", "version": "1.0.10" }'
 $fx = New-Fixture
 $env:PATH = $probeBin
+$savedHarness = [Environment]::GetEnvironmentVariable('MXAGILE_HARNESS')
+$env:PATH = $probeBin
+[Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', 'claude_code')
 try {
     $out = & $Resolver -Format json -ProjectRoot $fx.Root -HomeDir $fx.Home -Harness claude_code 2>&1 | ConvertFrom-Json
-} finally { $env:PATH = $OriginalPath }
+} finally {
+    $env:PATH = $OriginalPath
+    [Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', $savedHarness)
+}
 $c = $out.capabilities | Where-Object { $_.id -eq 'context_mode_integration' }
 Assert-True '13b. context-mode binary was not executed' (-not (Test-Path $marker)) 'resolver executed context-mode'
 Assert-True '13b. version read from package metadata, incompatible version flagged' (($c.dependencies[0].detected_version -eq '1.0.10') -and ($c.dependencies[0].compatible -eq $false)) "version=$($c.dependencies[0].detected_version)"
@@ -389,9 +413,15 @@ Write-Host "--- 14 human output ---" -ForegroundColor Yellow
 $fx = New-Fixture
 $null = Write-Fx $fx.Root 'opencode.json' '{ "plugin": ["context-mode"], "mcp": { "context-mode": { "type": "local" } } }'
 $env:PATH = $BinWithout
+$savedHarness = [Environment]::GetEnvironmentVariable('MXAGILE_HARNESS')
+$env:PATH = $BinWithout
+[Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', 'opencode')
 try {
     $human = & $Resolver -Format human -ProjectRoot $fx.Root -HomeDir $fx.Home -Harness opencode -Capability context_mode_integration *>&1 | Out-String
-} finally { $env:PATH = $OriginalPath }
+} finally {
+    $env:PATH = $OriginalPath
+    [Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', $savedHarness)
+}
 Assert-True '14. human output shows harness, finding and fallback' (($human -match 'Harness: opencode') -and ($human -match 'Finding:') -and ($human -match 'Fallback: native MxAgile')) $human
 
 } finally {

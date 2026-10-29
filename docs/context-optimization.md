@@ -117,7 +117,7 @@ Full technical specification: `.mxagile/integrations/rtk.yaml`
 | Redistribution | **NOT permitted by MxAgile** — must be installed by the developer |
 | Windows support | Yes |
 | Integration mechanism | Harness-specific: plugin and/or MCP + hooks (Claude Code, Copilot CLI, VS Code Copilot); native OpenCode plugin |
-| Storage | SQLite at `~/.context-mode/` |
+| Storage | User-profile SQLite/session roots; `CONTEXT_MODE_DIR` may override them |
 
 ### License Warning
 
@@ -130,16 +130,19 @@ Context Mode externalizes bulky content to a local SQLite+FTS5 knowledge base. T
 ### Installation
 
 The setup path differs per harness; the same MCP stdio config is not valid everywhere. The resolver
-(`scripts/Get-MxAgileCapabilities.ps1 -Capability context_mode_integration -Harness <id>`) reports
+(`scripts/Get-MxAgileCapabilities.ps1 -Capability context_mode_integration -Harness auto`) reports
 the state and a compact, harness-specific guidance; the source of that guidance is
-`.mxagile/adapters/<harness>/context-mode*.yaml`. MxAgile never installs or edits configuration.
+`.mxagile/adapters/<harness>/context-mode*.yaml`. The resolver is read-only. The active platform agent
+attests Copilot CLI or VS Code Copilot through a process-scoped `MXAGILE_HARNESS`; it must not infer the
+harness from configuration, Concord tools, `COPILOT_HOME`, or terminal origin. Unattested explicit
+`-Harness` values and conflicting evidence return `harness_ambiguous`.
 
 | Harness (`-Harness`) | Upstream form | Detected (read-only) |
 |----------------------|---------------|----------------------|
-| `claude_code` | plugin (hooks + tools) or MCP-only | `enabledPlugins` in `~/.claude/settings.json`, `.claude/settings*.json`; `.mcp.json`, `~/.claude.json` |
-| `copilot_cli` | `copilot plugin install mksglu/context-mode:configs/copilot-cli` (bundled MCP + hooks) or `copilot mcp add` + hooks | Installed plugin manifest/bundle under `COPILOT_HOME`; user `mcp-config.json`/hooks or explicitly Copilot-marked project `.mcp.json` and `.github/hooks/` |
-| `vscode_copilot` | project files | `.vscode/mcp.json`, `.github/hooks/context-mode.json`; global `context-mode` binary |
-| `opencode` | native plugin (`opencode.json` `plugin`) | `opencode.json(c)` project + `~/.config/opencode/` |
+| `claude_code` | recommended plugin (hooks + tools) or MCP-only (direct tools, no hooks) | Claude settings/plugin cache; project `.mcp.json` or `~/.claude.json` |
+| `copilot_cli` | plugin bundle or user-level MCP + hooks | `COPILOT_HOME`/`~/.copilot`; no documented project-local install |
+| `vscode_copilot` | project MCP + hooks, global runtime executable | `.vscode/mcp.json`, `.github/hooks/context-mode.json` |
+| `opencode` | native plugin (`opencode.json` `plugin`) | project `opencode.json(c)` and user `~/.config/opencode/` |
 
 OpenCode: `plugin ["context-mode"]` together with `mcp.context-mode` registers zero tools upstream. MxAgile
 reports this as `misconfigured` (degraded) and does not repair it; remove the legacy entry or run
@@ -150,10 +153,18 @@ harness tool inventory count as loaded. A plugin/config file, ToolSearch guess, 
 another session is not runtime evidence. `ctx_doctor` is the only health probe accepted by the resolver;
 it also checks hooks where the harness integration requires them. Pass the observed tools and task-required
 operations through `-ContextModeToolsObserved`, `-ContextModeTools`, and `-ContextModeRequiredTools`.
-`integration.usable` additionally requires MxAgile enabled, all required operations present, and
-`components.hooks_loaded = true` where hooks are part of the harness integration. Health is never inferred
+Use `-ContextModeHooksRequired` only when the task needs automatic routing interception. `integration.usable`
+requires MxAgile enabled, all required operations present, and healthy hooks only when that task requires
+them; MCP-only can therefore serve explicit direct-tool tasks without claiming routing hooks. Health is never inferred
 from files and is never reused from another session. Without this evidence MxAgile continues with its
 native fallback and does not automatically read a large source file.
+
+Global package/plugin installation, marketplace actions, user-global configuration, and credential
+changes require explicit user approval. A reversible project-local config change is permitted only when
+the task explicitly authorizes that setup and repository autonomy allows it. A configured-but-unloaded
+session gets one adapter-specific reload/restart instruction; no retry loop. Runtime SQLite/session
+state stays under the user profile by default. Installer-managed `.context-mode/` and
+`.github/context-mode/` ignores cover intentional workspace-local overrides.
 
 **Claude Code (recommended):**
 ```

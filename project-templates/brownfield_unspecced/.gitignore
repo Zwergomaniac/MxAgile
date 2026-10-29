@@ -1,3 +1,8 @@
 # Local Mendix test fi*ture. Keep directory, ignore its c*ntents.
+# Context Mode runtime state is user-owned; workspace-local overrides are ephemeral.
+.context-mode/
+.github/context-mode/
+
+# Local Mendix test fi*ture. Keep directory, ignore its c*ntents.
 *
 !.gitignore

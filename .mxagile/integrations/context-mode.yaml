@@ -120,7 +120,9 @@ harness_integration:
     Context Mode is integrated differently per harness. The same MCP stdio config is NOT valid
     everywhere. Detection is read-only and lives in scripts/Get-MxAgileCapabilities.ps1
     (capability context_mode_integration, JSON field `integration`); per-harness setup/repair/health
-    guidance lives in the platform adapters. MxAgile never installs, enables or edits harness config.
+    guidance lives in the platform adapters. The resolver never mutates configuration. An agent may
+    make an explicitly authorized, reversible project-local setup change; user/global installation
+    and configuration always require approval.
   adapters:
     claude_code: ".mxagile/adapters/claude/context-mode.yaml"
     copilot_cli: ".mxagile/adapters/copilot/context-mode-cli.yaml"
@@ -135,7 +137,13 @@ harness_integration:
     plugin ["context-mode"] together with mcp.context-mode makes OpenCode register zero ctx_* tools
     (upstream upgrade note). MxAgile reports status misconfigured (degraded, not usable) and does not
     delete or repair the entry. Legacy mcp.context-mode without plugin is reported as legacy_mcp (degraded).
-  harness_id_resolution: "-Harness parameter, MXAGILE_HARNESS, CLAUDECODE=1, OPENCODE_SESSION_ID/OPENCODE_BASE_URL; otherwise unknown (never guessed from files)."
+  harness_id_resolution: >
+    MXAGILE_HARNESS is a per-process current-session host attestation; CLAUDECODE=1 and
+    OPENCODE_SESSION_ID/OPENCODE_BASE_URL are strong runtime markers. -Harness is only an assertion:
+    it requires matching current-session evidence. Unattested or conflicting values resolve to
+    harness_ambiguous. Copilot CLI and VS Code Copilot have no reliable shared process marker, so the
+    active host adapter supplies MXAGILE_HARNESS; config files, Concord tools, COPILOT_HOME, WT_SESSION,
+    VSCODE terminal variables, and terminal origin are not host identity evidence.
   status_values:
     not_installed: "Supported but no runtime/config for this harness -> unavailable; setup guidance."
     installed_not_configured: "Runtime present, not configured for this harness -> available, not active; setup guidance."
@@ -152,6 +160,7 @@ harness_integration:
     healthy_but_disabled: "Loaded and healthy, but MxAgile configuration is disabled -> not usable."
     loaded_unconfigured: "Tools observed but supported harness configuration was not detected -> configuration unverified, not usable."
     harness_unknown: "Harness not identified -> not usable, degraded when enabled."
+    harness_ambiguous: "Caller assertion lacks current-session evidence or contradicts runtime markers -> not usable; do not retry with a guess."
     harness_unsupported: "No adapter for this harness -> unavailable."
   mapping_to_capability_states:
     available: "A runtime for the identified harness exists. NOT proof the integration works."
@@ -170,15 +179,45 @@ harness_integration:
     tools_observed_parameter: "-ContextModeToolsObserved marks that the live harness inventory was inspected; omit it when unknown."
     tools_parameter: "-ContextModeTools accepts only canonical ctx_* names seen in this session."
     required_tools_parameter: "-ContextModeRequiredTools lists the operation(s) required by the current task; all must be present for usable."
+    hooks_required_parameter: "-ContextModeHooksRequired marks tasks that need automatic routing; direct ctx_* tasks may be usable without hooks."
     hooks_parameter: "components.hooks_loaded is true only after loaded tools and a successful same-session ctx_doctor, false when hooks are absent, otherwise null/unknown."
     concord: "concord_discover may discover Concord tools but is not a substitute for MxAgile capability resolution or live ctx_* evidence."
     terminal_origin: "Terminal origin is not part of capability semantics; equal project/config/session evidence yields equal results."
   setup_guidance_rules:
     - "Guidance comes from the adapter file of the identified harness; project-local vs global paths are stated separately where upstream documents both."
     - "Configured but not loaded guidance names the harness-specific reload or session restart; do not retry in a loop."
-    - "A healthy MCP-only setup without the harness-required hooks remains non-usable; recommend the documented plugin/hooks setup without changing config."
+    - "MCP-only may be usable for this task when required direct tools are loaded and hooks are not required; when hooks are required, name the approved plugin setup and required reload."
     - "The agent states the setup path compactly and continues with the native fallback."
-    - "No automatic installation, no package-manager command executed by the agent, no silent global config change."
+    - "Never install a global package/plugin, edit user-global config, or change credentials without explicit user approval."
+
+ownership:
+  repo_git_tracked:
+    framework_contracts: ["scripts/Get-MxAgileCapabilities.ps1", ".mxagile/integrations/context-mode.yaml", ".mxagile/adapters/*/context-mode*.yaml", ".mxagile/policies/capability-discovery.md"]
+    claude_code: "Project .mcp.json is supported for intentional MCP-only setup; it has tools but no hooks. Marketplace installation and plugin cache stay user-owned."
+    copilot_cli: "No upstream-documented project-local setup; MCP, hooks, and plugin installation live under COPILOT_HOME or ~/.copilot."
+    vscode_copilot: "Project .vscode/mcp.json and .github/hooks/context-mode.json are supported project files; the context-mode executable is user/machine-installed."
+    opencode: "Project opencode.json plugin [context-mode] is supported; do not add a parallel legacy mcp.context-mode entry."
+  user_machine_owned:
+    - "Global npm/package installation and marketplace/plugin installation or cache"
+    - "User-global harness configuration, credentials, and authentication"
+    - "Context Mode SQLite content/session databases, stats, cache, and process files under the user profile"
+  session_owned:
+    - "The current live ctx_* tool inventory and runtime availability"
+    - "The current-session ctx_doctor health result and loaded/hooks-loaded evidence"
+    - "Session-specific Context Mode state; never persist as project truth or commit"
+
+self_service_policy:
+  SAFE_AUTOMATIC: "Read-only diagnosis. A reversible project-local config/ignore change is allowed only when the user's request authorizes that project setup and existing MxAgile autonomy rules permit it; preserve unrelated content and secrets."
+  REQUIRES_USER_APPROVAL: "Global package/plugin installation, marketplace actions, user-global configuration, credentials, and durable machine-level mutations. No silent execution."
+  REQUIRES_RESTART: "Configuration is correct but current-session tools are absent: report the exact harness reload/restart once; do not retry or claim health."
+  UNSUPPORTED: "Do not invent a workaround; use the normal MxAgile fallback."
+  output_fields: "integration.action_classification is SAFE_AUTOMATIC, REQUIRES_USER_APPROVAL, REQUIRES_RESTART, or UNSUPPORTED; integration.restart_required states the reload contract."
+
+git_tracking:
+  upstream_default: "SQLite content/session state and stats live outside the project under the user profile; they are not MxAgile project artifacts."
+  project_local_runtime_ignores: [".context-mode/", ".github/context-mode/"]
+  rule: "Ignore the whole runtime root, never PID-specific files. Core install/update adds these entries without replacing existing .gitignore content. If CONTEXT_MODE_DIR is redirected to another workspace path, ignore that entire configured root."
+  tracked_exceptions: "Only intentional harness configuration and MxAgile source/adapter contracts are versioned; loaded tools, health, runtime cache, credentials, session DBs, PID and stats are not."
 
 installation:
   claude_code: "/plugin marketplace add mksglu/context-mode"
