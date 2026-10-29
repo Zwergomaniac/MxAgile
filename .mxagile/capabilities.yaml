@@ -192,11 +192,11 @@ capabilities:
         install_npm: "npm install -g context-mode"
         license: "ELv2"
         upstream: "https://github.com/mksglu/context-mode"
-        assessed_version: "1.0.33+"
-        assessed_date: "2026-10-13"
+        assessed_version: "1.0.169"
+        assessed_date: "2026-10-28"
         license_note: "ELv2 — source-available, NOT OSI open source. Not redistributed by MxAgile. Must be installed separately."
     incompatibilities: []
-    availability_detection: "Harness-specific and read-only (resolver field 'integration'): plugin/MCP/hooks configuration of the identified harness (Claude Code, Copilot CLI, VS Code Copilot, OpenCode). available=true means a runtime exists, NOT that it works; active requires integration.usable, i.e. an agent-observed healthy ctx_doctor/ctx_stats probe (-ContextModeHealth). Unknown health is never reported as healthy."
+    availability_detection: "Harness-specific and read-only (resolver field 'integration'): installed runtime and supported plugin/MCP/hooks configuration are detected separately from current-session ctx_* tools, ctx_doctor health, hooks_loaded, MxAgile enabled state, and task-required tools. available=true is not runtime-loaded evidence; active requires integration.usable with all same-session evidence."
     risk: low
     docs_ref: "docs/context-optimization.md"
     agent_may_recommend: true

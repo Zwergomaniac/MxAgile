@@ -48,6 +48,18 @@
     cached ctx_doctor/ctx_stats call): unknown (default), healthy, failed, timeout.
     The resolver never calls MCP tools itself; without evidence health is unknown.
 
+.PARAMETER ContextModeToolsObserved
+The agent inspected this session's actual tool namespace. This is separate from
+configuration files and is never inferred by the resolver.
+
+.PARAMETER ContextModeTools
+Canonical ctx_* tool names observed in this session. Supply the complete current
+Context Mode tool inventory when ContextModeToolsObserved is set.
+
+.PARAMETER ContextModeRequiredTools
+Context Mode operations required for the current task. Usability is not established
+unless these operations are present in ContextModeTools.
+
 .PARAMETER HomeDir
     User home used to read global harness configuration (read-only). Defaults to
     the current user profile. Mainly for tests.
@@ -91,6 +103,12 @@ param(
 
     [ValidateSet('unknown', 'healthy', 'failed', 'timeout')]
     [string]$ContextModeHealth = 'unknown',
+
+    [switch]$ContextModeToolsObserved,
+
+    [string[]]$ContextModeTools = @(),
+
+    [string[]]$ContextModeRequiredTools = @(),
 
     [string]$HomeDir = ''
 )
@@ -433,35 +451,77 @@ function Get-ClaudeContextModeDetection {
 }
 
 function Get-CopilotCliContextModeDetection {
-    param([string]$Home_)
+    param([string]$Root, [string]$Home_)
     $d = New-ContextModeDetection
     $cHome = [Environment]::GetEnvironmentVariable('COPILOT_HOME')
     if (-not $cHome) { $cHome = Join-Path $Home_ '.copilot' }
-    $mcpFile = Join-Path $cHome 'mcp-config.json'
-    $hookFile = Join-Path $cHome 'hooks/context-mode.json'
-    if ((Get-FileTextSafe $mcpFile) -match '"context-mode"') { $d.mcp = $true; $d.evidence += $mcpFile }
-    $hookText = Get-FileTextSafe $hookFile
-    $hooksPresent = $hookText -match 'context-mode hook copilot-cli'
-    if ($hooksPresent) {
+    $homeMcpFile = Join-Path $cHome 'mcp-config.json'
+    if ((Get-FileTextSafe $homeMcpFile) -match '"context-mode"\s*:\s*\{') { $d.mcp = $true; $d.evidence += $homeMcpFile }
+    $projectMcpFile = Join-Path $Root '.mcp.json'
+    $projectMcpText = Get-FileTextSafe $projectMcpFile
+    if (($projectMcpText -match '"context-mode"\s*:\s*\{') -and ($projectMcpText -match '"CONTEXT_MODE_PLATFORM"\s*:\s*"copilot-cli"')) {
+        $d.mcp = $true
+        $d.evidence += $projectMcpFile
+    }
+
+    $hookFiles = @((Join-Path $cHome 'hooks/context-mode.json'), (Join-Path $Root '.github/hooks/context-mode.json'))
+    foreach ($hookFile in $hookFiles) {
+        $hookText = Get-FileTextSafe $hookFile
+        if ($hookText -notmatch 'context-mode hook copilot-cli') { continue }
         $d.evidence += $hookFile
-        $missing = @('preToolUse', 'postToolUse', 'sessionStart') | Where-Object { $hookText -notmatch "`"$_`"" }
+        $missing = @('preToolUse', 'postToolUse', 'sessionStart', 'preCompact', 'userPromptSubmitted', 'agentStop') |
+            Where-Object { $hookText -notmatch "`"$_`"" }
         $d.hooks = if ($missing) { 'incomplete' } else { 'present' }
         if ($missing) { $d.findings += "Hooks file lacks events: $($missing -join ', ')." }
+        break
     }
+
+    $pluginRoots = @()
     if (Test-Path -LiteralPath $cHome -PathType Container) {
-        $pluginDir = Get-ChildItem -LiteralPath $cHome -Directory -Recurse -Depth 3 -Filter '*context-mode*' -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($pluginDir) { $d.plugin = $true; $d.evidence += $pluginDir.FullName; if ($d.hooks -eq 'absent') { $d.hooks = 'bundled_with_plugin' } }
+        $pluginRoots += @(Get-ChildItem -LiteralPath $cHome -Directory -Recurse -Depth 4 -Filter '*context-mode*' -ErrorAction SilentlyContinue)
     }
-    if ($d.hooks -in @('present', 'incomplete') -and -not $d.mcp -and -not $d.plugin) {
+    foreach ($pluginDir in $pluginRoots) {
+        $manifest = Get-FileTextSafe (Join-Path $pluginDir.FullName '.github/plugin/plugin.json')
+        if (-not $manifest) { $manifest = Get-FileTextSafe (Join-Path $pluginDir.FullName 'plugin.json') }
+        if ($manifest -notmatch '"name"\s*:\s*"context-mode"') { continue }
+        $d.plugin = $true
+        $d.evidence += $pluginDir.FullName
+        $pluginMcp = Join-Path $pluginDir.FullName '.mcp.json'
+        $pluginHooks = Join-Path $pluginDir.FullName 'hooks.json'
+        if (Test-Path -LiteralPath $pluginMcp -PathType Leaf) { $d.mcp = $true; $d.evidence += $pluginMcp }
+        if ($d.hooks -eq 'absent' -and (Test-Path -LiteralPath $pluginHooks -PathType Leaf)) {
+            $pluginHookText = Get-FileTextSafe $pluginHooks
+            $missing = @('preToolUse', 'postToolUse', 'sessionStart', 'preCompact', 'userPromptSubmitted', 'agentStop') |
+                Where-Object { $pluginHookText -notmatch "`"$_`"" }
+            if ($missing) {
+                $d.hooks = 'incomplete'
+                $d.findings += "Plugin hooks file lacks events: $($missing -join ', ')."
+            } else {
+                $d.hooks = 'bundled_with_plugin'
+            }
+            $d.evidence += $pluginHooks
+        }
+        break
+    }
+
+    if ($d.hooks -eq 'incomplete') {
+        $d.misconfigured = $true
+        $d.findings += 'Context Mode hooks are incomplete for GitHub Copilot CLI.'
+    } elseif ($d.hooks -eq 'present' -and -not $d.mcp -and -not $d.plugin) {
         $d.misconfigured = $true
         $d.findings += 'Hooks installed but no MCP server registered: hooks are inert and no ctx_* tools exist.'
-    } elseif ($d.plugin) { $d.mode = 'plugin' }
-    elseif ($d.mcp) {
+    } elseif ($d.plugin) {
+        $d.mode = 'plugin'
+        if ($d.hooks -eq 'absent') {
+            $d.misconfigured = $true
+            $d.findings += 'Context Mode Copilot plugin is missing its bundled hooks.json.'
+        }
+    } elseif ($d.mcp) {
         $d.mode = 'manual'
         if ($d.hooks -eq 'absent') { $d.findings += 'MCP registered without hooks: tools available, no routing enforcement.' }
     }
     $d.configured = (-not $d.misconfigured) -and ($d.mcp -or $d.plugin)
-    $d.runtime_present = (Test-ContextModeBinary) -or $d.plugin
+    $d.runtime_present = (Test-ContextModeBinary)
     return $d
 }
 
@@ -474,9 +534,9 @@ function Get-VsCodeCopilotContextModeDetection {
     $hookText = Get-FileTextSafe $hookFile
     if ($hookText -match 'context-mode hook vscode-copilot') {
         $d.evidence += $hookFile
-        $missing = @('PreToolUse', 'PostToolUse', 'SessionStart') | Where-Object { $hookText -notmatch "`"$_`"" }
+        $missing = @('PreToolUse', 'PostToolUse', 'PreCompact', 'SessionStart') | Where-Object { $hookText -notmatch "`"$_`"" }
         $d.hooks = if ($missing) { 'incomplete' } else { 'present' }
-        if ($missing) { $d.findings += "Hooks file lacks events: $($missing -join ', ')." }
+        if ($missing) { $d.misconfigured = $true; $d.findings += "Hooks file lacks events: $($missing -join ', ')." }
     }
     if ($d.hooks -ne 'absent' -and -not $d.mcp) {
         $d.misconfigured = $true
@@ -527,9 +587,35 @@ function Get-OpenCodeContextModeDetection {
 }
 
 function Resolve-ContextModeIntegration {
-    param([string]$Root, [string]$Home_, [string]$HarnessRequested, [string]$Health, [string]$AdapterBase)
+    param(
+        [string]$Root,
+        [string]$Home_,
+        [string]$HarnessRequested,
+        [string]$Health,
+        [bool]$ToolsObserved,
+        [string[]]$SessionTools,
+        [string[]]$RequiredTools,
+        [bool]$Enabled,
+        [string]$AdapterBase
+    )
 
     $harnessId = Resolve-HarnessId -Requested $HarnessRequested
+    $observedTools = @()
+    if ($ToolsObserved) {
+        $observedTools = @($SessionTools | ForEach-Object { "$($_)".Trim() } |
+            Where-Object { $_ -match '^ctx_[a-z0-9_]+$' } | Sort-Object -Unique)
+    }
+    $loadState = if (-not $ToolsObserved) { 'unknown' } elseif ($observedTools.Count -gt 0) { 'loaded' } else { 'not_loaded' }
+    $missingRequiredTools = @($RequiredTools | Where-Object { $_ -notin $observedTools })
+    $effectiveHealth = $Health
+    $healthSource = 'none'
+    $sessionFindings = @()
+    if ($loadState -eq 'loaded' -and $Health -ne 'unknown' -and $observedTools -contains 'ctx_doctor') {
+        $healthSource = 'agent_observed_session_probe'
+    } elseif ($Health -ne 'unknown') {
+        $effectiveHealth = 'unknown'
+        $sessionFindings += 'Health evidence ignored: the current-session tool inventory does not include ctx_doctor.'
+    }
     $fallback = [ordered]@{
         blocks_mxagile = $false
         order = @('deterministic_helpers', 'bounded_semantic_delegation', 'targeted_direct_read')
@@ -539,11 +625,17 @@ function Resolve-ContextModeIntegration {
         harness = $harnessId
         platform_supported = ($ContextModeAdapterFiles.ContainsKey($harnessId))
         runtime_present = $false
+        loaded = if ($loadState -eq 'unknown') { $null } else { $loadState -eq 'loaded' }
+        load_state = $loadState
+        load_source = if ($ToolsObserved) { 'agent_observed_tool_namespace' } else { 'none' }
+        loaded_tools = $observedTools
+        required_tools = @($RequiredTools)
+        missing_required_tools = $missingRequiredTools
         integration_mode = 'none'
         configured = $false
-        components = [ordered]@{ plugin = $false; mcp = $false; hooks = 'absent'; legacy_mcp_conflict = $false }
-        health = $Health
-        health_source = if ($Health -eq 'unknown') { 'none' } else { 'agent_observed_session_probe' }
+        components = [ordered]@{ plugin = $false; mcp = $false; hooks = 'unknown'; hooks_loaded = $null; legacy_mcp_conflict = $false }
+        health = $effectiveHealth
+        health_source = $healthSource
         usable = $false
         status = 'harness_unknown'
         setup_needed = $false
@@ -557,9 +649,10 @@ function Resolve-ContextModeIntegration {
     }
 
     if ($harnessId -eq 'unknown') {
-        $r.runtime_present = (Test-ContextModeBinary)
+        $r.runtime_present = (Test-ContextModeBinary) -or ($loadState -eq 'loaded')
         $r.reason = 'Harness not identified (set -Harness or MXAGILE_HARNESS); integration cannot be verified, so Context Mode is not treated as usable.'
         $r.guidance = @('Identify the harness (claude_code | copilot_cli | vscode_copilot | opencode) to get setup guidance.')
+        $r.findings = @($sessionFindings)
         return $r
     }
     if (-not $r.platform_supported) {
@@ -573,15 +666,18 @@ function Resolve-ContextModeIntegration {
 
     $d = switch ($harnessId) {
         'claude_code'    { Get-ClaudeContextModeDetection -Root $Root -Home_ $Home_ }
-        'copilot_cli'    { Get-CopilotCliContextModeDetection -Home_ $Home_ }
+        'copilot_cli'    { Get-CopilotCliContextModeDetection -Root $Root -Home_ $Home_ }
         'vscode_copilot' { Get-VsCodeCopilotContextModeDetection -Root $Root }
         'opencode'       { Get-OpenCodeContextModeDetection -Root $Root -Home_ $Home_ }
     }
     $r.runtime_present = $d.runtime_present
+    if ($loadState -eq 'loaded') { $r.runtime_present = $true }
     $r.integration_mode = $d.mode
     $r.configured = $d.configured
-    $r.components = [ordered]@{ plugin = $d.plugin; mcp = $d.mcp; hooks = $d.hooks; legacy_mcp_conflict = ($d.conflict -ne '') }
-    $r.findings = @($d.findings)
+    $hooksConfigured = ($d.hooks -in @('present', 'bundled_with_plugin', 'in_process_plugin'))
+    $hooksLoaded = if (-not $hooksConfigured) { $false } elseif ($loadState -eq 'loaded' -and $effectiveHealth -eq 'healthy') { $true } else { $null }
+    $r.components = [ordered]@{ plugin = $d.plugin; mcp = $d.mcp; hooks = $d.hooks; hooks_loaded = $hooksLoaded; legacy_mcp_conflict = ($d.conflict -ne '') }
+    $r.findings = @($d.findings) + @($sessionFindings)
     $r.evidence = @($d.evidence)
 
     $setupGuidance = {
@@ -598,19 +694,67 @@ function Resolve-ContextModeIntegration {
         $r.reason = "Context Mode is misconfigured for $harnessId" + $(if ($d.conflict) { " ($($d.conflict))" } else { '' }) + '; treated as degraded, not usable. No config was changed.'
         $r.guidance = @(Get-AdapterScalar $adapter 'repair_hint')
     } elseif ($d.configured) {
-        switch ($Health) {
-            'healthy' { $r.status = 'healthy'; $r.usable = $true; $r.reason = 'Configured for this harness and health probe succeeded in this session.' }
-            'unknown' { $r.status = 'configured_health_unknown'; $r.reason = 'Configured for this harness, but no health evidence in this session (ctx_doctor not observed). Not treated as usable.'
-                        $r.guidance = @("Health probe: $(Get-AdapterScalar $adapter 'health_probe')") }
-            default   { $r.status = 'configured_unhealthy'; $r.reason = "Configured for this harness, but health probe reported '$Health'; native MxAgile fallback applies."
-                        $r.guidance = @(Get-AdapterScalar $adapter 'health_hint') }
-        }
+        if (-not $d.runtime_present -and $loadState -ne 'loaded') {
+            $r.status = 'configured_runtime_missing'
+            $r.setup_needed = $true
+            $r.reason = "Context Mode is configured for $harnessId, but its required runtime executable was not detected."
+            $r.guidance = @(& $setupGuidance)
+        } else { switch ($loadState) {
+            'not_loaded' {
+                $r.status = 'configured_not_loaded'
+                $r.setup_needed = $true
+                $r.reason = "Context Mode is configured for $harnessId, but no ctx_* tools are present in this session."
+                $r.guidance = @(Get-AdapterScalar $adapter 'load_hint')
+            }
+            'unknown' {
+                $r.status = 'configured_load_unknown'
+                $r.reason = "Context Mode is configured for $harnessId, but current-session tool loading has not been observed. Configuration is not runtime evidence."
+                $r.guidance = @(Get-AdapterScalar $adapter 'runtime_probe')
+            }
+            default {
+                if (-not $hooksConfigured) {
+                    $r.status = 'loaded_hooks_missing'
+                    $r.reason = "Context Mode tools are loaded, but the $harnessId integration has no configured routing hooks; not usable."
+                    $r.guidance = @(Get-AdapterScalar $adapter 'repair_hint')
+                } else { switch ($effectiveHealth) {
+                    'healthy' {
+                        if (-not $Enabled) {
+                            $r.status = 'healthy_but_disabled'
+                            $r.reason = 'Context Mode tools and health are verified, but MxAgile configuration is disabled.'
+                        } elseif (@($RequiredTools).Count -eq 0) {
+                            $r.status = 'task_fit_unknown'
+                            $r.reason = 'Context Mode is healthy, but no task-required operations were specified; task suitability is unverified.'
+                        } elseif ($missingRequiredTools.Count -gt 0) {
+                            $r.status = 'task_tools_missing'
+                            $r.reason = "Context Mode is healthy, but required task tools are missing: $($missingRequiredTools -join ', ')."
+                            $r.guidance = @(Get-AdapterScalar $adapter 'load_hint')
+                        } else {
+                            $r.status = 'healthy'
+                            $r.usable = $true
+                            $r.reason = 'Configured, loaded in this session, healthy, enabled, and all required task tools are present.'
+                        }
+                    }
+                    'unknown' {
+                        $r.status = 'loaded_health_unknown'
+                        $r.reason = 'Context Mode tools are loaded in this session, but health is unknown (no successful health probe evidence).'
+                        $r.guidance = @("Health probe: $(Get-AdapterScalar $adapter 'health_probe')")
+                    }
+                    default {
+                        $r.status = 'loaded_unhealthy'
+                        $r.reason = "Context Mode tools are loaded, but the health probe reported '$effectiveHealth'; native MxAgile fallback applies."
+                        $r.guidance = @(Get-AdapterScalar $adapter 'health_hint')
+                    }
+                } }
+            }
+        } }
         if ($d.mode -eq 'legacy_mcp') {
             $r.guidance += @(Get-AdapterScalar $adapter 'legacy_hint')
         }
-    } elseif ($Health -eq 'healthy') {
-        $r.status = 'healthy'; $r.usable = $true; $r.runtime_present = $true
-        $r.reason = 'ctx_* tools observed healthy in this session (integration form not detectable from files).'
+    } elseif ($loadState -eq 'loaded') {
+        $r.status = 'loaded_unconfigured'
+        $r.setup_needed = $true
+        $r.reason = "ctx_* tools were observed in this session, but no supported $harnessId configuration was detected; configuration is unverified."
+        $r.guidance = @(& $setupGuidance)
     } elseif ($d.runtime_present) {
         $r.status = 'installed_not_configured'; $r.setup_needed = $true
         $r.reason = "Context Mode is installed but not configured for $harnessId."
@@ -704,15 +848,19 @@ function Resolve-Capability {
     # Context Mode: harness-specific integration evidence replaces the bare executable check.
     # available = a runtime for this harness exists; it does NOT mean usable (see integration.usable).
     if ($Cap.id -eq 'context_mode_integration') {
-        $int = Resolve-ContextModeIntegration -Root $ProjectRoot -Home_ $HomeDir -HarnessRequested $Harness -Health $ContextModeHealth -AdapterBase $mxagileDir
+        $int = Resolve-ContextModeIntegration -Root $ProjectRoot -Home_ $HomeDir -HarnessRequested $Harness `
+            -Health $ContextModeHealth -ToolsObserved $ContextModeToolsObserved.IsPresent `
+            -SessionTools $ContextModeTools -RequiredTools $ContextModeRequiredTools `
+            -Enabled $configEnabled -AdapterBase $mxagileDir
         $resolved.integration = $int
         $versionDegraded = $resolved.degraded
         switch ($int.status) {
             { $_ -in @('not_installed', 'harness_unsupported') } {
                 $resolved.available = $false; $resolved.unavailable = $true; $resolved.degraded = $false
             }
-            { $_ -in @('misconfigured', 'configured_health_unknown', 'configured_unhealthy') } {
-                $resolved.available = $true; $resolved.unavailable = $false; $resolved.degraded = $true
+            { $_ -in @('misconfigured', 'configured_runtime_missing', 'configured_load_unknown', 'configured_not_loaded', 'loaded_health_unknown', 'loaded_unhealthy', 'loaded_hooks_missing', 'loaded_unconfigured', 'task_tools_missing', 'task_fit_unknown') } {
+                $resolved.available = $int.runtime_present; $resolved.unavailable = (-not $int.runtime_present)
+                $resolved.degraded = ($configEnabled -and $int.runtime_present)
             }
             'harness_unknown' {
                 $resolved.available = $int.runtime_present; $resolved.unavailable = (-not $int.runtime_present)
@@ -929,7 +1077,10 @@ foreach ($key in $targetResolved.Keys) {
     }
     if ($r.integration) {
         $i = $r.integration
-        Write-Host "    Harness: $($i.harness) | mode=$($i.integration_mode) | configured=$($i.configured) | health=$($i.health) | usable=$($i.usable) [$($i.status)]" -ForegroundColor DarkGray
+        $loadLabel = if ($null -eq $i.loaded) { 'unknown' } elseif ($i.loaded) { 'loaded' } else { 'not_loaded' }
+        $hooksLabel = if ($null -eq $i.components.hooks_loaded) { 'unknown' } elseif ($i.components.hooks_loaded) { 'loaded' } else { 'missing' }
+        Write-Host "    Harness: $($i.harness) | mode=$($i.integration_mode) | configured=$($i.configured) | loaded=$loadLabel | hooks=$hooksLabel | health=$($i.health) | usable=$($i.usable) [$($i.status)]" -ForegroundColor DarkGray
+        if ($i.required_tools.Count -gt 0) { Write-Host "    Required tools: $($i.required_tools -join ', ') | missing: $($i.missing_required_tools -join ', ')" -ForegroundColor DarkGray }
         foreach ($f in $i.findings) { Write-Host "    Finding: $f" -ForegroundColor Yellow }
         foreach ($g in $i.guidance) { Write-Host "    Setup:   $g" -ForegroundColor DarkGray }
         if (-not $i.usable) { Write-Host "    Fallback: native MxAgile (deterministic helpers -> bounded delegation -> targeted direct read)" -ForegroundColor DarkGray }

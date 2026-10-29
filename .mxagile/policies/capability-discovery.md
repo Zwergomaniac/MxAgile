@@ -55,17 +55,31 @@ scripts/Get-MxAgileCapabilities.ps1
 
 ## Context Mode Integration Evidence
 
-`context_mode_integration` carries an `integration` object (harness, mode, configured, components,
-health, usable, status, guidance, fallback). Rules:
+`context_mode_integration` carries an `integration` object (harness, mode, configured, loaded,
+loaded_tools, health, required_tools, usable, status, guidance, fallback). For a relevant large-data
+task, use this order once:
 
-- Pass the harness (`-Harness`) and, if observed, one session-cached health probe result
-  (`-ContextModeHealth healthy|failed|timeout`). Without evidence health is `unknown`, never healthy.
-- Run the probe at most once per session, never per model turn; a timeout means: continue natively.
+- Query the resolver first. In Copilot/Concord contexts, `concord_discover` is not the MxAgile
+  resolver and must not replace or precede the relevant capability query.
+- Inspect the current harness's actual registered tool inventory. Do not infer LOADED from packages,
+  config files, plugin cache, generic ToolSearch alone, Concord discovery, or another session.
+- Pass `-ContextModeToolsObserved` and the canonical `ctx_*` names from this session. If the inventory
+  was inspected and contains none, pass the switch with no tool names; if it was not inspectable, omit it.
+- If tools are loaded, run at most one bounded `ctx_doctor` probe in this same session; it must
+  report the configured runtime/hooks healthy. Rerun the resolver with the observed tool list, task-required operation(s), and
+  `-ContextModeHealth healthy|failed|timeout`. Never reuse health from an earlier session.
+- Pass the operation(s) required by this task via `-ContextModeRequiredTools`; `integration.usable`
+  requires supported + installed + configured + loaded + healthy + MxAgile enabled + every required
+  operation present. A healthy adapter without task-operation evidence is not usable for that task.
+- A configured-but-not-loaded result gets the adapter's single restart/reload hint. A health failure
+  gets one diagnostic path only; no retry loop.
 - Not installed / not configured / misconfigured / unhealthy / unknown or unsupported harness:
   continue with the normal MxAgile fallback (deterministic helpers, bounded semantic delegation,
   targeted direct read; never a full-repository read) and, if useful, state the harness-specific
   `integration.guidance` compactly.
 - Never install, enable or edit harness configuration (e.g. `opencode.json`) on the agent's own authority.
+- For a large source such as HTML, do not use a direct full read as fallback; if the required Context Mode
+  operation is unavailable, report `NOT_VERIFIABLE_FOR_CM_TEST` and leave the large source unread.
 - Context Mode never owns lifecycle state, gates, evidence validity or mission completion.
 
 Compact answer from the resolver output alone (no adapter files need to be read):

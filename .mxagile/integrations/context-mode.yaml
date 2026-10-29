@@ -2,7 +2,7 @@
 # Context Mode — optional WARM-context externalization and retrieval adapter.
 # License: ELv2 (Elastic License v2) — source-available, NOT OSI open source.
 # Upstream: https://github.com/mksglu/context-mode
-# Assessed: 2026-10-13 (npm package, Claude Code plugin v1.0.33+)
+# Assessed: 2026-10-28 (release v1.0.169; upstream main commit 397137b0cfc2)
 #
 # LICENSE NOTE:
 #   Context Mode uses the Elastic License v2 (ELv2).
@@ -41,54 +41,57 @@ redistribution: "NOT permitted by MxAgile — must be installed by the developer
 
 setup_states:
   description: >
-    Context Mode has four distinct operational states.
-    INSTALLED ≠ REGISTERED ≠ LOADED ≠ ACTIVE.
-    MxAgile MUST distinguish these; only ACTIVE enables ctx_index and ctx_search.
+    Context Mode has distinct setup and session-runtime evidence.
+    SUPPORTED, INSTALLED, CONFIGURED, LOADED, HEALTHY, and USABLE are not interchangeable.
+    MxAgile MUST distinguish them; a config file never proves that this session loaded tools.
   states:
     INSTALLED:
       meaning: "The context-mode executable or npm package exists on the system."
       evidence:
         - "context-mode found in PATH"
         - "npm ls -g context-mode returns a result"
-      does_not_imply: [REGISTERED, LOADED, ACTIVE]
+      does_not_imply: [CONFIGURED, LOADED, HEALTHY, USABLE]
       available_operations: []
 
-    REGISTERED:
-      meaning: "Context Mode is configured as an MCP server in project or user MCP config."
+    CONFIGURED:
+      meaning: "The documented integration for the identified harness is present in its project or user/plugin configuration."
       evidence:
-        - ".vscode/mcp.json contains a context-mode server entry"
-        - "'claude mcp list' shows context-mode"
-        - "~/.claude/settings.json has context-mode in mcpServers"
-      does_not_imply: [LOADED, ACTIVE]
+        - "Harness-specific plugin, MCP, or native-plugin configuration detected by its adapter"
+      does_not_imply: [LOADED, HEALTHY, USABLE]
       available_operations: []
-      note: "REGISTERED without LOADED means the MCP server is not currently running in this session."
+      note: "CONFIGURED without LOADED is configured_not_loaded; the session must not use Context Mode."
 
     LOADED:
-      meaning: "The MCP server process is running and the agent session has access to its tools."
+      meaning: "The current agent session's actual tool namespace contains one or more ctx_* tools."
       evidence:
-        - "ctx_doctor, ctx_index, ctx_search tools appear in the agent's available tool namespace"
-      does_not_imply: [ACTIVE]
-      available_operations: ["ctx_doctor", "ctx_stats"]
-      note: "LOADED is the minimum state for health checks. ctx_index and ctx_search require ACTIVE."
+        - "The agent observes canonical ctx_* names in the active harness tool inventory and passes them to the resolver"
+      does_not_imply: [HEALTHY, USABLE]
+      available_operations: "Only the ctx_* names observed in this session"
+      note: "Config files, package presence, ToolSearch results from another session, and concord_discover are not LOADED evidence."
 
-    ACTIVE:
-      meaning: "Context Mode is LOADED, healthy (ctx_doctor passes), and MxAgile config enables it."
+    HEALTHY:
+      meaning: "One bounded ctx_doctor probe succeeded in this same session after LOADED was observed; required harness hooks are healthy where applicable."
       evidence:
-        - "ctx_doctor tool call returns healthy status"
-        - "FTS5 index operational"
-        - ".mxagile/config.yaml: context_optimization.context_mode.enabled: true"
-        - ".mxagile/config.yaml: context_optimization.enabled: true"
-      available_operations: ["ctx_doctor", "ctx_index", "ctx_search", "ctx_stats", "ctx_purge", "ctx_upgrade"]
-      note: "Only ACTIVE state permits ctx_index for WARM context externalization."
+        - "ctx_doctor result observed in this session with all relevant runtime checks passing"
+      does_not_imply: [USABLE]
+      available_operations: []
+
+    USABLE:
+      meaning: "Supported, installed, configured, loaded, healthy, enabled in MxAgile, and all task-required ctx_* operations are present."
+      evidence:
+        - "All preceding evidence belongs to the current session/project"
+        - "The resolver confirms context_optimization.context_mode.enabled"
+        - "The resolver confirms every ContextModeRequiredTools entry exists in the observed tool inventory"
+      available_operations: "Only the task-required ctx_* operations observed in this session"
+      note: "USABLE is task-specific. MxAgile ACTIVE additionally reflects the capability state; neither state grants lifecycle authority."
 
   resolution_algorithm:
-    step_1: "Check agent tool namespace: ctx_doctor present? → at least LOADED"
-    step_2: "If LOADED: run ctx_doctor — result healthy? → candidate for ACTIVE"
-    step_3: "Check .mxagile/config.yaml: context_optimization.context_mode.enabled = true? → ACTIVE confirmed"
-    step_4: "If not LOADED: check PATH for context-mode executable → INSTALLED"
-    step_5: "If not LOADED: check MCP config files → REGISTERED"
-    step_6: "If none of the above: NOT_PRESENT"
-    final_states: [NOT_PRESENT, INSTALLED, REGISTERED, LOADED, ACTIVE]
+    step_1: "For a relevant task, query the MxAgile resolver first for context_mode_integration."
+    step_2: "Inspect the actual active harness tool inventory; do not substitute ToolSearch guesses, concord_discover, config files, or another session."
+    step_3: "Pass -ContextModeToolsObserved and the canonical current-session ctx_* names to the resolver; an explicitly empty inventory means not_loaded."
+    step_4: "Only when loaded, run at most one bounded ctx_doctor probe and pass its result to the same resolver invocation."
+    step_5: "Pass the operation(s) required by this task; USABLE requires all of them plus MxAgile enabled. Otherwise use the native fallback."
+    final_states: [NOT_PRESENT, INSTALLED, CONFIGURED, LOADED, HEALTHY, USABLE]
 
   authoring_tool:
     name: ctx_index
@@ -136,25 +139,44 @@ harness_integration:
   status_values:
     not_installed: "Supported but no runtime/config for this harness -> unavailable; setup guidance."
     installed_not_configured: "Runtime present, not configured for this harness -> available, not active; setup guidance."
+    configured_runtime_missing: "Harness config is present but its required runtime executable is absent -> unavailable with install guidance, not a session-reload hint."
     misconfigured: "Config present but known-broken (conflict, inert hooks) -> degraded, not usable."
-    configured_health_unknown: "Configured, no health evidence in this session -> degraded, not usable (UNKNOWN is not HEALTHY)."
-    configured_unhealthy: "Configured, probe failed or timed out -> degraded, not usable."
-    healthy: "Configured (or tools observed) and probe succeeded -> usable; active only if project config enables it."
+    configured_load_unknown: "Config present, but current-session tool inventory was not observed -> not usable."
+    configured_not_loaded: "Config present, current-session inventory explicitly has no ctx_* tools -> restart/reload guidance; not usable."
+    loaded_health_unknown: "Current-session ctx_* tools observed, health unknown -> not usable."
+    loaded_unhealthy: "Current-session ctx_* tools observed, probe failed or timed out -> degraded, not usable."
+    loaded_hooks_missing: "Current-session tools loaded but required harness routing hooks are absent -> not usable."
+    task_tools_missing: "Healthy and loaded, but one or more task-required operations are absent -> not usable for this task."
+    task_fit_unknown: "Healthy and loaded, but no task-required operations were supplied -> task fit remains unverified."
+    healthy: "Health succeeded; usable is true only when configured, loaded, MxAgile-enabled, and task-required tools are present."
+    healthy_but_disabled: "Loaded and healthy, but MxAgile configuration is disabled -> not usable."
+    loaded_unconfigured: "Tools observed but supported harness configuration was not detected -> configuration unverified, not usable."
     harness_unknown: "Harness not identified -> not usable, degraded when enabled."
     harness_unsupported: "No adapter for this harness -> unavailable."
   mapping_to_capability_states:
     available: "A runtime for the identified harness exists. NOT proof the integration works."
     enabled: "context_optimization.context_mode.enabled in project config."
-    degraded: "Configured but misconfigured/unhealthy/unverified."
-    active: "available AND enabled AND integration.usable (healthy evidence)."
+    degraded: "Configured but not loaded, unhealthy, misconfigured, or task suitability unverified."
+    active: "available AND enabled AND integration.usable; usability also requires task-specific tool evidence."
   health:
-    evidence_source: "Agent-observed result of ONE bounded ctx_doctor/ctx_stats call, passed as -ContextModeHealth healthy|failed|timeout. The resolver performs no MCP call."
+    evidence_source: "Agent-observed result of ONE bounded ctx_doctor call in the same session, passed as -ContextModeHealth healthy|failed|timeout together with observed tools. The resolver performs no MCP call."
     rules:
       - "At most once per session (cache the result); never per model turn."
       - "No large output; no blocking startup wait; a timeout is recorded as 'timeout' and the session continues natively."
-      - "Absent evidence stays 'unknown' and is never reported as healthy."
+      - "Health without current-session ctx_doctor in the observed tool inventory is ignored; absent evidence stays 'unknown' and is never reported as healthy."
+      - "A healthy result confirms hooks only when the harness adapter says hooks are expected and ctx_doctor reports them healthy."
+      - "Evidence is not persisted or reused across sessions."
+  runtime_loading:
+    tools_observed_parameter: "-ContextModeToolsObserved marks that the live harness inventory was inspected; omit it when unknown."
+    tools_parameter: "-ContextModeTools accepts only canonical ctx_* names seen in this session."
+    required_tools_parameter: "-ContextModeRequiredTools lists the operation(s) required by the current task; all must be present for usable."
+    hooks_parameter: "components.hooks_loaded is true only after loaded tools and a successful same-session ctx_doctor, false when hooks are absent, otherwise null/unknown."
+    concord: "concord_discover may discover Concord tools but is not a substitute for MxAgile capability resolution or live ctx_* evidence."
+    terminal_origin: "Terminal origin is not part of capability semantics; equal project/config/session evidence yields equal results."
   setup_guidance_rules:
     - "Guidance comes from the adapter file of the identified harness; project-local vs global paths are stated separately where upstream documents both."
+    - "Configured but not loaded guidance names the harness-specific reload or session restart; do not retry in a loop."
+    - "A healthy MCP-only setup without the harness-required hooks remains non-usable; recommend the documented plugin/hooks setup without changing config."
     - "The agent states the setup path compactly and continues with the native fallback."
     - "No automatic installation, no package-manager command executed by the agent, no silent global config change."
 
@@ -179,6 +201,12 @@ mcp_tools:
     - id: ctx_execute
       purpose: "Run code in an isolated subprocess sandbox"
       mxagile_use: not_used_for_lifecycle
+    - id: ctx_execute_file
+      purpose: "Process a project file in the sandbox without returning its raw contents"
+      mxagile_use: task_specific_processing
+    - id: ctx_fetch_and_index
+      purpose: "Fetch, chunk, and index web content for bounded retrieval"
+      mxagile_use: task_specific_processing
     - id: ctx_batch_execute
       purpose: "Multi-command execution in one call"
       mxagile_use: not_used_for_lifecycle
@@ -191,6 +219,9 @@ mcp_tools:
     - id: ctx_purge
       purpose: "Clear indexed knowledge base"
       mxagile_use: maintenance
+    - id: ctx_insight
+      purpose: "Open the Context Mode Insight dashboard"
+      mxagile_use: diagnostics
 
 context_mapping:
   HOT:

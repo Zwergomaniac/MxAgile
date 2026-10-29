@@ -1122,7 +1122,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Capability discovery routing and resolver distribution: lazy startup rule 7 (generic, no Context Mode text, no startup probe), policy path/template, real install-core.ps1 fresh install and existing-project update into GUID temp projects: .mxagile/tools resolver distributed, provenance project_distributed, installed resolver reachable with harness guidance, never executes context-mode, stale tool files retired, project-owned scripts preserved, repeated update idempotent."
+    "Reason": "Capability discovery routing and resolver distribution: lazy startup rule 7 (generic, no Context Mode text, no startup probe), resolver-before-Concord policy, large-source fallback prohibition, real install-core.ps1 fresh install and existing-project update into GUID temp projects: resolver, Context Mode adapter and integration contract distributed and restored, installed resolver accepts current-session evidence without executing context-mode, project-owned scripts preserved, repeated update idempotent."
   },
   {
     "File": "test-context-mode-harness.ps1",
@@ -1137,7 +1137,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Context Mode harness integration hardening: per-harness (Claude Code, Copilot CLI, VS Code Copilot, OpenCode) detection of plugin/MCP/hooks, not-installed / installed-not-configured / configured-not-healthy / healthy states, OpenCode plugin + legacy MCP conflict reported as misconfigured without touching config, timeout/unknown/unsupported harness fallback stays non-blocking, no side effects, adapter files pin the assessed upstream commit. GUID temp dirs, PATH shim, no network, no MCP calls."
+    "Reason": "Context Mode harness integration hardening: per-harness (Claude Code, Copilot CLI, VS Code Copilot, OpenCode) installation/configuration detection plus explicit current-session ctx_* load, ctx_doctor health, hooks-loaded state and task-required tool matching; Copilot plugin bundle and project config; Concord/terminal-origin semantics; OpenCode plugin + legacy MCP conflict reported as misconfigured without touching config; non-blocking fallback and no side effects. GUID temp dirs, PATH shim, no network, no MCP calls."
   },
   {
     "File": "test-anti-dual-memory.ps1",

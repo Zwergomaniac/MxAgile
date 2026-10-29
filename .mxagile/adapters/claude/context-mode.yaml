@@ -9,13 +9,15 @@
 #              .claude/settings.json or .claude/settings.local.json
 #   mcp_only : "context-mode" server entry in <project>/.mcp.json or ~/.claude.json
 #   hooks    : bundled with the plugin; absent for MCP-only
-# Health: agent-observed ctx_doctor / ctx_stats result (resolver does not call tools).
+# Health: agent-observed ctx_doctor result (resolver does not call tools).
 
 harness_id: "claude_code"
 upstream_ref: "mksglu/context-mode v1.0.169 / 397137b0cfc2"
 assessed_date: "2026-10-28"
 integration_modes: "plugin (recommended: hooks + 11 MCP tools), mcp_only (tools only, no hooks/routing)"
-health_probe: "Call ctx_doctor (or ctx_stats) once per session via the MCP tool namespace; slash command /context-mode:ctx-doctor. Cache the result; never per model turn."
+health_probe: "Call ctx_doctor once in this session via the MCP tool namespace; the plugin doctor checks tools, hooks, FTS5 and registration. Cache the result; never per model turn."
+runtime_probe: "Inspect the active Claude Code tool namespace for canonical ctx_* tools; config and plugin cache are not proof of loading."
+load_hint: "The configured plugin/MCP did not load into this session. Start a new Claude Code session; after plugin changes, /reload-plugins may reload it. Do not retry repeatedly."
 setup_project: "Project-local: claude mcp add --scope project context-mode -- npx -y context-mode (MCP-only, no hooks; writes .mcp.json)."
 setup_global: "Recommended (plugin, hooks + tools): /plugin marketplace add mksglu/context-mode, then /plugin install context-mode@context-mode, then restart or /reload-plugins."
 verify: "/context-mode:ctx-doctor — all checks should show [x]."

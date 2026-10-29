@@ -137,7 +137,7 @@ the state and a compact, harness-specific guidance; the source of that guidance 
 | Harness (`-Harness`) | Upstream form | Detected (read-only) |
 |----------------------|---------------|----------------------|
 | `claude_code` | plugin (hooks + tools) or MCP-only | `enabledPlugins` in `~/.claude/settings.json`, `.claude/settings*.json`; `.mcp.json`, `~/.claude.json` |
-| `copilot_cli` | `copilot plugin install` or `copilot mcp add` + hooks file | `~/.copilot/mcp-config.json`, `~/.copilot/hooks/context-mode.json` (`COPILOT_HOME` honoured) |
+| `copilot_cli` | `copilot plugin install mksglu/context-mode:configs/copilot-cli` (bundled MCP + hooks) or `copilot mcp add` + hooks | Installed plugin manifest/bundle under `COPILOT_HOME`; user `mcp-config.json`/hooks or explicitly Copilot-marked project `.mcp.json` and `.github/hooks/` |
 | `vscode_copilot` | project files | `.vscode/mcp.json`, `.github/hooks/context-mode.json`; global `context-mode` binary |
 | `opencode` | native plugin (`opencode.json` `plugin`) | `opencode.json(c)` project + `~/.config/opencode/` |
 
@@ -145,9 +145,15 @@ OpenCode: `plugin ["context-mode"]` together with `mcp.context-mode` registers z
 reports this as `misconfigured` (degraded) and does not repair it; remove the legacy entry or run
 `context-mode upgrade` yourself.
 
-Health is never inferred from files: the agent may pass one session-cached `ctx_doctor`/`ctx_stats`
-result (`-ContextModeHealth healthy|failed|timeout`); otherwise it stays `unknown` and the capability is
-not `active`. Without a usable Context Mode MxAgile continues with its native fallback.
+Configuration and runtime loading are separate: only canonical `ctx_*` names observed in the active
+harness tool inventory count as loaded. A plugin/config file, ToolSearch guess, Concord discovery, or
+another session is not runtime evidence. `ctx_doctor` is the only health probe accepted by the resolver;
+it also checks hooks where the harness integration requires them. Pass the observed tools and task-required
+operations through `-ContextModeToolsObserved`, `-ContextModeTools`, and `-ContextModeRequiredTools`.
+`integration.usable` additionally requires MxAgile enabled, all required operations present, and
+`components.hooks_loaded = true` where hooks are part of the harness integration. Health is never inferred
+from files and is never reused from another session. Without this evidence MxAgile continues with its
+native fallback and does not automatically read a large source file.
 
 **Claude Code (recommended):**
 ```

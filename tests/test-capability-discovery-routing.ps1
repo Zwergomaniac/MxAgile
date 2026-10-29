@@ -61,6 +61,12 @@ $policy = Get-Content (Join-Path $RepoRoot '.mxagile/policies/capability-discove
 Assert-True 'policy names installed resolver path and lazy -Capability use' (($policy -match '\.mxagile/tools/Get-MxAgileCapabilities\.ps1') -and ($policy -match '-Capability <id>') -and ($policy -match 'Never run it at startup')) 'policy incomplete'
 Assert-True 'policy maps large-raw-data tasks to context_mode_integration' ($policy -match 'Large raw data.*context_mode_integration') 'task mapping missing'
 Assert-True 'policy gives compact answer template using integration.guidance' (($policy -match 'integration\.guidance') -and ($policy -match 'normal MxAgile fallback')) 'template missing'
+$resolverOrder = $policy.IndexOf('Get-MxAgileCapabilities.ps1')
+$concordOrder = $policy.IndexOf('concord_discover')
+Assert-True 'G1. MxAgile resolver precedes Concord discovery guidance' (($resolverOrder -ge 0) -and ($concordOrder -gt $resolverOrder)) 'resolver ordering missing'
+Assert-True 'G1/G2. Concord discovery is not treated as Context Mode capability evidence' (($policy -match 'must not replace or precede') -and ($policy -match 'Concord discovery')) 'Concord substitution warning missing'
+Assert-True 'policy separates live tool inventory, health and task-required operations' (($policy -match '-ContextModeToolsObserved') -and ($policy -match '-ContextModeRequiredTools') -and ($policy -match 'Never reuse health from an earlier session')) 'runtime contract incomplete'
+Assert-True 'large-source fallback explicitly forbids direct full read' (($policy -match 'NOT_VERIFIABLE_FOR_CM_TEST') -and ($policy -match 'leave the large source unread')) 'large-source fallback missing'
 
 # --- E2E: fresh install -------------------------------------------------------------
 Write-Host "--- Fresh install ---" -ForegroundColor Yellow
@@ -70,8 +76,14 @@ $null = & pwsh -NoProfile -File $Installer -ProjectRoot $proj 2>&1
 Assert-True 'fresh install exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
 $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
 $detector = Join-Path $proj '.mxagile/tools/check-studio-pro-status.ps1'
+$contextAdapter = Join-Path $proj '.mxagile/adapters/copilot/context-mode-cli.yaml'
+$contextIntegration = Join-Path $proj '.mxagile/integrations/context-mode.yaml'
 Assert-True 'resolver distributed to .mxagile/tools' (Test-Path $tool) 'tool missing'
 Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-FileHash $tool).Hash -eq (Get-FileHash $ResolverSrc).Hash)) 'hash differs'
+Assert-True 'Context Mode Copilot adapter included in fresh install' (Test-Path $contextAdapter) 'adapter missing'
+Assert-True 'installed adapter equals canonical adapter' ((Test-Path $contextAdapter) -and ((Get-FileHash $contextAdapter).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/adapters/copilot/context-mode-cli.yaml')).Hash)) 'adapter hash differs'
+Assert-True 'Context Mode integration contract included in fresh install' (Test-Path $contextIntegration) 'integration contract missing'
+Assert-True 'installed integration contract equals canonical source' ((Test-Path $contextIntegration) -and ((Get-FileHash $contextIntegration).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/integrations/context-mode.yaml')).Hash)) 'integration contract hash differs'
 Assert-True 'Studio Pro detector distributed to .mxagile/tools' (Test-Path $detector) 'detector missing'
 Assert-True 'distributed detector equals canonical source' ((Test-Path $detector) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash)) 'hash differs'
 $detectorResult = (& $detector -Json -TimeoutSeconds 30 | ConvertFrom-Json)
@@ -105,6 +117,9 @@ try {
     Assert-True 'targeted discovery returns harness-specific guidance' (($i.status -eq 'installed_not_configured') -and (($i.guidance -join ' ') -match 'opencode\.json')) "status=$($i.status)"
     Assert-True 'discovery never executes context-mode' (-not (Test-Path $marker)) 'context-mode executed'
     Assert-True 'unusable Context Mode does not block (fallback intact)' (($i.usable -eq $false) -and ($i.fallback.blocks_mxagile -eq $false) -and ($LASTEXITCODE -eq 0)) 'blocked'
+    $loaded = & $tool -Capability context_mode_integration -Format json -Harness opencode -HomeDir $homeDir -ContextModeToolsObserved -ContextModeTools ctx_doctor -ContextModeRequiredTools ctx_doctor | ConvertFrom-Json
+    $loadedIntegration = $loaded.capabilities[0].integration
+    Assert-True 'installed resolver accepts current-session runtime evidence' (($loadedIntegration.loaded -eq $true) -and ($loadedIntegration.loaded_tools -contains 'ctx_doctor') -and ($loadedIntegration.status -eq 'loaded_unconfigured')) "status=$($loadedIntegration.status)"
     $json2 = & $tool -Capability context_lifecycle -Format json | ConvertFrom-Json
     Assert-True 'small-task capability query does not touch Context Mode' ((-not (Test-Path $marker)) -and (@($json2.capabilities).Count -eq 1)) 'probe happened'
 } finally {
@@ -116,6 +131,8 @@ try {
 Write-Host "--- Existing project update ---" -ForegroundColor Yellow
 Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
+Set-Content $contextAdapter '# tampered' -Encoding UTF8
+Set-Content $contextIntegration '# tampered' -Encoding UTF8
 Set-Content (Join-Path $proj '.mxagile/tools/stale.ps1') '# stale' -Encoding UTF8
 New-Item -ItemType Directory -Path (Join-Path $proj 'scripts') | Out-Null
 Set-Content (Join-Path $proj 'scripts/mine.ps1') '# project-owned' -Encoding UTF8
@@ -124,10 +141,14 @@ Assert-True 'update exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
 $srcHash = (Get-FileHash $ResolverSrc).Hash
 Assert-True 'update restores resolver to current distribution version' ((Get-FileHash $tool).Hash -eq $srcHash) 'not restored'
 Assert-True 'update restores detector to current distribution version' ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) 'not restored'
+$adapterHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/adapters/copilot/context-mode-cli.yaml')).Hash
+$integrationHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/integrations/context-mode.yaml')).Hash
+Assert-True 'update restores Context Mode adapter' ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) 'adapter not restored'
+Assert-True 'update restores Context Mode integration contract' ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) 'contract not restored'
 Assert-True 'update retires stale files in .mxagile/tools' (-not (Test-Path (Join-Path $proj '.mxagile/tools/stale.ps1'))) 'stale file kept'
 Assert-True 'update preserves project-owned scripts/' ((Get-Content (Join-Path $proj 'scripts/mine.ps1') -Raw) -match 'project-owned') 'project file lost'
 $null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
-Assert-True 'repeated update exit 0 and tool hashes unchanged (idempotent)' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash)) 'not idempotent'
+Assert-True 'repeated update exit 0 and Context Mode payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash)) 'not idempotent'
 $agents = Get-Content (Join-Path $proj 'AGENTS.md') -Raw
 Assert-True 'repeated update does not duplicate rule 7' (([regex]::Matches($agents, 'Optional capabilities, on demand only')).Count -eq 1) 'rule duplicated'
 } finally {
