@@ -153,6 +153,11 @@ The following do NOT imply commit authority:
 
 Before every autonomous checkpoint commit, all of the following must be verified:
 
+0. **Git index integrity** - run the read-only index guard from safety-rules.md
+   before staging and again before commit. GIT_INDEX_INTEGRITY_FAILURE, locks or
+   unavailable verification block staging, commit and dependent mutations. Never
+   recover the index or remove a lock merely to satisfy this precondition.
+
 1. **Branch identified** — current branch name is known and is a working branch
 2. **Working tree classified** — `git status` has been read; all changes are
    identified as belonging to the authorized mission scope

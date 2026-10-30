@@ -16,6 +16,36 @@ Projektspezifische Ergaenzungen gehoeren in `AGENT.md`, nicht hierher.
   selben Turn: `git reset --hard`, `git rebase` geteilter History, `git commit
   --amend` veroeffentlichter Commits, `git push --force`, `git clean -f`.
 
+## Git Index Integrity Guard
+
+Vor git add, Commit, Migration, Update, Modellmutation, Cleanup, Rebase oder Merge
+in bestehenden getrackten Projekten ausfuehren:
+`python .mxagile/tools/git_index_integrity.py --project-root .`
+(Framework-Entwicklung: `scripts/git_index_integrity.py`). Read-only, Exit 0 erlaubt
+Fortsetzung; jeder andere Exit blockiert diese Mutationen. Keine Umdeutung eines
+nicht pruefbaren Zustands als PASS. Unborn HEAD / Projekte ohne Git sind separat
+NOT_APPLICABLE, nicht "repariert".
+
+GIT_INDEX_INTEGRITY_FAILURE: HEAD > 0, Index = 0, staged deletions = HEAD und
+betroffene Working-Tree-Dateien weiterhin vorhanden. Kompakt die drei Counts
+und Working-Tree-Existenz melden. Keine tausenden Delete-Findings erzeugen,
+keine Migration aus dem Dirty State ableiten, kein add -A, clean oder reset --hard.
+Die verursachende Komponente ist UNBEWIESEN; keine Schuldzuweisung an Studio Pro,
+Git, mxcli, Hooks oder MxAgile.
+
+`git restore --source=HEAD --staged -- :/` stellt ausschliesslich den Index aus
+HEAD wieder her, nicht den Working Tree. Dabei gehen vorhandene Staging-Auswahlen
+verloren. Nur nach ausdruecklicher Recovery-Autorisierung bzw. einem eindeutig
+anwendbaren vorhandenen Autonomievertrag ausfuehren, nie als Nebenwirkung des
+Guards. Danach Guard erneut ausfuehren; Working Tree und HEAD vorher/nachher
+vergleichen. Der Guard selbst bietet absichtlich keinen Recovery-Schalter.
+
+index.lock + beobachteter Git-Prozess: GIT_OPERATION_IN_PROGRESS; die Beobachtung
+beweist nicht den Lock-Eigentuemer. Ohne beobachteten Prozess nur
+GIT_INDEX_LOCK_STALE_CANDIDATE, bei fehlender Prozesssicht LOCK_UNVERIFIED.
+Alle blockieren. Lock niemals allein aufgrund seiner Existenz/Alter loeschen.
+Externe Git-/Studio-Pro-Prozesse werden nicht durch Agentenregeln abgefangen.
+
 ## Begrenzte Artefakt-Edits
 
 - Bei ausdruecklich begrenzten Artefakt-Edits die kleinste konsistente Aenderung

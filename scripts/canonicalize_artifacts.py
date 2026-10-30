@@ -25,6 +25,7 @@ Safety contract:
 """
 
 import argparse
+import json
 import re
 import sys
 from datetime import date
@@ -671,6 +672,13 @@ def main():
     if not project_root.exists():
         print(f"[ERROR] Project root not found: {project_root}")
         sys.exit(1)
+
+    if not args.dry_run and not args.validate_output:
+        from git_index_integrity import inspect_index
+        integrity = inspect_index(project_root)
+        if not integrity['mutations_allowed']:
+            print(json.dumps(integrity, sort_keys=True))
+            sys.exit(4)
 
     state_path = project_root / ".mxagile" / "migration" / "canonicalization-state.yaml"
     state = load_canon_state(state_path)

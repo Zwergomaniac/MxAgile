@@ -192,6 +192,18 @@ try {
         throw "ProjectRoot directory not found: $ProjectRoot"
     }
 
+    if (Test-Path -LiteralPath (Join-Path $ProjectRoot '.git')) {
+        $guardPython = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $guardPython) { $guardPython = Get-Command python3 -ErrorAction SilentlyContinue }
+        if (-not $guardPython) { throw 'GIT_INDEX_NOT_CHECKED: Python unavailable; update stopped before mutation.' }
+        $PSNativeCommandUseErrorActionPreference = $false
+        $guardOutput = & $guardPython.Source (Join-Path $PSScriptRoot 'git_index_integrity.py') --project-root $ProjectRoot
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ($guardOutput -join "`n")
+            throw 'Git index preflight blocked update; no automatic recovery or lock removal.'
+        }
+    }
+
     $detectScript = Join-Path $PSScriptRoot "detect-project-type.ps1"
     if (-not (Test-Path -LiteralPath $detectScript)) {
         throw "detect-project-type.ps1 not found in script directory."
@@ -577,6 +589,7 @@ try {
         throw "project_compatibility.py not found in script directory."
     }
     Copy-Item -LiteralPath $doctorSource -Destination (Join-Path $destToolsDir "project_compatibility.py") -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'git_index_integrity.py') -Destination (Join-Path $destToolsDir 'git_index_integrity.py') -Force
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) "requirements.txt") -Destination (Join-Path $destToolsDir "requirements.txt") -Force
     Write-Host "[OK] Distributed Compatibility Doctor and Python requirements."
 
@@ -652,6 +665,7 @@ try {
                 ".mxagile/tools/build_project_status.py",
                 ".mxagile/tools/serve_project_board.py",
                 ".mxagile/tools/project_compatibility.py",
+                ".mxagile/tools/git_index_integrity.py",
                 ".mxagile/tools/requirements.txt"
             )
         }

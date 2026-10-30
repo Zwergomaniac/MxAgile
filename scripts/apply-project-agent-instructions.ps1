@@ -381,6 +381,11 @@ When starting, resuming, or picking up work, follow this order:
     Report framework success separately from project compatibility, including diagnostics and
     repair counts from `.mxagile/state/last-update-result.json`; unavailable checks are NOT_VERIFIED.
 
+9. **Git index integrity before mutations** - run `python .mxagile/tools/git_index_integrity.py --project-root .`
+    before git add/commit, migration, update, model writes, cleanup, rebase or merge.
+    Any nonzero result blocks these operations; follow `.mxagile/policies/safety-rules.md`.
+    Never interpret an empty damaged index as project deletions or repair it without authority.
+
 Detailed policy: `.mxagile/policies/lifecycle-resync.md`
 '@
 

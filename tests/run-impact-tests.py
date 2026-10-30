@@ -14,6 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = (
+    (("scripts/git_index_integrity.py", "tests/test_git_index_integrity.py", "tests/test-git-index-integrity.ps1", ".mxagile/policies/safety-rules.md", ".mxagile/policies/commit-authority.md"),
+     1, ("test_git_index_integrity.py", "test-commit-authority.ps1")),
     (("scripts/project_compatibility.py", ".mxagile/policies/project-compatibility.md", "tests/test_project_status.py"),
      1, ("test_project_status.py",)),
     ((".mxagile/board/*", "scripts/*project_status.py", "scripts/serve_project_board.py"),
