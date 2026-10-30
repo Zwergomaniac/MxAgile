@@ -1,5 +1,39 @@
 # Test Architecture & Fast Feedback WP — Final Report
 
+## 1.8.x Workstream Completion (2026-10-31)
+
+Implementation checkpoint: `39776ef` (nine cohesive local commits since `43fd60c`).
+No CapTrack files or `experiment/lifecycle-resync-helper` changes are part of this
+workstream. No push or release publication was performed.
+
+- Fast Gate: PASS on the implemented workstream; syntax/schema/whitespace checks
+	are separate from executable regression evidence.
+- Targeted evidence: Status/Doctor 41 tests; Gallery 13 tests; index guard 6 tests;
+	controlled recovery 15 tests plus the final auto-stash counterexample;
+	update/distribution 107 assertions including fresh/existing/repeated update;
+	commit-authority 56 assertions; managed-block 28 assertions; transformation
+	behavioral 100 assertions. These are scoped results, not a full-release PASS.
+- Unattended CLI: 25 interactive assertions passed; full CLI 94 assertions passed
+	with five optional fixture-dependent checks skipped. The skip-aware runner
+	reports INCOMPLETE instead of promoting those skipped checks to PASS.
+- Full Regression: NOT COMPLETED. The final detached run (PID 52488) did not
+	produce a final summary. At closure its only test child was the read-only
+	context-mode harness (PID 460), with no installer/model/generator subprocess.
+	Those exact verified test processes were stopped at the maintainer's request
+	to finish the work. Context Mode and lifecycle implementation were not changed.
+- Earlier broad runs additionally reported missing `.testing-greenfield-rt4` and
+	migration/bootstrap assertion failures. Their causes are not conclusively
+	attributed here; they are not silently waived or claimed to be pre-existing.
+- Browser evidence: desktop/mobile rendering, nonblank captures, layout and lazy
+	history were checked. Native popup-event observation in the integrated browser
+	remained unavailable, as detailed below.
+
+Release readiness remains BLOCKED until a complete full regression has an
+acceptable result and the unresolved gate findings are reviewed. Local committed
+implementation and focused tests must not be reported as release approval.
+The final gate log is external diagnostic evidence, not repository lifecycle
+authority: `%TEMP%/mxagile-18x-completion-full.stdout.log`.
+
 ## Impact-aware gates (2026-10-30)
 
 Unattended execution hardening (2026-10-31): normal Full-Runner child processes
