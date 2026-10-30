@@ -320,6 +320,8 @@ def convert_checklist_yaml_to_tasks(source_path, project_root, start_task_num):
         return []
 
     source_rel = str(source_path.relative_to(project_root))
+    wave_match = re.match(r'^(W[A-Z0-9_-]+)-implementation-checklist$', source_path.stem, re.I)
+    wave_fields = {"wave_id": wave_match.group(1).upper()} if wave_match else {}
     tasks = []
     task_num = start_task_num
 
@@ -355,6 +357,7 @@ def convert_checklist_yaml_to_tasks(source_path, project_root, start_task_num):
                 "source": "migrated",
                 "migrated_from": source_rel,
                 "migration_date": TODAY,
+                **wave_fields,
                 "open_items": ["DECISION REQUIRED: assign to spec"],
             })
             task_num += 1
@@ -377,7 +380,11 @@ def convert_checklist_yaml_to_tasks(source_path, project_root, start_task_num):
                 "source": "migrated",
                 "migrated_from": source_rel,
                 "migration_date": TODAY,
+                **wave_fields,
             }
+            workpackage_id = item.get("workpackage_id")
+            if isinstance(workpackage_id, str) and workpackage_id.strip():
+                task["workpackage_id"] = workpackage_id
             if item.get("detail") or item.get("description"):
                 task["detail"] = item.get("detail") or item.get("description")
             if spec == "[SPEC-REQUIRED]":

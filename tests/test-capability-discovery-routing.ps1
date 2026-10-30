@@ -23,6 +23,7 @@ $Installer = Join-Path $Scripts 'install-core.ps1'
 $ResolverSrc = Join-Path $Scripts 'Get-MxAgileCapabilities.ps1'
 $StudioProDetectorSrc = Join-Path $Scripts 'check-studio-pro-status.ps1'
 $ProjectStatusSrc = Join-Path $Scripts 'build_project_status.py'
+$ProjectBoardServerSrc = Join-Path $Scripts 'serve_project_board.py'
 $CapabilityPolicySrc = Join-Path $RepoRoot '.mxagile/policies/capability-discovery.md'
 
 $PassCount = 0; $FailCount = 0; $FailDetails = @()
@@ -84,7 +85,11 @@ Assert-True 'fresh install ignores project-local Context Mode runtime roots' (($
 $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
 $detector = Join-Path $proj '.mxagile/tools/check-studio-pro-status.ps1'
 $statusBuilder = Join-Path $proj '.mxagile/tools/build_project_status.py'
+$boardServer = Join-Path $proj '.mxagile/tools/serve_project_board.py'
 $statusSchema = Join-Path $proj '.mxagile/schemas/project-status.schema.json'
+$boardIndex = Join-Path $proj '.mxagile/board/index.html'
+$boardStyles = Join-Path $proj '.mxagile/board/styles.css'
+$boardScript = Join-Path $proj '.mxagile/board/board.js'
 $contextAdapter = Join-Path $proj '.mxagile/adapters/copilot/context-mode-cli.yaml'
 $contextIntegration = Join-Path $proj '.mxagile/integrations/context-mode.yaml'
 $capabilityPolicy = Join-Path $proj '.mxagile/policies/capability-discovery.md'
@@ -93,6 +98,10 @@ Assert-True 'resolver distributed to .mxagile/tools' (Test-Path $tool) 'tool mis
 Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-FileHash $tool).Hash -eq (Get-FileHash $ResolverSrc).Hash)) 'hash differs'
 Assert-True 'status builder distributed to .mxagile/tools' ((Test-Path $statusBuilder) -and ((Get-FileHash $statusBuilder).Hash -eq (Get-FileHash $ProjectStatusSrc).Hash)) 'builder missing or hash differs'
 Assert-True 'status schema distributed with canonical Core payload' ((Test-Path $statusSchema) -and ((Get-FileHash $statusSchema).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/schemas/project-status.schema.json')).Hash)) 'schema missing or hash differs'
+Assert-True 'loopback board server distributed to .mxagile/tools' ((Test-Path $boardServer) -and ((Get-FileHash $boardServer).Hash -eq (Get-FileHash $ProjectBoardServerSrc).Hash)) 'board server missing or hash differs'
+Assert-True 'read-only board UI distributed with canonical Core payload' ((Test-Path $boardIndex) -and ((Get-FileHash $boardIndex).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/board/index.html')).Hash)) 'board UI missing or hash differs'
+Assert-True 'board CSS distributed with canonical Core payload' ((Test-Path $boardStyles) -and ((Get-FileHash $boardStyles).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/board/styles.css')).Hash)) 'board CSS missing or hash differs'
+Assert-True 'board JavaScript distributed with canonical Core payload' ((Test-Path $boardScript) -and ((Get-FileHash $boardScript).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/board/board.js')).Hash)) 'board JavaScript missing or hash differs'
 Assert-True 'Context Mode Copilot adapter included in fresh install' (Test-Path $contextAdapter) 'adapter missing'
 Assert-True 'installed adapter equals canonical adapter' ((Test-Path $contextAdapter) -and ((Get-FileHash $contextAdapter).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/adapters/copilot/context-mode-cli.yaml')).Hash)) 'adapter hash differs'
 Assert-True 'Context Mode integration contract included in fresh install' (Test-Path $contextIntegration) 'integration contract missing'
@@ -114,6 +123,7 @@ $prov = Get-Content (Join-Path $proj '.mxagile/state/core-provenance.json') -Raw
 Assert-True 'provenance lists project-distributed resolver' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Get-MxAgileCapabilities.ps1') 'provenance missing resolver entry'
 Assert-True 'provenance lists project-distributed detector' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/check-studio-pro-status.ps1') 'provenance missing detector entry'
 Assert-True 'provenance lists project-distributed status builder' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/build_project_status.py') 'provenance missing status builder entry'
+Assert-True 'provenance lists project-distributed board server' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/serve_project_board.py') 'provenance missing board server entry'
 
 # installed agent reaches resolver (default project root = installed project) and gets guidance
 $bin = New-TempDir
@@ -147,6 +157,7 @@ Write-Host "--- Existing project update ---" -ForegroundColor Yellow
 Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content $statusBuilder '# tampered' -Encoding UTF8
+Set-Content $boardServer '# tampered' -Encoding UTF8
 Set-Content $contextAdapter '# tampered' -Encoding UTF8
 Set-Content $contextIntegration '# tampered' -Encoding UTF8
 Set-Content $capabilityPolicy '# tampered' -Encoding UTF8
@@ -164,6 +175,7 @@ $srcHash = (Get-FileHash $ResolverSrc).Hash
 Assert-True 'update restores resolver to current distribution version' ((Get-FileHash $tool).Hash -eq $srcHash) 'not restored'
 Assert-True 'update restores detector to current distribution version' ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) 'not restored'
 Assert-True 'update restores status builder to current distribution version' ((Get-FileHash $statusBuilder).Hash -eq (Get-FileHash $ProjectStatusSrc).Hash) 'not restored'
+Assert-True 'update restores board server to current distribution version' ((Get-FileHash $boardServer).Hash -eq (Get-FileHash $ProjectBoardServerSrc).Hash) 'not restored'
 $adapterHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/adapters/copilot/context-mode-cli.yaml')).Hash
 $integrationHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/integrations/context-mode.yaml')).Hash
 Assert-True 'update restores Context Mode adapter' ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) 'adapter not restored'

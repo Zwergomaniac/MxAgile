@@ -445,6 +445,13 @@ try {
     Copy-Item -LiteralPath $projectStatusSource -Destination (Join-Path $destToolsDir "build_project_status.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/build_project_status.py (read-only projection)."
 
+    $projectBoardServerSource = Join-Path $PSScriptRoot "serve_project_board.py"
+    if (-not (Test-Path -LiteralPath $projectBoardServerSource -PathType Leaf)) {
+        throw "serve_project_board.py not found in script directory: $projectBoardServerSource"
+    }
+    Copy-Item -LiteralPath $projectBoardServerSource -Destination (Join-Path $destToolsDir "serve_project_board.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/serve_project_board.py (loopback only)."
+
     # =========================================================================
     # Core Installation Provenance
     # Writes machine-readable identity to .mxagile/state/core-provenance.json so
@@ -513,7 +520,8 @@ try {
             project_distributed = @(
                 ".mxagile/tools/Get-MxAgileCapabilities.ps1",
                 ".mxagile/tools/check-studio-pro-status.ps1",
-                ".mxagile/tools/build_project_status.py"
+                ".mxagile/tools/build_project_status.py",
+                ".mxagile/tools/serve_project_board.py"
             )
         }
     }

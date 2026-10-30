@@ -24,6 +24,16 @@
       },
       "description": "Optional direct requirement references for supplementary traceability when a task addresses a requirement more directly than the spec relationship implies."
     },
+    "wave_id": {
+      "type": "string",
+      "pattern": "^W[A-Z0-9_-]+$",
+      "description": "Optional explicit wave assignment. Never infer from title or task ID. Canonicalized implementation checklists may supply this from their W*-implementation-checklist filename."
+    },
+    "workpackage_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional explicit project-defined workpackage identity. The board does not infer a workpackage from task order, titles, or filenames."
+    },
     "type": {
       "type": "string",
       "enum": ["entity", "module", "microflow", "nanoflow", "page", "security", "navigation", "integration", "repair", "other"],

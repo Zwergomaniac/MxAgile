@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mxagile:project-status/1",
-  "title": "MxAgile Project Status Projection",
+  "$id": "mxagile:project-status/2",
+  "title": "MxAgile Project Status Projection 2",
   "description": "Deterministic, read-only projection of canonical MxAgile artifacts. Never a lifecycle authority. Missing or non-deterministic sources are represented as unavailable or null. No generated timestamp is included so identical inputs produce identical JSON.",
   "type": "object",
   "required": [
@@ -24,7 +24,7 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "type": "integer", "const": 1 },
+    "schema_version": { "type": "integer", "const": 2 },
     "projection": { "type": "boolean", "const": true },
     "authority": { "type": "string", "const": "mxagile_canonical_artifacts" },
     "source_fingerprint": {
@@ -34,23 +34,23 @@
     },
     "project": {
       "type": "object",
-      "required": ["availability", "id", "name", "core_version", "active_target", "lifecycle"],
+      "required": ["availability", "id", "name", "core_version", "active_targets", "lifecycle"],
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
         "id": { "type": ["string", "null"] },
         "name": { "type": ["string", "null"] },
         "core_version": { "type": ["string", "null"] },
-        "active_target": {
+        "active_targets": {
           "type": "object",
-          "required": ["availability", "mockup", "revision_id", "bundle_hash", "source_path"],
+          "required": ["availability", "items"],
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
-            "mockup": { "type": ["string", "null"] },
-            "revision_id": { "type": ["string", "null"] },
-            "bundle_hash": { "type": ["string", "null"] },
-            "source_path": { "type": ["string", "null"] }
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/active_target_reference" }
+            }
           }
         },
         "lifecycle": {
@@ -94,7 +94,7 @@
     },
     "delivery": {
       "type": "object",
-      "required": ["waves", "task_progress", "checklist_progress", "workpackages"],
+      "required": ["waves", "tasks", "task_progress", "checklist_progress", "workpackages"],
       "additionalProperties": false,
       "properties": {
         "waves": {
@@ -107,7 +107,7 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": ["wave_id", "phase", "gates"],
+                "required": ["wave_id", "phase", "gates", "task_progress", "checklist_progress", "requirement_ids", "task_ids"],
                 "additionalProperties": false,
                 "properties": {
                   "wave_id": { "type": "string" },
@@ -120,7 +120,21 @@
                       "gate_to_refinement": { "$ref": "#/definitions/nullable_gate" },
                       "gate_to_ready": { "$ref": "#/definitions/nullable_gate" }
                     }
-                  }
+                  },
+                  "task_progress": { "$ref": "#/definitions/progress_counts" },
+                  "checklist_progress": {
+                    "type": "object",
+                    "required": ["availability", "total", "done", "source"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "availability": { "$ref": "#/definitions/availability" },
+                      "total": { "$ref": "#/definitions/nullable_count" },
+                      "done": { "$ref": "#/definitions/nullable_count" },
+                      "source": { "type": ["string", "null"] }
+                    }
+                  },
+                  "requirement_ids": { "type": "array", "items": { "type": "string" } },
+                  "task_ids": { "type": "array", "items": { "type": "string" } }
                 }
               }
             },
@@ -141,24 +155,31 @@
           }
         },
         "task_progress": {
+          "$ref": "#/definitions/progress_counts"
+        },
+        "tasks": {
           "type": "object",
-          "required": ["availability", "total", "status_counts"],
+          "required": ["availability", "items"],
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
-            "total": { "$ref": "#/definitions/nullable_count" },
-            "status_counts": {
-              "type": "object",
-              "required": ["pending", "in_progress", "done", "failed", "blocked", "deferred", "unknown"],
-              "additionalProperties": false,
-              "properties": {
-                "pending": { "$ref": "#/definitions/nullable_count" },
-                "in_progress": { "$ref": "#/definitions/nullable_count" },
-                "done": { "$ref": "#/definitions/nullable_count" },
-                "failed": { "$ref": "#/definitions/nullable_count" },
-                "blocked": { "$ref": "#/definitions/nullable_count" },
-                "deferred": { "$ref": "#/definitions/nullable_count" },
-                "unknown": { "$ref": "#/definitions/nullable_count" }
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "action", "status", "wave_id", "workpackage_id", "requirement_ids", "migrated_from", "canonical_path", "content_hash"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "type": "string" },
+                  "action": { "type": ["string", "null"] },
+                  "status": { "type": ["string", "null"], "enum": ["pending", "in_progress", "done", "failed", "blocked", "deferred", null] },
+                  "wave_id": { "type": ["string", "null"] },
+                  "workpackage_id": { "type": ["string", "null"] },
+                  "requirement_ids": { "type": "array", "items": { "type": "string" } },
+                  "migrated_from": { "type": ["string", "null"] },
+                  "canonical_path": { "type": "string" },
+                  "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
+                }
               }
             }
           }
@@ -176,18 +197,33 @@
         },
         "workpackages": {
           "type": "object",
-          "required": ["availability", "items"],
+          "required": ["availability", "items", "unmapped_task_count"],
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
-            "items": { "type": "array", "items": { "type": "object" } }
+            "unmapped_task_count": { "$ref": "#/definitions/nullable_count" },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["workpackage_id", "wave_id", "task_progress", "requirement_ids", "task_ids"],
+                "additionalProperties": false,
+                "properties": {
+                  "workpackage_id": { "type": "string" },
+                  "wave_id": { "type": ["string", "null"] },
+                  "task_progress": { "$ref": "#/definitions/progress_counts" },
+                  "requirement_ids": { "type": "array", "items": { "type": "string" } },
+                  "task_ids": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
           }
         }
       }
     },
     "requirements": {
       "type": "object",
-      "required": ["availability", "total", "status_counts"],
+      "required": ["availability", "total", "status_counts", "items"],
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
@@ -203,12 +239,27 @@
             "superseded": { "$ref": "#/definitions/nullable_count" },
             "unknown": { "$ref": "#/definitions/nullable_count" }
           }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "status", "canonical_path", "content_hash"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": ["string", "null"] },
+              "status": { "type": ["string", "null"], "enum": ["draft", "accepted", "deferred", "superseded", null] },
+              "canonical_path": { "type": "string" },
+              "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
+            }
+          }
         }
       }
     },
     "decisions": {
       "type": "object",
-      "required": ["availability", "total", "status_counts", "pending_affected_requirements", "blocked_by_decision"],
+      "required": ["availability", "total", "status_counts", "pending_affected_requirements", "blocked_by_decision", "items"],
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
@@ -226,6 +277,22 @@
           }
         },
         "pending_affected_requirements": { "type": "array", "items": { "type": "string" } },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "status", "affected_requirements", "canonical_path", "content_hash"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": ["string", "null"] },
+              "status": { "type": ["string", "null"], "enum": ["PROPOSED", "CONFIRMED", "REJECTED", "SUPERSEDED", null] },
+              "affected_requirements": { "type": "array", "items": { "type": "string" } },
+              "canonical_path": { "type": "string" },
+              "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
+            }
+          }
+        },
         "blocked_by_decision": {
           "type": "object",
           "required": ["availability", "count"],
@@ -244,7 +311,7 @@
       "properties": {
         "test_contracts": {
           "type": "object",
-          "required": ["availability", "status_counts"],
+          "required": ["availability", "status_counts", "items"],
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
@@ -259,6 +326,23 @@
                 "impacted": { "$ref": "#/definitions/nullable_count" },
                 "superseded": { "$ref": "#/definitions/nullable_count" },
                 "unknown": { "$ref": "#/definitions/nullable_count" }
+              }
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "title", "status", "requirement_ids", "proof_point_ids", "canonical_path", "content_hash"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "type": "string" },
+                  "title": { "type": ["string", "null"] },
+                  "status": { "type": ["string", "null"], "enum": ["draft", "active", "stale", "impacted", "superseded", null] },
+                  "requirement_ids": { "type": "array", "items": { "type": "string" } },
+                  "proof_point_ids": { "type": "array", "items": { "type": "string" } },
+                  "canonical_path": { "type": "string" },
+                  "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
+                }
               }
             }
           }
@@ -305,11 +389,13 @@
         },
         "evidence": {
           "type": "object",
-          "required": ["availability", "freshness", "recorded_counts", "current_counts"],
+          "required": ["availability", "freshness", "target_freshness", "model_freshness", "recorded_counts", "current_counts", "entries"],
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
             "freshness": { "type": "string", "enum": ["determinable", "partial", "unknown"] },
+            "target_freshness": { "type": "string", "enum": ["determinable", "partial", "unknown"] },
+            "model_freshness": { "type": "string", "enum": ["determinable", "partial", "unknown"] },
             "recorded_counts": {
               "type": "object",
               "required": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "LEGACY_EVIDENCE", "unknown"],
@@ -335,6 +421,25 @@
                 "failed": { "$ref": "#/definitions/nullable_count" },
                 "pending": { "$ref": "#/definitions/nullable_count" }
               }
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["entry_id", "scenario_id", "screen_id", "parity_result", "requirement_ids", "wave_id", "mockup_name", "target_revision", "canonical_path"],
+                "additionalProperties": false,
+                "properties": {
+                  "entry_id": { "type": "string" },
+                  "scenario_id": { "type": "string" },
+                  "screen_id": { "type": "string" },
+                  "parity_result": { "type": ["string", "null"], "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "LEGACY_EVIDENCE", null] },
+                  "requirement_ids": { "type": "array", "items": { "type": "string" } },
+                  "wave_id": { "type": ["string", "null"] },
+                  "mockup_name": { "type": ["string", "null"] },
+                  "target_revision": { "type": ["string", "null"] },
+                  "canonical_path": { "type": "string" }
+                }
+              }
             }
           }
         }
@@ -342,13 +447,36 @@
     },
     "findings": {
       "type": "object",
-      "required": ["availability", "open", "blocking", "closed"],
+      "required": ["availability", "open", "blocking", "closed", "unknown", "items"],
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
         "open": { "$ref": "#/definitions/nullable_count" },
         "blocking": { "$ref": "#/definitions/nullable_count" },
-        "closed": { "$ref": "#/definitions/nullable_count" }
+        "closed": { "$ref": "#/definitions/nullable_count" },
+        "unknown": { "$ref": "#/definitions/nullable_count" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "gap_type", "severity", "lifecycle_status", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "blocking", "canonical_path"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "gap_type": { "type": ["string", "null"] },
+              "severity": { "type": ["string", "null"] },
+              "lifecycle_status": { "type": ["string", "null"] },
+              "wave_id": { "type": ["string", "null"] },
+              "workpackage_id": { "type": ["string", "null"] },
+              "requirement_ids": { "type": "array", "items": { "type": "string" } },
+              "decision_ids": { "type": "array", "items": { "type": "string" } },
+              "evidence_refs": { "type": "array", "items": { "type": "string" } },
+              "blocking": { "type": "boolean" },
+              "canonical_path": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "runtime": {
@@ -406,6 +534,16 @@
         "items": { "type": "array", "items": { "type": "object" } }
       }
     },
+    "source_references": {
+      "type": "object",
+      "description": "Read-only deep-link inputs. canonical_path is repository-relative; clients construct local URLs and must never treat it as an arbitrary filesystem path.",
+      "required": ["availability", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "items": { "type": "array", "items": { "$ref": "#/definitions/source_reference" } }
+      }
+    },
     "gaps": {
       "type": "array",
       "items": {
@@ -423,11 +561,93 @@
   "definitions": {
     "availability": {
       "type": "string",
-      "enum": ["available", "partial", "unavailable", "ambiguous"]
+      "enum": ["available", "partial", "unavailable", "ambiguous", "unknown"]
+    },
+    "active_target_reference": {
+      "type": "object",
+      "description": "A reference selected only by an accepted active revision or explicit UI-inventory target_mockup. It is not inferred from recency or filenames.",
+      "required": ["availability", "reference_type", "mockup_name", "target_id", "revision_id", "authoritative_state", "canonical_path", "reference_root", "authority_sources", "source_fingerprint", "content_hash", "bundle_hash", "inventory_drift", "screen_ids", "section_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "reference_type": { "type": "string", "enum": ["spa_bundle_entrypoint", "single_file_mockup", "unknown"] },
+        "mockup_name": { "type": ["string", "null"] },
+        "target_id": { "type": ["string", "null"] },
+        "revision_id": { "type": ["string", "null"], "pattern": "^(REV-[0-9]{3,})?$" },
+        "authoritative_state": { "type": "string", "enum": ["ACTIVE_TARGET", "UNKNOWN"] },
+        "canonical_path": { "type": ["string", "null"] },
+        "reference_root": { "type": ["string", "null"] },
+        "authority_sources": { "type": "array", "items": { "$ref": "#/definitions/authority_source" } },
+        "source_fingerprint": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" },
+        "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" },
+        "bundle_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" },
+        "inventory_drift": {
+          "type": "object",
+          "required": ["state", "mismatched_screen_ids", "unknown_screen_ids"],
+          "additionalProperties": false,
+          "properties": {
+            "state": { "type": "string", "enum": ["consistent", "mismatch", "unknown", "not_applicable"] },
+            "mismatched_screen_ids": { "type": "array", "items": { "type": "string" } },
+            "unknown_screen_ids": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "screen_ids": { "type": "array", "items": { "type": "string" } },
+        "section_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "authority_source": {
+      "type": "object",
+      "required": ["source_type", "canonical_path", "content_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": { "type": "string", "enum": ["revision_manifest", "ui_inventory"] },
+        "canonical_path": { "type": "string" },
+        "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
+      }
+    },
+    "source_reference": {
+      "type": "object",
+      "description": "A canonical artifact identity for local navigation; it is not a URL and grants no mutation authority.",
+      "required": ["source_type", "canonical_path", "artifact_id", "anchor", "availability", "content_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["wave_state", "requirement", "task", "checklist", "decision", "finding", "test_contract", "verification_plan", "evidence_manifest", "evidence_artifact", "parity_report"]
+        },
+        "canonical_path": { "type": "string" },
+        "artifact_id": { "type": ["string", "null"] },
+        "anchor": { "type": ["string", "null"] },
+        "availability": { "$ref": "#/definitions/availability" },
+        "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
+      }
     },
     "nullable_count": {
       "type": ["integer", "null"],
       "minimum": 0
+    },
+    "progress_counts": {
+      "type": "object",
+      "required": ["availability", "total", "status_counts"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "total": { "$ref": "#/definitions/nullable_count" },
+        "status_counts": {
+          "type": "object",
+          "required": ["pending", "in_progress", "done", "failed", "blocked", "deferred", "unknown"],
+          "additionalProperties": false,
+          "properties": {
+            "pending": { "$ref": "#/definitions/nullable_count" },
+            "in_progress": { "$ref": "#/definitions/nullable_count" },
+            "done": { "$ref": "#/definitions/nullable_count" },
+            "failed": { "$ref": "#/definitions/nullable_count" },
+            "blocked": { "$ref": "#/definitions/nullable_count" },
+            "deferred": { "$ref": "#/definitions/nullable_count" },
+            "unknown": { "$ref": "#/definitions/nullable_count" }
+          }
+        }
+      }
     },
     "nullable_phase": {
       "type": ["string", "null"],

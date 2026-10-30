@@ -1,3 +1,23 @@
+| `wave_id` | string | Optional explicit wave assignment. Checklist canonicalization may derive this from the exact `W*-implementation-checklist.yaml` filename. Never inferred from task ID or title. |
+| `workpackage_id` | string | Optional explicit project-defined workpackage identity. Never inferred from task ordering or filenames. |
+
+wave_id: W01
+workpackage_id: WP-ORDERS
+
+
+## Finding (`planning/findings/FIND-NNN.yml`)
+
+Schema: `.mxagile/schemas/finding.schema.json`
+
+Represents a canonical GAP Finding, not an arbitrary observation from a report.
+It uses the GAP Verification & Repair lifecycle and does not authorize mutation.
+Only `lifecycle_status: VERIFIED` is terminal/closed. `CRITICAL` severity and
+`DECISION_REQUIRED` lifecycle status are blocking. Missing, malformed, or
+unknown lifecycle values remain unknown; they are not treated as closed.
+
+Key fields include:
+
+...
 # MxAgile Canonical Artifact Schemas
 
 **This document is the authoritative contract for MxAgile lifecycle artifacts.**
@@ -155,6 +175,8 @@ Represents a concrete, actionable implementation task.
 | Field | Type | Description |
 |---|---|---|
 | `req` | array of `REQ-...` strings | Direct requirement references. |
+| `wave_id` | string | Optional explicit wave assignment. Checklist canonicalization may derive this from the exact `W*-implementation-checklist.yaml` filename. Never inferred from task ID or title. |
+| `workpackage_id` | string | Optional explicit project-defined workpackage identity. Never inferred from ordering or filenames. |
 | `type` | enum | Mendix artifact category. |
 | `detail` | string | Detailed implementation notes. |
 | `status` | enum | Default: `pending`. |
@@ -182,6 +204,8 @@ detail: >-
   Use XPath constraint $currentUser/Account = [%CurrentUser%].
   Limit result to 10 records, sorted by DeliveryDate descending.
 status: pending
+wave_id: W01
+workpackage_id: WP-ORDERS
 depends_on: []
 test:
   role: Customer
@@ -189,6 +213,27 @@ test:
     - open: CustomerPortal.CustomerDashboard_Overview
   expected: "Recent orders list shows at most 10 rows belonging to the current user"
 ```
+
+---
+
+## Finding (`planning/findings/FIND-NNN.yml`)
+
+Schema: `.mxagile/schemas/finding.schema.json`
+
+Represents a canonical GAP Finding, not an arbitrary observation from a report.
+It uses the GAP Verification & Repair lifecycle and does not authorize mutation.
+Only `lifecycle_status: VERIFIED` is terminal/closed. `CRITICAL` severity and
+`DECISION_REQUIRED` lifecycle status are blocking. Missing, malformed, or
+unknown lifecycle values remain unknown; they are not treated as closed.
+
+Key fields include:
+
+- `gap_type`, `severity`, `lifecycle_status`, and `observation`
+- Optional explicit `wave_id`, `workpackage_id`, Requirement IDs, Decision IDs,
+  repair Task ID, canonical source artifacts, and Evidence references
+
+The Project Status projection may count and link these records. It never
+classifies free text, closes Findings, or proposes/executes repairs.
 
 ---
 

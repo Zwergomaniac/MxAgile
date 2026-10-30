@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>MxAgile Mission Control</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/board.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#portfolio" aria-label="MxAgile Mission Control">
+      <span class="brand-mark">M</span>
+      <span><strong>MxAgile</strong><small>MISSION CONTROL</small></span>
+    </a>
+    <div class="topbar-right">
+      <a class="portfolio-link" href="#portfolio">Portfolio</a>
+      <span class="connection"><i></i> LOCAL · READ ONLY</span>
+      <button id="refresh" class="refresh" type="button" title="Status aktualisieren" aria-label="Status aktualisieren">↻</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="rail" aria-label="Projektbereiche">
+      <div class="rail-label">WORKSPACE</div>
+      <button class="rail-project" data-route="overview" type="button">
+        <span class="project-glyph">P</span><span id="rail-project-name">Projekt</span>
+      </button>
+      <div class="rail-label rail-spaced">PROJECT</div>
+      <nav id="side-nav" class="side-nav">
+        <button data-route="portfolio" data-short="PF" type="button">Portfolio</button>
+        <button data-route="overview" data-short="OV" type="button">Overview</button>
+        <button data-route="waves" data-short="WV" type="button">Waves</button>
+        <button data-route="requirements" data-short="RQ" type="button">Requirements</button>
+        <button data-route="verification" data-short="VF" type="button">Verification</button>
+        <button data-route="findings" data-short="FG" type="button">Findings</button>
+        <button data-route="decisions" data-short="DC" type="button">Decisions</button>
+      </nav>
+      <div class="rail-bottom">
+        <span class="framework-dot"></span>
+        <span>MxAgile Core</span>
+        <strong id="core-version">—</strong>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div id="load-state" class="load-state">Status wird geladen…</div>
+      <div id="board" hidden>
+      <div id="project-context">
+        <section class="project-heading">
+          <div>
+            <div class="eyebrow">PROJECT OVERVIEW <span id="fingerprint-short"></span></div>
+            <h1 id="project-name">Projekt</h1>
+            <div class="project-subline">
+              <span id="lifecycle-pill" class="pill">LIFECYCLE UNKNOWN</span>
+              <span id="mission-line" class="muted"></span>
+            </div>
+          </div>
+          <div class="active-wave-block">
+            <span class="eyebrow">ACTIVE WAVE</span>
+            <strong id="active-wave">—</strong>
+            <span id="active-phase" class="muted">UNKNOWN</span>
+          </div>
+        </section>
+
+        <section class="target-section" aria-labelledby="target-heading">
+          <div class="section-heading">
+            <div><span class="eyebrow">DESIGN AUTHORITY</span><h2 id="target-heading">Active Mockup</h2></div>
+            <span id="target-state" class="status-note">REFERENCE UNKNOWN</span>
+          </div>
+          <div id="target-list" class="target-list"></div>
+        </section>
+
+        <section class="attention-strip" aria-label="Human attention">
+          <div class="attention-title"><span class="attention-mark">!</span><div><strong>Human attention</strong><small>Nur kanonisch belegte Punkte</small></div></div>
+          <div id="attention-items" class="attention-items"></div>
+        </section>
+
+        <section class="metrics" id="metrics" aria-label="Projektkennzahlen"></section>
+      </div>
+
+        <nav class="tabs" id="tabs" aria-label="Projektansichten">
+          <button data-route="overview" type="button">Overview</button>
+          <button data-route="waves" type="button">Waves / Workpackages</button>
+          <button data-route="requirements" type="button">Requirements</button>
+          <button data-route="verification" type="button">Verification / Evidence</button>
+          <button data-route="findings" type="button">Findings</button>
+          <button data-route="decisions" type="button">Decisions</button>
+        </nav>
+
+        <section id="view" class="view" aria-live="polite"></section>
+        <footer class="footnote"><span>READ-ONLY PROJECTION</span><span id="source-fingerprint"></span><span id="updated-label">On demand</span></footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
