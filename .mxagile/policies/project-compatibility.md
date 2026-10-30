@@ -61,6 +61,38 @@ is retained. Workpackages are never invented; absence is reported separately.
 
 ## Repair contract
 
+### Explicit migration rules (current schema contract)
+
+Rules live here and in `scripts/project_compatibility.py`, not in a second registry.
+
+| Rule | Source / target | Preconditions and transform | Conflict / preserved semantics | Idempotence / validation |
+| --- | --- | --- | --- | --- |
+| migrated_from_checklist_v1 | Legacy checklist provenance / current task schema | One existing parseable exact W*-implementation-checklist.yaml; wave exists; declared wave agrees; append wave_id and assignment_provenance | Explicit contradictory wave or checklist declaration defers; task status, original provenance and all other bytes retained | Explicit wave prevents repeat; full task schema + Doctor after apply |
+| QUOTE_TEXT_SCALAR | Invalid plain YAML text scalar / same current artifact schema | Parser points to an allowed single-line text field containing colon; quote exact scalar | No comments, tags, anchors, lifecycle fields or ambiguous indentation; same text value | Valid YAML is unchanged; entire artifact schema + scoped revalidation |
+
+Schema diagnostics are classified individually. Missing GWT id/given/when/then,
+proof_points and other required content, unknown enums (including confirmed), and
+inspect.entity semantics require decisions, not invented content. Extra fields
+require bounded agent review; no automatic deletion is authorized absent a
+documented lossless migration contract. A file can therefore have both
+DECISION_REQUIRED and AGENT_REPAIRABLE diagnostics. Unsupported formats remain
+separate from reviewable schema constraints.
+
+No historical canonical page/source -> page_id/source_mockup mapping contract was
+found in the framework schema history at this hardening baseline. No rename/drop
+rule is authorized merely by similar names. Conflicting old/new values never
+authorize automatic migration. Evidence references likewise require unique
+canonical authority, not timeline inference.
+
+Missing scratch checklist provenance can be AGENT_REPAIRABLE when schema-valid
+canonical Evidence Manifests explicitly trace the task's Requirement/Spec to one
+existing wave. This supplies bounded review authority, not an automatic assignment
+rule. Multiple or missing candidate waves remain DECISION_REQUIRED.
+
+DEC-NNN.md records are retained as historical read-only identities; their text is
+not interpreted as current status, counted as confirmed, or forcibly migrated.
+Unknown filenames/variants retain their original unsupported diagnostics.
+
 - SAFE_DETERMINISTIC: schema-valid minimal quoting of a single-line text field
   whose colon is the parser error, or the exact provenance rule above.
 - AGENT_REPAIRABLE: canonical authority is known but a semantic review is needed.

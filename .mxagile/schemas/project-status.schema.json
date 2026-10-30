@@ -312,6 +312,15 @@
       "required": ["availability", "total", "status_counts", "pending_affected_requirements", "blocked_by_decision", "items"],
       "additionalProperties": false,
       "properties": {
+        "historical": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "source_path"],
+            "additionalProperties": false,
+            "properties": {"id": {"type": "string"}, "source_path": {"type": "string"}}
+          }
+        },
         "availability": { "$ref": "#/definitions/availability" },
         "total": { "$ref": "#/definitions/nullable_count" },
         "status_counts": {
@@ -604,6 +613,7 @@
           "code": { "type": "string" },
           "source": { "type": ["string", "null"] },
           "description": { "type": "string" },
+          "parser_cause": { "type": "string" },
           "line": { "type": "integer", "minimum": 1 },
           "column": { "type": "integer", "minimum": 1 }
         }

@@ -330,7 +330,23 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertEqual(status["verification"]["plans"]["availability"], "partial")
       self.assertEqual(status["verification"]["plans"]["status_counts"]["active"], 1)
 
+    def test_schema_diagnostics_do_not_invent_semantic_content(self) -> None:
+      relative = "requirements/REQ-001.yml"
+      value = {"ID": "REQ-001", "title": "Fixture", "description": "Fixture",
+               "status": "confirmed", "legacy_metadata": "SECRET", "acceptance_criteria": [{}]}
+      issues = project_compatibility.schema_diagnostics(relative, value)
+      required = [item for item in issues if "Required canonical" in item[0]]
+      self.assertEqual(len(required), 4)
+      self.assertTrue(all(item[1] == "DECISION_REQUIRED" for item in required))
+      self.assertTrue(any(item[1] == "AGENT_REPAIRABLE" for item in issues))
+      self.assertNotIn("SECRET", str(issues))
+      issues = project_compatibility.schema_diagnostics("planning/test-contracts/TC-001.yaml", {})
+      self.assertTrue(any("proof_points" in item[0] and item[1] == "DECISION_REQUIRED" for item in issues))
+
     def test_duplicate_mapping_keys_are_not_silently_accepted(self) -> None:
+      for wave in ("W3", "W4A", "W1C"):
+        write_file(self.root, f"planning/checklists/{wave}-implementation-checklist.yaml", f"wave_id: {wave}\nitems: []\n")
+        self.assertEqual(project_compatibility.assignment(self.root, {"migrated_from": f"planning/checklists/{wave}-implementation-checklist.yaml"}, {wave})[:2], ("derived", wave))
       write_file(self.root, "planning/tasks/TASK-001.yml", "ID: TASK-001\nID: TASK-999\n")
       write_task(self.root, "TASK-002", "done", wave_id="W01", workpackage_id="WP-01")
       status = build_project_status.build_status(self.root)
@@ -339,6 +355,50 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertEqual(status["delivery"]["waves"]["items"][0]["task_progress"]["total"], 1)
       self.assertEqual(status["delivery"]["workpackages"]["items"][0]["task_ids"], ["TASK-002"])
       self.assertTrue(any(item["category"] == "SYNTAX_ERROR" for item in status["compatibility"]["diagnostics"]))
+
+    def test_reality_117_exact_waves_and_six_missing_provenances(self) -> None:
+      waves = {wave: {"phase": "ready", "gates": {"gate_to_refinement": {"result": "passed"}, "gate_to_ready": {"result": "passed"}}}
+               for wave in ("W3", "W4A", "W1C")}
+      write_file(self.root, "planning/lifecycle/process-state.yaml", project_compatibility.yaml.safe_dump({"waves": waves}))
+      for wave in waves:
+        write_file(self.root, f"planning/checklists/{wave}-implementation-checklist.yaml", f"wave_id: {wave}\nitems: []\n")
+      for index in range(117):
+        wave = list(waves)[index % 3]
+        write_task(self.root, f"TASK-{index + 100:03d}", "pending", migrated_from=f"planning/checklists/{wave}-implementation-checklist.yaml")
+      for index in range(6):
+        write_task(self.root, f"TASK-{index + 300:03d}", "pending", migrated_from=f".concord/scratch/W{index}-implementation-checklist.yaml")
+      before = tree_fingerprint(self.root)
+      report = build_project_status.build_status(self.root)["compatibility"]
+      plan = project_compatibility.repair_plan(self.root, report)
+      self.assertEqual(len(plan["repairs"]), 117)
+      self.assertEqual({item["preview"]["after"] for item in plan["repairs"]}, set(waves))
+      scratch = [item for item in report["diagnostics"] if item["category"] == "WAVE_ASSIGNMENT_MISSING" and item["source_path"].startswith("planning/tasks/TASK-3")]
+      self.assertEqual(len(scratch), 6)
+      self.assertTrue(all(item["repairability"] == "DECISION_REQUIRED" for item in scratch))
+      self.assertEqual(before, tree_fingerprint(self.root))
+
+    def test_missing_provenance_needs_unique_canonical_review_authority(self) -> None:
+      task = {"spec": "SPEC-001", "req": ["REQ-001"]}
+      manifest = {"manifest_id": "MFT-W01", "wave_id": "W01", "entries": [{"entry_id": "E1", "scenario_id": "SCN-1", "screen_id": "PAGE-1", "role": "CEKO", "data_state": "populated", "parity_result": "NOT_VERIFIED", "traceability": {"requirements": ["REQ-001"]}}]}
+      documents = {"planning/evidence/manifests/W01-evidence-manifest.yaml": manifest}
+      self.assertEqual(project_compatibility.wave_review_authority(task, documents, {"W01", "W02"}), next(iter(documents)))
+      documents["planning/evidence/manifests/W02-evidence-manifest.yaml"] = {**manifest, "wave_id": "W02"}
+      self.assertIsNone(project_compatibility.wave_review_authority(task, documents, {"W01", "W02"}))
+
+    def test_legacy_decisions_remain_historical_without_status_promotion(self) -> None:
+      write_file(self.root, "planning/decisions/DEC-099.md", "# Historical\nSECRET-LEGACY-CONTENT\n")
+      before = tree_fingerprint(self.root)
+      status = build_project_status.build_status(self.root)
+      self.assertEqual(status["decisions"]["historical"], [{"id": "DEC-099", "source_path": "planning/decisions/DEC-099.md"}])
+      self.assertNotIn("SECRET-LEGACY-CONTENT", json.dumps(status))
+      self.assertEqual(before, tree_fingerprint(self.root))
+
+    def test_unknown_legacy_ui_and_inspect_are_not_guessed(self) -> None:
+      issues = project_compatibility.schema_diagnostics("planning/ui-inventory/PAGE-1.yaml", {"page": "PAGE-1", "source": "design.html"})
+      self.assertTrue(issues)
+      self.assertFalse(any(item[1] == "SAFE_DETERMINISTIC" for item in issues))
+      issues = project_compatibility.schema_diagnostics("planning/tasks/TASK-001.yml", {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect", "inspect": {"entity": "Module.Entity"}})
+      self.assertTrue(any(item[1] == "DECISION_REQUIRED" for item in issues))
 
     def test_wave_repair_is_scoped_dry_run_and_idempotent(self) -> None:
       write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\nitems: []\n")

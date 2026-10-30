@@ -144,6 +144,47 @@ def assignment(root: Path, task: dict, waves: set[str]) -> tuple[str, str | None
     return 'derived', wave, provenance
 
 
+def schema_diagnostics(relative: str, value: Any) -> list[tuple[str, str, str]]:
+    contract = contract_for(relative)
+    if not contract or jsonschema is None:
+        return []
+    path = SCHEMA_ROOT / (contract[0] + '.schema.json')
+    if not path.is_file():
+        return []
+    stat = path.stat()
+    schema = load_schema(str(path), stat.st_mtime_ns, stat.st_size)
+    issues = []
+    for error in jsonschema.Draft7Validator(schema).iter_errors(value):
+        location = '/'.join(str(part) for part in error.absolute_schema_path)
+        indexes = '/'.join(str(part) for part in error.absolute_path if isinstance(part, int))
+        authority = f'.mxagile/schemas/{contract[0]}.schema.json#/{location}@{indexes}'
+        repairability = 'AGENT_REPAIRABLE' if error.validator == 'additionalProperties' else 'DECISION_REQUIRED'
+        if error.validator == 'additionalProperties' and 'inspect' in error.absolute_path:
+            repairability = 'DECISION_REQUIRED'
+        if error.validator == 'required' and isinstance(error.instance, dict):
+            for field in sorted(set(error.validator_value) - error.instance.keys()):
+                issues.append((f'Required canonical field is missing: {field}.', repairability, authority + '/' + field))
+        else:
+            issues.append((f'Canonical schema constraint failed: {error.validator}.', repairability, authority))
+    return sorted(set(issues))
+
+
+def wave_review_authority(task: dict, documents: dict[str, dict], waves: set[str]) -> str | None:
+    candidates: dict[str, list[str]] = {}
+    requirements = {item for item in task.get('req', []) if isinstance(item, str)} if isinstance(task.get('req'), list) else set()
+    for relative, manifest in documents.items():
+        if contract_for(relative)[0] != 'evidence-manifest' or schema_errors(relative, manifest):
+            continue
+        wave = manifest.get('wave_id')
+        if wave not in waves:
+            continue
+        for entry in manifest.get('entries', []):
+            trace = entry.get('traceability', {})
+            if task.get('spec') in trace.get('specs', []) or requirements.intersection(trace.get('requirements', [])):
+                candidates.setdefault(wave, []).append(relative)
+    return sorted(next(iter(candidates.values())))[0] if len(candidates) == 1 else None
+
+
 def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> dict:
     diagnostics: list[dict] = []
     coverage: dict[str, dict[str, int]] = {}
@@ -153,7 +194,7 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
             blocking: bool = False, repairability: str = 'UNSUPPORTED', repair: str | None = None,
             line: int | None = None, column: int | None = None, authority: str | None = None,
             severity: str = 'WARNING') -> None:
-        identity = json.dumps([category, source, area, line, column, repair], sort_keys=True)
+        identity = json.dumps([category, source, area, line, column, repair, authority], sort_keys=True)
         entry = {
             'diagnostic_id': 'DX-' + hashlib.sha256(identity.encode()).hexdigest()[:16],
             'severity': 'ERROR' if blocking else severity, 'category': category,
@@ -178,7 +219,7 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
             contract = contract_for(source) if source else None
             repairable = 'AGENT_REPAIRABLE' if category in ('SYNTAX_ERROR', 'SCHEMA_ERROR') else 'UNSUPPORTED'
             add(category, source, contract[1] if contract else 'sources',
-                'Canonical artifact is invalid.' if category != 'LEGACY_VARIANT' else 'Documented descriptive Test Contract filename accepted.',
+                ('Canonical artifact is invalid' + (': ' + gap['parser_cause'] if gap.get('parser_cause') else '') + '.') if category != 'LEGACY_VARIANT' else 'Documented descriptive Test Contract filename accepted.',
                 blocking=category != 'LEGACY_VARIANT', repairability=repairable,
                 line=gap.get('line'), column=gap.get('column'),
                 authority='.mxagile/policies/project-compatibility.md',
@@ -224,8 +265,13 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
         errors = schema_errors(relative, value)
         if errors:
             counts['invalid'] += 1
-            add('SCHEMA_ERROR', relative, contract[1], 'Schema constraints failed: ' + ', '.join(errors) + '.',
-                blocking=True, repairability='AGENT_REPAIRABLE', authority=f'.mxagile/schemas/{contract[0]}.schema.json')
+            issues = schema_diagnostics(relative, value)
+            if not issues:
+                issues = [('Schema validation unavailable: ' + ', '.join(errors) + '.', 'UNSUPPORTED',
+                           f'.mxagile/schemas/{contract[0]}.schema.json')]
+            for message, repairability, authority in issues:
+                add('SCHEMA_ERROR', relative, contract[1], message,
+                    blocking=True, repairability=repairability, authority=authority)
 
     identities: dict[str, list[str]] = {}
     for relative, value in documents.items():
@@ -303,11 +349,12 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
             state, wave, provenance = assignment(root, value, waves)
             if state not in ('explicit',):
                 coverage['task']['unassigned'] += 1
+                review_authority = wave_review_authority(value, documents, waves) if state in ('ambiguous', 'missing') else None
                 add('AUTHORITY_CONFLICT' if state == 'conflict' else 'WAVE_ASSIGNMENT_MISSING', relative, area,
                     'Task wave assignment needs reconciliation.', blocking=state == 'conflict',
-                    repairability='SAFE_DETERMINISTIC' if state == 'derived' else 'DECISION_REQUIRED',
+                    repairability='SAFE_DETERMINISTIC' if state == 'derived' else ('AGENT_REPAIRABLE' if review_authority else 'DECISION_REQUIRED'),
                     repair='ADD_WAVE_ID' if state == 'derived' else None,
-                    authority=provenance or 'planning/lifecycle/process-state.yaml')
+                    authority=review_authority or provenance or 'planning/lifecycle/process-state.yaml')
             if not value.get('workpackage_id'):
                 add('UNASSIGNED', relative, area, 'No explicit optional workpackage assignment is recorded.', severity='INFO')
         for field in ('evidence_refs', 'source_artifacts'):
@@ -326,6 +373,10 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
                     continue
                 if relative not in allowed and safe_file(root, relative):
                     hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+                    if artifact == 'decision' and path.suffix == '.md' and re.fullmatch(r'DEC-[0-9]{3,}', path.stem):
+                        add('LEGACY_VARIANT', relative, area, 'Historical Decision retained; no current lifecycle status inferred.',
+                            severity='INFO', authority='.mxagile/policies/project-compatibility.md')
+                        continue
                     add('UNSUPPORTED_VARIANT', relative, area, 'Legacy extension is not consumed by this projection.',
                         repairability='AGENT_REPAIRABLE', authority='.mxagile/policies/project-compatibility.md')
                     if path.suffix == '.json':

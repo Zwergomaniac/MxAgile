@@ -68,6 +68,13 @@ def read_yaml_file(
         value = load_yaml(raw.decode("utf-8-sig"))
     except yaml.YAMLError as exc:
         add_gap(gaps, "SOURCE_PARSE_FAILED", relative_path, "Canonical source could not be read as UTF-8 YAML.")
+        causes = {
+            "mapping values are not allowed here": "MAPPING_VALUE_NOT_ALLOWED",
+            "duplicate mapping key": "DUPLICATE_MAPPING_KEY",
+            "expected <block end>, but found '<block mapping start>'": "INVALID_BLOCK_INDENTATION",
+            "could not find expected ':'": "MISSING_MAPPING_SEPARATOR",
+        }
+        gaps[-1]["parser_cause"] = causes.get(getattr(exc, "problem", ""), type(exc).__name__)
         mark = getattr(exc, "problem_mark", None)
         if mark is not None:
             gaps[-1].update({"line": mark.line + 1, "column": mark.column + 1})
@@ -1145,6 +1152,12 @@ def build_status(project_root: Path) -> dict[str, Any]:
         "gaps": sorted(gaps, key=lambda gap: (gap["code"], gap["source"] or "", gap["description"])),
     }
     result["compatibility"] = compatibility_report(root, result, hashes)
+    result["decisions"]["historical"] = [
+        {"id": Path(item["source_path"]).stem, "source_path": item["source_path"]}
+        for item in result["compatibility"]["diagnostics"]
+        if item["artifact_type"] == "unknown" and item["category"] == "LEGACY_VARIANT"
+        and item["affected_board_area"] == "decisions"
+    ]
     result["source_fingerprint"] = result["compatibility"]["source_fingerprint"]
     return result
 
