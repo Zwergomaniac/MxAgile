@@ -37,6 +37,17 @@ function Assert-True {
 $Temps = @()
 function New-TempDir { $p = Join-Path $env:TEMP "mxagile-disc-$(New-Guid)"; New-Item -ItemType Directory -Path $p | Out-Null; $script:Temps += $p; return $p }
 
+function Invoke-FixtureUpdate {
+    param([string]$Root, [string]$Case)
+    $script:CompletionOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$Root' -IsUpdate `$true" 2>&1)
+    Assert-True "$Case framework update succeeds" ($LASTEXITCODE -eq 0) "exit=$LASTEXITCODE"
+    $result = Get-Content (Join-Path $Root '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
+    $provenance = Get-Content (Join-Path $Root '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
+    Assert-True "$Case handoff belongs to this install" ($result.installed_at -eq $provenance.installed_at -and $result.framework.commit -eq $provenance.commit) 'stale handoff'
+    Assert-True "$Case automatically executes read-only Doctor" ($result.doctor.executed -and $result.doctor.report.read_only) 'Doctor not executed'
+    return $result
+}
+
 Write-Host ""
 Write-Host "=== Capability Discovery Routing & Distribution Tests ===" -ForegroundColor Cyan
 
@@ -47,7 +58,7 @@ $inject = Get-Content (Join-Path $Scripts 'apply-project-agent-instructions.ps1'
 $m = [regex]::Match($inject, '(?s)\$MxAgileStartupBlock = @''\r?\n(.*?)\r?\n''@')
 Assert-True 'startup block extractable' $m.Success 'block not found'
 $block = $m.Groups[1].Value
-$rule = [regex]::Match($block, '(?s)7\. \*\*Optional capabilities.*?(?=\r?\n\r?\nDetailed policy)').Value
+$rule = [regex]::Match($block, '(?s)7\. \*\*Optional capabilities.*?(?=\r?\n\r?\n(?:8\.|Detailed policy))').Value
 Assert-True 'rule 7 present and routes to capability-discovery policy' ($rule -match 'capability-discovery\.md') 'rule/policy ref missing'
 Assert-True 'rule is lazy: on demand, never at startup' (($rule -match 'on demand') -and ($rule -match 'never at startup')) $rule
 Assert-True 'rule states installed != usable, no invented health, non-blocking' (($rule -match 'Installed does not mean usable') -and ($rule -match 'never assume health') -and ($rule -match 'never blocks')) $rule
@@ -55,6 +66,7 @@ Assert-True 'rule queries only the relevant capability' ($rule -match 'only that
 Assert-True 'rule is short (<= 6 lines)' (($rule -split "`n").Count -le 6) "lines=$(($rule -split "`n").Count)"
 Assert-True 'always-on block does not explain Context Mode' ($block -notmatch '(?i)context[- _]mode|ctx_') 'Context Mode leaked into always-on text'
 Assert-True 'no "run at every startup" instruction' ($block -notmatch '(?i)every (start|session)|at startup.*Get-MxAgile|run capability discovery') 'startup probe instruction'
+Assert-True 'update requests route to mandatory Doctor completion contract' (($block -match 'update-contract\.md') -and ($block -match 'without another question') -and ($block -match 'last-update-result\.json') -and ($block -match 'NOT_VERIFIED')) 'update completion routing missing'
 
 # nothing in installer/startup scripts invokes the resolver
 $invokers = Get-ChildItem $Scripts -Filter *.ps1 -File | Where-Object { $_.Name -ne 'Get-MxAgileCapabilities.ps1' } |
@@ -82,6 +94,8 @@ New-Item -ItemType File -Path (Join-Path $proj 'project.mpr') | Out-Null
 $freshOutput = @(& pwsh -NoProfile -File $Installer -ProjectRoot $proj 2>&1)
 Assert-True 'fresh install exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
 Assert-True 'fresh install separates Core installation and compatibility' (($freshOutput -join "`n") -match 'FRAMEWORK_INSTALLED' -and ($freshOutput -join "`n") -match 'PROJECT_COMPATIBILITY') 'separate results missing'
+$freshCompletion = Get-Content (Join-Path $proj '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
+Assert-True 'fresh install exposes structured Doctor handoff' ($freshCompletion.framework.update_successful -and $freshCompletion.doctor.executed -and $null -ne $freshCompletion.doctor.report) 'handoff absent'
 $freshGitignore = Get-Content (Join-Path $proj '.gitignore') -Raw
 Assert-True 'fresh install ignores project-local Context Mode runtime roots' (($freshGitignore -match '(?m)^\.context-mode/\r?$') -and ($freshGitignore -match '(?m)^\.github/context-mode/\r?$')) 'runtime roots missing from .gitignore'
 $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
@@ -126,6 +140,7 @@ foreach ($f in 'AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md') {
     if (Test-Path $p) {
         $t = Get-Content $p -Raw
         Assert-True "$f carries rule 7 without Context Mode text" (($t -match 'Optional capabilities, on demand only') -and ($t -notmatch '(?i)context-mode')) 'rule missing or leaked'
+        Assert-True "$f routes update completion to compatibility contract" (($t -match 'update-contract\.md') -and ($t -match 'last-update-result\.json')) 'update route missing'
     }
 }
 $prov = Get-Content (Join-Path $proj '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
@@ -185,6 +200,10 @@ Set-Content $invalidProcess 'waves: invalid: fixture-value' -Encoding UTF8
 $beforeProcess = (Get-FileHash $invalidProcess).Hash
 $updateOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1)
 Assert-True 'update exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+$invalidCompletion = Get-Content (Join-Path $proj '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
+Assert-True 'U2 YAML error is visible without false overall PASS' ($invalidCompletion.framework.update_successful -and $invalidCompletion.doctor.executed -and $invalidCompletion.doctor.compatibility -eq 'BLOCKED' -and ($updateOutput -join "`n") -match 'SYNTAX_ERROR: planning/lifecycle/process-state.yaml') 'invalid YAML hidden'
+Assert-True 'U2 prior provenance is retained in completion' ($invalidCompletion.framework.previous_version -eq $freshCompletion.framework.version -and $invalidCompletion.framework.previous_commit -eq $freshCompletion.framework.commit) 'previous framework identity absent'
+Assert-True 'U2 diagnostic handoff contains no invalid source contents' ((Get-Content (Join-Path $proj '.mxagile/state/last-update-result.json') -Raw) -notmatch 'fixture-value') 'raw YAML leaked'
 Assert-True 'update reports compatibility separately without rewriting invalid state' ((Get-FileHash $invalidProcess).Hash -eq $beforeProcess -and ($updateOutput -join "`n") -match 'PROJECT_COMPATIBILITY') 'Doctor mutated project source or report absent'
 Assert-True 'update restores capability discovery policy' ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash) 'policy not restored'
 $updatedGitignore = Get-Content $projectGitignore -Raw
@@ -202,12 +221,107 @@ Assert-True 'update restores Context Mode adapter' ((Get-FileHash $contextAdapte
 Assert-True 'update restores Context Mode integration contract' ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) 'contract not restored'
 Assert-True 'update retires stale files in .mxagile/tools' (-not (Test-Path (Join-Path $proj '.mxagile/tools/stale.ps1'))) 'stale file kept'
 Assert-True 'update preserves project-owned scripts/' ((Get-Content (Join-Path $proj 'scripts/mine.ps1') -Raw) -match 'project-owned') 'project file lost'
-$null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
+$repeatedOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1)
 Assert-True 'repeated update exit 0 and tool payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $mxcliResolver).Hash -eq (Get-FileHash $MxcliResolverSrc).Hash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'not idempotent'
+$repeatedCompletion = Get-Content (Join-Path $proj '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
+Assert-True 'U7 repeated update reruns Doctor deterministically without project edits' ($repeatedCompletion.doctor.executed -and $repeatedCompletion.installed_at -ne $invalidCompletion.installed_at -and ($repeatedCompletion.doctor.report | ConvertTo-Json -Depth 30 -Compress) -eq ($invalidCompletion.doctor.report | ConvertTo-Json -Depth 30 -Compress) -and (Get-FileHash $invalidProcess).Hash -eq $beforeProcess) 'Doctor stale, nondeterministic or mutating'
 $repeatedGitignore = Get-Content $projectGitignore -Raw
 Assert-True 'repeated update does not duplicate Context Mode ignore entries' ((([regex]::Matches($repeatedGitignore, '(?m)^\.context-mode/\r?$')).Count -eq 1) -and (([regex]::Matches($repeatedGitignore, '(?m)^\.github/context-mode/\r?$')).Count -eq 1)) 'ignore entries duplicated'
 $agents = Get-Content (Join-Path $proj 'AGENTS.md') -Raw
 Assert-True 'repeated update does not duplicate rule 7' (([regex]::Matches($agents, 'Optional capabilities, on demand only')).Count -eq 1) 'rule duplicated'
+
+Write-Host '--- Post-update compatibility U1-U8 ---' -ForegroundColor Yellow
+foreach ($directory in @('planning/mission', 'planning/findings', 'planning/tasks', 'planning/checklists', 'specs', 'requirements')) {
+        New-Item -ItemType Directory -Path (Join-Path $proj $directory) -Force | Out-Null
+}
+Set-Content $invalidProcess @'
+waves:
+    W01:
+        phase: verifying
+        gates:
+            gate_to_refinement: {result: passed}
+            gate_to_ready: {result: passed}
+'@ -Encoding UTF8
+Set-Content (Join-Path $proj 'planning/lifecycle/context-epoch.yaml') @'
+schema_version: '1.0'
+mission: {id: MISSION-2026-10-30-update, objective: Update fixture, status: active}
+scope: {project: fixture}
+lifecycle: {current_phase: implementing, active_context_epoch: EPOCH-001}
+repository: {branch: fixture, commit: abc1234}
+context: {epoch_id: EPOCH-001, pressure_state: UNKNOWN}
+'@ -Encoding UTF8
+Set-Content (Join-Path $proj 'planning/mission/mission-state.yaml') @'
+schema_version: 1
+mission_id: MISSION-2026-10-30-update
+created_at: '2026-10-30'
+objective: Update fixture
+completion_boundary: USER_MISSION_COMPLETE
+criteria: {lifecycle_derived: {}}
+active_wave: W01
+'@ -Encoding UTF8
+Set-Content (Join-Path $proj 'requirements/REQ-001.yml') "ID: REQ-001`ntitle: Fixture`ndescription: Fixture requirement`nstatus: accepted" -Encoding UTF8
+Set-Content (Join-Path $proj 'specs/SPEC-001.yml') "ID: SPEC-001`ntitle: Fixture`ndescription: Fixture spec`nrequirements: [REQ-001]" -Encoding UTF8
+$taskPath = Join-Path $proj 'planning/tasks/TASK-001.yml'
+$taskBase = "ID: TASK-001`nspec: SPEC-001`naction: Fixture task`nstatus: pending`n"
+Set-Content $taskPath ($taskBase + 'wave_id: W01') -Encoding UTF8
+$compatible = Invoke-FixtureUpdate $proj 'U1'
+Assert-True 'U1 compatible project is reported as COMPATIBLE' ($compatible.doctor.compatibility -eq 'COMPATIBLE' -and ($CompletionOutput -join "`n") -match 'PROJECT_COMPATIBILITY: COMPATIBLE') ($compatible.doctor.report | ConvertTo-Json -Depth 10 -Compress)
+$visibleOutput = ($CompletionOutput | Where-Object { "$_" -notmatch '^\{' }) -join "`n"
+Assert-True 'U8 compatible completion is compact with zero repair counts' ($compatible.doctor.safe_deterministic_count -eq 0 -and $compatible.doctor.agent_repairable_count -eq 0 -and $compatible.doctor.decision_required_count -eq 0 -and $visibleOutput -notmatch 'FRESHNESS_UNKNOWN') 'unnecessary diagnostic dump'
+Assert-True 'U8 unsupported count is explicitly reported' ($compatible.doctor.unsupported_count -ge 0 -and $visibleOutput -match 'UNSUPPORTED:') 'unsupported count missing'
+
+Set-Content $taskPath $taskBase -Encoding UTF8
+$unassigned = Invoke-FixtureUpdate $proj 'U3'
+Assert-True 'U3 recognized UNASSIGNED task remains visible' ($unassigned.doctor.compatibility -ne 'COMPATIBLE' -and $unassigned.doctor.report.coverage.task.recognized -eq 1 -and ($CompletionOutput -join "`n") -match 'UNASSIGNED: planning/tasks/TASK-001.yml') 'unassigned task hidden'
+
+$checklist = Join-Path $proj 'planning/checklists/W01-implementation-checklist.yaml'
+Set-Content $checklist 'wave_id: W01' -Encoding UTF8
+Set-Content $taskPath ($taskBase + 'migrated_from: planning/checklists/W01-implementation-checklist.yaml') -Encoding UTF8
+$beforeTask = (Get-FileHash $taskPath).Hash
+$safe = Invoke-FixtureUpdate $proj 'U5'
+Assert-True 'U5 safe repair need is reported, not green and not applied' ($safe.doctor.compatibility -ne 'COMPATIBLE' -and $safe.doctor.repair_status -eq 'PROJECT_REPAIR_REQUIRED' -and $safe.doctor.safe_deterministic_count -eq 1 -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and ($CompletionOutput -join "`n") -match 'SAFE_DETERMINISTIC: 1') 'safe repair hidden or applied'
+
+Set-Content $checklist 'wave_id: W02' -Encoding UTF8
+$beforeChecklist = (Get-FileHash $checklist).Hash
+$beforeLifecycle = (Get-FileHash $invalidProcess).Hash
+$beforeMission = (Get-FileHash (Join-Path $proj 'planning/mission/mission-state.yaml')).Hash
+$decision = Invoke-FixtureUpdate $proj 'U6'
+Assert-True 'U6 decision required is reported without business repair' ($decision.doctor.repair_status -eq 'DECISION_REQUIRED' -and $decision.doctor.decision_required_count -gt 0 -and (Get-FileHash $checklist).Hash -eq $beforeChecklist -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and (Get-FileHash $invalidProcess).Hash -eq $beforeLifecycle -and (Get-FileHash (Join-Path $proj 'planning/mission/mission-state.yaml')).Hash -eq $beforeMission) 'decision or lifecycle was changed'
+
+$parseErrors = $null; $tokens = $null
+$installerAst = [System.Management.Automation.Language.Parser]::ParseFile($Installer, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+$completionFunction = $installerAst.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-PostUpdateCompatibility' }, $true)
+. ([scriptblock]::Create($completionFunction.Extent.Text))
+$currentProvenance = Get-Content (Join-Path $proj '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json -AsHashtable
+$notChecked = & {
+        function Get-Command { param($Name, $ErrorAction) return $null }
+        Invoke-PostUpdateCompatibility -Root $proj -ToolsDir (Join-Path $proj '.mxagile/tools') -CoreProvenance $currentProvenance
+} | ConvertFrom-Json
+Assert-True 'U4 missing Python leaves successful framework NOT_VERIFIED' ($notChecked.framework.update_successful -and -not $notChecked.doctor.executed -and $notChecked.doctor.compatibility -eq 'NOT_VERIFIED' -and $notChecked.doctor.reason -eq 'PYTHON_UNAVAILABLE' -and $null -eq $notChecked.doctor.safe_deterministic_count) 'unavailable verification treated as pass or zero repairs'
+
+$missingScript = Invoke-PostUpdateCompatibility -Root $proj -ToolsDir (New-TempDir) -CoreProvenance $currentProvenance | ConvertFrom-Json
+Assert-True 'U4 missing Doctor script has a concrete reason' ($missingScript.doctor.compatibility -eq 'NOT_VERIFIED' -and -not $missingScript.doctor.executed -and $missingScript.doctor.reason -eq 'DOCTOR_SCRIPT_UNAVAILABLE') 'missing script not diagnosed'
+
+foreach ($scenario in @('exit3', 'invalid-json', 'exit-mismatch', 'validator-missing', 'schema-missing')) {
+    $notChecked = & {
+        function Get-Command { param($Name, $ErrorAction) return @{Source='Invoke-FixturePython'} }
+        function Invoke-FixturePython {
+            $global:LASTEXITCODE = 2
+            if ($scenario -eq 'exit3') { $global:LASTEXITCODE = 3; return }
+            if ($scenario -eq 'invalid-json') { return '{' }
+            if ($scenario -eq 'exit-mismatch') { $global:LASTEXITCODE = 0 }
+            $diagnostic = if ($scenario -eq 'validator-missing') {
+                @{ category='UNSUPPORTED_VARIANT'; affected_board_area='schemas'; message='Validator unavailable'; blocking=$true; repairability='UNSUPPORTED'; source_path=$null }
+            } else {
+                @{ category='SCHEMA_ERROR'; affected_board_area='tasks'; message='Schema constraints failed: SCHEMA_UNAVAILABLE.'; blocking=$true; repairability='AGENT_REPAIRABLE'; source_path='planning/tasks/TASK-001.yml' }
+            }
+            @{ stage='PROJECT_COMPATIBILITY_CHECKED'; read_only=$true; compatibility='BLOCKED'; repair_status='PROJECT_REPAIR_REQUIRED'; diagnostics=@($diagnostic) } | ConvertTo-Json -Depth 10 -Compress
+        }
+        Invoke-PostUpdateCompatibility -Root $proj -ToolsDir (Join-Path $proj '.mxagile/tools') -CoreProvenance $currentProvenance
+    } | ConvertFrom-Json
+    Assert-True "U4 $scenario is NOT_VERIFIED, never compatible" ($notChecked.framework.update_successful -and $notChecked.doctor.executed -and $notChecked.doctor.compatibility -eq 'NOT_VERIFIED' -and $null -eq $notChecked.doctor.safe_deterministic_count -and $null -ne $notChecked.doctor.reason) 'invalid/unavailable Doctor accepted'
+}
 } finally {
     foreach ($t in $Temps) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }
 }

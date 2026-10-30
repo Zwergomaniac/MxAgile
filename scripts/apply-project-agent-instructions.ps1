@@ -376,6 +376,11 @@ When starting, resuming, or picking up work, follow this order:
    `.mxagile/policies/capability-discovery.md`. Installed does not mean usable; never assume health;
    an unavailable or failing optional capability never blocks the normal MxAgile path.
 
+8. **MxAgile install/update requests** - follow `.mxagile/policies/update-contract.md`.
+    A normal update includes the read-only post-update Doctor without another question.
+    Report framework success separately from project compatibility, including diagnostics and
+    repair counts from `.mxagile/state/last-update-result.json`; unavailable checks are NOT_VERIFIED.
+
 Detailed policy: `.mxagile/policies/lifecycle-resync.md`
 '@
 

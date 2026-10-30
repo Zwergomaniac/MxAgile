@@ -133,6 +133,46 @@ handles distribution acquisition, commit resolution, and invokes `install-core.p
 Do NOT create a second competing update mechanism. Do NOT create a second Core distribution
 channel. Extend the existing mechanism only.
 
+### Mandatory post-update compatibility and agent completion
+
+A plain request such as "MxAgile updaten" includes the read-only post-update
+Doctor without another user question. The completion sequence is:
+`FRAMEWORK_INSTALLED` -> Doctor -> `PROJECT_COMPATIBILITY_CHECKED` -> agent report.
+Installer exit 0 means framework installation succeeded, NOT project compatibility.
+The same check runs on repeated updates, even when the Core commit is unchanged.
+
+After setup, read `.mxagile/state/last-update-result.json`, the installer-owned
+handoff for this invocation. Check it against the current Core provenance and
+the observed installer outcome; a prior result is not proof of this run. It is
+diagnostic evidence only, never lifecycle authority. If the result is absent
+(for example, updating from an older distribution), run the installed Doctor
+directly with `doctor --project-root . --format json` and consume its result.
+Never infer compatibility from framework version, commit, installer exit 0,
+migration completion, or a previous Doctor result.
+
+The final agent response MUST contain:
+- Framework: previous and new version/commit (UNKNOWN when unavailable), and
+  update successful YES/NO from the installer outcome.
+- Project Compatibility: Doctor executed YES/NO, compatibility state
+  (`COMPATIBLE`, `PARTIAL`, `BLOCKED`, or `NOT_VERIFIED`), and `repair_status`.
+- Blocking diagnostics: redacted category and relative source path, plus
+  SAFE_DETERMINISTIC, AGENT_REPAIRABLE, DECISION_REQUIRED, and UNSUPPORTED counts. These count
+  diagnostic findings, not distinct files or approved repair operations.
+
+Keep a compatible result compact (no diagnostic dump). For incompatible results,
+include UNASSIGNED tasks and other nonblocking diagnostics needed to explain the
+state; reference the handoff for remaining details. Do not copy secret values or
+source contents. If Python, dependencies, schemas, or valid Doctor output are
+unavailable, report `NOT_VERIFIED` with the concrete reason, never PASS. Framework
+installation may still be successful. A failed installer remains a failed update;
+do not use an older successful handoff to override it.
+
+The automatic step runs Doctor only, never repair. SAFE_DETERMINISTIC availability
+is not a green result before repair. Actual repairs follow the existing
+project-compatibility and mission/autonomy contracts; DECISION_REQUIRED never
+authorizes an automatic business decision. No lifecycle/wave changes, evidence
+promotion, or finding closure are authorized by an update or Doctor result.
+
 ---
 
 ## 6. Offline and Network-Degraded Behavior

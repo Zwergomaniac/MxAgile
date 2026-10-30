@@ -25,6 +25,119 @@ param (
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function Invoke-PostUpdateCompatibility {
+    param([string]$Root, [string]$ToolsDir, [System.Collections.IDictionary]$CoreProvenance)
+
+    $result = [ordered]@{
+        schema_version = 1
+        installed_at = $CoreProvenance.installed_at
+        framework = [ordered]@{
+            update_successful = $true
+            previous_version = $CoreProvenance.previous_version
+            previous_commit = $CoreProvenance.previous_commit
+            version = $CoreProvenance.version
+            commit = $CoreProvenance.commit
+        }
+        doctor = [ordered]@{
+            executed = $false
+            exit_code = $null
+            compatibility = 'NOT_VERIFIED'
+            reason = 'PYTHON_UNAVAILABLE'
+            repair_status = $null
+            blocking_diagnostic_count = $null
+            safe_deterministic_count = $null
+            agent_repairable_count = $null
+            decision_required_count = $null
+            unsupported_count = $null
+            report = $null
+        }
+    }
+    $doctor = $result.doctor
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCommand) { $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+    if ($pythonCommand) {
+        try {
+            $doctorPath = Join-Path $ToolsDir 'project_compatibility.py'
+            $doctor.reason = 'DOCTOR_SCRIPT_UNAVAILABLE'
+            if (-not (Test-Path -LiteralPath $doctorPath -PathType Leaf)) { throw 'Doctor script missing' }
+            $doctor.reason = 'DOCTOR_EXECUTION_FAILED: check Python and .mxagile/tools/requirements.txt'
+            $doctor.executed = $true
+            $PSNativeCommandUseErrorActionPreference = $false
+            $doctorOutput = & $pythonCommand.Source $doctorPath doctor --project-root $Root --format json 2>$null
+            $doctor.exit_code = $LASTEXITCODE
+            if ($doctor.exit_code -notin @(0, 1, 2)) {
+                $doctor.reason = "DOCTOR_EXIT_$($doctor.exit_code): check Python and .mxagile/tools/requirements.txt"
+                throw 'Doctor unavailable'
+            }
+            $doctor.reason = 'DOCTOR_OUTPUT_INVALID'
+            $report = ($doctorOutput -join "`n") | ConvertFrom-Json
+            if ($report.stage -ne 'PROJECT_COMPATIBILITY_CHECKED' -or $report.read_only -ne $true -or
+                $report.compatibility -notin @('COMPATIBLE', 'PARTIAL', 'BLOCKED') -or
+                $doctor.exit_code -ne @{'COMPATIBLE'=0; 'PARTIAL'=1; 'BLOCKED'=2}[$report.compatibility]) {
+                throw 'Doctor contract invalid'
+            }
+            $unavailable = @($report.diagnostics | Where-Object {
+                ($_.category -eq 'UNSUPPORTED_VARIANT' -and $_.affected_board_area -eq 'schemas') -or
+                ($_.category -eq 'SCHEMA_ERROR' -and $_.message -match 'VALIDATOR_UNAVAILABLE|SCHEMA_UNAVAILABLE')
+            })
+            if ($unavailable.Count -gt 0) {
+                $doctor.reason = 'DOCTOR_REQUIREMENTS_OR_SCHEMAS_UNAVAILABLE'
+            } else {
+                $doctor.blocking_diagnostic_count = @($report.diagnostics | Where-Object { $_.blocking }).Count
+                $doctor.safe_deterministic_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'SAFE_DETERMINISTIC' }).Count
+                $doctor.agent_repairable_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'AGENT_REPAIRABLE' }).Count
+                $doctor.decision_required_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'DECISION_REQUIRED' }).Count
+                $doctor.unsupported_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'UNSUPPORTED' }).Count
+                $doctor.repair_status = $report.repair_status
+                $doctor.compatibility = $report.compatibility
+                $doctor.reason = $null
+            }
+            $doctor.report = $report
+        } catch { }
+    }
+
+    $handoff = Join-Path $Root '.mxagile/state/last-update-result.json'
+    $json = $result | ConvertTo-Json -Depth 30
+    try {
+        [System.IO.File]::WriteAllText($handoff, $json + "`n", [System.Text.UTF8Encoding]::new($false))
+    } catch {
+        Write-Host 'Compatibility handoff could not be saved; consume the result below.' -ForegroundColor Yellow
+    }
+    Write-Host ''
+    Write-Host 'MxAgile update completion (framework and project compatibility are separate):'
+    Write-Host "Update: SUCCESS"
+    $previousVersion = if ($CoreProvenance.previous_version) { $CoreProvenance.previous_version } else { 'UNKNOWN' }
+    $previousCommit = if ($CoreProvenance.previous_commit) { $CoreProvenance.previous_commit } else { 'UNKNOWN' }
+    $commit = if ($CoreProvenance.commit) { $CoreProvenance.commit } else { 'UNKNOWN' }
+    Write-Host "Framework previous: $previousVersion / $previousCommit"
+    Write-Host "Framework installed: $($CoreProvenance.version) / $commit"
+    Write-Host "Doctor executed: $($doctor.executed)"
+    Write-Host "PROJECT_COMPATIBILITY: $($doctor.compatibility)"
+    if ($doctor.reason) { Write-Host "  Reason: $($doctor.reason)" }
+    if ($doctor.compatibility -eq 'NOT_VERIFIED') {
+        Write-Host '  Blocking diagnostics / SAFE_DETERMINISTIC / AGENT_REPAIRABLE / DECISION_REQUIRED / UNSUPPORTED: UNKNOWN'
+    } else {
+        Write-Host "  Blocking diagnostics: $($doctor.blocking_diagnostic_count); repair status: $($doctor.repair_status)"
+        Write-Host "  SAFE_DETERMINISTIC: $($doctor.safe_deterministic_count); AGENT_REPAIRABLE: $($doctor.agent_repairable_count); DECISION_REQUIRED: $($doctor.decision_required_count); UNSUPPORTED: $($doctor.unsupported_count)"
+    }
+    if ($null -ne $doctor.report) {
+        Write-Host "  PROJECT_COMPATIBILITY_CHECKED: $($doctor.report.compatibility) (read-only; no repairs applied)."
+        if ($doctor.compatibility -ne 'COMPATIBLE') {
+            $diagnostics = @($doctor.report.diagnostics | Sort-Object -Property @{Expression='blocking'; Descending=$true}, source_path, category)
+            foreach ($diagnostic in ($diagnostics | Select-Object -First 10)) {
+                Write-Host "  $($diagnostic.category): $($diagnostic.source_path) (blocking=$($diagnostic.blocking); $($diagnostic.repairability))"
+            }
+            if ($diagnostics.Count -gt 10) { Write-Host "  Remaining diagnostics: $($diagnostics.Count - 10); see handoff." }
+        }
+    }
+    Write-Host 'Agent completion MUST report framework success AND project compatibility; read .mxagile/state/last-update-result.json.'
+    $summary = [ordered]@{ installed_at = $result.installed_at; framework = $result.framework; doctor = [ordered]@{} }
+    foreach ($key in $doctor.Keys) {
+        if ($key -ne 'report') { $summary.doctor[$key] = $doctor[$key] }
+    }
+    Write-Output ($summary | ConvertTo-Json -Depth 10 -Compress)
+}
+
 function Add-ContextModeRuntimeGitIgnore {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -786,28 +899,7 @@ try {
     Write-Host "[OK] Core installation complete." -ForegroundColor Green
     Write-Host "FRAMEWORK_INSTALLED (project compatibility is checked separately)."
 
-    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $pythonCommand) { $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
-    if ($pythonCommand) {
-        try {
-            $doctorOutput = & $pythonCommand.Source (Join-Path $destToolsDir "project_compatibility.py") doctor --project-root $ProjectRoot --format json 2>$null
-            $doctorExit = $LASTEXITCODE
-            if ($doctorExit -notin @(0, 1, 2)) { throw "Doctor unavailable" }
-            $doctorReport = ($doctorOutput -join "`n") | ConvertFrom-Json
-            if ($doctorReport.stage -ne "PROJECT_COMPATIBILITY_CHECKED" -or $doctorReport.read_only -ne $true) { throw "Doctor contract invalid" }
-            Write-Host "PROJECT_COMPATIBILITY_CHECKED: $($doctorReport.compatibility) (read-only; no repairs applied)."
-            Write-Host "  Diagnostics: $(@($doctorReport.diagnostics).Count)"
-            if ($doctorReport.compatibility -ne "COMPATIBLE") {
-                Write-Host "  Run: python .mxagile/tools/project_compatibility.py doctor --project-root ."
-                Write-Host "  Repair planning: python .mxagile/tools/project_compatibility.py repair --dry-run --project-root ."
-            }
-        } catch {
-            Write-Host "PROJECT_COMPATIBILITY: NOT_VERIFIED (Doctor unavailable; installation is not compatibility evidence)." -ForegroundColor Yellow
-            Write-Host "  Check Python and install dependencies: python -m pip install -r .mxagile/tools/requirements.txt"
-        }
-    } else {
-        Write-Host "PROJECT_COMPATIBILITY: NOT_VERIFIED (Python unavailable)." -ForegroundColor Yellow
-    }
+    Invoke-PostUpdateCompatibility -Root $ProjectRoot -ToolsDir $destToolsDir -CoreProvenance $coreProv
 
     Write-Host ""
     Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray

@@ -60,6 +60,7 @@ Consumers of this contract include:
 | `mxcli.exe` | RUNTIME | mxcli download service | `install-mxcli.ps1` (via `mxagile-init.ps1`) | MxAgile | Update via `update-mxcli.ps1` | Skip if exists and up-to-date |
 | `.mxagile/layers/{id}/` | COPY (from Git/Local) | Company Layer Git/Local source | `fetch-layer.ps1` or `install-core.ps1` | Company Layer | Replace on reinstall | Replace existing |
 | `.mxagile/layers/{id}/provenance.json` | GENERATE | Installation metadata | `fetch-layer.ps1` / `install-core.ps1` | MxAgile | Overwrite on reinstall | Always regenerated |
+| `.mxagile/state/last-update-result.json` | GENERATE | Current Core provenance and read-only Doctor result | `install-core.ps1` | MxAgile | Replace after successful install/update; diagnostic handoff, not lifecycle authority | Doctor runs again; bound to current provenance `installed_at` |
 | `.mxagile/state/manifest.{id}.md` | GENERATE | Layer install metadata | `fetch-layer.ps1` | MxAgile | Overwrite on reinstall | Always regenerated |
 | `requirements/` | CREATE | Empty directory | `mxagile-init.ps1` | Project | Never overwrite content | Idempotent (skip if exists) |
 | `specs/` | CREATE | Empty directory | `mxagile-init.ps1` | Project | Never overwrite content | Idempotent (skip if exists) |
