@@ -64,6 +64,10 @@
           "type": "string",
           "description": "Git-tracked canonical path relative to project root. Under planning/evidence/screenshots/target/ (mockup) or planning/evidence/screenshots/actual/ (application). NOT under .concord/ (gitignored)."
         },
+        "capture_id": {
+          "type": "string",
+          "description": "ID of the capture group that produced this artifact. Screenshot and DOM/accessibility/YAML snapshots from the same browser capture use exactly the same ID."
+        },
         "dimension": {
           "type": "string",
           "enum": ["visual", "content", "structure", "state", "interaction", "responsive", "role"]
@@ -72,6 +76,52 @@
         "provenance": { "type": "string", "description": "Original temporary source path before promotion, for audit trail." },
         "promoted_at": { "type": "string", "description": "ISO date when promoted from temporary to canonical." },
         "passed": { "type": "boolean", "description": "Whether this evidence supports a PASS finding." }
+      }
+    },
+    "capture_group": {
+      "type": "object",
+      "required": ["capture_id", "capture_source", "captured_at", "comparison_identity", "runtime_url", "role", "target_screen", "session_id", "run_id", "screenshot_path", "snapshots", "cleanliness_state"],
+      "additionalProperties": false,
+      "description": "One atomic browser capture. Target mockup and actual application captures use separate capture IDs but the identical comparison_identity.",
+      "properties": {
+        "capture_id": { "type": "string", "minLength": 1 },
+        "capture_source": {
+          "type": "string",
+          "enum": ["mockup", "application"],
+          "description": "Which side of the parity comparison this capture represents. Mockup and application captures require distinct capture IDs."
+        },
+        "captured_at": { "type": "string", "format": "date-time" },
+        "comparison_identity": {
+          "allOf": [
+            { "$ref": "parity-verification.schema.json#/properties/comparison_identity" },
+            { "properties": { "status": { "const": "BOUND" } }, "required": ["status"] }
+          ]
+        },
+        "runtime_url": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "minLength": 1 },
+        "target_screen": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "screenshot_path": { "type": "string", "minLength": 1 },
+        "snapshots": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["path", "type"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "type": { "type": "string", "enum": ["dom", "accessibility", "yaml"] }
+            }
+          },
+          "description": "DOM/accessibility/YAML snapshots taken as part of this same capture operation."
+        },
+        "cleanliness_state": {
+          "type": "string",
+          "const": "clean",
+          "description": "Only clean captures can enter the canonical manifest. Contaminated captures remain temporary and are not promoted."
+        }
       }
     },
     "evidence_entry": {
@@ -130,6 +180,10 @@
           "pattern": "^sha256:[a-f0-9]{64}$",
           "description": "Optional: SHA-256 bundle hash of the target at time of verification. Hash-based identity for the exact bundle state this evidence was collected against."
         },
+        "comparison_identity": {
+          "$ref": "parity-verification.schema.json#/properties/comparison_identity",
+          "description": "Immutable reference/app/model identity shared by every artifact and phase in this parity run."
+        },
         "parity_report_path": {
           "type": "string",
           "description": "Path to the parity-verification YAML that details dimension results."
@@ -152,6 +206,12 @@
           "type": "array",
           "description": "Evidence collected from the RUNNING APPLICATION (observed state). Establishes what the application actually produces for this scenario. Evidence source is the application running in Playwright. Compared against target_evidence to produce parity_result.",
           "items": { "$ref": "#/definitions/evidence_artifact" }
+        },
+        "capture_groups": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Capture-time bindings. Every promoted screenshot and its DOM/accessibility/YAML snapshots must be linked to one capture group; matching names or timestamps alone do not establish provenance.",
+          "items": { "$ref": "#/definitions/capture_group" }
         },
         "artifacts": {
           "type": "array",
@@ -202,7 +262,22 @@
           "type": "string",
           "description": "Optional narrative about this evidence entry."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "capture_groups": { "minItems": 1 } },
+            "required": ["capture_groups"]
+          },
+          "then": {
+            "required": ["comparison_identity"],
+            "properties": {
+              "target_evidence": { "items": { "required": ["capture_id"] } },
+              "actual_evidence": { "items": { "required": ["capture_id"] } }
+            }
+          }
+        }
+      ]
     }
   }
 }

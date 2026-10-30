@@ -207,7 +207,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Pure static checks on project-knowledge.md, evidence-contract.md, ui-parity.md, evidence-manifest.schema.json, .gitignore."
+    "Reason": "Pure static checks on project knowledge, schema-v2 immutable comparison identity, capture-group provenance, visual evidence promotion gates, and Git-tracking contracts."
   },
   {
     "File": "test-verification-scenarios.ps1",
@@ -252,7 +252,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Pure static contract checks on parity schemas, identity/navigation/evidence safety, static-vs-runtime role visibility, browser Origin constraints, and mandatory Fresh-Full whole-screen discovery with bounded page scope and severity."
+    "Reason": "Pure static contract checks on schema-v2 immutable comparison identity, six-layer evidence matrix, paired capture provenance, browser Origin constraints, static-vs-runtime visibility, and bounded Fresh-Full discovery."
   },
   {
     "File": "test-documentation-consistency.ps1",
@@ -297,7 +297,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Static checks on mockup-materialization.md, page.schema.json, evidence-manifest.schema.json plus read-only fixture YAML files."
+    "Reason": "Static checks on mockup materialization, parity/evidence schemas and read-only fixtures, including REV-17/REV-9 active-revision drift, immutable comparison identity, atomic screenshot/snapshot capture provenance, and visual promotion gates."
   },
   {
     "File": "test-gradle-stall-diagnosis.ps1",

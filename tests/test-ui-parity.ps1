@@ -338,6 +338,12 @@ Assert-FileContains "S.11 fresh_full PASS requires completed whole-screen review
 Assert-FileContains "S.12 UI Agent requires independent fresh-full runtime pass" `
     $UiAgent 'Fresh-Full-Abgleich'
 
+Assert-FileContains "S.12.2 new UI parity reports use schema version 2" `
+    $UiAgent 'schema_version: 2'
+
+Assert-FileContains "S.12.3 report output includes comparison identity and evidence matrix" `
+    $UiAgent '(?is)comparison_identity.*evidence_matrix'
+
 Assert-FileContains "S.12.1 whole-screen pass is not limited to listed U-items" `
     $UiAgent 'vorherigen Findings stehen'
 
@@ -381,6 +387,36 @@ Assert-True "S.15 schema gates fresh_full PASS on completed review" `
 
 Assert-True "S.16 schema prohibits PASS when fresh_full review is blocked" `
     $schemaBlocksPassWhenFreshFullReviewBlocked "Blocked fresh-full review can still report overall PASS"
+
+Assert-FileContains "S.17 schema-v2 parity records carry immutable identity" `
+    $ParitySchema 'comparison_identity'
+
+Assert-FileContains "S.18 evidence matrix keeps six evidence layers separate" `
+    $ParitySchema 'contract_parity.*model_parity.*structural_dom_parity.*behavioral_parity.*role_parity.*visual_whole_screen_parity'
+
+Assert-FileContains "S.19 DOM evidence cannot claim visual whole-screen parity" `
+    $ParityPol 'A DOM, HTML, or Accessibility snapshot MUST NOT be labeled visual parity'
+
+Assert-FileContains "S.20 reference drift invalidates prior evidence rather than reusing it" `
+    $ParityPol 'REFERENCE_DRIFT.*invalidate evidence'
+
+Assert-FileContains "S.21 comparison identity carries target path revision fingerprint page roles/states and app/model revisions" `
+    $ParitySchema 'canonical_mockup_path.*revision.*fingerprint.*target_page.*roles.*states.*app_revision.*model_revision'
+
+Assert-FileContains "S.22 visual evidence matrix remains a distinct status" `
+    $ParitySchema 'visual_whole_screen_parity'
+
+Assert-FileContains "S.23 whole-screen completion records reference, runtime, and visually reviewed capture IDs" `
+    $ParitySchema 'reference_capture_ids.*runtime_capture_ids.*visually_reviewed_capture_ids'
+
+Assert-FileContains "S.24 visually reviewed capture IDs must cover both comparison sides" `
+    $EvidenceContract 'include the IDs from both lists'
+
+Assert-FileContains "S.25 evidence matrix capture IDs are unique" `
+    $ParitySchema 'capture_ids.*uniqueItems.*true'
+
+Assert-FileContains "S.26 new parity reports never copy the v1 dimensions-only example" `
+    $UiAgent '(?is)Neue Reports.*schema_version: 2.*comparison_identity.*evidence_matrix'
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

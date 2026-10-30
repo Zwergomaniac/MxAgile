@@ -386,6 +386,31 @@ Runtime-Modi-Vertrag: `.mxagile/policies/development-runtime.md` § Runtime Mode
 Voraussetzung: laufende Applikation + repraesentativer Daten-Zustand + korrekte Benutzerrolle.
 Ohne diese Kombination ist kein valider Browser-Evidenz-Nachweis moeglich.
 
+### Immutable Comparison Identity (Pflicht vor Parity)
+
+Vor jeder Contract-, Modell-, Browser-, DOM-, Screenshot- oder Report-Pruefung eine einzige
+`comparison_identity` aus dem kanonischen UI-Inventar, Mockup-Lifecycle sowie Runtime-/Modellstand
+binden:
+
+- `active_target`, kanonischer Mockup-Pfad, akzeptierte Revision und SHA-256 des vollstaendigen
+  aktiven Einzeldatei-Mockups oder Bundles;
+- Zielseite, angeforderte Rollen und Zustaende aus UI-Inventar und Verification Plan;
+- App-Revision/Runtime-Build-ID (falls nicht exponiert: `NOT_EXPOSED` dokumentieren);
+- Modellrevision (bevorzugt deklarierte Revision, sonst deterministischer `.mpr`-Fingerprint
+  plus Repository-/Dirty-Status).
+
+Die angeforderte Revision gegen `revision.yaml`, `active_target` und Fingerprint pruefen.
+Dateinamen wie `all-role-modes` sind kein Authority-Nachweis. Den vollstaendigen aktiven
+Mockup-Pfad und die Revision verwenden; partielle HTML-/JS-Reads reichen nicht als
+Whole-Screen- oder Visual-Referenz.
+
+Identitaet als `schema_version: 2` im Parity-Report und in Capture-Gruppen festhalten. Vor/nach
+jeder Modell-, Runtime-, DOM-, Screenshot- und Report-Phase die Felder erneut vergleichen.
+Bei jeder Aenderung: `comparison_identity.status: REFERENCE_DRIFT`, vorherige Evidence dieses
+Laufs invalidieren, keine Promotion und keinen Implementierungsscope daraus ableiten. Bei
+unvollstaendiger Identitaet `INCOMPLETE` / `NOT_VERIFIED` melden und keine Parity-PASS-Aussage
+oder Promotion erzeugen.
+
 ### Voraussetzungen Verifying-Modus
 
 Runtime-Preparation ist vor dem Runtime-Start auszufuehren, sobald Browser-/Runtime-Evidenz
@@ -431,6 +456,13 @@ Nach fehlgeschlagener Navigation oder unerwartetem Error-/Warning-Dialog ist die
 Evidence kontaminiert. Vor Screenshot/DOM-Capture `policies/evidence-contract.md` § Evidence
 Cleanliness Gate ausfuehren. Keine Evidence in einem ueberlagerten oder nicht sicher
 wiederhergestellten Zustand aufnehmen oder promoten.
+
+Jede Screenshot-/Snapshot-Aufnahme erhaelt eine neue `capture_id`. Screenshot und DOM-,
+Accessibility- oder YAML-Snapshot muessen in derselben Capture-Operation, Session und URL
+entstehen und dieselbe ID tragen. Aehnliche Dateinamen oder Zeitstempel verbinden keine
+Captures. Screenshots nach der Aufnahme tatsaechlich oeffnen und visuell pruefen; erzeugt,
+aber nicht betrachtet bedeutet `visual_whole_screen_parity: NOT_VERIFIED`. Getrennte
+`playwright-cli eval()`- und Screenshot-Aufrufe sind keine gemeinsame Capture-Provenienz.
 
 ### Observe-Before-Mutate Vorbedingung
 
@@ -545,8 +577,17 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
 
   Bei Fresh-Full-Parity: `verification_scope: fresh_full` und
   `whole_screen_review.status: complete` setzen, falls der Pass abgeschlossen ist; sonst
-  `blocked` mit Grund. Targeted verification bleibt als targeted markiert. Unerwartete
-  Runtime-Strukturen werden in den passenden Dimensions-Deviations festgehalten.
+  `blocked` mit Grund. `comparison_identity` und alle sechs getrennten `evidence_matrix`-
+  Statusfelder ausfuellen. Whole-Screen-PASS erfordert gerenderte und visuell geoeffnete
+  Referenz- und Runtime-Captures; deren IDs muessen unter `reference_capture_ids`,
+  `runtime_capture_ids` und `visually_reviewed_capture_ids` referenziert sein. Targeted
+  verification bleibt als targeted markiert. Unerwartete Runtime-Strukturen werden in den
+  passenden Dimensions-Deviations festgehalten.
+
+  Der folgende YAML-Block illustriert ausschliesslich die Dimensionsstruktur im Legacy-Schema
+  v1 und darf nicht als neue Reportvorlage kopiert werden. Neue Reports verwenden immer
+  `schema_version: 2`, eine gebundene `comparison_identity`, alle `evidence_matrix`-
+  Statusfelder und bei `fresh_full` den Capture-belegten `whole_screen_review`.
 
 ```yaml
 page_id: PAGE-CUSTOMER-NEWEDIT

@@ -140,9 +140,14 @@ try {
         (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'Fresh-Full-Abgleich' -and
         (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'Whole-Screen'
     )
+    Assert-True 'Generated UI agent binds immutable comparison identity and capture provenance' (
+        (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'Immutable Comparison Identity' -and
+        (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'capture_id'
+    )
     Assert-True 'Generated visual skill routes to canonical URL/origin contract' (
         (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'Canonical Browser Target' -and
-        (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'allowedOrigins'
+        (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'allowedOrigins' -and
+        (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'shared `capture_id`'
     )
 } finally {
     $env:PATH = $previousPath

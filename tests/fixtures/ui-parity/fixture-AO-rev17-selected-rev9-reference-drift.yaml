@@ -1,0 +1,34 @@
+fixture_id: FIXTURE-UI-PARITY-REFERENCE-DRIFT
+scenario: Fresh-full page parity request binds REV-017; an older REV-009 is selected from a misleading filename.
+requested_reference:
+  revision: REV-17
+  canonical_path: planning/target-mockups/Regions/_history/REV-17/
+selected_reference:
+  revision: REV-9
+  path: input-resources/ui-ux/20261007_fte-plannung_rev9_all-role-modes.html
+  selection_basis: misleading_filename_only
+mockup_evidence:
+  source_reads:
+    - grep_hits
+    - partial_html_read
+    - partial_javascript_read
+  complete_rendered: false
+  screenshot_path: null
+  screenshot_opened: false
+runtime_evidence:
+  screenshots_generated: true
+  screenshots_opened: false
+  selected_dom_eval_results: true
+  screenshot_capture_id: null
+  dom_capture_id: null
+  shared_capture_group: false
+expected:
+  comparison_identity:
+    status: REFERENCE_DRIFT
+  evidence_matrix:
+    visual_whole_screen_parity: NOT_VERIFIED
+  whole_screen_review:
+    status: blocked
+  overall_result: NOT_VERIFIED
+  promotion: blocked
+  implementation_scope: none

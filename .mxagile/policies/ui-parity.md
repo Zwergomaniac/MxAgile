@@ -17,6 +17,7 @@ Full schema: `.mxagile/schemas/parity-verification.schema.json`
 Related policies:
 - `policies/verification-scenario.md` — material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy
 - `policies/evidence-contract.md` — screenshot lifecycle, temporary vs. canonical evidence, evidence manifest, promotion contract
+- `policies/mockup-materialization.md` — render the exact active target revision before visual comparison
 - `policies/observe-before-mutate.md` — enforced lifecycle order: observe → parity → finding-reconciliation → reconcile → refine → implement
 - `policies/parity-finding-reconciliation.md` — mandatory observation-vs-interpretation protocol, finding classification, requirement ID authority, planning-state awareness, remediation eligibility gate
 
@@ -357,6 +358,44 @@ Full evidence contract: `policies/evidence-contract.md`.
 ---
 
 ## Targeted Re-Verification vs. Full Reconciliation
+
+## Immutable Comparison Identity and Evidence Matrix
+
+Every new parity record uses schema version 2 and binds one immutable `comparison_identity`
+before the first contract, model, browser, DOM, screenshot, or report step. Resolve authority
+from the UI inventory and mockup lifecycle; inspect the canonical revision manifest and
+fingerprint the complete active file/bundle. Never select a reference by a suggestive filename
+or partial grep/source reads. The identity contains active-target path, canonical mockup path,
+accepted revision, SHA-256 fingerprint, target page, in-scope roles/states, application
+revision, and model revision.
+
+Reuse the identical identity in model findings, runtime/DOM records, capture groups, and the
+final parity report. Before and after every evidence-producing phase, recheck it. Any changed
+field is `REFERENCE_DRIFT`; invalidate evidence from the prior identity and do not silently
+reuse it. Mark the run `NOT_VERIFIED` until a new identity is bound and required evidence is
+recollected. Incomplete app/model revision information is explicit and cannot be claimed as
+`BOUND`.
+
+Record independent status for these evidence layers in `evidence_matrix`:
+
+| Matrix status | Evidence layer |
+|---|---|
+| `contract_parity` | Requirements, decisions, accepted target authority |
+| `model_parity` | Mendix model inspection; does not prove rendered visibility or visual fidelity |
+| `structural_dom_parity` | Rendered DOM hierarchy/components; does not prove appearance |
+| `behavioral_parity` | Actions, state transitions, and navigation behavior |
+| `role_parity` | Role-specific session and rendered state |
+| `visual_whole_screen_parity` | Opened and visually inspected target-vs-actual screenshot captures over the whole in-scope screen |
+
+A DOM, HTML, or Accessibility snapshot MUST NOT be labeled visual parity. A required visual
+matrix status that is not `PASS`, or a missing/blocked whole-screen review, prevents overall
+PASS. Matrix statuses complement the seven dimensions; they do not collapse or replace their
+independent results. Old schema-version-1 reports remain legacy records and gain no identity or
+capture provenance retroactively. Any earlier Whole-Screen-PASS claim without this bound
+identity and inspected, paired visual evidence is `NOT_VERIFIED` for current parity; it cannot
+authorize implementation scope.
+
+---
 
 ### Lazy Reconciliation
 
