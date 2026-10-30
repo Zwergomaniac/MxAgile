@@ -459,6 +459,14 @@ try {
     Copy-Item -LiteralPath $projectBoardServerSource -Destination (Join-Path $destToolsDir "serve_project_board.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/serve_project_board.py (loopback only)."
 
+    $doctorSource = Join-Path $PSScriptRoot "project_compatibility.py"
+    if (-not (Test-Path -LiteralPath $doctorSource -PathType Leaf)) {
+        throw "project_compatibility.py not found in script directory."
+    }
+    Copy-Item -LiteralPath $doctorSource -Destination (Join-Path $destToolsDir "project_compatibility.py") -Force
+    Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) "requirements.txt") -Destination (Join-Path $destToolsDir "requirements.txt") -Force
+    Write-Host "[OK] Distributed Compatibility Doctor and Python requirements."
+
     # =========================================================================
     # Core Installation Provenance
     # Writes machine-readable identity to .mxagile/state/core-provenance.json so
@@ -529,7 +537,9 @@ try {
                 ".mxagile/tools/Resolve-MxAgileMxcli.ps1",
                 ".mxagile/tools/check-studio-pro-status.ps1",
                 ".mxagile/tools/build_project_status.py",
-                ".mxagile/tools/serve_project_board.py"
+                ".mxagile/tools/serve_project_board.py",
+                ".mxagile/tools/project_compatibility.py",
+                ".mxagile/tools/requirements.txt"
             )
         }
     }
@@ -774,6 +784,30 @@ try {
 
     Write-Host ""
     Write-Host "[OK] Core installation complete." -ForegroundColor Green
+    Write-Host "FRAMEWORK_INSTALLED (project compatibility is checked separately)."
+
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCommand) { $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+    if ($pythonCommand) {
+        try {
+            $doctorOutput = & $pythonCommand.Source (Join-Path $destToolsDir "project_compatibility.py") doctor --project-root $ProjectRoot --format json 2>$null
+            $doctorExit = $LASTEXITCODE
+            if ($doctorExit -notin @(0, 1, 2)) { throw "Doctor unavailable" }
+            $doctorReport = ($doctorOutput -join "`n") | ConvertFrom-Json
+            if ($doctorReport.stage -ne "PROJECT_COMPATIBILITY_CHECKED" -or $doctorReport.read_only -ne $true) { throw "Doctor contract invalid" }
+            Write-Host "PROJECT_COMPATIBILITY_CHECKED: $($doctorReport.compatibility) (read-only; no repairs applied)."
+            Write-Host "  Diagnostics: $(@($doctorReport.diagnostics).Count)"
+            if ($doctorReport.compatibility -ne "COMPATIBLE") {
+                Write-Host "  Run: python .mxagile/tools/project_compatibility.py doctor --project-root ."
+                Write-Host "  Repair planning: python .mxagile/tools/project_compatibility.py repair --dry-run --project-root ."
+            }
+        } catch {
+            Write-Host "PROJECT_COMPATIBILITY: NOT_VERIFIED (Doctor unavailable; installation is not compatibility evidence)." -ForegroundColor Yellow
+            Write-Host "  Check Python and install dependencies: python -m pip install -r .mxagile/tools/requirements.txt"
+        }
+    } else {
+        Write-Host "PROJECT_COMPATIBILITY: NOT_VERIFIED (Python unavailable)." -ForegroundColor Yellow
+    }
 
     Write-Host ""
     Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray

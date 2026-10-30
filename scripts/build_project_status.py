@@ -12,6 +12,8 @@ from typing import Any
 
 import yaml
 
+from project_compatibility import compatibility_report, identity_matches, load_yaml, schema_errors
+
 PHASES = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
 TASK_STATUSES = ("pending", "in_progress", "done", "failed", "blocked", "deferred")
 REQUIREMENT_STATUSES = ("draft", "accepted", "deferred", "superseded")
@@ -34,9 +36,12 @@ def add_gap(gaps: list[dict[str, str | None]], code: str, source: str | None, de
 
 
 def safe_path(root: Path, path: Path) -> bool:
-    if path.is_symlink():
-        return False
     try:
+        current = root
+        for part in path.relative_to(root).parts:
+            current = current / part
+            if current.is_symlink():
+                return False
         path.resolve().relative_to(root)
     except (OSError, ValueError):
         return False
@@ -60,8 +65,14 @@ def read_yaml_file(
     try:
         raw = path.read_bytes()
         hashes[relative_path] = hashlib.sha256(raw).hexdigest()
-        value = yaml.safe_load(raw.decode("utf-8-sig"))
-    except (OSError, UnicodeError, yaml.YAMLError):
+        value = load_yaml(raw.decode("utf-8-sig"))
+    except yaml.YAMLError as exc:
+        add_gap(gaps, "SOURCE_PARSE_FAILED", relative_path, "Canonical source could not be read as UTF-8 YAML.")
+        mark = getattr(exc, "problem_mark", None)
+        if mark is not None:
+            gaps[-1].update({"line": mark.line + 1, "column": mark.column + 1})
+        return None, "invalid"
+    except (OSError, UnicodeError):
         add_gap(gaps, "SOURCE_PARSE_FAILED", relative_path, "Canonical source could not be read as UTF-8 YAML.")
         return None, "invalid"
     if not isinstance(value, dict):
@@ -103,12 +114,31 @@ def read_collection(
             continue
         if id_field:
             expected_id = path.parent.name if path.name == "revision.yaml" else path.stem
-            if value.get(id_field) != expected_id:
+            if not identity_matches(relative, value.get(id_field), expected_id):
                 add_gap(gaps, "ARTIFACT_ID_MISMATCH", relative, f"{id_field} does not match the canonical filename or revision directory.")
                 invalid += 1
                 continue
+            if value.get(id_field) != expected_id:
+                if schema_errors(relative, value):
+                    add_gap(gaps, "SOURCE_SHAPE_INVALID", relative, "Legacy-named artifact must satisfy its canonical schema.")
+                    invalid += 1
+                    continue
+                add_gap(gaps, "LEGACY_FILENAME", relative, "Documented descriptive Test Contract filename accepted.")
         records.append(value)
         relative_paths.append(relative)
+
+    if id_field:
+        duplicate_ids = {record[id_field] for record in records if sum(other[id_field] == record[id_field] for other in records) > 1}
+        if duplicate_ids:
+            retained = []
+            for record, relative in zip(records, relative_paths):
+                if record[id_field] in duplicate_ids:
+                    add_gap(gaps, "DUPLICATE_ID", relative, "Canonical artifact identity is duplicated.")
+                    invalid += 1
+                else:
+                    retained.append((record, relative))
+            records = [record for record, _ in retained]
+            relative_paths = [relative for _, relative in retained]
 
     if invalid and records:
         return "partial", records, relative_paths
@@ -134,7 +164,7 @@ def status_counts(
 
 
 def progress_projection(records: list[dict[str, Any]], state: str) -> dict[str, Any]:
-    is_available = state == "available"
+    is_available = state in ("available", "partial")
     return {
         "availability": state if state in ("available", "partial", "ambiguous") else "unavailable",
         "total": len(records) if is_available else None,
@@ -152,10 +182,11 @@ def delivery_projection(
     wave_ids = {wave["wave_id"] for wave in waves}
     wave_tasks: dict[str, list[dict[str, Any]]] = {wave_id: [] for wave_id in wave_ids}
     workpackage_tasks: dict[tuple[str | None, str], list[dict[str, Any]]] = {}
-    unmapped_workpackage = 0 if task_state == "available" else None
-    unmapped_wave = 0 if task_state == "available" else None
+    readable = task_state in ("available", "partial")
+    unmapped_workpackage = 0 if readable else None
+    unmapped_wave = 0 if readable else None
 
-    if task_state == "available":
+    if readable:
         for task in tasks:
             wave_id = task.get("wave_id")
             if isinstance(wave_id, str) and wave_id in wave_tasks:
@@ -175,8 +206,8 @@ def delivery_projection(
         add_gap(gaps, "WORKPACKAGE_MAPPING_PARTIAL", "planning/tasks", f"{unmapped_workpackage} canonical task(s) have no explicit workpackage_id.")
 
     updated_waves: list[dict[str, Any]] = []
-    checklist_total = 0 if task_state == "available" else None
-    checklist_done = 0 if task_state == "available" else None
+    checklist_total = 0 if readable else None
+    checklist_done = 0 if readable else None
     checklist_source: str | None = None
     checklists_by_wave = {
         Path(path).name.split("-", 1)[0]: path
@@ -191,8 +222,8 @@ def delivery_projection(
             if isinstance(task.get("migrated_from"), str)
             and task["migrated_from"].replace("\\", "/") == checklist_path
         ] if checklist_path else []
-        if checklist_path and task_state == "available" and checklist_tasks:
-            checklist_state = "available"
+        if checklist_path and readable and checklist_tasks:
+            checklist_state = task_state
             checklist_count: int | None = len(checklist_tasks)
             checklist_done_count: int | None = sum(1 for task in checklist_tasks if task.get("status") == "done")
             checklist_source = checklist_path
@@ -205,7 +236,7 @@ def delivery_projection(
         requirement_ids = sorted({
             requirement_id
             for task in assigned
-            for requirement_id in task.get("req", []) if isinstance(task.get("req"), list)
+            for requirement_id in (task.get("req") if isinstance(task.get("req"), list) else [])
             if isinstance(requirement_id, str)
         })
         updated_waves.append({
@@ -215,7 +246,7 @@ def delivery_projection(
                 "availability": checklist_state,
                 "total": checklist_count,
                 "done": checklist_done_count,
-                "source": checklist_path if checklist_state == "available" else None,
+                "source": checklist_path if checklist_state in ("available", "partial") else None,
             },
             "requirement_ids": requirement_ids,
             "task_ids": sorted(task["ID"] for task in assigned if isinstance(task.get("ID"), str)),
@@ -230,30 +261,30 @@ def delivery_projection(
             "requirement_ids": sorted({
                 requirement_id
                 for task in package_tasks
-                for requirement_id in task.get("req", []) if isinstance(task.get("req"), list)
+                for requirement_id in (task.get("req") if isinstance(task.get("req"), list) else [])
                 if isinstance(requirement_id, str)
             }),
             "task_ids": sorted(task["ID"] for task in package_tasks if isinstance(task.get("ID"), str)),
         })
-    package_availability = "unavailable" if task_state != "available" else "available"
-    if task_state == "available" and (unmapped_workpackage or unmapped_wave):
+    package_availability = task_state if readable else "unavailable"
+    if readable and (unmapped_workpackage or unmapped_wave):
         package_availability = "partial" if packages else "unknown"
-    if task_state == "available" and not packages:
+    if readable and not packages:
         package_availability = "unavailable"
 
-    if task_state != "available":
+    if not readable:
         checklist_status = "unavailable"
     elif checklist_total:
-        checklist_status = "available"
+        checklist_status = task_state
     elif checklist_paths:
         checklist_status = "unknown"
     else:
         checklist_status = "unavailable"
     checklist_summary = {
         "availability": checklist_status,
-        "total": checklist_total if checklist_status == "available" else None,
-        "done": checklist_done if checklist_status == "available" else None,
-        "source": checklist_source if checklist_status == "available" else None,
+        "total": checklist_total if checklist_status in ("available", "partial") else None,
+        "done": checklist_done if checklist_status in ("available", "partial") else None,
+        "source": checklist_source if checklist_status in ("available", "partial") else None,
     }
     return updated_waves, checklist_summary, {
         "availability": package_availability,
@@ -760,7 +791,7 @@ def build_status(project_root: Path) -> dict[str, Any]:
     add_gap(gaps, "PROJECT_ID_UNAVAILABLE", "mxagile-project.yaml", "No stable project identifier exists; display name is not an identity.")
 
     def available(state: str) -> bool:
-        return state == "available"
+        return state in ("available", "partial")
 
     def normalized(state: str) -> str:
         return state if state in ("available", "partial", "unavailable", "ambiguous") else "unavailable"
@@ -879,7 +910,7 @@ def build_status(project_root: Path) -> dict[str, Any]:
         requirement_id
         for decision in decisions
         if decision.get("status") == "PROPOSED"
-        for requirement_id in decision.get("affected_requirements", [])
+        for requirement_id in (decision.get("affected_requirements") if isinstance(decision.get("affected_requirements"), list) else [])
         if isinstance(requirement_id, str)
     }) if available(decision_state) else []
 
@@ -1020,7 +1051,7 @@ def build_status(project_root: Path) -> dict[str, Any]:
             return None
         return canonical_reference(root, value, ("planning/checklists/",))[0]
 
-    return {
+    result = {
         "schema_version": 2,
         "projection": True,
         "authority": "mxagile_canonical_artifacts",
@@ -1113,6 +1144,9 @@ def build_status(project_root: Path) -> dict[str, Any]:
         "source_references": {"availability": source_reference_state, "items": source_references},
         "gaps": sorted(gaps, key=lambda gap: (gap["code"], gap["source"] or "", gap["description"])),
     }
+    result["compatibility"] = compatibility_report(root, result, hashes)
+    result["source_fingerprint"] = result["compatibility"]["source_fingerprint"]
+    return result
 
 
 def main() -> int:

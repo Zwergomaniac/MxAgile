@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.8.0] - 2026-10-30
+
+### Added: Deterministic Project Mission Control
+
+- Read-only local board for portfolio, project overview, waves/workpackages,
+	requirements, verification/evidence, findings, and decisions.
+- Project Status Contract v2 and deterministic canonical-artifact builder without
+	LLM calls or a second lifecycle authority.
+- Per-bundle ACTIVE_TARGET references, explicit single-file authority, revision
+	drift detection, and source deep links.
+- Core installation and update distribution of board assets and tools.
+
+### Security and Evidence Boundaries
+
+- Loopback-only HTTP serving with allowlisted references and sources; no general
+	filesystem access, traversal, symlink serving, or directory browsing.
+- Target freshness is separate from model freshness; model freshness remains
+	`UNKNOWN` until verification evidence has a reliable model fingerprint.
+
+### Added: Compatibility Doctor and Controlled Repair
+
+- Read-only post-install/update Doctor separates framework installation from
+	current parser, schema, identity, reference and assignment compatibility.
+- Structured, sanitized diagnostics expose positions, repairability and coverage;
+	the board retains partial results and displays unassigned recognized tasks.
+- Fingerprint-bound repair plans support conservative text-scalar quoting,
+	exact checklist-provenance wave assignments, bounded reviewed candidates,
+	per-file atomic writes and scoped rollback without lifecycle promotion.
+
 ## [1.7.1] — 2026-10-15
 
 ### Added: Autonomy-First Compaction Hardening

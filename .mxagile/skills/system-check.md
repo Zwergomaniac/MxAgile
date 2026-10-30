@@ -15,7 +15,8 @@ Before any mxcli operation, resolve the project-declared/project-local executabl
 disagree. Use the resolved absolute path; do not make a new PATH lookup.
 
 Permitted read-only operations: read files, list directories, run the resolved mxcli
-`--version`, run `git status` / `git log` / `git diff` (read-only only).
+`--version`, run `git status` / `git log` / `git diff` (read-only only), and run the
+Compatibility Doctor in `doctor` mode as described below. Never invoke repair.
 
 ---
 
@@ -106,6 +107,18 @@ Also check migration and canonicalization state:
 ---
 
 ## G. Company Layer
+
+### Current project compatibility (read-only)
+
+Run `python .mxagile/tools/project_compatibility.py doctor --project-root . --format json`.
+Report its `compatibility`, `repair_status`, coverage and diagnostic categories,
+source paths and parser positions without source contents. Use
+`policies/project-compatibility.md` for the diagnostic and bounded repair contract.
+Missing tool, Python or dependencies means NOT_VERIFIED, not compatible.
+Report FRAMEWORK_INSTALLED separately from PROJECT_COMPATIBILITY_CHECKED and its
+COMPATIBLE/PARTIAL/BLOCKED result. Historical complete migration/canonicalization
+does not prove current board compatibility. Do not apply repairs in this skill;
+list the exact scoped follow-up and required decisions instead.
 
 1. Check `.mxagile/layers/` for subdirectories. If none: report `NOT_APPLICABLE`.
 2. For each layer subdirectory found:

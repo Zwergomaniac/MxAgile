@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
 from build_project_status import build_status
+from project_compatibility import safe_file
 
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
 UI_FILES = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styles.css", "/board.js": "board.js"}
@@ -149,6 +150,23 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self._send(503, payload, "application/json; charset=utf-8")
                 return
             self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path.startswith("/diagnostic-source/"):
+            try:
+                requested = unquote(parsed.path[len("/diagnostic-source/"):], errors="strict")
+            except UnicodeError:
+                self.send_error(404)
+                return
+            if canonical_url_path(requested) is None or safe_file(self.project_root, requested) is None:
+                self.send_error(404)
+                return
+            diagnostics = [item for item in self._status().get("compatibility", {}).get("diagnostics", []) if item["source_path"] == requested]
+            if not diagnostics:
+                self.send_error(404)
+                return
+            body = json.dumps({"source_path": requested, "source_content": "REDACTED", "diagnostics": diagnostics}, sort_keys=True, indent=2).encode("utf-8")
+            self._send(200, body, "text/plain; charset=utf-8")
             return
 
         ui_name = UI_FILES.get(parsed.path)

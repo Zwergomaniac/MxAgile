@@ -79,8 +79,9 @@ Assert-True 'large-source fallback explicitly forbids direct full read' (($polic
 Write-Host "--- Fresh install ---" -ForegroundColor Yellow
 $proj = New-TempDir
 New-Item -ItemType File -Path (Join-Path $proj 'project.mpr') | Out-Null
-$null = & pwsh -NoProfile -File $Installer -ProjectRoot $proj 2>&1
+$freshOutput = @(& pwsh -NoProfile -File $Installer -ProjectRoot $proj 2>&1)
 Assert-True 'fresh install exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+Assert-True 'fresh install separates Core installation and compatibility' (($freshOutput -join "`n") -match 'FRAMEWORK_INSTALLED' -and ($freshOutput -join "`n") -match 'PROJECT_COMPATIBILITY') 'separate results missing'
 $freshGitignore = Get-Content (Join-Path $proj '.gitignore') -Raw
 Assert-True 'fresh install ignores project-local Context Mode runtime roots' (($freshGitignore -match '(?m)^\.context-mode/\r?$') -and ($freshGitignore -match '(?m)^\.github/context-mode/\r?$')) 'runtime roots missing from .gitignore'
 $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
@@ -88,6 +89,8 @@ $mxcliResolver = Join-Path $proj '.mxagile/tools/Resolve-MxAgileMxcli.ps1'
 $detector = Join-Path $proj '.mxagile/tools/check-studio-pro-status.ps1'
 $statusBuilder = Join-Path $proj '.mxagile/tools/build_project_status.py'
 $boardServer = Join-Path $proj '.mxagile/tools/serve_project_board.py'
+$doctor = Join-Path $proj '.mxagile/tools/project_compatibility.py'
+$requirements = Join-Path $proj '.mxagile/tools/requirements.txt'
 $statusSchema = Join-Path $proj '.mxagile/schemas/project-status.schema.json'
 $boardIndex = Join-Path $proj '.mxagile/board/index.html'
 $boardStyles = Join-Path $proj '.mxagile/board/styles.css'
@@ -101,6 +104,8 @@ Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-F
 Assert-True 'status builder distributed to .mxagile/tools' ((Test-Path $statusBuilder) -and ((Get-FileHash $statusBuilder).Hash -eq (Get-FileHash $ProjectStatusSrc).Hash)) 'builder missing or hash differs'
 Assert-True 'status schema distributed with canonical Core payload' ((Test-Path $statusSchema) -and ((Get-FileHash $statusSchema).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/schemas/project-status.schema.json')).Hash)) 'schema missing or hash differs'
 Assert-True 'loopback board server distributed to .mxagile/tools' ((Test-Path $boardServer) -and ((Get-FileHash $boardServer).Hash -eq (Get-FileHash $ProjectBoardServerSrc).Hash)) 'board server missing or hash differs'
+Assert-True 'Compatibility Doctor distributed to tools' ((Test-Path $doctor) -and ((Get-FileHash $doctor).Hash -eq (Get-FileHash (Join-Path $Scripts 'project_compatibility.py')).Hash)) 'Doctor missing or hash differs'
+Assert-True 'Python requirements distributed to tools' ((Test-Path $requirements) -and ((Get-FileHash $requirements).Hash -eq (Get-FileHash (Join-Path $RepoRoot 'requirements.txt')).Hash)) 'requirements missing or hash differs'
 Assert-True 'read-only board UI distributed with canonical Core payload' ((Test-Path $boardIndex) -and ((Get-FileHash $boardIndex).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/board/index.html')).Hash)) 'board UI missing or hash differs'
 Assert-True 'board CSS distributed with canonical Core payload' ((Test-Path $boardStyles) -and ((Get-FileHash $boardStyles).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/board/styles.css')).Hash)) 'board CSS missing or hash differs'
 Assert-True 'board JavaScript distributed with canonical Core payload' ((Test-Path $boardScript) -and ((Get-FileHash $boardScript).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/board/board.js')).Hash)) 'board JavaScript missing or hash differs'
@@ -129,6 +134,7 @@ Assert-True 'provenance lists project-distributed mxcli runtime resolver' (@($pr
 Assert-True 'provenance lists project-distributed detector' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/check-studio-pro-status.ps1') 'provenance missing detector entry'
 Assert-True 'provenance lists project-distributed status builder' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/build_project_status.py') 'provenance missing status builder entry'
 Assert-True 'provenance lists project-distributed board server' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/serve_project_board.py') 'provenance missing board server entry'
+Assert-True 'provenance lists Doctor' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/project_compatibility.py') 'provenance missing Doctor entry'
 
 # installed agent reaches resolver (default project root = installed project) and gets guidance
 $bin = New-TempDir
@@ -163,6 +169,7 @@ Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content $statusBuilder '# tampered' -Encoding UTF8
 Set-Content $boardServer '# tampered' -Encoding UTF8
+Set-Content $doctor '# tampered' -Encoding UTF8
 Set-Content $contextAdapter '# tampered' -Encoding UTF8
 Set-Content $contextIntegration '# tampered' -Encoding UTF8
 Set-Content $capabilityPolicy '# tampered' -Encoding UTF8
@@ -171,8 +178,14 @@ New-Item -ItemType Directory -Path (Join-Path $proj 'scripts') | Out-Null
 Set-Content (Join-Path $proj 'scripts/mine.ps1') '# project-owned' -Encoding UTF8
 $projectGitignore = Join-Path $proj '.gitignore'
 Set-Content $projectGitignore "# project-owned`ncustom-runtime/`n" -Encoding UTF8
-$null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
+$processDir = Join-Path $proj 'planning/lifecycle'
+New-Item -ItemType Directory -Path $processDir -Force | Out-Null
+$invalidProcess = Join-Path $processDir 'process-state.yaml'
+Set-Content $invalidProcess 'waves: invalid: fixture-value' -Encoding UTF8
+$beforeProcess = (Get-FileHash $invalidProcess).Hash
+$updateOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1)
 Assert-True 'update exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+Assert-True 'update reports compatibility separately without rewriting invalid state' ((Get-FileHash $invalidProcess).Hash -eq $beforeProcess -and ($updateOutput -join "`n") -match 'PROJECT_COMPATIBILITY') 'Doctor mutated project source or report absent'
 Assert-True 'update restores capability discovery policy' ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash) 'policy not restored'
 $updatedGitignore = Get-Content $projectGitignore -Raw
 Assert-True 'update preserves project .gitignore and adds runtime ignores' (($updatedGitignore -match 'project-owned') -and ($updatedGitignore -match 'custom-runtime/') -and ($updatedGitignore -match '(?m)^\.context-mode/\r?$') -and ($updatedGitignore -match '(?m)^\.github/context-mode/\r?$')) "project .gitignore was overwritten or runtime ignores missing: $updatedGitignore"
@@ -182,6 +195,7 @@ Assert-True 'update restores mxcli runtime resolver to current distribution vers
 Assert-True 'update restores detector to current distribution version' ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) 'not restored'
 Assert-True 'update restores status builder to current distribution version' ((Get-FileHash $statusBuilder).Hash -eq (Get-FileHash $ProjectStatusSrc).Hash) 'not restored'
 Assert-True 'update restores board server to current distribution version' ((Get-FileHash $boardServer).Hash -eq (Get-FileHash $ProjectBoardServerSrc).Hash) 'not restored'
+Assert-True 'update restores Compatibility Doctor' ((Get-FileHash $doctor).Hash -eq (Get-FileHash (Join-Path $Scripts 'project_compatibility.py')).Hash) 'Doctor not restored'
 $adapterHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/adapters/copilot/context-mode-cli.yaml')).Hash
 $integrationHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/integrations/context-mode.yaml')).Hash
 Assert-True 'update restores Context Mode adapter' ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) 'adapter not restored'

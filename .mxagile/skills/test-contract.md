@@ -71,6 +71,10 @@ Do not remove the proof point — it remains as an unmet obligation.
 
 Write to `planning/test-contracts/TC-NNN.yaml` using `schemas/test-contract.schema.json`.
 
+Existing descriptive `TC-NNN-<ASCII suffix>.yaml` filenames are accepted only under
+`policies/project-compatibility.md`: matching numeric ID, full schema validity,
+and unique ID. Continue to write new contracts with exact canonical filenames.
+
 Set:
 - `status: draft` (transitions to `active` when the Verification Plan is produced)
 - `derived_at: <today>`

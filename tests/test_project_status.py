@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import build_project_status
 import canonicalize_artifacts
 import serve_project_board
+import project_compatibility
 
 
 def write_file(root: Path, relative: str, content: str) -> Path:
@@ -284,6 +285,227 @@ class ProjectStatusTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp.cleanup()
+
+    def test_parser_diagnostic_preserves_location_without_source_content(self) -> None:
+      write_file(self.root, "planning/lifecycle/process-state.yaml", "waves: invalid: secret-scalar-value\n")
+      _, status = run_builder(self.root)
+      diagnostic = next(gap for gap in status["gaps"] if gap["code"] == "SOURCE_PARSE_FAILED")
+      self.assertEqual(diagnostic["line"], 1)
+      self.assertGreater(diagnostic["column"], 0)
+      self.assertNotIn("secret-scalar-value", json.dumps(status))
+      self.assertEqual(len(status["delivery"]["tasks"]["items"]), 2)
+
+    def test_doctor_is_read_only_deterministic_and_sanitized(self) -> None:
+      write_file(self.root, "planning/lifecycle/process-state.yaml", "waves: invalid: SECRET-SYNTAX\n")
+      before = tree_fingerprint(self.root)
+      first = build_project_status.build_status(self.root)["compatibility"]
+      second = build_project_status.build_status(self.root)["compatibility"]
+      self.assertEqual(first, second)
+      self.assertEqual(before, tree_fingerprint(self.root))
+      diagnostic = next(item for item in first["diagnostics"] if item["category"] == "SYNTAX_ERROR")
+      self.assertEqual(diagnostic["line"], 1)
+      self.assertEqual(diagnostic["affected_board_area"], "waves")
+      self.assertEqual(first["coverage"]["task"]["parsed"], 2)
+      self.assertNotIn("SECRET-SYNTAX", json.dumps(first))
+      self.assertNotIn("do-not-export", json.dumps(first))
+
+    def test_legacy_contract_suffix_requires_schema_and_unique_identity(self) -> None:
+      original = self.root / "planning/test-contracts/TC-001.yaml"
+      suffix = original.with_name("TC-001-descriptive-name.yaml")
+      original.rename(suffix)
+      status = build_project_status.build_status(self.root)
+      self.assertEqual(len(status["verification"]["test_contracts"]["items"]), 1)
+      self.assertTrue(any(item["category"] == "LEGACY_VARIANT" for item in status["compatibility"]["diagnostics"]))
+      shutil.copyfile(suffix, original)
+      status = build_project_status.build_status(self.root)
+      self.assertEqual(status["verification"]["test_contracts"]["items"], [])
+      self.assertTrue(any(item["category"] == "DUPLICATE_ID" for item in status["compatibility"]["diagnostics"]))
+      original.unlink()
+      suffix.write_text(suffix.read_text().replace("ID: TC-001", "ID: TC-999"))
+      self.assertEqual(build_project_status.build_status(self.root)["verification"]["test_contracts"]["items"], [])
+
+    def test_partial_verification_retains_valid_plan(self) -> None:
+      write_file(self.root, "planning/verification-plans/VPL-002.yaml", "ID: invalid: scalar\n")
+      status = build_project_status.build_status(self.root)
+      self.assertEqual(status["verification"]["plans"]["availability"], "partial")
+      self.assertEqual(status["verification"]["plans"]["status_counts"]["active"], 1)
+
+    def test_duplicate_mapping_keys_are_not_silently_accepted(self) -> None:
+      write_file(self.root, "planning/tasks/TASK-001.yml", "ID: TASK-001\nID: TASK-999\n")
+      write_task(self.root, "TASK-002", "done", wave_id="W01", workpackage_id="WP-01")
+      status = build_project_status.build_status(self.root)
+      self.assertEqual(len(status["delivery"]["tasks"]["items"]), 1)
+      self.assertEqual(status["delivery"]["task_progress"]["total"], 1)
+      self.assertEqual(status["delivery"]["waves"]["items"][0]["task_progress"]["total"], 1)
+      self.assertEqual(status["delivery"]["workpackages"]["items"][0]["task_ids"], ["TASK-002"])
+      self.assertTrue(any(item["category"] == "SYNTAX_ERROR" for item in status["compatibility"]["diagnostics"]))
+
+    def test_wave_repair_is_scoped_dry_run_and_idempotent(self) -> None:
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\nitems: []\n")
+      write_task(self.root, "TASK-001", "done", migrated_from="planning/checklists/W01-implementation-checklist.yaml")
+      before = tree_fingerprint(self.root)
+      report = build_project_status.build_status(self.root)["compatibility"]
+      plan = project_compatibility.repair_plan(self.root, report)
+      self.assertEqual(plan["file_scope"], ["planning/tasks/TASK-001.yml"])
+      self.assertEqual(before, tree_fingerprint(self.root))
+      result = project_compatibility.apply_repair(self.root, plan["plan_hash"])
+      value = project_compatibility.load_yaml((self.root / plan["file_scope"][0]).read_bytes())
+      self.assertEqual(value["wave_id"], "W01")
+      self.assertEqual(value["status"], "done")
+      self.assertEqual(value["assignment_provenance"]["rule"], "migrated_from_checklist_v1")
+      self.assertEqual(result["applied"], plan["file_scope"])
+      after = build_project_status.build_status(self.root)
+      self.assertEqual(project_compatibility.repair_plan(self.root, after["compatibility"])["repairs"], [])
+
+    def test_ambiguous_and_conflicting_assignments_need_decision(self) -> None:
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W02\n")
+      write_task(self.root, "TASK-001", "pending", wave_id="W02", migrated_from="planning/checklists/W01-implementation-checklist.yaml")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      self.assertTrue(any(item["category"] == "AUTHORITY_CONFLICT" and item["repairability"] == "DECISION_REQUIRED" for item in report["diagnostics"]))
+      self.assertEqual(project_compatibility.repair_plan(self.root, report)["repairs"], [])
+
+    def test_yaml_quote_repair_preserves_text_comments_and_phase(self) -> None:
+      path = self.root / "planning/lifecycle/process-state.yaml"
+      original = path.read_text().replace("phase: verifying", "phase: verifying\n    resume_from: stage: continue # marker")
+      path.write_text(original, encoding="utf-8")
+      self.assertIsNone(project_compatibility.quoted_yaml_candidate("planning/lifecycle/process-state.yaml", path.read_bytes()))
+      path.write_text(original.replace(" # marker", ""), encoding="utf-8")
+      raw = path.read_bytes()
+      replacement = project_compatibility.quoted_yaml_candidate("planning/lifecycle/process-state.yaml", raw)
+      self.assertIsNotNone(replacement)
+      value = project_compatibility.load_yaml(replacement)
+      self.assertEqual(value["waves"]["W01"]["resume_from"], "stage: continue")
+      self.assertEqual(value["waves"]["W01"]["phase"], "verifying")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      plan = project_compatibility.repair_plan(self.root, report)
+      self.assertNotIn("stage: continue", json.dumps(plan))
+      project_compatibility.apply_repair(self.root, plan["plan_hash"])
+      self.assertEqual(path.read_bytes(), replacement)
+
+    def test_stale_repair_plan_cannot_write(self) -> None:
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\n")
+      write_task(self.root, "TASK-001", "pending", migrated_from="planning/checklists/W01-implementation-checklist.yaml")
+      plan = project_compatibility.repair_plan(self.root, build_project_status.build_status(self.root)["compatibility"])
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W02\n")
+      before = tree_fingerprint(self.root)
+      with self.assertRaises(ValueError):
+        project_compatibility.apply_repair(self.root, plan["plan_hash"])
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_failed_write_rolls_back_only_written_files(self) -> None:
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\n")
+      for task_id in ("TASK-001", "TASK-002"):
+        write_task(self.root, task_id, "pending", migrated_from="planning/checklists/W01-implementation-checklist.yaml")
+      plan = project_compatibility.repair_plan(self.root, build_project_status.build_status(self.root)["compatibility"])
+      before = tree_fingerprint(self.root)
+      actual = project_compatibility.atomic_replace
+      calls = []
+      def fail_second(path, raw):
+        calls.append(path)
+        if len(calls) == 2:
+          raise OSError("fixture failure")
+        actual(path, raw)
+      with patch.object(project_compatibility, "atomic_replace", side_effect=fail_second):
+        with self.assertRaises(ValueError):
+          project_compatibility.apply_repair(self.root, plan["plan_hash"])
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_agent_candidates_cannot_promote_lifecycle_status(self) -> None:
+      task = self.root / "planning/tasks/TASK-001.yml"
+      task.write_text(task.read_text() + "unsupported_field: fixture\n")
+      staged = Path(self.temp.name) / "candidate"
+      write_file(staged, "planning/tasks/TASK-001.yml", "ID: TASK-001\nspec: SPEC-001\naction: Test\nstatus: done\n")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      self.assertEqual(project_compatibility.repair_plan(self.root, report, staged)["repairs"], [])
+
+    def test_invalid_legacy_json_and_missing_validator_never_pass(self) -> None:
+      write_file(self.root, "planning/tasks/TASK-LEGACY.json", '{"ID": "secret-marker", invalid}\n')
+      report = build_project_status.build_status(self.root)["compatibility"]
+      self.assertTrue(any(item["category"] == "SYNTAX_ERROR" and item["line"] == 1 for item in report["diagnostics"]))
+      self.assertNotIn("secret-marker", json.dumps(report))
+      with patch.object(project_compatibility, "jsonschema", None):
+        self.assertEqual(build_project_status.build_status(self.root)["compatibility"]["compatibility"], "BLOCKED")
+
+    def test_doctor_and_repair_cli_are_read_only_by_default(self) -> None:
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\n")
+      write_task(self.root, "TASK-001", "pending", migrated_from="planning/checklists/W01-implementation-checklist.yaml")
+      before = tree_fingerprint(self.root)
+      for command in ("doctor", "repair"):
+        output = StringIO()
+        with patch.object(sys, "argv", ["project_compatibility.py", command, "--project-root", str(self.root), "--format", "json"]):
+          with redirect_stdout(output):
+            exit_code = project_compatibility.main()
+        self.assertIn(exit_code, (0, 1, 2))
+        self.assertIsInstance(json.loads(output.getvalue()), dict)
+        self.assertEqual(before, tree_fingerprint(self.root))
+
+    def test_invalid_yaml_indentation_and_lifecycle_scalar_are_not_autorepaired(self) -> None:
+      for content in (b'waves:\n W01:\n  phase: done: promoted\n', b'waves:\n  W01:\n    phase: ready\n   gates: {}\n'):
+        self.assertIsNone(project_compatibility.quoted_yaml_candidate("planning/lifecycle/process-state.yaml", content))
+
+    def test_scoped_repair_can_reach_compatible_without_promoting_mission(self) -> None:
+      for directory in ("planning/evidence/manifests", "planning/target-mockups"):
+        shutil.rmtree(self.root / directory)
+        (self.root / directory).mkdir(parents=True)
+      (self.root / "planning/findings").mkdir()
+      write_file(self.root, "specs/SPEC-001.yml", "ID: SPEC-001\ntitle: Fixture\ndescription: Fixture spec\nrequirements: [REQ-001]\n")
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\n")
+      for task_id in ("TASK-001", "TASK-002"):
+        write_task(self.root, task_id, "pending", migrated_from="planning/checklists/W01-implementation-checklist.yaml")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      plan = project_compatibility.repair_plan(self.root, report)
+      after = project_compatibility.apply_repair(self.root, plan["plan_hash"])
+      self.assertEqual(after["compatibility"]["compatibility"], "COMPATIBLE")
+      self.assertEqual(build_project_status.build_status(self.root)["mission"]["status"], "blocked")
+
+    def test_reviewed_agent_candidate_and_reference_failure_rollback(self) -> None:
+      write_file(self.root, "specs/SPEC-001.yml", "ID: SPEC-001\ntitle: Fixture\ndescription: Fixture spec\nrequirements: [REQ-001]\n")
+      task = self.root / "planning/tasks/TASK-001.yml"
+      original = task.read_bytes()
+      task.write_bytes(original + b'unsupported_field: fixture\n')
+      staged = Path(self.temp.name) / "candidate"
+      candidate = write_file(staged, "planning/tasks/TASK-001.yml", original.decode() + "req: [REQ-999]\n")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      plan = project_compatibility.repair_plan(self.root, report, staged)
+      self.assertEqual(plan["file_scope"], ["planning/tasks/TASK-001.yml"])
+      before = tree_fingerprint(self.root)
+      with self.assertRaises(ValueError):
+        project_compatibility.apply_repair(self.root, plan["plan_hash"], staged)
+      self.assertEqual(tree_fingerprint(self.root), before)
+      candidate.write_bytes(original)
+      plan = project_compatibility.repair_plan(self.root, report, staged)
+      project_compatibility.apply_repair(self.root, plan["plan_hash"], staged)
+      self.assertEqual(task.read_bytes(), original)
+
+    def test_verification_proof_point_reference_is_checked(self) -> None:
+      path = self.root / "planning/verification-plans/VPL-001.yaml"
+      path.write_text(path.read_text().replace("PP-001", "PP-999"))
+      report = build_project_status.build_status(self.root)["compatibility"]
+      self.assertTrue(any(item["category"] == "REFERENCE_MISSING" and item["authority"] == "test_contract_id/proof_points" for item in report["diagnostics"]))
+
+    def test_diagnostic_source_endpoint_never_serves_raw_invalid_source(self) -> None:
+      import threading
+      import urllib.request
+      import urllib.error
+      write_file(self.root, "planning/lifecycle/process-state.yaml", "waves: invalid: SECRET-HTTP-VALUE\n")
+      server = serve_project_board.ProjectBoardServer(self.root, self.root / ".mxagile/board", 0)
+      worker = threading.Thread(target=server.serve_forever, daemon=True)
+      worker.start()
+      try:
+        base = f"http://127.0.0.1:{server.server_port}"
+        response = urllib.request.urlopen(base + "/diagnostic-source/planning/lifecycle/process-state.yaml")
+        payload = response.read().decode()
+        self.assertIn("SYNTAX_ERROR", payload)
+        self.assertNotIn("SECRET-HTTP-VALUE", payload)
+        self.assertEqual(json.loads(payload)["diagnostics"][0]["line"], 1)
+        for path in ("/diagnostic-source/.env.mendix", "/diagnostic-source/../.env.mendix"):
+          with self.assertRaises(urllib.error.HTTPError) as failure:
+            urllib.request.urlopen(base + path)
+          self.assertEqual(failure.exception.code, 404)
+      finally:
+        server.shutdown()
+        server.server_close()
+        worker.join()
 
     def test_projection_is_deterministic_read_only_and_secret_free(self) -> None:
         before = tree_fingerprint(self.root)

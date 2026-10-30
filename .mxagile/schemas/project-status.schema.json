@@ -24,6 +24,56 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "compatibility": {
+      "type": "object",
+      "required": ["schema_version", "read_only", "stage", "compatibility", "source_fingerprint", "repair_status", "coverage", "diagnostics"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "read_only": { "const": true },
+        "stage": { "const": "PROJECT_COMPATIBILITY_CHECKED" },
+        "compatibility": { "enum": ["COMPATIBLE", "PARTIAL", "BLOCKED"] },
+        "source_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "repair_status": { "enum": ["PROJECT_REPAIR_REQUIRED", "DECISION_REQUIRED", null] },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["recognized", "parsed", "invalid", "unassigned"],
+            "additionalProperties": false,
+            "properties": {
+              "recognized": { "type": "integer", "minimum": 0 },
+              "parsed": { "type": "integer", "minimum": 0 },
+              "invalid": { "type": "integer", "minimum": 0 },
+              "unassigned": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["diagnostic_id", "severity", "category", "source_path", "line", "column", "artifact_type", "affected_board_area", "message", "repairability", "proposed_repair_type", "authority", "blocking"],
+            "additionalProperties": false,
+            "properties": {
+              "diagnostic_id": { "type": "string", "pattern": "^DX-[0-9a-f]{16}$" },
+              "severity": { "enum": ["INFO", "WARNING", "ERROR"] },
+              "category": { "enum": ["SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "REFERENCE_MISSING", "REFERENCE_AMBIGUOUS", "WAVE_ASSIGNMENT_MISSING", "LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DUPLICATE_ID", "AUTHORITY_CONFLICT", "FRESHNESS_UNKNOWN", "MISSING", "UNASSIGNED", "STALE"] },
+              "source_path": { "type": ["string", "null"] },
+              "line": { "type": ["integer", "null"], "minimum": 1 },
+              "column": { "type": ["integer", "null"], "minimum": 1 },
+              "artifact_type": { "type": "string" },
+              "affected_board_area": { "type": "string" },
+              "message": { "type": "string" },
+              "repairability": { "enum": ["SAFE_DETERMINISTIC", "AGENT_REPAIRABLE", "DECISION_REQUIRED", "UNSUPPORTED"] },
+              "proposed_repair_type": { "enum": ["QUOTE_TEXT_SCALAR", "ADD_WAVE_ID", null] },
+              "authority": { "type": ["string", "null"] },
+              "blocking": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
     "schema_version": { "type": "integer", "const": 2 },
     "projection": { "type": "boolean", "const": true },
     "authority": { "type": "string", "const": "mxagile_canonical_artifacts" },
@@ -553,7 +603,9 @@
         "properties": {
           "code": { "type": "string" },
           "source": { "type": ["string", "null"] },
-          "description": { "type": "string" }
+          "description": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "column": { "type": "integer", "minimum": 1 }
         }
       }
     }

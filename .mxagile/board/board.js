@@ -52,7 +52,7 @@ function stateBadge(value, kind = "") {
   const normalized = String(value || "UNKNOWN");
   let tone = "unknown";
   if (["done", "VERIFIED", "CONFIRMED", "passed", "available", "ACTIVE_TARGET", "consistent"].includes(normalized)) tone = "good";
-  else if (["blocked", "failed", "FAIL", "STALE", "DECISION_REQUIRED", "CRITICAL", "ambiguous", "mismatch"].includes(normalized)) tone = "bad";
+  else if (["blocked", "failed", "FAIL", "STALE", "DECISION_REQUIRED", "CRITICAL", "ambiguous", "mismatch", "INVALID", "AMBIGUOUS", "BLOCKED"].includes(normalized)) tone = "bad";
   else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN"].includes(normalized)) tone = "warn";
   const badge = node("span", `state ${tone}`, normalized.replaceAll("_", " "));
   if (kind) badge.dataset.kind = kind;
@@ -296,6 +296,10 @@ function renderWaves() {
       root.append(row);
     }
   }
+  const knownWaves = new Set(status.delivery.waves.items.map((wave) => wave.wave_id));
+  const unassigned = status.delivery.tasks.items.filter((task) => !knownWaves.has(task.wave_id));
+  root.append(sectionTitle("Tasks", `${status.delivery.tasks.items.length} recognized · ${unassigned.length} UNASSIGNED`));
+  renderTaskList(unassigned);
 }
 
 function countItem(label, value, detail) {
@@ -563,6 +567,7 @@ function renderTaskList(tasks) {
 
 function renderView() {
   clear(root);
+  renderCompatibility();
   const parts = routeParts();
   const view = parts[0] || "overview";
   const isPortfolio = view === "portfolio";
@@ -580,6 +585,43 @@ function renderView() {
   else if (view === "findings") renderFindings();
   else if (view === "decisions") renderDecisions();
   else renderDetail(parts);
+}
+
+function renderCompatibility() {
+  const report = status.compatibility;
+  if (!report) return;
+  const panel = node("details", "plain-section compatibility-diagnostics");
+  const actionable = report.diagnostics.filter((item) => item.category !== "FRESHNESS_UNKNOWN");
+  const summary = node("summary", "view-title");
+  summary.append(node("strong", "", "Project compatibility"), stateBadge(report.compatibility));
+  const blocking = report.diagnostics.filter((item) => item.blocking).length;
+  summary.append(node("small", "", `${blocking} blocking · ${actionable.length} diagnostics`));
+  panel.append(summary);
+  panel.open = blocking > 0;
+  for (const [type, counts] of Object.entries(report.coverage)) {
+    panel.append(node("p", "muted", `${type}: ${counts.recognized} recognized · ${counts.invalid} invalid · ${counts.unassigned} unassigned`));
+  }
+  const list = node("div", "plain-list");
+  const states = {
+    SYNTAX_ERROR: "INVALID", SCHEMA_ERROR: "INVALID", ID_MISMATCH: "INVALID", DUPLICATE_ID: "AMBIGUOUS",
+    REFERENCE_MISSING: "MISSING", REFERENCE_AMBIGUOUS: "AMBIGUOUS", AUTHORITY_CONFLICT: "AMBIGUOUS",
+    WAVE_ASSIGNMENT_MISSING: "UNASSIGNED", UNSUPPORTED_VARIANT: "UNSUPPORTED", LEGACY_VARIANT: "LEGACY",
+    FRESHNESS_UNKNOWN: "UNKNOWN", MISSING: "MISSING", UNASSIGNED: "UNASSIGNED", STALE: "STALE",
+  };
+  for (const item of report.diagnostics) {
+    const row = node("div", "plain-item diagnostic-item");
+    const description = node("div", "item-main");
+    description.append(node("strong", "", item.affected_board_area), node("p", "", item.message));
+    description.append(node("small", "muted", `${item.category} · ${item.repairability}`));
+    if (item.source_path) {
+      const location = `${item.source_path}${item.line ? `:${item.line}:${item.column}` : ""}`;
+      description.append(externalLink(location, safePathUrl("/diagnostic-source", item.source_path)));
+    }
+    row.append(description, stateBadge(states[item.category] || "UNKNOWN"));
+    list.append(row);
+  }
+  panel.append(list);
+  root.append(panel);
 }
 
 async function load() {

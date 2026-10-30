@@ -1,7 +1,15 @@
-version: "1.7.1"
+version: "1.8.0"
 min_compatible: "1.0"
-updated: "2026-10-15"
+updated: "2026-10-30"
 changes:
+  "1.8.0":
+    - "Compatibility Doctor: read-only parser/schema/reference diagnostics, partial projection, post-update checks and controlled fingerprint-bound repair plans"
+    - "Mission Control: read-only local project board with portfolio, project overview, waves, requirements, verification, findings, and decisions"
+    - "Project Status Contract v2: deterministic canonical-artifact projection without LLM calls or a second lifecycle authority"
+    - "References: per-bundle ACTIVE_TARGET authority, explicit single-file references, revision drift detection, and source deep links"
+    - "Server: loopback-only board and allowlisted reference/source serving; traversal, symlinks, and directory browsing rejected"
+    - "Distribution: board assets, build_project_status.py, and serve_project_board.py installed and synchronized by install-core.ps1"
+    - "Freshness: target revision/hash comparisons remain separate from model freshness, which stays UNKNOWN without a model fingerprint"
   "1.7.1":
     - "Autonomy-First Compaction Hardening: AUTONOMY HAS PRIORITY OVER OPTIONAL CONTEXT OPTIMIZATION"
     - "Policy: autonomy-first section in context-transition.md — 4 rules, diagnostic vocabulary, Human Gate doctrine"

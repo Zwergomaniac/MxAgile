@@ -10,7 +10,7 @@
     "ID": {
       "type": "string",
       "pattern": "^TC-[0-9]{3,}$",
-      "description": "Stable identifier. Must match filename stem: TC-001.yaml -> ID: TC-001."
+      "description": "Stable identifier. New contracts use the exact filename TC-001.yaml. The project-compatibility policy also permits the legacy filename TC-001-<ASCII descriptive suffix>.yaml when this entire schema validates and the ID is unique."
     },
     "title": { "type": "string" },
     "status": {
