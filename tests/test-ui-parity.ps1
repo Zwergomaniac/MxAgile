@@ -298,6 +298,91 @@ Assert-FileContains "R.9.1 authorization remains separate from observed display"
     $FindingReconciliation 'separate evidence for authorization'
 
 # ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST S: Fresh-Full parity requires independent whole-screen reconciliation" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+
+Assert-FileContains "S.1 full pass includes hypothesis verification and whole-screen discovery" `
+    $ParityPol '(?is)Hypothesis verification.*Whole-screen runtime discovery'
+
+Assert-FileContains "S.2 whole-screen pass is mandatory even when known findings are closed" `
+    $ParityPol '(?is)mandatory even when the hypothesis pass closed all known items'
+
+Assert-FileContains "S.3 whole-screen discovery may create unlisted deviations" `
+    $ParityPol 'may discover new deviations not present in the UI inventory'
+
+Assert-FileContains "S.4 runtime structures are reconciled in both directions" `
+    $ParityPol 'compares both directions'
+
+Assert-FileContains "S.5 full-screen scope is limited to target page roles states and viewports" `
+    $ParityPol 'active target and requested page remain authoritative for scope'
+
+Assert-FileContains "S.6 full-screen review does not imply pixel-perfect identity" `
+    $ParityPol 'Do not require pixel identity'
+
+Assert-FileContains "S.7 cosmetic differences are not automatically high/material" `
+    $ParityPol 'spacing-only changes'
+
+Assert-FileContains "S.8 differences remain subject to contract-extension and decision reconciliation" `
+    $FindingReconciliation 'CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK'
+
+Assert-FileContains "S.9 fresh_full scope is recorded in parity schema" `
+    $ParitySchema 'verification_scope'
+
+Assert-FileContains "S.10 fresh_full requires whole_screen_review" `
+    $ParitySchema '(?is)verification_scope.*fresh_full.*whole_screen_review'
+
+Assert-FileContains "S.11 fresh_full PASS requires completed whole-screen review" `
+    $ParitySchema '(?is)overall_result.*PASS.*whole_screen_review.*complete'
+
+Assert-FileContains "S.12 UI Agent requires independent fresh-full runtime pass" `
+    $UiAgent 'Fresh-Full-Abgleich'
+
+Assert-FileContains "S.12.1 whole-screen pass is not limited to listed U-items" `
+    $UiAgent 'vorherigen Findings stehen'
+
+$paritySchemaObject = Get-Content -LiteralPath $ParitySchema -Raw | ConvertFrom-Json
+$wholeScreenSchema = $paritySchemaObject.properties.whole_screen_review
+Assert-True "S.13 blocked whole-screen review requires a non-empty reason" `
+    ($wholeScreenSchema.properties.blocked_reason.minLength -ge 1) `
+    "blocked_reason.minLength=$($wholeScreenSchema.properties.blocked_reason.minLength)"
+
+$schemaRequiresFreshFullReview = $false
+$schemaGatesFreshFullPass = $false
+$schemaBlocksPassWhenFreshFullReviewBlocked = $false
+foreach ($condition in @($paritySchemaObject.allOf)) {
+    $conditionIf = $condition.'if'
+    $scopeProperty = $conditionIf.properties.PSObject.Properties['verification_scope']
+    if ($null -eq $scopeProperty) { continue }
+    $requiredProperty = $condition.then.PSObject.Properties['required']
+    if ($scopeProperty.Value.const -eq 'fresh_full' -and
+        $null -ne $requiredProperty -and $requiredProperty.Value -contains 'whole_screen_review') {
+        $schemaRequiresFreshFullReview = $true
+    }
+    $resultProperty = $conditionIf.properties.PSObject.Properties['overall_result']
+    if ($scopeProperty.Value.const -eq 'fresh_full' -and
+        $null -ne $resultProperty -and $resultProperty.Value.const -eq 'PASS' -and
+        $condition.then.properties.whole_screen_review.properties.status.const -eq 'complete') {
+        $schemaGatesFreshFullPass = $true
+    }
+    $reviewProperty = $conditionIf.properties.PSObject.Properties['whole_screen_review']
+    $notProperty = $condition.then.PSObject.Properties['not']
+    if ($scopeProperty.Value.const -eq 'fresh_full' -and $null -ne $reviewProperty -and
+        $reviewProperty.Value.properties.status.const -eq 'blocked' -and $null -ne $notProperty -and
+        $notProperty.Value.properties.overall_result.const -eq 'PASS') {
+        $schemaBlocksPassWhenFreshFullReviewBlocked = $true
+    }
+}
+Assert-True "S.14 schema conditionally requires review for fresh_full scope" `
+    $schemaRequiresFreshFullReview "Fresh-full whole-screen conditional is missing"
+
+Assert-True "S.15 schema gates fresh_full PASS on completed review" `
+    $schemaGatesFreshFullPass "Fresh-full PASS completion condition is missing"
+
+Assert-True "S.16 schema prohibits PASS when fresh_full review is blocked" `
+    $schemaBlocksPassWhenFreshFullReviewBlocked "Blocked fresh-full review can still report overall PASS"
+
+# ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount
 Write-Host ""
 Write-Host "=" * 60

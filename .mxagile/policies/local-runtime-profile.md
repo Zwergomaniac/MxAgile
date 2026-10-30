@@ -54,6 +54,39 @@ contract, stop with `TOOL_CAPABILITY_GAP`; do not switch binaries or silently al
 requested behavior. Resolve competing instructions using
 `policies/tool-instruction-conflict.md`.
 
+## Browser Base URL and Allowed Origin
+
+Before Playwright/browser navigation, resolve the exact URL for the selected project and
+runner:
+
+1. An explicit current-session URL override, when authorized for this verification.
+2. `mxagile-project.yaml local_runtime.app_url` when declared.
+3. The selected runner's existing project configuration (`baseURL` or equivalent) when no
+   project `app_url` is declared.
+4. The schema/Core default `http://localhost:8080` only when no higher source exists.
+
+Read the selected runner's configuration as well: for `playwright-cli`, inspect
+`.playwright/cli.config.json` including `network.allowedOrigins`; for `@playwright/test`,
+inspect the project `playwright.config.*` including `use.baseURL`, browser channel/binary,
+and projects/viewports. These are runner configuration, not interchangeable sources for
+the canonical project URL. If project `app_url` and a runner `baseURL` disagree, resolve the
+project/tool contract conflict before navigation. Never silently replace the project URL.
+
+Compare origins exactly: scheme, host, and effective port must match. `localhost` and
+`127.0.0.1` are different origins even if they reach the same loopback interface. When an
+`allowedOrigins` list exists, the selected URL's origin must be present in that list. An
+allowlist authorizes an origin; it does not select or rewrite the base URL. Preserve any
+configured base path when navigating.
+
+If a failed attempt used a different origin than the resolved project URL, compare the
+attempted URL with the configured `app_url` and `allowedOrigins`. When the mismatch is
+confirmed, perform exactly one controlled retry with the canonical URL. If it succeeds,
+classify the cause as `ORIGIN_MISMATCH`. If the canonical-origin attempt also fails, stop
+with the observed browser failure and compact evidence; do not generate speculative
+firewall, extension, enterprise-policy, loopback, web-security, browser-swap, or API/OQL
+workaround hypotheses. Do not change browser binaries, security flags, Playwright versions,
+listen addresses, or mxcli versions as part of this check.
+
 ### Non-Secret vs. Secret Values
 
 `local_runtime` contains only NON-SECRET configuration and SECRET REFERENCES:

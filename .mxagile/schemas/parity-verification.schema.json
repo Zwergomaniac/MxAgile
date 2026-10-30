@@ -39,6 +39,33 @@
       "type": "string",
       "description": "Application URL used during Playwright verification."
     },
+    "verification_scope": {
+      "type": "string",
+      "enum": ["targeted", "fresh_full"],
+      "description": "Verification scope. fresh_full requires a separate complete whole-screen runtime reconciliation in addition to hypothesis verification."
+    },
+    "whole_screen_review": {
+      "type": "object",
+      "required": ["status", "scope_note"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["complete", "blocked"],
+          "description": "Whether the independent whole-screen runtime review completed cleanly or was blocked. A clean review can still record deviations in dimensions."
+        },
+        "scope_note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Concise page/role/state/viewport coverage and whether new unlisted deviations were found."
+        },
+        "blocked_reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required by policy when status is blocked; explains the evidence or runtime blocker."
+        }
+      }
+    },
     "role": {
       "type": "string",
       "description": "Role used for this verification session (e.g., Admin, SalesUser)."
@@ -108,6 +135,66 @@
       "$ref": "#/definitions/evidence_upgrade_state"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "verification_scope": { "const": "fresh_full" } },
+        "required": ["verification_scope"]
+      },
+      "then": { "required": ["whole_screen_review"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "verification_scope": { "const": "fresh_full" },
+          "overall_result": { "const": "PASS" }
+        },
+        "required": ["verification_scope", "overall_result"]
+      },
+      "then": {
+        "properties": {
+          "whole_screen_review": {
+            "properties": { "status": { "const": "complete" } },
+            "required": ["status"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "whole_screen_review": {
+            "properties": { "status": { "const": "blocked" } },
+            "required": ["status"]
+          }
+        },
+        "required": ["whole_screen_review"]
+      },
+      "then": {
+        "properties": {
+          "whole_screen_review": { "required": ["blocked_reason"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verification_scope": { "const": "fresh_full" },
+          "whole_screen_review": {
+            "properties": { "status": { "const": "blocked" } },
+            "required": ["status"]
+          }
+        },
+        "required": ["verification_scope", "whole_screen_review"]
+      },
+      "then": {
+        "not": {
+          "properties": { "overall_result": { "const": "PASS" } },
+          "required": ["overall_result"]
+        }
+      }
+    }
+  ],
   "definitions": {
     "parity_dimension": {
       "type": "object",

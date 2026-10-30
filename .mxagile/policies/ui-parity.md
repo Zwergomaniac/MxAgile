@@ -419,6 +419,72 @@ Use full reconciliation when:
 - Previous evidence is stale or provenance is unclear
 - Preparing for a major release cycle or full acceptance campaign
 
+### Fresh-Full UI Parity: Hypotheses Plus Whole-Screen Discovery
+
+When the request calls for fresh, full, or whole-screen UI parity for a page, reconciliation
+has two distinct passes:
+
+1. **Hypothesis verification** — verify known findings, unknowns, and role/state questions
+  against their specific contracts. This targeted pass may close U-/finding-level items.
+2. **Whole-screen runtime discovery** — independently inspect the complete rendered target
+  page against the active mockup for every in-scope role, state, and viewport. This pass is
+  mandatory even when the hypothesis pass closed all known items or existing dimensions
+  appear reusable. It may discover new deviations not present in the UI inventory,
+  checklist, earlier reports, or hypothesis list.
+
+The whole-screen pass compares both directions: target structures/content/interactions that
+are absent at runtime, and additional runtime structures that have no target counterpart.
+Cover the full scrollable screen using the canonical visual-verification scroll method;
+inspect the rendered component/section hierarchy and table/action patterns, not only the
+previously named controls. Record newly observed deviations in the existing dimensional
+report/evidence, then reconcile each through `parity-finding-reconciliation.md` and
+`source-priority.md`. The active target and requested page remain authoritative for scope;
+do not expand to other pages or an app-wide campaign.
+
+At minimum, inspect the complete in-scope screen for:
+
+- **Structure:** cards, sections, containers, grouping, hierarchy, and page regions.
+- **Visible components:** forms, buttons, tables, banners, and other rendered controls.
+- **Collections/tables:** columns and order, grouping, visible attributes, row actions, headers,
+  and footers.
+- **Interaction pattern:** inline editing vs. popup/page editing, batch save vs. row actions,
+  inline creation vs. a separate create flow, where the active contract supports comparison.
+- **Content:** title/subtitle, labels, hints, actions, and relevant context such as a data
+  cutoff/as-of note.
+- **State and role:** each in-scope state and role separately; do not infer runtime visibility
+  from model structure.
+- **Visual hierarchy:** grouping, spacing, dominant actions, and card/grid organization.
+
+Classify observations with the existing dimensions and finding taxonomy; do not invent a
+parallel severity system:
+
+| Observation | Existing treatment |
+|---|---|
+| Functional behavior absent or incorrect | `interaction`, `state`, or `role` deviation; confirm against the applicable contract before calling it an implementation gap |
+| Structural/interaction-pattern difference (e.g. inline editing vs. popup, missing create region) | Record under `structure` and/or `interaction`; unresolved contract authority is `CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK` |
+| Visual difference | Record under `visual`; apply project/Company design authority and existing `material`/`minor` semantics |
+| Additional runtime structure absent from the target | Record as reverse-direction evidence; check for an accepted contract extension or design decision before remediation |
+| Missing or contaminated runtime evidence | `VERIFICATION_OUTSTANDING` / `NOT_VERIFIED`, never a confirmed defect |
+| Spacing-only or other cosmetic variation | `minor` when it does not materially change the accepted UI contract; never raise to HIGH solely for pixel variance |
+
+`whole_screen_review.status: complete` means every in-scope page/role/state/viewport listed
+in `scope_note` received this open-ended comparison and newly observed deviations were
+recorded or explicitly reconciled. It does not mean that no deviation exists.
+
+Do not require pixel identity. Use existing dimension severity and finding classification:
+functional gaps, material structural/interaction differences, visual differences, contract
+extensions, design decisions, unresolved stakeholder questions, evidence gaps, and minor
+cosmetic variation remain distinct. A difference from the mockup is an observation, not
+automatically an implementation defect. In particular, do not classify spacing-only changes
+as HIGH; check project/Company design authority before calling visual styling a gap.
+
+The parity record sets `verification_scope: fresh_full` and records
+`whole_screen_review.status: complete` only after this independent pass. If clean, complete
+evidence cannot be obtained, record `blocked`; do not claim overall PASS. A fresh-full PASS
+is schema-invalid unless whole-screen review is complete. Targeted requests continue to use
+`verification_scope: targeted` (or omit it for legacy records) and do not imply whole-screen
+coverage.
+
 ---
 
 ## Example Full-Reconciliation Plan

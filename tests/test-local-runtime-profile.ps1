@@ -73,6 +73,10 @@ $LocalProf  = Join-Path $ScriptDir ".mxagile/policies/local-runtime-profile.md"
 $CredPol    = Join-Path $ScriptDir ".mxagile/policies/credential-discovery.md"
 $RuntimeStr = Join-Path $ScriptDir ".mxagile/policies/runtime-strategy.md"
 $ToolConflict = Join-Path $ScriptDir ".mxagile/policies/tool-instruction-conflict.md"
+$RuntimeRecovery = Join-Path $ScriptDir ".mxagile/policies/runtime-startup-recovery.md"
+$UiAgent = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
+$VisualSkill = Join-Path $ScriptDir ".mxagile/skills/visual-verification.md"
+$BrowserCliConfig = Join-Path $ScriptDir ".playwright/cli.config.json"
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -414,6 +418,62 @@ Assert-FileContains "S.8.1 unsupported command does not change requested semanti
 
 Assert-FileContains "S.9 development runtime requires resolver before mxcli commands" `
     $DevRuntime 'Resolve-MxAgileMxcli\.ps1'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST T: Project-canonical browser URL and origin mismatch handling" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+
+$projectSchema = Get-Content -LiteralPath $Schema -Raw | ConvertFrom-Json
+$browserConfig = Get-Content -LiteralPath $BrowserCliConfig -Raw | ConvertFrom-Json
+$configuredAppUrl = [Uri]$projectSchema.properties.local_runtime.properties.app_url.default
+$configuredOrigin = $configuredAppUrl.GetLeftPart([System.UriPartial]::Authority)
+$configuredAllowedOrigins = @($browserConfig.network.allowedOrigins)
+$ipAliasOrigin = 'http://127.0.0.1:8080'
+
+Assert-True "T.1 project default URL origin is explicitly allowed" `
+    ($configuredAllowedOrigins -contains $configuredOrigin) `
+    "Canonical origin '$configuredOrigin' not present in the runner allowlist"
+
+Assert-True "T.1 localhost and 127.0.0.1 are distinct origins" `
+    ($configuredOrigin -ne $ipAliasOrigin -and $configuredAllowedOrigins -notcontains $ipAliasOrigin) `
+    "IP alias was treated as the configured canonical origin"
+
+Assert-FileContains "T.2 local runtime profile treats exact scheme/host/port as origin" `
+    $LocalProf 'scheme, host, and effective port must match'
+
+Assert-FileContains "T.2 allowedOrigins validates rather than selects the base URL" `
+    $LocalProf 'selected URL.s origin must be present in that list'
+
+Assert-FileContains "T.2.1 allowlist does not select or rewrite the base URL" `
+    $LocalProf 'it does not select or rewrite the base URL'
+
+Assert-FileContains "T.3 one controlled canonical retry is permitted after confirmed mismatch" `
+    $LocalProf 'perform exactly one controlled retry with the canonical URL'
+
+Assert-FileContains "T.3 canonical origin success is classified ORIGIN_MISMATCH" `
+    $LocalProf 'classify the cause as `ORIGIN_MISMATCH`'
+
+Assert-FileContains "T.4 canonical-origin failure stops without workaround speculation" `
+    $LocalProf 'If the canonical-origin attempt also fails, stop'
+
+Assert-FileContains "T.4 browser recovery prohibits speculative environment workarounds" `
+    $LocalProf 'Do not generate speculative'
+
+Assert-FileContains "T.5 UI verification resolves project app_url and exact allowlist first" `
+    $UiAgent 'Browser-Ziel vor Navigation'
+
+Assert-FileContains "T.5.1 UI verification reads the project-declared app_url" `
+    $UiAgent 'local_runtime\.app_url'
+
+Assert-FileContains "T.5.2 UI verification checks the runner allowedOrigins" `
+    $UiAgent 'allowedOrigins` exakt pruefen'
+
+Assert-FileContains "T.5 visual verification uses project base URL and configured browser" `
+    $VisualSkill 'project browser contract'
+
+Assert-FileContains "T.5.1 visual verification checks configured browser binary/channel" `
+    $VisualSkill 'configured browser binary/channel'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

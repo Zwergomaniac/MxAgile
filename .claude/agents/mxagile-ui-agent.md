@@ -401,6 +401,10 @@ Vor Runtime-Start und vor dem ersten Playwright-/Browser-Login:
   genau dieser Binary pruefen. Danach `local_runtime` vollstaendig aufloesen
   (Runtime-Art, `db_type`, `db_name`, `app_url`/Port, Constants und Voraussetzungen).
   Keine DB-Art oder Binary aus PATH erraten.
+    Browser-Ziel vor Navigation gemaess `policies/local-runtime-profile.md` aufloesen:
+    `local_runtime.app_url` ist die Projekt-BaseURL; die konfigurierte Runner-BaseURL und
+    `allowedOrigins` exakt pruefen. `localhost` und `127.0.0.1` nicht gleichsetzen. Browser-
+    Binary/Channel ausschliesslich aus der verwendeten Playwright-Runner-Konfiguration lesen.
 2. **Credential-Check:** Vollstaendige Credential-Discovery gemaess
   `policies/credential-discovery.md` in kanonischer Reihenfolge ausfuehren. Erforderliche
   Keys aus Projekt-/Company-Konfiguration und Szenario ableiten, nicht aus universellen
@@ -521,13 +525,28 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
       - Pruefen: Edit-Controls vs. Display-Components rollenrichtig
       - Pruefen: Rollenspezifische Navigation-Items fehlen wo erwartet
 
-5. **Fidelity-Pruefung (Gesamtergebnis):** Semantischen Vergleich der gesamten
+5. **Fresh-Full-Abgleich:** Wenn der Auftrag Fresh-/Full-/Whole-Screen-Parity verlangt,
+  zusaetzlich nach der gezielten Hypothesenpruefung einen unabhaengigen Whole-Screen-
+  Runtime-Pass fuer genau diese Zielseite ausfuehren. Den gesamten gerenderten Screen
+  gegen das aktive Target vergleichen, auch wenn Struktur, Controls oder Aktionen nicht
+  in U-Items, Checkliste oder vorherigen Findings stehen. Neue Unterschiede aus beiden
+  Richtungen als Deviation erfassen und reconciliieren; nicht wegen fehlender vorheriger
+  Hypothese aus dem Seiten-Scope ausschliessen. Alle relevanten Rollen/States/Viewports der
+  Seite abdecken, aber keine weiteren Seiten hinzufuegen. Vollstaendiger Gate-Vertrag:
+  `policies/ui-parity.md` § Fresh-Full UI Parity.
+
+6. **Fidelity-Pruefung (Gesamtergebnis):** Semantischen Vergleich der gesamten
    Seitenstruktur-Gruppen gegen das Ziel-Mockup durchfuehren.
    `ui_fidelity` fasst das Gesamtergebnis aller Dimensionen zusammen.
    Standard: `PASS` wenn alle required-Dimensionen PASS, sonst `FAIL`.
 
-6. Dimensionalen Parity-Report erzeugen gemaess Schema
+7. Dimensionalen Parity-Report erzeugen gemaess Schema
    `.mxagile/schemas/parity-verification.schema.json`:
+
+  Bei Fresh-Full-Parity: `verification_scope: fresh_full` und
+  `whole_screen_review.status: complete` setzen, falls der Pass abgeschlossen ist; sonst
+  `blocked` mit Grund. Targeted verification bleibt als targeted markiert. Unerwartete
+  Runtime-Strukturen werden in den passenden Dimensions-Deviations festgehalten.
 
 ```yaml
 page_id: PAGE-CUSTOMER-NEWEDIT
@@ -603,10 +622,10 @@ ui_fidelity: FAIL
 - `PARTIAL`: keine FAIL, aber mind. eine PARTIAL oder CONFLICT
 - `NOT_VERIFIED`: keine Browser-Verifizierung erfolgt
 
-7. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
+8. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
    auf `status: failed` setzen.
-8. Parity-Report unter `planning/parity/{PageName}_parity.yaml` ablegen.
-9. Rueckwaertskompatibilitaet: bestehende `{PageName}_comparison.yaml` bleibt als
+9. Parity-Report unter `planning/parity/{PageName}_parity.yaml` ablegen.
+10. Rueckwaertskompatibilitaet: bestehende `{PageName}_comparison.yaml` bleibt als
    Legacy-Artefakt erhalten. Neue Dimensionsergebnisse ersetzen es NICHT retroaktiv.
 
 ### Wann ist eine Abweichung "material"?

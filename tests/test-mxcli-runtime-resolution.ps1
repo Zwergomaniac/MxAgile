@@ -115,6 +115,7 @@ try {
     $generatedQualityGate = Join-Path $ScriptDir '.claude/skills/mxagile-quality-gate/SKILL.md'
     $generatedTestSkill = Join-Path $ScriptDir '.claude/skills/mxagile-test-generate/SKILL.md'
     $generatedSystemCheck = Join-Path $ScriptDir '.claude/skills/mxagile-system-check/SKILL.md'
+    $generatedVisualSkill = Join-Path $ScriptDir '.claude/skills/mxagile-visual-verification/SKILL.md'
     Assert-True 'UI projection routes through project tool and identity contracts' (
         (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'tool-instruction-conflict\.md' -and
         (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'test-identity-lifecycle\.md'
@@ -134,6 +135,14 @@ try {
     Assert-True 'System-check version probe uses the resolved absolute binary' (
         (Get-Content -LiteralPath $generatedSystemCheck -Raw) -match '\$mxcliPath --version' -and
         (Get-Content -LiteralPath $generatedSystemCheck -Raw) -match 'tool-instruction-conflict\.md'
+    )
+    Assert-True 'Generated UI agent requires fresh-full whole-screen runtime reconciliation' (
+        (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'Fresh-Full-Abgleich' -and
+        (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'Whole-Screen'
+    )
+    Assert-True 'Generated visual skill routes to canonical URL/origin contract' (
+        (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'Canonical Browser Target' -and
+        (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'allowedOrigins'
     )
 } finally {
     $env:PATH = $previousPath

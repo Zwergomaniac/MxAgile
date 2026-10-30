@@ -177,7 +177,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "All tests A-O are Assert-FileContains checks on schemas, development-runtime.md, local-runtime-profile.md. Zero mutation."
+    "Reason": "Static assertions on runtime schema/policies plus exact app_url-versus-allowedOrigins checks; verifies bounded ORIGIN_MISMATCH recovery without browser/workaround side effects."
   },
   {
     "File": "test-ui-element-selection.ps1",
@@ -252,7 +252,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Pure static contract checks on parity schemas, UI parity, identity lifecycle, canonical navigation, evidence cleanliness, and static-vs-runtime role visibility."
+    "Reason": "Pure static contract checks on parity schemas, identity/navigation/evidence safety, static-vs-runtime role visibility, browser Origin constraints, and mandatory Fresh-Full whole-screen discovery with bounded page scope and severity."
   },
   {
     "File": "test-documentation-consistency.ps1",
