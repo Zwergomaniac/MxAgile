@@ -12,9 +12,17 @@ paths require Tier 3; they are never silently skipped.
 - Tier 2: installer, projections, distribution and cross-contract inputs select
 	integration consumers automatically. The reported tier is integration depth,
 	not permission to skip selected suites.
-- Tier 3: `--tier release`: existing complete `run-all-tests.ps1`, unchanged.
+- Tier 3: `--tier release`: complete `run-all-tests.ps1` on PowerShell 7.
 	Required before release and broad cross-contract acceptance. A local impact
 	PASS is never a full-release PASS. Missing dependencies remain unavailable.
+
+`run-all-tests.ps1 -TestFile <names>` is a targeted diagnostic run, not full
+regression. Unexecuted tiers report NOT EXECUTED. The runner uses pwsh for test
+processes and mxcli acquisition; explicit PS5.1 compatibility probes remain in
+their dedicated tests. The first 1.8.x broad-gate attempt was NOT COMPLETED: its
+legacy host dispatch invoked #requires 7 tests under Windows PowerShell 5.1 and
+ended before the summary. The corrected host was verified with the previously
+blocked WP2 test and smoke test before a new, separately logged gate.
 
 Python unittest suites share one interpreter. PowerShell suites run sequentially;
 no new shared-state/port parallelism is introduced. Existing full coverage remains
@@ -29,6 +37,36 @@ Measured on this Windows workspace, Python 3.14 (not portable performance claims
 | Profiled deterministic Doctor test | 10.02 total / 6.87 imports | two build_status calls: 1.94 |
 | Impact selector's 5 unit tests | 0.79 | no installer/browser startups |
 | Impact selector fast gate | 2.88 | syntax + diff whitespace |
+| Update routing / U1-U8 baseline | 775.49 | 110 assertions; 7 complete installer invocations |
+| Update routing / U1-U8 after fixture reuse | 136.42 | 107 assertions; 4 complete installer invocations; exit 0 |
+| Index integrity suite | 104.25 | 6 tests, real 6170-entry Git fixture |
+| Gallery backend / HTTP | 7.68 | 11 tests; no browser startup |
+| Gallery backend / HTTP final | 4.47 | 13 tests; capture-ID conflicts and historical single-file allowlist included |
+| Status/Doctor after granular diagnostics | 67.15 | 38 tests, including 117+6 fixture; workload differs from baseline |
+
+The update fixture now retains four real install/update sequences (fresh,
+invalid existing update, repeat, compatible existing update). U3/U5/U6 reuse the
+successful installed fixture and invoke the same production completion function.
+This removes three redundant installer executions, not contract coverage.
+The measured after-runtime is 136.42s. Cache/warmup conditions were not held
+constant, so these numbers are not an isolated optimization benchmark and no
+portable speedup is claimed. Three installer-exit assertions disappear because
+those cases now test completion rather than pretending to perform another install.
+All Doctor-state, preservation and U1-U8 scenario assertions remain. Imports in the profiled single-test run cost
+6.87s; assembling Python suites in one interpreter avoids repeated imports.
+
+The integrated browser was checked at 1440px and 390px: nonblank capture pixels,
+no horizontal overflow, no caption overflow, and 0 -> 3 historical images on
+disclosure. The host hid the tab after an external image-link click, so a native
+popup-event observation was unavailable. Link target/rel and HTTP image serving
+were verified separately; this limitation is not a browser-popup PASS.
+
+Controlled recovery adds `test-git-recovery.ps1` / `test_git_recovery.py`: R1-R7,
+real isolated merges/index rebuilds, Windows sharing violations, authorization,
+post-check and secret boundaries. The 15-test suite passed in 127.45s; the final
+additional auto-stash postcondition was checked with the focused counterexample.
+The original six index-guard regressions also passed after the extension.
+Recovery tests never operate on CapTrack or this repository's actual Git state.
 
 These are different workloads, not a before/after speedup percentage. The older
 measurements below remain historical. Browser startup, fresh/update installation

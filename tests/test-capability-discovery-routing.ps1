@@ -37,10 +37,23 @@ function Assert-True {
 $Temps = @()
 function New-TempDir { $p = Join-Path $env:TEMP "mxagile-disc-$(New-Guid)"; New-Item -ItemType Directory -Path $p | Out-Null; $script:Temps += $p; return $p }
 
+function Read-FixtureProvenance {
+    param([string]$Root)
+    $document = Get-Content (Join-Path $Root '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
+    $result = @{}
+    foreach ($property in $document.PSObject.Properties) { $result[$property.Name] = $property.Value }
+    return $result
+}
+
 function Invoke-FixtureUpdate {
-    param([string]$Root, [string]$Case)
-    $script:CompletionOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$Root' -IsUpdate `$true" 2>&1)
-    Assert-True "$Case framework update succeeds" ($LASTEXITCODE -eq 0) "exit=$LASTEXITCODE"
+    param([string]$Root, [string]$Case, [switch]$CompletionOnly)
+    if ($CompletionOnly) {
+        $provenance = Read-FixtureProvenance $Root
+        $script:CompletionOutput = @(Invoke-PostUpdateCompatibility -Root $Root -ToolsDir (Join-Path $Root '.mxagile/tools') -CoreProvenance $provenance 6>&1)
+    } else {
+        $script:CompletionOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$Root' -IsUpdate `$true" 2>&1)
+        Assert-True "$Case framework update succeeds" ($LASTEXITCODE -eq 0) "exit=$LASTEXITCODE"
+    }
     $result = Get-Content (Join-Path $Root '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
     $provenance = Get-Content (Join-Path $Root '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
     Assert-True "$Case handoff belongs to this install" ($result.installed_at -eq $provenance.installed_at -and $result.framework.commit -eq $provenance.commit) 'stale handoff'
@@ -270,30 +283,31 @@ $visibleOutput = ($CompletionOutput | Where-Object { "$_" -notmatch '^\{' }) -jo
 Assert-True 'U8 compatible completion is compact with zero repair counts' ($compatible.doctor.safe_deterministic_count -eq 0 -and $compatible.doctor.agent_repairable_count -eq 0 -and $compatible.doctor.decision_required_count -eq 0 -and $visibleOutput -notmatch 'FRESHNESS_UNKNOWN') 'unnecessary diagnostic dump'
 Assert-True 'U8 unsupported count is explicitly reported' ($compatible.doctor.unsupported_count -ge 0 -and $visibleOutput -match 'UNSUPPORTED:') 'unsupported count missing'
 
+$parseErrors = $null; $tokens = $null
+$installerAst = [System.Management.Automation.Language.Parser]::ParseFile($Installer, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+$completionFunction = $installerAst.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-PostUpdateCompatibility' }, $true)
+. ([scriptblock]::Create($completionFunction.Extent.Text))
+
 Set-Content $taskPath $taskBase -Encoding UTF8
-$unassigned = Invoke-FixtureUpdate $proj 'U3'
+$unassigned = Invoke-FixtureUpdate $proj 'U3' -CompletionOnly
 Assert-True 'U3 recognized UNASSIGNED task remains visible' ($unassigned.doctor.compatibility -ne 'COMPATIBLE' -and $unassigned.doctor.report.coverage.task.recognized -eq 1 -and ($CompletionOutput -join "`n") -match 'UNASSIGNED: planning/tasks/TASK-001.yml') 'unassigned task hidden'
 
 $checklist = Join-Path $proj 'planning/checklists/W01-implementation-checklist.yaml'
 Set-Content $checklist 'wave_id: W01' -Encoding UTF8
 Set-Content $taskPath ($taskBase + 'migrated_from: planning/checklists/W01-implementation-checklist.yaml') -Encoding UTF8
 $beforeTask = (Get-FileHash $taskPath).Hash
-$safe = Invoke-FixtureUpdate $proj 'U5'
+$safe = Invoke-FixtureUpdate $proj 'U5' -CompletionOnly
 Assert-True 'U5 safe repair need is reported, not green and not applied' ($safe.doctor.compatibility -ne 'COMPATIBLE' -and $safe.doctor.repair_status -eq 'PROJECT_REPAIR_REQUIRED' -and $safe.doctor.safe_deterministic_count -eq 1 -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and ($CompletionOutput -join "`n") -match 'SAFE_DETERMINISTIC: 1') 'safe repair hidden or applied'
 
 Set-Content $checklist 'wave_id: W02' -Encoding UTF8
 $beforeChecklist = (Get-FileHash $checklist).Hash
 $beforeLifecycle = (Get-FileHash $invalidProcess).Hash
 $beforeMission = (Get-FileHash (Join-Path $proj 'planning/mission/mission-state.yaml')).Hash
-$decision = Invoke-FixtureUpdate $proj 'U6'
+$decision = Invoke-FixtureUpdate $proj 'U6' -CompletionOnly
 Assert-True 'U6 decision required is reported without business repair' ($decision.doctor.repair_status -eq 'DECISION_REQUIRED' -and $decision.doctor.decision_required_count -gt 0 -and (Get-FileHash $checklist).Hash -eq $beforeChecklist -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and (Get-FileHash $invalidProcess).Hash -eq $beforeLifecycle -and (Get-FileHash (Join-Path $proj 'planning/mission/mission-state.yaml')).Hash -eq $beforeMission) 'decision or lifecycle was changed'
 
-$parseErrors = $null; $tokens = $null
-$installerAst = [System.Management.Automation.Language.Parser]::ParseFile($Installer, [ref]$tokens, [ref]$parseErrors)
-if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
-$completionFunction = $installerAst.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-PostUpdateCompatibility' }, $true)
-. ([scriptblock]::Create($completionFunction.Extent.Text))
-$currentProvenance = Get-Content (Join-Path $proj '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json -AsHashtable
+$currentProvenance = Read-FixtureProvenance $proj
 $notChecked = & {
         function Get-Command { param($Name, $ErrorAction) return $null }
         Invoke-PostUpdateCompatibility -Root $proj -ToolsDir (Join-Path $proj '.mxagile/tools') -CoreProvenance $currentProvenance

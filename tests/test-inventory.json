@@ -1,5 +1,33 @@
 [
   {
+    "File": "test-git-recovery.ps1", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Controlled recovery R1-R7, isolated real Git repositories and Windows sharing probe."
+  },
+  {
+    "File": "test-impact-tiers.ps1", "Tier": 1, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Deterministic impact selection unit tests; one Python interpreter."
+  },
+  {
+    "File": "test-git-index-integrity.ps1", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Real isolated 6170-entry Git fixture and installer/canonicalizer STOP checks."
+  },
+  {
+    "File": "test-parity-gallery.ps1", "Tier": 1, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Canonical capture-group, schema and ephemeral loopback HTTP fixtures."
+  },
+  {
     "File": "smoke-test.ps1",
     "Tier": 0,
     "FastGate": true,

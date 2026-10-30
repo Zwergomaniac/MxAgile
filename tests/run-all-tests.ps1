@@ -16,6 +16,8 @@
     See tests/test-inventory.json for tier assignments and resource isolation metadata.
 #>
 
+param([Alias('TestFile')][string[]]$SelectedTests = @())
+
 $ScriptDir = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
 # ---------------------------------------------------------------------------
@@ -36,6 +38,12 @@ foreach ($entry in $inventoryList) { $inventory[$entry.File] = $entry }
 $testFiles  = Get-ChildItem -Path $ScriptDir -Filter 'test-*.ps1'
 $smokeFile  = Get-ChildItem -Path $ScriptDir -Filter 'smoke-test.ps1' -ErrorAction SilentlyContinue
 $allFiles   = @($testFiles) + @($smokeFile | Where-Object { $_ })
+
+if ($SelectedTests.Count -gt 0) {
+    $unknownSelection = @($SelectedTests | Where-Object { $_ -notin $allFiles.Name })
+    if ($unknownSelection.Count -gt 0) { throw ('Unknown selected tests: ' + ($unknownSelection -join ', ')) }
+    $allFiles = @($allFiles | Where-Object { $_.Name -in $SelectedTests })
+}
 
 if ($allFiles.Count -eq 0) {
     Write-Error 'No test files found in tests/ directory.'
@@ -70,7 +78,9 @@ foreach ($f in $allFiles) {
 # ---------------------------------------------------------------------------
 Write-Host ''
 Write-Host '======================================================================'
-if ($skipTier2) {
+if ($SelectedTests.Count -gt 0) {
+    Write-Host 'TARGETED REGRESSION   [NOT equivalent to FULL regression]'
+} elseif ($skipTier2) {
     Write-Host 'FULL REGRESSION   [WARNING: Tier 2 SKIPPED via MXAGILE_SKIP_TIER2]'
 } else {
     Write-Host 'FULL REGRESSION   [Tier 0 + Tier 1 + Tier 2]'
@@ -106,7 +116,7 @@ if (-not $skipTier2 -and $tier2Tests.Count -gt 0) {
             Write-Host 'Tier 2 tests require mxcli. Pre-downloading binary cache (one-time, ~91 MB)...' -ForegroundColor Cyan
             New-Item -ItemType Directory -Path $mxcliCacheDir -Force | Out-Null
             $installerScript = Join-Path $ScriptDir '..\scripts\install-mxcli.ps1'
-            & powershell -NoProfile -File $installerScript -TargetDir $mxcliCacheDir
+            & pwsh -NoProfile -File $installerScript -TargetDir $mxcliCacheDir
             if ($LASTEXITCODE -ne 0) {
                 Write-Warning ("mxcli pre-download failed (exit $LASTEXITCODE). Tier 2 tests will fall back to per-test downloads.")
             }
@@ -150,7 +160,7 @@ foreach ($testFile in $testsToRun) {
 
     $startTime = Get-Date
     try {
-        powershell -NoProfile -File $testFile.FullName
+        & pwsh -NoProfile -File $testFile.FullName
         $exitCode = $LASTEXITCODE
     } catch {
         Write-Error ('Terminating error in ' + $testFile.Name + ': ' + ($_ | Out-String))
@@ -176,7 +186,8 @@ foreach ($testFile in $testsToRun) {
 # Summary
 # ---------------------------------------------------------------------------
 Write-Host '======================================================================'
-Write-Host 'FULL REGRESSION SUMMARY'
+if ($SelectedTests.Count -gt 0) { Write-Host 'TARGETED REGRESSION SUMMARY' }
+else { Write-Host 'FULL REGRESSION SUMMARY' }
 Write-Host '======================================================================'
 $results | Format-Table Tier, TestFile, Status, Duration, Network, Mxcli -AutoSize
 
@@ -186,16 +197,20 @@ $t1Fail = ($results | Where-Object { $_.Tier -eq 1 -and $_.Status -eq 'FAIL' }).
 $t2Fail = ($results | Where-Object { $_.Tier -eq 2 -and $_.Status -eq 'FAIL' }).Count
 
 Write-Host 'Tier 0 (static/contract):   ' -NoNewline
-if ($t0Fail -gt 0) { Write-Host ('FAIL (' + $t0Fail + ')') -ForegroundColor Red }
+if (@($results | Where-Object { $_.Tier -eq 0 }).Count -eq 0) { Write-Host 'NOT EXECUTED' -ForegroundColor Yellow }
+elseif ($t0Fail -gt 0) { Write-Host ('FAIL (' + $t0Fail + ')') -ForegroundColor Red }
 else               { Write-Host 'PASS' -ForegroundColor Green }
 
 Write-Host 'Tier 1 (component/fixture): ' -NoNewline
-if ($t1Fail -gt 0) { Write-Host ('FAIL (' + $t1Fail + ')') -ForegroundColor Red }
+if (@($results | Where-Object { $_.Tier -eq 1 }).Count -eq 0) { Write-Host 'NOT EXECUTED' -ForegroundColor Yellow }
+elseif ($t1Fail -gt 0) { Write-Host ('FAIL (' + $t1Fail + ')') -ForegroundColor Red }
 else               { Write-Host 'PASS' -ForegroundColor Green }
 
 Write-Host 'Tier 2 (integration):       ' -NoNewline
 if ($skipTier2) {
     Write-Host 'NOT EXECUTED  [MXAGILE_SKIP_TIER2 was set]' -ForegroundColor Yellow
+} elseif (@($results | Where-Object { $_.Tier -eq 2 }).Count -eq 0) {
+    Write-Host 'NOT EXECUTED' -ForegroundColor Yellow
 } elseif ($t2Fail -gt 0) {
     Write-Host ('FAIL (' + $t2Fail + ')') -ForegroundColor Red
 } else {
@@ -208,6 +223,9 @@ if ($failedCount -gt 0) {
     exit 1
 } elseif ($skipTier2) {
     Write-Host 'FULL REGRESSION: INCOMPLETE  (Tier 2 skipped -- MXAGILE_SKIP_TIER2 was set)' -ForegroundColor Yellow
+    exit 0
+} elseif ($SelectedTests.Count -gt 0) {
+    Write-Host 'TARGETED REGRESSION: PASS; FULL REGRESSION: NOT EXECUTED' -ForegroundColor Green
     exit 0
 } else {
     Write-Host 'FULL REGRESSION: PASS' -ForegroundColor Green

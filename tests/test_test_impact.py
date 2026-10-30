@@ -12,14 +12,14 @@ spec.loader.exec_module(impact)
 class ImpactTests(unittest.TestCase):
     def test_doctor_is_narrow(self):
         plan = impact.select(["scripts/project_compatibility.py"])
-        self.assertEqual(plan["suites"], ["test_project_status.py"])
+        self.assertEqual(plan["suites"], ["test_parity_gallery.py", "test_project_status.py"])
         self.assertEqual(plan["tier"], 1)
 
     def test_board_includes_consumers(self):
         self.assertIn("test-board-authority.ps1", impact.select([".mxagile/board/board.js"])["suites"])
 
     def test_installer_requires_integration(self):
-        self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 2)
+        self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
 
     def test_unknown_fails_closed(self):
         self.assertEqual(impact.select(["scripts/new-authority.py"])["tier"], 3)
@@ -29,3 +29,10 @@ class ImpactTests(unittest.TestCase):
         plan = impact.select(paths)
         self.assertEqual(plan, impact.select(list(reversed(paths)) + paths))
         self.assertEqual(plan["suites"].count("test_project_status.py"), 1)
+
+    def test_full_runner_uses_supported_host_and_does_not_promote_targeted_runs(self):
+        runner = (Path(__file__).parent / "run-all-tests.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("& pwsh -NoProfile -File $testFile.FullName", runner)
+        self.assertNotIn("powershell -NoProfile -File $testFile.FullName", runner)
+        self.assertIn("$SelectedTests.Count -gt 0", runner)
+        self.assertIn("TARGETED REGRESSION: PASS; FULL REGRESSION: NOT EXECUTED", runner)
