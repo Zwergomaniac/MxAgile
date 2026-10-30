@@ -36,3 +36,11 @@ class ImpactTests(unittest.TestCase):
         self.assertNotIn("powershell -NoProfile -File $testFile.FullName", runner)
         self.assertIn("$SelectedTests.Count -gt 0", runner)
         self.assertIn("TARGETED REGRESSION: PASS; FULL REGRESSION: NOT EXECUTED", runner)
+
+    def test_fast_and_impact_runners_use_supported_host(self):
+        runner = (Path(__file__).parent / "run-fast-tests.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("& pwsh -NoProfile -File $file.FullName", runner)
+        self.assertIn("& pwsh -NoProfile -File $testFile.FullName", runner)
+        self.assertNotIn("powershell -NoProfile -File", runner)
+        source = (Path(__file__).parent / "run-impact-tests.py").read_text(encoding="utf-8-sig")
+        self.assertIn('["pwsh", "-NoProfile", "-File"', source)

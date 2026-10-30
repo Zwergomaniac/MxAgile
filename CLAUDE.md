@@ -118,6 +118,15 @@ user approval.
 
 ## Testing Strategy
 
+Before choosing regression suites, run `python tests/run-impact-tests.py --list`.
+Use `--tier fast` for the local parser/schema/whitespace gate and the default
+impact run for affected consumers. Unmapped paths and central installer/test-runner
+changes require the full release gate; an impact PASS is not a full PASS.
+Use `--base <commit>` to cover already committed workstream changes. Prefer focused
+checks during implementation; do not repeat broad unchanged suites for reassurance.
+Report Fast Gate, Impact Regression and Full Regression separately. Missing,
+failed and incomplete verification must remain distinct from PASS.
+
 - Tier 0: parser/static/marker validation — run first, run often
 - Tier 1: managed block fixtures, injection snapshot, platform projection tests
 - Tier 2: canonical install into disposable fixture project

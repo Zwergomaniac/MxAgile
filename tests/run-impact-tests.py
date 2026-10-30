@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RULES = (
     (("scripts/canonicalize_artifacts.py",), 2,
      ("test-wp10-artifact-schemas.ps1", "test-migration-fixtures.ps1", "test_git_index_integrity.py")),
-    (("tests/test-inventory.json", "tests/run-all-tests.ps1"), 3, ("test_test_impact.py",)),
+    (("tests/test-inventory.json", "tests/run-all-tests.ps1", "tests/run-fast-tests.ps1", "CLAUDE.md"), 3, ("test_test_impact.py",)),
     (("scripts/git_index_integrity.py", "tests/test_git_index_integrity.py", "tests/test-git-index-integrity.ps1", "tests/test_git_recovery.py", "tests/test-git-recovery.ps1", ".mxagile/policies/safety-rules.md", ".mxagile/policies/commit-authority.md"),
      1, ("test_git_index_integrity.py", "test_git_recovery.py", "test-commit-authority.ps1")),
     (("scripts/project_compatibility.py", ".mxagile/policies/project-compatibility.md", "tests/test_project_status.py"),
@@ -105,7 +105,7 @@ def main() -> int:
     for name in plan["suites"]:
         if name.endswith(".ps1"):
             tick = time.perf_counter()
-            result = subprocess.run(["powershell", "-NoProfile", "-File", str(ROOT / "tests" / name)], cwd=ROOT)
+            result = subprocess.run(["pwsh", "-NoProfile", "-File", str(ROOT / "tests" / name)], cwd=ROOT)
             print(f"{name}: {time.perf_counter() - tick:.2f}s; exit={result.returncode}", flush=True)
             if result.returncode:
                 return result.returncode

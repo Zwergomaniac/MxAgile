@@ -137,7 +137,7 @@ if ($parallelTests.Count -gt 0) {
         $tier    = if ($meta) { $meta.Tier } else { '?' }
 
         $startTime = Get-Date
-        $rawOutput = & powershell -NoProfile -File $file.FullName 2>&1
+        $rawOutput = & pwsh -NoProfile -File $file.FullName 2>&1
         $exitCode  = $LASTEXITCODE
         $duration  = (Get-Date) - $startTime
 
@@ -187,7 +187,7 @@ foreach ($testFile in $sequentialTests) {
 
     $startTime = Get-Date
     try {
-        powershell -NoProfile -File $testFile.FullName
+        & pwsh -NoProfile -File $testFile.FullName
         $exitCode = $LASTEXITCODE
     } catch {
         Write-Error ('Terminating error in {0}: {1}' -f $testFile.Name, ($_ | Out-String))
