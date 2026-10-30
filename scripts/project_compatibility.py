@@ -17,6 +17,7 @@ import yaml
 
 try:
     import jsonschema
+    from referencing import Registry, Resource
 except ImportError:
     jsonschema = None
 
@@ -35,6 +36,7 @@ CONTRACTS = (
     ('planning/verification-plans/*.yaml', 'verification-plan', 'verification'),
     ('planning/ui-inventory/*.yaml', 'page', 'references'),
     ('planning/evidence/manifests/*-evidence-manifest.yaml', 'evidence-manifest', 'verification'),
+    ('planning/parity/*.yaml', 'parity-verification', 'verification'),
     ('planning/target-mockups/*/_history/REV-*/revision.yaml', 'revision', 'references'),
 )
 SCHEMA_ROOT = Path(__file__).resolve().parents[1]
@@ -102,6 +104,22 @@ def load_schema(path: str, modified: int, size: int) -> dict:
     return json.loads(Path(path).read_text(encoding='utf-8-sig'))
 
 
+@lru_cache(maxsize=4)
+def schema_registry(signatures: tuple) -> Any:
+    return Registry().with_resources(
+        (Path(path).name, Resource.from_contents(load_schema(path, modified, size)))
+        for path, modified, size in signatures
+    )
+
+
+def schema_validator(path: Path) -> Any:
+    signatures = tuple((str(item), item.stat().st_mtime_ns, item.stat().st_size)
+                       for item in sorted(path.parent.glob('*.schema.json')))
+    stat = path.stat()
+    schema = load_schema(str(path), stat.st_mtime_ns, stat.st_size)
+    return jsonschema.Draft7Validator(schema, registry=schema_registry(signatures))
+
+
 def schema_errors(relative: str, value: Any) -> list[str]:
     contract = contract_for(relative)
     if not contract:
@@ -112,9 +130,7 @@ def schema_errors(relative: str, value: Any) -> list[str]:
     if not schema_path.is_file():
         return ['SCHEMA_UNAVAILABLE']
     try:
-        stat = schema_path.stat()
-        schema = load_schema(str(schema_path), stat.st_mtime_ns, stat.st_size)
-        validator = jsonschema.Draft7Validator(schema)
+        validator = schema_validator(schema_path)
         return sorted({str(error.validator) for error in validator.iter_errors(value)})
     except (OSError, ValueError, jsonschema.exceptions.SchemaError):
         return ['SCHEMA_UNAVAILABLE']
@@ -151,10 +167,8 @@ def schema_diagnostics(relative: str, value: Any) -> list[tuple[str, str, str]]:
     path = SCHEMA_ROOT / (contract[0] + '.schema.json')
     if not path.is_file():
         return []
-    stat = path.stat()
-    schema = load_schema(str(path), stat.st_mtime_ns, stat.st_size)
     issues = []
-    for error in jsonschema.Draft7Validator(schema).iter_errors(value):
+    for error in schema_validator(path).iter_errors(value):
         location = '/'.join(str(part) for part in error.absolute_schema_path)
         indexes = '/'.join(str(part) for part in error.absolute_path if isinstance(part, int))
         authority = f'.mxagile/schemas/{contract[0]}.schema.json#/{location}@{indexes}'
@@ -224,6 +238,9 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
                 line=gap.get('line'), column=gap.get('column'),
                 authority='.mxagile/policies/project-compatibility.md',
                 severity='INFO' if category == 'LEGACY_VARIANT' else 'WARNING')
+        elif gap['code'] == 'CAPTURE_ID_CONFLICT':
+            add('AUTHORITY_CONFLICT', source, 'verification', 'Capture ID has no unique canonical binding.',
+                blocking=True, repairability='DECISION_REQUIRED', authority='capture_id')
         elif 'AMBIGUOUS' in gap['code'] or 'MULTIPLE_ACTIVE' in gap['code']:
             add('AUTHORITY_CONFLICT', source, 'references', 'Reference authority is ambiguous.', blocking=True,
                 repairability='DECISION_REQUIRED', authority='ACTIVE_TARGET')
@@ -265,7 +282,7 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
         errors = schema_errors(relative, value)
         if errors:
             counts['invalid'] += 1
-            issues = schema_diagnostics(relative, value)
+            issues = [] if any(error in ('SCHEMA_UNAVAILABLE', 'VALIDATOR_UNAVAILABLE') for error in errors) else schema_diagnostics(relative, value)
             if not issues:
                 issues = [('Schema validation unavailable: ' + ', '.join(errors) + '.', 'UNSUPPORTED',
                            f'.mxagile/schemas/{contract[0]}.schema.json')]
@@ -288,6 +305,11 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
     reference_fields = ('req', 'requirement_ids', 'affected_requirements', 'decision_ids', 'depends_on', 'test_contract_ids')
     for relative, value in documents.items():
         area = contract_for(relative)[1]
+        if contract_for(relative)[0] == 'page':
+            for legacy, current in (('page', 'page_id'), ('source', 'source_mockup')):
+                if legacy in value and current in value and value[legacy] != value[current]:
+                    add('AUTHORITY_CONFLICT', relative, area, 'Legacy and current UI inventory fields disagree.',
+                        blocking=True, repairability='DECISION_REQUIRED', authority=f'{legacy}/{current}')
         for field in reference_fields:
             refs = value.get(field, [])
             if not isinstance(refs, list):
@@ -330,6 +352,10 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
                     add('REFERENCE_MISSING', relative, area, 'Verification plan names an absent Test Contract proof point.',
                         blocking=True, repairability='AGENT_REPAIRABLE', authority='test_contract_id/proof_points')
         if contract_for(relative)[0] == 'evidence-manifest':
+            manifest_wave = value.get('wave_id')
+            if not isinstance(manifest_wave, str) or manifest_wave not in waves:
+                add('WAVE_ASSIGNMENT_MISSING', relative, area, 'Evidence manifest has no resolvable canonical wave.',
+                    repairability='DECISION_REQUIRED', authority='planning/lifecycle/process-state.yaml')
             for entry in value.get('entries', []) if isinstance(value.get('entries'), list) else []:
                 if not isinstance(entry, dict):
                     continue

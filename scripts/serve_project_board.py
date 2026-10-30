@@ -47,11 +47,18 @@ def _no_symlink_components(root: Path, relative_path: str) -> Path | None:
 
 
 def resolve_reference_file(project_root: Path, status: dict, requested_path: str) -> Path | None:
-    """Resolve only the active reference itself or files under an SPA revision root."""
+    """Resolve active or manifest-bound historical references without filesystem browsing."""
     canonical = canonical_url_path(requested_path)
-    if canonical is None:
+    if canonical is None or any(part.startswith('.') for part in PurePosixPath(canonical).parts):
         return None
-    targets = status.get("project", {}).get("active_targets", {}).get("items", [])
+    targets = list(status.get("project", {}).get("active_targets", {}).get("items", []))
+    for run in status.get('verification', {}).get('gallery', []):
+        reference = run['reference_path']
+        revision_root = reference.split('/_history/', 1)[0] + '/_history/' + run['revision'] if '/_history/' in reference else None
+        if revision_root and PurePosixPath(canonical).suffix.lower() in ('.html', '.css', '.js', '.mjs', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.woff', '.woff2', '.ttf', '.ico'):
+            targets.append({'availability': 'available', 'canonical_path': reference, 'reference_root': revision_root, 'reference_type': 'spa_bundle_entrypoint'})
+        elif not revision_root and canonical == reference and PurePosixPath(canonical).suffix.lower() in ('.html', '.htm'):
+            targets.append({'availability': 'available', 'canonical_path': reference, 'reference_root': str(PurePosixPath(reference).parent), 'reference_type': 'single_file_mockup'})
     for target in targets:
         if target.get("availability") != "available":
             continue
@@ -86,6 +93,14 @@ def resolve_source_file(project_root: Path, status: dict, requested_path: str) -
     if candidate is not None and candidate.is_file():
         return candidate
     return None
+
+
+def resolve_capture_file(project_root: Path, status: dict, requested_path: str) -> Path | None:
+    canonical = canonical_url_path(requested_path)
+    if canonical is None:
+        return None
+    allowed = {capture['screenshot_path'] for run in status.get('verification', {}).get('gallery', []) for capture in run['captures']}
+    return safe_file(project_root, canonical) if canonical in allowed else None
 
 
 class ProjectBoardHandler(BaseHTTPRequestHandler):
@@ -181,6 +196,20 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 return
             content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
             self._send(200, body, f"{content_type}; charset=utf-8")
+            return
+
+        if parsed.path.startswith("/capture/"):
+            try:
+                requested = unquote(parsed.path[len('/capture/'):], errors='strict')
+            except UnicodeError:
+                self.send_error(404)
+                return
+            path = resolve_capture_file(self.project_root, self._status(), requested)
+            body = self._read_file(path) if path else None
+            if body is None:
+                self.send_error(404)
+                return
+            self._send(200, body, mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
             return
 
         if parsed.path.startswith("/reference/"):

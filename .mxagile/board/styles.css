@@ -19,6 +19,21 @@
   --mono: "Cascadia Code", Consolas, monospace;
 }
 
+.gallery-run { padding: 20px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.gallery-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.gallery-provenance { font: 11px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.gallery-dimensions { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 20px 0; }
+.gallery-dimensions dt { font: 10px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.gallery-dimensions dd { margin: 6px 0 0; }
+.gallery-captures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 18px; }
+.gallery-capture { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.gallery-image-link { display: block; aspect-ratio: 16 / 10; background: var(--panel-2); }
+.gallery-image-link img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.gallery-capture figcaption { display: grid; gap: 7px; padding: 12px; overflow-wrap: anywhere; }
+.gallery-capture small { color: var(--muted); font: 11px var(--mono); }
+.gallery-capture a { overflow-wrap: anywhere; }
+.gallery-history summary { cursor: pointer; color: var(--muted); overflow-wrap: anywhere; }
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; min-height: 100vh; background: var(--page); color: var(--ink); font-family: var(--sans); font-size: 14px; }

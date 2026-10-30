@@ -14,6 +14,31 @@ reality results therefore require a separate, authorized CapTrack checkout.
 
 ## Canonical State Map
 
+### Parity Evidence Gallery
+
+The read-only `#gallery` view and `#page/PAGE-...` detail consume only schema-valid
+Evidence Manifests, capture groups, BOUND comparison identities and matching
+canonical parity reports. No PNG directory crawling, filename pairing or inferred
+roles is performed. Mock and application captures stay separate, including their
+run IDs, timestamps, clean state, recorded evidence status and target freshness.
+
+Six statuses are copied from the report's evidence_matrix: CONTRACT, MODEL,
+STRUCTURAL_DOM, BEHAVIORAL, ROLE and VISUAL_WHOLE_SCREEN. The gallery does not
+compute an overall PASS. Missing visual captures remain VISUAL PARITY NOT VERIFIED.
+Current-target promoted groups precede historical/superseded groups. Historical
+images are created/loaded only when their disclosure is opened. Revisions and
+fingerprints remain visible; an old capture is never promoted by board access.
+
+`/capture/` serves only explicit screenshot paths from this projection, restricted
+to canonical screenshots, PNG/JPEG/WebP signatures, size limits, repo-root and
+no-symlink checks. DOM/YAML snapshots, storage dumps, secret files and unbound
+images are not served. Runtime URL userinfo, queries and fragments are removed;
+session IDs are omitted. Full-size images and valid current/historical mockup
+references open separately with noopener/noreferrer; the board stays open.
+Historical DEC-NNN.md records are listed as uninterpreted identities, separate
+from current Decision lifecycle counts. Compatibility diagnostics retain their
+own authority; the board introduces no repair buttons or repair semantics.
+
 | Board concern | Canonical source | Machine-readable | Deterministic | Semantic interpretation | Freshness determinable |
 |---|---|---:|---:|---:|---:|
 | Project identity | `mxagile-project.yaml`; project `.mpr` name as an optional display fallback | Partial | Yes | No | No; no stable Core project ID |

@@ -368,6 +368,7 @@
       "required": ["test_contracts", "proof_points", "plans", "evidence"],
       "additionalProperties": false,
       "properties": {
+        "gallery": {"type": "array", "items": {"$ref": "#/definitions/gallery_run"}},
         "test_contracts": {
           "type": "object",
           "required": ["availability", "status_counts", "items"],
@@ -621,6 +622,29 @@
     }
   },
   "definitions": {
+    "gallery_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_id", "run_id", "screen_id", "manifest_path", "reference_path", "reference_fingerprint", "revision", "historical", "parity_result", "dimensions", "captures"],
+      "properties": {
+        "entry_id": {"type": "string"}, "run_id": {"type": "string"}, "screen_id": {"type": "string"},
+        "manifest_path": {"type": "string"}, "reference_path": {"type": "string"},
+        "reference_fingerprint": {"type": "string"}, "revision": {"type": "string"},
+        "historical": {"type": "boolean"}, "parity_result": {"type": "string"},
+        "dimensions": {"type": "object", "additionalProperties": {"type": "string"}},
+        "captures": {"type": "array", "items": {"$ref": "#/definitions/gallery_capture"}}
+      }
+    },
+    "gallery_capture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["capture_id", "side", "role", "run_id", "captured_at", "screenshot_path", "runtime_url", "cleanliness_state", "freshness", "evidence_status"],
+      "properties": {
+        "capture_id": {"type": "string"}, "side": {"enum": ["mockup", "application"]},
+        "role": {"type": "string"}, "run_id": {"type": "string"}, "captured_at": {"type": "string"},
+        "screenshot_path": {"type": "string"}, "runtime_url": {"type": ["string", "null"]},
+        "cleanliness_state": {"const": "clean"}, "freshness": {"type": "string"}, "evidence_status": {"type": "string"}
+      }
+    },
     "availability": {
       "type": "string",
       "enum": ["available", "partial", "unavailable", "ambiguous", "unknown"]

@@ -9,10 +9,11 @@ import re
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
-from project_compatibility import compatibility_report, identity_matches, load_yaml, schema_errors
+from project_compatibility import compatibility_report, identity_matches, load_yaml, schema_errors, safe_file
 
 PHASES = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
 TASK_STATUSES = ("pending", "in_progress", "done", "failed", "blocked", "deferred")
@@ -720,6 +721,103 @@ def mission_projection(
     }, active_wave
 
 
+def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths: list[str],
+                               targets: list[dict], hashes: dict, gaps: list) -> list[dict]:
+    runs = []
+    valid = [(manifest, source) for manifest, source in zip(manifests, manifest_paths) if not schema_errors(source, manifest)]
+    bindings: dict[str, set[str]] = {}
+    for manifest, source in valid:
+        for entry in manifest['entries']:
+            for group in entry.get('capture_groups', []):
+                bindings.setdefault(group['capture_id'], set()).add(json.dumps(group, sort_keys=True))
+    for manifest, source in valid:
+        for entry in manifest['entries']:
+            identity = entry.get('comparison_identity', {})
+            if identity.get('status') != 'BOUND' or identity.get('target_page') != entry['screen_id']:
+                continue
+            reference = identity.get('canonical_mockup_path')
+            if not isinstance(reference, str) or not reference.startswith(('planning/target-mockups/', 'input-resources/ui-ux/')) or Path(reference).suffix.lower() not in ('.html', '.htm') or not safe_file(root, reference):
+                continue
+            target = next((item for item in targets if entry['screen_id'] in item['screen_ids']), None)
+            current = bool(target and target['availability'] == 'available' and reference == target['canonical_path']
+                           and identity['revision'] == (target['revision_id'] or identity['revision'])
+                           and identity['fingerprint'] == (target['bundle_hash'] or target['content_hash']))
+            if not current:
+                reference_file = safe_file(root, reference)
+                bound = identity['fingerprint'] == 'sha256:' + hashlib.sha256(reference_file.read_bytes()).hexdigest()
+                if '/_history/' in reference:
+                    revision_root = reference.split('/_history/', 1)[0] + '/_history/' + identity['revision']
+                    revision, revision_state = read_yaml_file(root, revision_root + '/revision.yaml', hashes, gaps)
+                    bound = bool(reference.startswith(revision_root + '/') and revision_state == 'available'
+                                 and not schema_errors(revision_root + '/revision.yaml', revision)
+                                 and revision.get('revision_id') == identity['revision'] and revision.get('bundle_hash') == identity['fingerprint'])
+                if not bound:
+                    continue
+            report_path = entry.get('parity_report_path')
+            if not isinstance(report_path, str) or not report_path.startswith('planning/parity/'):
+                continue
+            parity, state = read_yaml_file(root, report_path, hashes, gaps)
+            if state != 'available' or schema_errors(report_path, parity) or parity.get('comparison_identity') != identity:
+                continue
+            artifacts = [(side, artifact) for side, field in (('mockup', 'target_evidence'), ('application', 'actual_evidence'))
+                         for artifact in entry.get(field, [])]
+            captures = []
+            seen = set()
+            for group in entry.get('capture_groups', []):
+                capture_id = group['capture_id']
+                if len(bindings[capture_id]) != 1 or sum(item['capture_id'] == capture_id for item in entry['capture_groups']) != 1:
+                    add_gap(gaps, 'CAPTURE_ID_CONFLICT', source, 'Capture ID has conflicting or duplicate canonical bindings.')
+                    continue
+                if capture_id in seen or group['comparison_identity'] != identity or group['target_screen'] != entry['screen_id'] or group['role'] not in identity['roles']:
+                    continue
+                seen.add(capture_id)
+                matches = [artifact for side, artifact in artifacts if side == group['capture_source']
+                           and artifact.get('source') == side and artifact.get('capture_id') == capture_id
+                           and artifact['path'] == group['screenshot_path'] and artifact['type'] in ('screenshot', 'viewport_screenshot')]
+                if len(matches) != 1:
+                    continue
+                artifact = matches[0]
+                image_path = artifact['path']
+                if not image_path.startswith('planning/evidence/screenshots/') or Path(image_path).suffix.lower() not in ('.png', '.jpg', '.jpeg', '.webp'):
+                    continue
+                image = safe_file(root, image_path)
+                if image is None or image.stat().st_size > 32 * 1024 * 1024:
+                    continue
+                raw = image.read_bytes()
+                if not (raw.startswith(b'\x89PNG\r\n\x1a\n') or raw.startswith(b'\xff\xd8\xff') or (raw.startswith(b'RIFF') and raw[8:12] == b'WEBP')):
+                    continue
+                if any(not snapshot['path'].startswith('planning/evidence/') or not safe_file(root, snapshot['path']) for snapshot in group['snapshots']):
+                    continue
+                hashes[image_path] = hashlib.sha256(raw).hexdigest()
+                runtime_url = None
+                try:
+                    parsed = urlsplit(group['runtime_url'])
+                    if parsed.scheme in ('http', 'https') and parsed.hostname:
+                        host = f'[{parsed.hostname}]' if ':' in parsed.hostname else parsed.hostname
+                        runtime_url = urlunsplit((parsed.scheme, host + (f':{parsed.port}' if parsed.port else ''), parsed.path, '', ''))
+                except ValueError:
+                    pass
+                captures.append({
+                    'capture_id': capture_id, 'side': group['capture_source'], 'role': group['role'],
+                    'run_id': group['run_id'], 'captured_at': group['captured_at'], 'screenshot_path': image_path,
+                    'runtime_url': runtime_url, 'cleanliness_state': group['cleanliness_state'],
+                    'freshness': 'CURRENT_TARGET' if current else 'HISTORICAL_TARGET',
+                    'evidence_status': artifact.get('lifecycle_stage', 'promoted'),
+                })
+            for run_id in sorted({item['run_id'] for item in captures}):
+                run_captures = [item for item in captures if item['run_id'] == run_id]
+                historical = not current or any(item['evidence_status'] != 'promoted' for item in run_captures)
+                runs.append({
+                    'entry_id': entry['entry_id'], 'run_id': run_id, 'screen_id': entry['screen_id'], 'manifest_path': source,
+                    'reference_path': reference, 'reference_fingerprint': identity['fingerprint'],
+                    'revision': identity['revision'], 'historical': historical,
+                    'parity_result': parity['overall_result'],
+                    'dimensions': {name: value['status'] for name, value in parity.get('evidence_matrix', {}).items()},
+                    'captures': sorted(run_captures, key=lambda item: (0 if item['side'] == 'mockup' else 1, item['role'], item['capture_id'])),
+                })
+    return sorted(runs, key=lambda item: (item['historical'], item['screen_id'], item['entry_id'], item['run_id'], item['manifest_path']))
+
+
 def build_status(project_root: Path) -> dict[str, Any]:
     root = project_root.resolve()
     hashes: dict[str, str] = {}
@@ -1151,6 +1249,8 @@ def build_status(project_root: Path) -> dict[str, Any]:
         "source_references": {"availability": source_reference_state, "items": source_references},
         "gaps": sorted(gaps, key=lambda gap: (gap["code"], gap["source"] or "", gap["description"])),
     }
+    result["verification"]["gallery"] = visual_evidence_projection(root, manifests, manifest_paths, active_targets, hashes, gaps)
+    result["gaps"] = sorted(gaps, key=lambda gap: (gap["code"], gap["source"] or "", gap["description"]))
     result["compatibility"] = compatibility_report(root, result, hashes)
     result["decisions"]["historical"] = [
         {"id": Path(item["source_path"]).stem, "source_path": item["source_path"]}

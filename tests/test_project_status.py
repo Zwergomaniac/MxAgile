@@ -343,6 +343,11 @@ class ProjectStatusTests(unittest.TestCase):
       issues = project_compatibility.schema_diagnostics("planning/test-contracts/TC-001.yaml", {})
       self.assertTrue(any("proof_points" in item[0] and item[1] == "DECISION_REQUIRED" for item in issues))
 
+    def test_evidence_schema_refs_resolve_locally_without_network(self) -> None:
+      manifest = {"manifest_id": "MFT-W01", "wave_id": "W01", "entries": [{"entry_id": "E1", "scenario_id": "SCN-1", "screen_id": "PAGE-1", "role": "CEKO", "data_state": "populated", "parity_result": "NOT_VERIFIED", "comparison_identity": {"status": "BOUND"}, "capture_groups": []}]}
+      errors = project_compatibility.schema_errors("planning/evidence/manifests/W01-evidence-manifest.yaml", manifest)
+      self.assertIn("required", errors)
+
     def test_duplicate_mapping_keys_are_not_silently_accepted(self) -> None:
       for wave in ("W3", "W4A", "W1C"):
         write_file(self.root, f"planning/checklists/{wave}-implementation-checklist.yaml", f"wave_id: {wave}\nitems: []\n")
@@ -399,6 +404,13 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertFalse(any(item[1] == "SAFE_DETERMINISTIC" for item in issues))
       issues = project_compatibility.schema_diagnostics("planning/tasks/TASK-001.yml", {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect", "inspect": {"entity": "Module.Entity"}})
       self.assertTrue(any(item[1] == "DECISION_REQUIRED" for item in issues))
+
+    def test_legacy_ui_conflicts_are_explicit_and_never_automapped(self) -> None:
+      write_file(self.root, "planning/ui-inventory/PAGE-1.yaml", "page_id: PAGE-1\npage: PAGE-9\nsource_mockup: input-resources/ui-ux/new.html\nsource: input-resources/ui-ux/old.html\n")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      conflicts = [item for item in report["diagnostics"] if item["category"] == "AUTHORITY_CONFLICT" and item["source_path"] == "planning/ui-inventory/PAGE-1.yaml"]
+      self.assertEqual(len(conflicts), 2)
+      self.assertTrue(all(item["repairability"] == "DECISION_REQUIRED" for item in conflicts))
 
     def test_wave_repair_is_scoped_dry_run_and_idempotent(self) -> None:
       write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\nitems: []\n")
@@ -542,6 +554,14 @@ class ProjectStatusTests(unittest.TestCase):
       path.write_text(path.read_text().replace("PP-001", "PP-999"))
       report = build_project_status.build_status(self.root)["compatibility"]
       self.assertTrue(any(item["category"] == "REFERENCE_MISSING" and item["authority"] == "test_contract_id/proof_points" for item in report["diagnostics"]))
+
+    def test_evidence_wave_is_not_inferred_from_timeline(self) -> None:
+      path = self.root / "planning/evidence/manifests/W99-evidence-manifest.yaml"
+      write_file(self.root, path.relative_to(self.root).as_posix(), "manifest_id: MFT-W99\nwave_id: W99\nentries: []\n")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      diagnostic = next(item for item in report["diagnostics"] if item["source_path"] == path.relative_to(self.root).as_posix() and item["category"] == "WAVE_ASSIGNMENT_MISSING")
+      self.assertEqual(diagnostic["repairability"], "DECISION_REQUIRED")
+      self.assertIsNone(diagnostic["proposed_repair_type"])
 
     def test_diagnostic_source_endpoint_never_serves_raw_invalid_source(self) -> None:
       import threading

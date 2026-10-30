@@ -2,7 +2,7 @@
 
 const $ = (selector) => document.querySelector(selector);
 const root = $("#view");
-const tabs = ["overview", "waves", "requirements", "verification", "findings", "decisions"];
+const tabs = ["overview", "waves", "requirements", "verification", "gallery", "findings", "decisions"];
 let status = null;
 
 function node(tag, className = "", text = "") {
@@ -354,6 +354,77 @@ function renderVerification() {
   renderReferenceList(root, ["test_contract", "verification_plan", "evidence_manifest", "evidence_artifact", "parity_report"]);
 }
 
+function renderGallery(screenId = null) {
+  root.append(sectionTitle(screenId || "Parity Evidence", "Mock / Runtime"));
+  const runs = (status.verification.gallery || []).filter((run) => !screenId || run.screen_id === screenId);
+  if (!runs.length) {
+    root.append(empty("VISUAL PARITY NOT VERIFIED"));
+    return;
+  }
+  function renderRun(run, container) {
+    const heading = node("div", "gallery-heading");
+    heading.append(internalLink(run.screen_id, `page/${encodeURIComponent(run.screen_id)}`));
+    heading.append(node("strong", "", run.revision), stateBadge(run.historical ? "HISTORICAL" : "ACTIVE_TARGET"));
+    heading.append(stateBadge(run.parity_result));
+    heading.append(externalLink("Mockup öffnen ↗", safePathUrl("/reference", run.reference_path)));
+    container.append(heading);
+    container.append(node("p", "gallery-provenance", `REFERENCE ${run.reference_fingerprint}`));
+    container.append(node("p", "gallery-provenance", `${run.manifest_path} · ${run.entry_id} · ${run.run_id}`));
+    const dimensions = node("dl", "gallery-dimensions");
+    for (const [key, label] of [
+      ["contract_parity", "CONTRACT"], ["model_parity", "MODEL"], ["structural_dom_parity", "STRUCTURAL_DOM"],
+      ["behavioral_parity", "BEHAVIORAL"], ["role_parity", "ROLE"], ["visual_whole_screen_parity", "VISUAL_WHOLE_SCREEN"],
+    ]) {
+      const dimension = node("div");
+      dimension.append(node("dt", "", label));
+      const value = node("dd");
+      value.append(stateBadge(run.dimensions[key] || "NOT_VERIFIED"));
+      dimension.append(value);
+      dimensions.append(dimension);
+    }
+    container.append(dimensions);
+    const captures = node("div", "gallery-captures");
+    for (const capture of run.captures) {
+      const figure = node("figure", "gallery-capture");
+      const link = externalLink("", safePathUrl("/capture", capture.screenshot_path), "gallery-image-link");
+      link.title = `${capture.capture_id} öffnen`;
+      const image = node("img");
+      image.alt = `${capture.side === "mockup" ? "Mock" : "Runtime"} · ${capture.role} · ${run.screen_id}`;
+      image.loading = "lazy";
+      image.src = link.href;
+      link.append(image);
+      const caption = node("figcaption");
+      caption.append(node("strong", "", `${capture.side === "mockup" ? "Soll / Mock" : "Runtime / Ist"} · ${capture.role}`));
+      caption.append(node("small", "", `${capture.run_id} · ${capture.capture_id}`));
+      caption.append(node("small", "", capture.captured_at));
+      caption.append(node("small", "", `${capture.cleanliness_state} · ${capture.freshness} · ${capture.evidence_status}`));
+      if (capture.runtime_url) caption.append(externalLink(capture.runtime_url, capture.runtime_url));
+      figure.append(link, caption);
+      captures.append(figure);
+    }
+    container.append(captures);
+    if (!run.captures.some((capture) => capture.side === "mockup") || !run.captures.some((capture) => capture.side === "application")) {
+      container.append(empty("VISUAL PARITY NOT VERIFIED"));
+    }
+  }
+  for (const run of runs.filter((item) => !item.historical)) {
+    const section = node("section", "gallery-run");
+    renderRun(run, section);
+    root.append(section);
+  }
+  for (const run of runs.filter((item) => item.historical)) {
+    const details = node("details", "gallery-run gallery-history");
+    details.append(node("summary", "", `${run.screen_id} · ${run.revision} · HISTORICAL · ${run.run_id}`));
+    details.addEventListener("toggle", () => {
+      if (details.open && !details.dataset.loaded) {
+        renderRun(run, details);
+        details.dataset.loaded = "true";
+      }
+    });
+    root.append(details);
+  }
+}
+
 function renderFindings() {
   root.append(sectionTitle("Findings", `${countText(status.findings.open)} open · ${countText(status.findings.blocking)} blocking`));
   if (!status.findings.items.length) {
@@ -374,6 +445,12 @@ function renderFindings() {
 
 function renderDecisions() {
   root.append(sectionTitle("Decisions", `${status.decisions.status_counts.PROPOSED ?? "UNKNOWN"} proposed · ${status.decisions.blocked_by_decision.count ?? "UNKNOWN"} blocking`));
+  for (const decision of status.decisions.historical || []) {
+    const row = node("div", "plain-item");
+    row.append(node("strong", "", decision.id), stateBadge("HISTORICAL"));
+    row.append(externalLink(decision.source_path, safePathUrl("/diagnostic-source", decision.source_path)));
+    root.append(row);
+  }
   if (!status.decisions.items.length) {
     root.append(empty(status.decisions.availability === "unavailable" ? "Decision records unavailable" : "No Decisions"));
     return;
@@ -582,6 +659,8 @@ function renderView() {
   else if (view === "waves") renderWaves();
   else if (view === "requirements") renderRequirements();
   else if (view === "verification") renderVerification();
+  else if (view === "gallery") renderGallery();
+  else if (view === "page") renderGallery(parts[1]);
   else if (view === "findings") renderFindings();
   else if (view === "decisions") renderDecisions();
   else renderDetail(parts);
