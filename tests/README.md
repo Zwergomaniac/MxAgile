@@ -1,5 +1,42 @@
 # Test Architecture & Fast Feedback WP — Final Report
 
+## Impact-aware gates (2026-10-30)
+
+`python tests/run-impact-tests.py --list` selects affected consumers from the
+working-tree diff (including untracked files). `--base <commit>` includes committed
+changes since that commit. Selection is deterministic and deduplicated. Unmapped
+paths require Tier 3; they are never silently skipped.
+
+- Tier 0: `--tier fast`: changed Python/PowerShell parsers and `git diff --check`.
+- Tier 1: default: selected component/contract suites only.
+- Tier 2: installer, projections, distribution and cross-contract inputs select
+	integration consumers automatically. The reported tier is integration depth,
+	not permission to skip selected suites.
+- Tier 3: `--tier release`: existing complete `run-all-tests.ps1`, unchanged.
+	Required before release and broad cross-contract acceptance. A local impact
+	PASS is never a full-release PASS. Missing dependencies remain unavailable.
+
+Python unittest suites share one interpreter. PowerShell suites run sequentially;
+no new shared-state/port parallelism is introduced. Existing full coverage remains
+available, including wrappers discovered by the full runner.
+
+Measured on this Windows workspace, Python 3.14 (not portable performance claims):
+
+| Check | Measured seconds | Cost / impact |
+| --- | ---: | --- |
+| Python empty process | 1.48 | baseline process startup |
+| 33 status/Doctor/server tests, before | 78.15 test / 86.21 invocation | fixture + HTTP + repair coverage |
+| Profiled deterministic Doctor test | 10.02 total / 6.87 imports | two build_status calls: 1.94 |
+| Impact selector's 5 unit tests | 0.79 | no installer/browser startups |
+| Impact selector fast gate | 2.88 | syntax + diff whitespace |
+
+These are different workloads, not a before/after speedup percentage. The older
+measurements below remain historical. Browser startup, fresh/update installation
+and complete-suite costs must be measured when those gates are executed; they
+are not inferred from older runs. Do not re-run identical integration gates after
+unrelated documentation-only changes. Installer mutations/generators must finish;
+an interrupted read-only regression is NOT COMPLETED, never PASS.
+
 Date: 2026-09-28
 
 ---
