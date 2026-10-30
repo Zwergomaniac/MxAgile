@@ -14,6 +14,8 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang und concern-spezifische Autoritaet
 - `.mxagile/policies/mockup-analysis.md` — Mockup-Analyse-Regeln
 - `.mxagile/policies/runtime-strategy.md` — Runtime-Strategie: Local First, Docker by Need
+- `.mxagile/policies/local-runtime-profile.md` — project profile, pinned mxcli resolution, database identity and bootstrap login
+- `.mxagile/policies/tool-instruction-conflict.md` — authority and capability conflict resolution
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
 - `.mxagile/policies/evidence-levels.md` — Evidenz-Klassifikation (STATIC/MODEL/RUNTIME/BROWSER)
 - `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
@@ -24,6 +26,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/mockup-lifecycle.md` — Source mockup vs. active target mockup, provenance, version history
 - `.mxagile/policies/mockup-materialization.md` — Mockup type classification (static/executable), below-the-fold evidence, target evidence bundle, target vs actual separation, equivalent state enforcement
 - `.mxagile/policies/verification-scenario.md` — Material scenario matrix, role/data/viewport coverage, mock-data prerequisites, decomposition, timeout policy, parallelism safety
+- `.mxagile/policies/test-identity-lifecycle.md` — initial login vs. requested role, project-declared identity and role-switch mechanism
 - `.mxagile/policies/evidence-contract.md` — Temporary vs. canonical evidence, screenshot promotion contract, evidence manifest
 - `.mxagile/policies/project-knowledge.md` — Canonical artifact map, Git-tracked locations, gitignore contract, fresh clone test
 - `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
@@ -368,15 +371,83 @@ Runtime-Modi-Vertrag: `.mxagile/policies/development-runtime.md` § Runtime Mode
 Voraussetzung: laufende Applikation + repraesentativer Daten-Zustand + korrekte Benutzerrolle.
 Ohne diese Kombination ist kein valider Browser-Evidenz-Nachweis moeglich.
 
+### Immutable Comparison Identity (Pflicht vor Parity)
+
+Vor jeder Contract-, Modell-, Browser-, DOM-, Screenshot- oder Report-Pruefung eine einzige
+`comparison_identity` aus dem kanonischen UI-Inventar, Mockup-Lifecycle sowie Runtime-/Modellstand
+binden:
+
+- `active_target`, kanonischer Mockup-Pfad, akzeptierte Revision und SHA-256 des vollstaendigen
+  aktiven Einzeldatei-Mockups oder Bundles;
+- Zielseite, angeforderte Rollen und Zustaende aus UI-Inventar und Verification Plan;
+- App-Revision/Runtime-Build-ID (falls nicht exponiert: `NOT_EXPOSED` dokumentieren);
+- Modellrevision (bevorzugt deklarierte Revision, sonst deterministischer `.mpr`-Fingerprint
+  plus Repository-/Dirty-Status).
+
+Die angeforderte Revision gegen `revision.yaml`, `active_target` und Fingerprint pruefen.
+Dateinamen wie `all-role-modes` sind kein Authority-Nachweis. Den vollstaendigen aktiven
+Mockup-Pfad und die Revision verwenden; partielle HTML-/JS-Reads reichen nicht als
+Whole-Screen- oder Visual-Referenz.
+
+Identitaet als `schema_version: 2` im Parity-Report und in Capture-Gruppen festhalten. Vor/nach
+jeder Modell-, Runtime-, DOM-, Screenshot- und Report-Phase die Felder erneut vergleichen.
+Bei jeder Aenderung: `comparison_identity.status: REFERENCE_DRIFT`, vorherige Evidence dieses
+Laufs invalidieren, keine Promotion und keinen Implementierungsscope daraus ableiten. Bei
+unvollstaendiger Identitaet `INCOMPLETE` / `NOT_VERIFIED` melden und keine Parity-PASS-Aussage
+oder Promotion erzeugen.
+
 ### Voraussetzungen Verifying-Modus
 
-Vor dem Start Playwright/Browser:
+Runtime-Preparation ist vor dem Runtime-Start auszufuehren, sobald Browser-/Runtime-Evidenz
+absehbar benoetigt wird. So kann die Runtime danach waehrend Mockup- und Modellanalyse
+starten, ohne den Login als spaeten Credential-Preflight zu behandeln. Ist die Runtime
+bereits verfuegbar, bleibt die Credential-Pruefung vor jedem Login verpflichtend.
 
-1. **Credential-Check:** Credential-Discovery gemaess `policies/credential-discovery.md`
-   — bevorzugt `.env.mendix`; Test-Identitaeten (MENDIX_APP_TEST_USERNAME etc.) pruefen
-2. **Repraesentative Daten:** Fuer Szenarien die befuellten Zustand erfordern: Seed-Skript
+Vor Runtime-Start und vor dem ersten Playwright-/Browser-Login:
+
+1. **Tool-/Profil-Check:** Project-/Company-/Harness-Anweisungen auf den autoritativen
+  mxcli-Pfad und Runtime-Vertrag pruefen. Resolver aus `policies/local-runtime-profile.md`
+  verwenden, absolute Binary und Version erfassen, versionssensitive Flags mit dem Help
+  genau dieser Binary pruefen. Danach `local_runtime` vollstaendig aufloesen
+  (Runtime-Art, `db_type`, `db_name`, `app_url`/Port, Constants und Voraussetzungen).
+  Keine DB-Art oder Binary aus PATH erraten.
+    Browser-Ziel vor Navigation gemaess `policies/local-runtime-profile.md` aufloesen:
+    `local_runtime.app_url` ist die Projekt-BaseURL; die konfigurierte Runner-BaseURL und
+    `allowedOrigins` exakt pruefen. `localhost` und `127.0.0.1` nicht gleichsetzen. Browser-
+    Binary/Channel ausschliesslich aus der verwendeten Playwright-Runner-Konfiguration lesen.
+2. **Credential-Check:** Vollstaendige Credential-Discovery gemaess
+  `policies/credential-discovery.md` in kanonischer Reihenfolge ausfuehren. Erforderliche
+  Keys aus Projekt-/Company-Konfiguration und Szenario ableiten, nicht aus universellen
+  Annahmen. `.env.mendix` lokal auf erforderliche Keys und Status pruefen; Werte weder
+  ausgeben noch in Modellkontext oder Evidence laden. Bei fehlenden/EMPTY Keys alle
+  weiteren Quellen pruefen, bevor eskaliert wird.
+3. **Initial-Login und Rolle getrennt aufloesen:** Bootstrap-Zugang nur fuer den initialen
+  Login verwenden. Danach die angeforderte Rolle und Testidentitaet gemaess
+  `policies/test-identity-lifecycle.md` ueber die aktuellen Projekt-/Company-Deklarationen,
+  Tests und Helper herstellen; falls vorhanden die deklarierte Runtime-Probe verwenden.
+  Historische Ergebnislogs sind keine operative Konfiguration.
+4. **Repraesentative Daten:** Fuer Szenarien die befuellten Zustand erfordern: Seed-Skript
    pruefen und ausfuehren; fehlende Daten als `MOCK_DATA_UNAVAILABLE` klassifizieren
-3. **Test-Rollen:** Fuer Role-spezifische Szenarien: Login als korrekte Demo-/Test-Rolle
+5. **Test-Rollen:** Fuer Role-spezifische Szenarien: die aufgeloeste Demo-/Test-Rolle aktivieren
+
+### Navigation und Evidence-Cleanliness
+
+Vor Runtime-Navigation den Navigationseintrag im UI-Inventar, den Projektvertrag und aktuelle
+ausfuehrbare Playwright-Tests/Helper pruefen. Den deklarierten Sidebar-/Menu-Pfad oder Helper
+verwenden. Erratene `/p/...`-URLs sind nicht zulaessig, wenn ein kanonischer Pfad existiert;
+direkte URLs nur verwenden, wenn Projektvertrag oder aktueller Test sie belegen.
+
+Nach fehlgeschlagener Navigation oder unerwartetem Error-/Warning-Dialog ist die Session fuer
+Evidence kontaminiert. Vor Screenshot/DOM-Capture `policies/evidence-contract.md` § Evidence
+Cleanliness Gate ausfuehren. Keine Evidence in einem ueberlagerten oder nicht sicher
+wiederhergestellten Zustand aufnehmen oder promoten.
+
+Jede Screenshot-/Snapshot-Aufnahme erhaelt eine neue `capture_id`. Screenshot und DOM-,
+Accessibility- oder YAML-Snapshot muessen in derselben Capture-Operation, Session und URL
+entstehen und dieselbe ID tragen. Aehnliche Dateinamen oder Zeitstempel verbinden keine
+Captures. Screenshots nach der Aufnahme tatsaechlich oeffnen und visuell pruefen; erzeugt,
+aber nicht betrachtet bedeutet `visual_whole_screen_parity: NOT_VERIFIED`. Getrennte
+`playwright-cli eval()`- und Screenshot-Aufrufe sind keine gemeinsame Capture-Provenienz.
 
 ### Observe-Before-Mutate Vorbedingung
 
@@ -471,13 +542,37 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
       - Pruefen: Edit-Controls vs. Display-Components rollenrichtig
       - Pruefen: Rollenspezifische Navigation-Items fehlen wo erwartet
 
-5. **Fidelity-Pruefung (Gesamtergebnis):** Semantischen Vergleich der gesamten
+5. **Fresh-Full-Abgleich:** Wenn der Auftrag Fresh-/Full-/Whole-Screen-Parity verlangt,
+  zusaetzlich nach der gezielten Hypothesenpruefung einen unabhaengigen Whole-Screen-
+  Runtime-Pass fuer genau diese Zielseite ausfuehren. Den gesamten gerenderten Screen
+  gegen das aktive Target vergleichen, auch wenn Struktur, Controls oder Aktionen nicht
+  in U-Items, Checkliste oder vorherigen Findings stehen. Neue Unterschiede aus beiden
+  Richtungen als Deviation erfassen und reconciliieren; nicht wegen fehlender vorheriger
+  Hypothese aus dem Seiten-Scope ausschliessen. Alle relevanten Rollen/States/Viewports der
+  Seite abdecken, aber keine weiteren Seiten hinzufuegen. Vollstaendiger Gate-Vertrag:
+  `policies/ui-parity.md` § Fresh-Full UI Parity.
+
+6. **Fidelity-Pruefung (Gesamtergebnis):** Semantischen Vergleich der gesamten
    Seitenstruktur-Gruppen gegen das Ziel-Mockup durchfuehren.
    `ui_fidelity` fasst das Gesamtergebnis aller Dimensionen zusammen.
    Standard: `PASS` wenn alle required-Dimensionen PASS, sonst `FAIL`.
 
-6. Dimensionalen Parity-Report erzeugen gemaess Schema
+7. Dimensionalen Parity-Report erzeugen gemaess Schema
    `.mxagile/schemas/parity-verification.schema.json`:
+
+  Bei Fresh-Full-Parity: `verification_scope: fresh_full` und
+  `whole_screen_review.status: complete` setzen, falls der Pass abgeschlossen ist; sonst
+  `blocked` mit Grund. `comparison_identity` und alle sechs getrennten `evidence_matrix`-
+  Statusfelder ausfuellen. Whole-Screen-PASS erfordert gerenderte und visuell geoeffnete
+  Referenz- und Runtime-Captures; deren IDs muessen unter `reference_capture_ids`,
+  `runtime_capture_ids` und `visually_reviewed_capture_ids` referenziert sein. Targeted
+  verification bleibt als targeted markiert. Unerwartete Runtime-Strukturen werden in den
+  passenden Dimensions-Deviations festgehalten.
+
+  Der folgende YAML-Block illustriert ausschliesslich die Dimensionsstruktur im Legacy-Schema
+  v1 und darf nicht als neue Reportvorlage kopiert werden. Neue Reports verwenden immer
+  `schema_version: 2`, eine gebundene `comparison_identity`, alle `evidence_matrix`-
+  Statusfelder und bei `fresh_full` den Capture-belegten `whole_screen_review`.
 
 ```yaml
 page_id: PAGE-CUSTOMER-NEWEDIT
@@ -553,10 +648,10 @@ ui_fidelity: FAIL
 - `PARTIAL`: keine FAIL, aber mind. eine PARTIAL oder CONFLICT
 - `NOT_VERIFIED`: keine Browser-Verifizierung erfolgt
 
-7. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
+8. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
    auf `status: failed` setzen.
-8. Parity-Report unter `planning/parity/{PageName}_parity.yaml` ablegen.
-9. Rueckwaertskompatibilitaet: bestehende `{PageName}_comparison.yaml` bleibt als
+9. Parity-Report unter `planning/parity/{PageName}_parity.yaml` ablegen.
+10. Rueckwaertskompatibilitaet: bestehende `{PageName}_comparison.yaml` bleibt als
    Legacy-Artefakt erhalten. Neue Dimensionsergebnisse ersetzen es NICHT retroaktiv.
 
 ### Wann ist eine Abweichung "material"?

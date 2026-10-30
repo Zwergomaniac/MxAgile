@@ -15,7 +15,11 @@ current wave's verified implementation and produce a traceable acceptance gate r
 - `.mxagile/policies/verification-layers.md` — layer semantics and security dimensions
 - `.mxagile/policies/verification-materialization.md` — materialization boundary; PRESERVE/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE; evidence level selection rule; execution_binding_stale lifecycle
 - `.mxagile/policies/runtime-strategy.md` — local-first runtime strategy for Verifying phase
+- `.mxagile/policies/local-runtime-profile.md` — project runtime profile and pinned mxcli resolution
+- `.mxagile/policies/tool-instruction-conflict.md` — technical authority and actual capability gate
+- `.mxagile/policies/test-identity-lifecycle.md` — bootstrap authentication vs. requested role switch
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
+- `.mxagile/policies/credential-discovery.md` — complete credential preflight before runtime startup, login, or escalation
 - `.mxagile/policies/safety-rules.md` — universal safety rules
 
 ## Project Configuration
@@ -71,6 +75,15 @@ Before running any campaign:
    - BUILD: semantic build validation capability available in this environment?
    - RUNTIME: app running via `mxcli run --local` (autonomous mode, no `--watch`)?
      See `policies/development-runtime.md` § Runtime Modes.
+       Before startup, resolve the project-pinned mxcli binary/version and full `local_runtime`
+       profile; verify version-sensitive syntax against that binary's command help. Resolve
+       initial login and each requested role separately through current project declarations,
+       tests, helpers, and any declared runtime probe. Follow `policies/tool-instruction-conflict.md`.
+   If RUNTIME or FRONTEND evidence is planned, complete credential availability discovery
+   in the canonical order from `policies/credential-discovery.md` before starting the
+   runtime. If it is already running, complete discovery before login. Missing/EMPTY
+   credentials require checking the remaining sources; do not classify them as
+   `USER_INPUT_REQUIRED` until the full discovery path is exhausted.
      Readiness Gate: APPLICATION_REACHABLE must be confirmed before any Playwright interaction.
      Startup timeout alone MUST NOT classify as machine load, infrastructure failure, or human gate.
      Gather evidence, inspect stale processes, attempt bounded recovery before declaring gap.

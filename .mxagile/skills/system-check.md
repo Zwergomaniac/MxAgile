@@ -9,7 +9,13 @@ This skill is entirely READ-ONLY. You MUST NOT perform any of the following:
 - Perform any git commit, checkout, reset, merge, or push
 - Modify AGENTS.md, CLAUDE.md, or any other project file
 
-Permitted read-only operations: read files, list directories, run `mxcli --version`, run `git status` / `git log` / `git diff` (read-only only).
+Before any mxcli operation, resolve the project-declared/project-local executable using
+`policies/local-runtime-profile.md` and `.mxagile/tools/Resolve-MxAgileMxcli.ps1`. Apply
+`policies/tool-instruction-conflict.md` when project, harness, skill, or tool capabilities
+disagree. Use the resolved absolute path; do not make a new PATH lookup.
+
+Permitted read-only operations: read files, list directories, run the resolved mxcli
+`--version`, run `git status` / `git log` / `git diff` (read-only only).
 
 ---
 
@@ -73,7 +79,7 @@ Files to check:
 
 1. Check if `mxcli.exe` or `mxcli` exists in the project root. Report path if found.
 2. Check if `update-mxcli.ps1` exists in the project root.
-3. If `mxcli` is present: run `./mxcli --version` (or `mxcli.exe --version`) and report the exact output. If it fails, report `ERROR: <message>`.
+3. If mxcli is present: run `& $mxcliPath --version` using the binary resolved above and report its exact version and absolute path. If it fails, report `ERROR: <message>`.
 
 ---
 

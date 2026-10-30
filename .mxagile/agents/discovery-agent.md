@@ -8,6 +8,9 @@ beginnt.
 
 - `.mxagile/policies/source-priority.md` — Quellen-Vorrang-Hierarchie
 - `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
+- `.mxagile/policies/local-runtime-profile.md` — project profile and pinned mxcli selection
+- `.mxagile/policies/tool-instruction-conflict.md` — resolve project/Core/harness/skill conflicts before tool use
+- `.mxagile/policies/test-identity-lifecycle.md` — initial login and requested role are separate
 - `.mxagile/policies/evidence-levels.md` — Evidenz-Level-Klassifikation (STATIC/MODEL/BUILD/RUNTIME/FRONTEND)
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/design-contract-intake.md` — Mocketeer Design Contract v1 intake (WP2)
@@ -183,8 +186,11 @@ und der State nicht `empty` oder `loading` ist → als `INTERACTION_GAP` markier
 Wenn `development.ui_driven = true`, pruefe folgende Voraussetzungen fuer Full UI Discovery:
 
 ### Schritt 1: Credential- und Konfigurations-Discovery
-Vor jedem Versuch den lokalen Runtime zu starten: vollstaendige Credential-Discovery
-ausfuehren (Reihenfolge: siehe `policies/credential-discovery.md`).
+Vor jedem Versuch den lokalen Runtime zu starten: Tool-/Anweisungskonflikte gemaess
+`policies/tool-instruction-conflict.md` aufloesen, projektgebundene mxcli-Binary per
+`policies/local-runtime-profile.md` selektieren und deren Version pruefen. Danach
+vollstaendige Credential- und Konfigurations-Discovery ausfuehren (Reihenfolge: siehe
+`policies/credential-discovery.md`).
 
 Mindestens pruefen:
 - `.env.mendix` existiert und ist vollstaendig befuellt?
@@ -219,7 +225,11 @@ Fuer UI-Szenarien die einen befuellten Zustand erfordern:
 
 ### Schritt 4: Test-Identity Readiness
 Fuer role-spezifische UI-Szenarien:
-- Test-User-Konfiguration pruefen (automatisch)
+- angeforderte Rolle aus Szenario/Verification Plan ableiten
+- initialen Bootstrap-Login von Role-Switch getrennt behandeln
+- aktuelle Projekt-/Company-Deklarationen, Tests und Helper gemaess `policies/test-identity-lifecycle.md` pruefen
+- deklarierte Runtime-Probe fuer verfuegbare Identitaeten/Rollen verwenden, sofern vorhanden
+- historische Reports/Logs nur als Hinweise, nicht als operative Konfiguration verwenden
 - Falls Credentials fehlen: Credential-Bootstrap-Flow fuer Test-Identitaeten
 
 ### Schritt 5: Browser-Evidence (UI-driven REQUIRED)

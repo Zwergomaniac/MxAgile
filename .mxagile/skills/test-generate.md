@@ -6,6 +6,11 @@ Verification Plan (VPL-NNN). Answers HOW tests are technically run.
 This skill bridges the WHAT (test contract) + WHICH (verification plan) to executable test actions.
 Generated test steps are regeneratable implementation details — they are NOT canonical Test Contract identity.
 
+Before emitting or executing any mxcli command, resolve the project's selected executable
+and version per `policies/local-runtime-profile.md`. Verify version-sensitive flags against
+that same executable's command-specific help. Do not copy unverified syntax from external or
+tool-provided skills; resolve disagreements per `policies/tool-instruction-conflict.md`.
+
 ## When to Run
 
 Run this skill during the Verifying phase, before acceptance campaigns execute.

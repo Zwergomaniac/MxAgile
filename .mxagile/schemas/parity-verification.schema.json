@@ -39,6 +39,121 @@
       "type": "string",
       "description": "Application URL used during Playwright verification."
     },
+    "comparison_identity": {
+      "$ref": "#/definitions/comparison_identity"
+    },
+    "evidence_matrix": {
+      "$ref": "#/definitions/evidence_matrix"
+    },
+    "verification_scope": {
+      "type": "string",
+      "enum": ["targeted", "fresh_full"],
+      "description": "Verification scope. fresh_full requires a separate complete whole-screen runtime reconciliation in addition to hypothesis verification."
+    },
+    "whole_screen_review": {
+      "type": "object",
+      "required": ["status", "scope_note"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["complete", "blocked"],
+          "description": "Whether the independent whole-screen runtime review completed cleanly or was blocked. A clean review can still record deviations in dimensions."
+        },
+        "scope_note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Concise page/role/state/viewport coverage and whether new unlisted deviations were found."
+        },
+        "blocked_reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required by policy when status is blocked; explains the evidence or runtime blocker."
+        },
+        "reference_capture_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Capture IDs for rendered screenshots of the active mockup revision that were opened and visually inspected."
+        },
+        "runtime_capture_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Capture IDs for clean runtime screenshots that were opened and visually inspected."
+        },
+        "visually_reviewed_capture_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Capture IDs actually opened and visually compared; generated-but-unopened screenshots do not count."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "complete" } },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["reference_capture_ids", "runtime_capture_ids", "visually_reviewed_capture_ids"],
+            "properties": {
+              "reference_capture_ids": { "minItems": 1 },
+              "runtime_capture_ids": { "minItems": 1 },
+              "visually_reviewed_capture_ids": { "minItems": 2 }
+            }
+          }
+        }
+      ]
+    },
+    "capture_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Capture group IDs that support this parity dimension. Screenshot and DOM/snapshot evidence from a single capture share one ID."
+    },
+    "comparison_identity": {
+      "type": "object",
+      "required": ["status", "active_target", "canonical_mockup_path", "revision", "fingerprint", "target_page", "roles", "states", "app_revision", "model_revision"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["BOUND", "REFERENCE_DRIFT", "INCOMPLETE"],
+          "description": "BOUND means all evidence is tied to one immutable identity. REFERENCE_DRIFT invalidates evidence collected against the former identity. INCOMPLETE cannot support parity PASS or promotion."
+        },
+        "active_target": { "type": "string", "minLength": 1 },
+        "canonical_mockup_path": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "minLength": 1 },
+        "fingerprint": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "target_page": { "type": "string", "pattern": "^PAGE-[A-Z0-9-]+$" },
+        "roles": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "states": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "app_revision": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Non-secret runtime application/build revision or explicit NOT_EXPOSED marker; bind the actual running application instance to this comparison."
+        },
+        "model_revision": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Non-secret Mendix model revision or deterministic .mpr/repository fingerprint; use an explicit UNAVAILABLE marker only with status INCOMPLETE."
+        }
+      }
+    },
+    "evidence_matrix": {
+      "type": "object",
+      "required": ["contract_parity", "model_parity", "structural_dom_parity", "behavioral_parity", "role_parity", "visual_whole_screen_parity"],
+      "additionalProperties": false,
+      "description": "Separate status dimensions for contract, model, structural DOM, behavior, role, and whole-screen visual evidence. These complement, not replace, the seven canonical parity dimensions.",
+      "properties": {
+        "contract_parity": { "$ref": "#/definitions/evidence_matrix_status" },
+        "model_parity": { "$ref": "#/definitions/evidence_matrix_status" },
+        "structural_dom_parity": { "$ref": "#/definitions/evidence_matrix_status" },
+        "behavioral_parity": { "$ref": "#/definitions/evidence_matrix_status" },
+        "role_parity": { "$ref": "#/definitions/evidence_matrix_status" },
+        "visual_whole_screen_parity": { "$ref": "#/definitions/evidence_matrix_status" }
+      }
+    },
     "role": {
       "type": "string",
       "description": "Role used for this verification session (e.g., Admin, SalesUser)."
@@ -102,13 +217,132 @@
     },
     "schema_version": {
       "type": "integer",
-      "description": "Version of this parity schema. Increment when the dimension set changes. Used for evidence upgrade detection."
+      "minimum": 1,
+      "description": "Parity record schema version. Version 2 requires immutable comparison_identity and a separate evidence_matrix; version 1 is retained for legacy records."
     },
     "evidence_upgrade": {
       "$ref": "#/definitions/evidence_upgrade_state"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "schema_version": { "const": 2 } },
+        "required": ["schema_version"]
+      },
+      "then": { "required": ["comparison_identity", "evidence_matrix"] }
+    },
+    {
+      "if": {
+        "properties": { "verification_scope": { "const": "fresh_full" } },
+        "required": ["verification_scope"]
+      },
+      "then": {
+        "required": ["schema_version", "comparison_identity", "evidence_matrix", "whole_screen_review"],
+        "properties": { "schema_version": { "const": 2 } }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verification_scope": { "const": "fresh_full" },
+          "overall_result": { "const": "PASS" }
+        },
+        "required": ["verification_scope", "overall_result"]
+      },
+      "then": {
+        "properties": {
+          "whole_screen_review": {
+            "properties": { "status": { "const": "complete" } },
+            "required": ["status"]
+          },
+          "comparison_identity": {
+            "properties": { "status": { "const": "BOUND" } },
+            "required": ["status"]
+          },
+          "evidence_matrix": {
+            "properties": {
+              "visual_whole_screen_parity": {
+                "properties": {
+                  "status": { "const": "PASS" },
+                  "capture_ids": { "minItems": 2, "uniqueItems": true }
+                },
+                "required": ["status", "capture_ids"]
+              }
+            },
+            "required": ["visual_whole_screen_parity"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "whole_screen_review": {
+            "properties": { "status": { "const": "blocked" } },
+            "required": ["status"]
+          }
+        },
+        "required": ["whole_screen_review"]
+      },
+      "then": {
+        "properties": {
+          "whole_screen_review": { "required": ["blocked_reason"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verification_scope": { "const": "fresh_full" },
+          "whole_screen_review": {
+            "properties": { "status": { "const": "blocked" } },
+            "required": ["status"]
+          }
+        },
+        "required": ["verification_scope", "whole_screen_review"]
+      },
+      "then": {
+        "not": {
+          "properties": { "overall_result": { "const": "PASS" } },
+          "required": ["overall_result"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "comparison_identity": {
+            "properties": { "status": { "enum": ["REFERENCE_DRIFT", "INCOMPLETE"] } },
+            "required": ["status"]
+          }
+        },
+        "required": ["comparison_identity"]
+      },
+      "then": {
+        "not": {
+          "properties": { "overall_result": { "const": "PASS" } },
+          "required": ["overall_result"]
+        }
+      }
+    }
+  ],
   "definitions": {
+    "evidence_matrix_status": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE"],
+          "description": "Independent status for this evidence layer; DOM and model results cannot imply visual parity."
+        },
+        "required": { "type": "boolean", "default": true },
+        "capture_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "note": { "type": "string" }
+      }
+    },
     "parity_dimension": {
       "type": "object",
       "required": ["result"],
@@ -209,6 +443,7 @@
         },
         "description": { "type": "string" },
         "path": { "type": "string", "description": "Path to screenshot or artifact, if applicable." },
+        "capture_id": { "type": "string", "description": "Capture group that binds this artifact to screenshot and DOM/snapshot evidence from the same browser capture." },
         "selector": { "type": "string" },
         "expected": { "type": "string" },
         "actual": { "type": "string" },

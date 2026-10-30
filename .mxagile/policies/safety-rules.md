@@ -45,6 +45,10 @@ Projektspezifische Ergaenzungen gehoeren in `AGENT.md`, nicht hierher.
   verfolgten Artefakten einschliessen.
 - In Reports nur nicht-geheime Bereitschafts-Metadaten verwenden:
   PRESENT / MISSING / EMPTY / INVALID / VALID / USED / NOT_USED
+- Credential-Werte duerfen weder in Context-Mode-Indizes oder Suchkorpora noch in
+  Session-Zusammenfassungen oder Agent-/Subagent-Handoffs materialisiert werden.
+- Secret Discovery bleibt von Context-Mode-Retrieval getrennt; auch bei gesundem Context
+  Mode werden Credential-Dateien und Werte nicht indexiert.
 - Vollstaendiger Credential-Discovery-Vertrag: `policies/credential-discovery.md`
 
 ## Credential-Mutations-Verbot

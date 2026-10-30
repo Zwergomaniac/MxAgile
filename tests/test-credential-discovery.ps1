@@ -66,14 +66,18 @@ $credDiscovPath   = Join-Path $ScriptDir ".mxagile/policies/credential-discovery
 $safetyRulesPath  = Join-Path $ScriptDir ".mxagile/policies/safety-rules.md"
 $devRuntimePath   = Join-Path $ScriptDir ".mxagile/policies/development-runtime.md"
 $discoveryAgentPath = Join-Path $ScriptDir ".mxagile/agents/discovery-agent.md"
+$uiAgentPath = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
+$acceptanceAgentPath = Join-Path $ScriptDir ".mxagile/agents/acceptance-agent.md"
+$qualityGatePath = Join-Path $ScriptDir ".mxagile/skills/quality-gate.md"
+$projectSchemaPath = Join-Path $ScriptDir ".mxagile/schemas/mxagile-project.schema.json"
 $orchestratorPath = Join-Path $ScriptDir ".mxagile/orchestrator.md"
 $processStatePath = Join-Path $ScriptDir ".mxagile/schemas/process-state.schema.json"
 $projectSchemaPath = Join-Path $ScriptDir ".mxagile/schemas/mxagile-project.schema.json"
 
 # Generated projections (Claude)
-$genDiscoveryPath  = Join-Path $ScriptDir ".claude/agents/mxagile-discovery-agent.md"
 $genAcceptancePath = Join-Path $ScriptDir ".claude/agents/mxagile-acceptance-agent.md"
 $genUiAgentPath    = Join-Path $ScriptDir ".claude/agents/mxagile-ui-agent.md"
+$genQualityGatePath = Join-Path $ScriptDir ".claude/skills/mxagile-quality-gate/SKILL.md"
 
 Write-Host ""
 Write-Host "=== Credential Discovery and Bootstrap Tests ==="
@@ -95,6 +99,30 @@ Assert-FileContains "policy: DISCOVER before blocking contract" `
 Assert-FileContains "policy: discovery order defined" `
     $credDiscovPath '(?i)discovery order|inspect.*\.env\.mendix|\.env\.mendix.*first'
 
+$discoveryPolicyContent = Get-Content -LiteralPath $credDiscovPath -Raw
+$discoverySources = @(
+    '.env.mendix',
+    '.env*',
+    'mxcli configuration',
+    'Mendix runtime configuration',
+    'Database configuration',
+    'Company Layer configuration',
+    'Project-local bootstrap scripts',
+    'Documented bootstrap mechanisms'
+)
+$previousSourceIndex = -1
+$discoveryOrderValid = $true
+foreach ($source in $discoverySources) {
+    $sourceIndex = $discoveryPolicyContent.IndexOf($source, [System.StringComparison]::OrdinalIgnoreCase)
+    if ($sourceIndex -le $previousSourceIndex) {
+        $discoveryOrderValid = $false
+        break
+    }
+    $previousSourceIndex = $sourceIndex
+}
+Assert-True "policy: all canonical discovery sources retain their order" `
+    $discoveryOrderValid "Expected the existing eight-source order from .env.mendix through documented bootstrap mechanisms"
+
 Assert-FileContains "policy: configuration precedence defined" `
     $credDiscovPath '(?i)configuration precedence|precedence|\.env\.mendix.*wins|project-local.*wins'
 
@@ -114,6 +142,33 @@ Assert-FileContains "development-runtime: credential discovery before runtime st
 
 Assert-FileContains "development-runtime: references credential-discovery policy" `
     $devRuntimePath 'credential-discovery'
+
+Assert-FileContains "credential policy: runtime/browser preflight before escalation" `
+    $credDiscovPath '(?i)Runtime and Browser Preflight|before starting a runtime|full discovery path'
+
+Assert-FileContains "quality gate: credential discovery before runtime startup" `
+    $qualityGatePath '(?is)Credential-Verfuegbarkeit vor dem.*Runtime-Start'
+
+Assert-FileContains "acceptance agent: credential discovery before runtime/login" `
+    $acceptanceAgentPath '(?i)credential-discovery\.md.*complete credential preflight|complete credential preflight'
+
+Assert-FileContains "acceptance agent: exhausted discovery before USER_INPUT_REQUIRED" `
+    $acceptanceAgentPath '(?i)full discovery path is exhausted'
+
+Assert-FileContains "UI agent: credentials checked before runtime start and login" `
+    $uiAgentPath '(?i)Vor Runtime-Start und vor dem ersten Playwright-/Browser-Login'
+
+Assert-FileContains "generated acceptance agent: credential preflight is projected" `
+    $genAcceptancePath '(?i)complete credential preflight'
+
+Assert-FileContains "generated UI agent: early credential preflight is projected" `
+    $genUiAgentPath '(?i)Runtime-Preparation ist vor dem Runtime-Start'
+
+Assert-FileContains "generated quality gate: credential preflight is projected" `
+    $genQualityGatePath '(?i)Credential-Verfuegbarkeit vor dem'
+
+Assert-FileContains "project schema: .env.mendix is canonical credential default" `
+    $projectSchemaPath '(?i)Default: \.env\.mendix \(gitignored\)'
 
 Assert-FileContains "discovery-agent: credential discovery before runtime start" `
     $discoveryAgentPath '(?i)credential.*discovery|\.env\.mendix.*pruefen'
@@ -154,6 +209,39 @@ Assert-FileContains "safety-rules: never output secret values" `
 
 Assert-FileContains "safety-rules: never write secrets to tracked artifacts" `
     $safetyRulesPath '(?i)reports.*process-state|nicht.*versionieren|never.*tracked'
+
+Assert-FileContains "policy: secret values excluded from Context Mode and agent handoffs" `
+    $credDiscovPath '(?i)Context Mode.*agent handoffs|agent handoffs.*Context Mode'
+
+Assert-FileContains "safety-rules: credentials excluded from Context Mode and agent handoffs" `
+    $safetyRulesPath '(?is)Credential-Werte.*Context-Mode.*Session-Zusammenfassungen.*Agent-/Subagent-Handoffs'
+
+Assert-FileContains "policy: local .env.mendix status check does not expose values" `
+    $credDiscovPath '(?i)gitignored.*not a prohibition|checked locally.*required key names|Do not emit its contents'
+
+Assert-FileContains "policy: .env.mendix.example is not a credential source" `
+    $credDiscovPath '(?i)versioned template'
+
+Assert-FileContains "policy: .env.mendix.example placeholders are unusable" `
+    $credDiscovPath '(?i)never treat its placeholders as usable credentials'
+
+Assert-FileContains "R2: complete discovered credentials permit autonomous continuation" `
+    $credDiscovPath '(?i)continue autonomously'
+
+Assert-FileContains "R3/R4: EMPTY or missing source does not stop discovery" `
+    $credDiscovPath '(?i)missing file or EMPTY key is not a reason'
+
+Assert-FileContains "R5: exhausted discovery permits one targeted escalation" `
+    $credDiscovPath '(?i)After all sources are exhausted'
+
+Assert-FileContains "R5: escalation is a single targeted request" `
+    $credDiscovPath '(?i)one targeted request'
+
+Assert-FileContains "R6: failed login does not reveal or re-request credentials" `
+    $credDiscovPath '(?i)do not reveal or request those values again'
+
+Assert-FileContains "R7/R8: Context Mode and agent handoffs exclude credential values" `
+    $safetyRulesPath '(?is)Credential-Werte.*Context-Mode.*Session-Zusammenfassungen.*Agent-/Subagent-Handoffs'
 
 Assert-FileContains "policy: report only readiness metadata (PRESENT/MISSING/etc)" `
     $credDiscovPath 'PRESENT'

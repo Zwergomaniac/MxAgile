@@ -105,6 +105,17 @@ See `.mxagile/skills/migration.md` and `docs/schemas.md`.
 
 Do not change mxcli installation without updating the canonical installer.
 
+## Commit Identity
+
+Before creating any commit in this repository, verify that both the effective
+author and committer identity are exactly `Zwergomaniac <Keeperdeluxe@web.de>`.
+Check `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT`; do not rely
+on a prior session or terminal. Keep this identity repository-local. Never
+change the user's global Git identity. If either identity differs or cannot be
+verified, stop before committing and ask the maintainer to configure the local
+identity. Never rewrite historical author/committer metadata without explicit
+user approval.
+
 ## Testing Strategy
 
 - Tier 0: parser/static/marker validation — run first, run often

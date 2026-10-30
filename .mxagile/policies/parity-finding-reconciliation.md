@@ -184,6 +184,14 @@ Both must be checked independently when a role-based parity difference is found 
 operation-sensitive context. See `policies/verification-layers.md` security dimensions:
 VISIBILITY, ACCESSIBILITY, AUTHORIZATION, DATA_SCOPE.
 
+Static model structure does not prove rendered role visibility. In particular, absence of an
+explicit role-based `Visible` condition does NOT prove that a button is visible to every role;
+absence of a role's microflow grant does NOT prove that the button is rendered and will only
+fail after click. Record those as static observations/hypotheses. Verify rendered visibility
+in a clean runtime session for each relevant role before classifying a visibility gap. Runtime
+evidence wins for the observed display in that session, while model/server checks remain
+separate evidence for authorization.
+
 **Remediation scope:** A presentation fix (hide button, remove navigation item) does not satisfy
 an authorization requirement, and an authorization fix does not automatically satisfy a
 presentation requirement.

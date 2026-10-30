@@ -14,6 +14,51 @@ A browser screenshot may prove visual state. It does NOT automatically prove:
 
 Screenshots support evidence. They are not the evidence contract itself.
 
+## Immutable Comparison Identity
+
+Before any contract, model, runtime, DOM, screenshot, or parity-report step, resolve one
+comparison identity from the canonical project artifacts:
+
+- active-target state and canonical mockup path;
+- accepted revision (`REV-NNN` or `SOURCE`) and SHA-256 fingerprint of that exact file/bundle;
+- target `PAGE-NNN`, in-scope roles, and states;
+- application revision/build identifier (or explicit `NOT_EXPOSED` marker);
+- model revision (prefer a project-declared revision; otherwise a deterministic `.mpr` or
+   repository/model fingerprint, plus whether the worktree is dirty).
+
+Record this once in the parity report's `comparison_identity`. Reuse the identical object in
+every model/runtime/capture/manifest step. Before each evidence-producing phase, recheck the
+active target revision/fingerprint, page scope, model revision, and running app identity.
+If any bound value changes, mark `comparison_identity.status: REFERENCE_DRIFT`, invalidate
+evidence from the prior identity for the current result, and restart identity resolution.
+Never silently carry screenshots, DOM snapshots, model findings, or reports across drift.
+`REFERENCE_DRIFT` and `INCOMPLETE` identities cannot support PASS or evidence promotion.
+
+An unavailable app/model revision must be recorded explicitly as `NOT_EXPOSED` or
+`UNAVAILABLE`; do not fabricate a revision. The identity is not `BOUND` if a required target,
+revision, fingerprint, page, role/state scope, runtime URL, or model identity is unknown.
+
+## Atomic Capture Groups
+
+A screenshot and any DOM, accessibility, or YAML snapshot are associated only when produced
+by the same browser capture operation and recorded in one `capture_groups[]` item with the
+same `capture_id`. The capture record binds `captured_at`, `comparison_identity`, exact runtime
+URL, role, target screen, session ID, run ID, screenshot path, snapshot paths, and cleanliness.
+Each associated artifact repeats that exact `capture_id`.
+
+Similar filenames, nearby timestamps, matching page names, or separate `playwright-cli eval()`
+and screenshot commands do NOT establish capture identity. Take the screenshot and snapshots
+together in one scripted capture operation; otherwise keep them separate and do not claim
+they are paired. Only `clean` captures may be promoted.
+
+For `visual_whole_screen_parity`, capture both the rendered active target and actual
+application. Each side has its own capture ID, but both must carry the same immutable
+comparison identity, target page, role, state, and viewport.
+`whole_screen_review.reference_capture_ids` lists the target captures and
+`runtime_capture_ids` lists the application captures. `visually_reviewed_capture_ids` must
+include the IDs from both lists. The `evidence_matrix.visual_whole_screen_parity.capture_ids`
+must bind those same captures; a DOM-only capture cannot satisfy this status.
+
 ---
 
 ## Temporary vs. Canonical Evidence
@@ -42,12 +87,40 @@ When browser tooling produces temporary screenshots or output:
 3. For intentionally retained evidence:
    a. Copy to planning/evidence/screenshots/<scenario-id>/<semantic-name>.png
    b. Record in evidence manifest with:
-      - artifact_id, type, path, dimension, description
+      - artifact_id, type, path, dimension, description, capture_id
       - provenance (original .concord/ path for audit trail)
       - promoted_at date
+      - capture group: captured_at, comparison_identity, runtime_url, role, target_screen,
+        session_id, run_id, screenshot_path, snapshot_paths, cleanliness_state
 4. Reference from parity-verification YAML
 5. Temporary copy in .concord/ may be cleaned up
 ```
+
+### Promotion Gate
+
+Before promoting current parity evidence, confirm:
+
+1. Active-target authority and canonical revision were checked; the recorded fingerprint
+   matches the rendered reference.
+2. `comparison_identity.status` is `BOUND`, with the requested page/role/state and current
+   app/model revision recorded. No `REFERENCE_DRIFT` occurred after binding.
+3. Runtime page and role are confirmed and the capture is clean.
+4. Screenshot and snapshots share a `capture_id` and complete capture-group provenance.
+   Do not infer this relation from filenames or timestamps.
+5. The required parity dimension was actually performed. A DOM/HTML comparison alone cannot
+   be promoted as visual parity.
+6. For visual parity, the reference and actual screenshots were opened and visually
+   inspected. Generated-but-unopened screenshots are not visual review evidence.
+
+If any gate is missing, keep the artifacts temporary and mark the affected matrix status
+`NOT_VERIFIED`; do not promote them as current parity evidence.
+
+Previously reported `visual_whole_screen_parity: PASS` or equivalent whole-screen PASS claims
+without an immutable comparison identity, rendered active-target screenshot, opened/inspected
+runtime screenshot, and paired capture provenance are not current evidence. Preserve the old
+report for audit, but classify its visual whole-screen status as `NOT_VERIFIED` (or
+`LEGACY_EVIDENCE` only when its original provenance is retained). Do not use such a claim to
+derive implementation scope or acceptance.
 
 ### Semantic Naming
 
@@ -94,6 +167,24 @@ The UI-Agent Verifying-Modus is responsible for:
 6. Referencing the canonical path in the parity-verification report
 
 Developers are NOT required to manually discover and move timestamped screenshots.
+
+## Evidence Cleanliness Gate
+
+Before capturing a screenshot, DOM snapshot, or other runtime evidence, verify all of the
+following in the active browser session:
+
+- The expected screen was reached through a successful navigation.
+- The requested role is active and confirmed from the runtime session.
+- No unexpected error/warning dialog, modal, toast, blocking overlay, or failed-navigation
+   state obscures or changes the screen.
+- The browser is not carrying a known contaminated state from a prior failed action.
+
+If navigation fails or an unexpected dialog/overlay appears, mark the session as
+contaminated for evidence purposes. Do not capture or promote evidence from that state.
+Recover through the project's safe navigation/session mechanism, verify the dialog is gone,
+the expected screen and role are restored, then capture. When cleanliness cannot be
+re-established, discard that attempt and classify verification as outstanding rather than
+using a contaminated artifact.
 
 ---
 

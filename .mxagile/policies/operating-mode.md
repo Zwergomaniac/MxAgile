@@ -90,6 +90,10 @@ current project until a recheck resolves the disagreement.
 Before choosing a tool for any Mendix model operation, use the current mode and
 the following routing contract:
 
+Resolve conflicting project/Core/Company/harness/external tool instructions per
+`policies/tool-instruction-conflict.md`. A tool listed by a skill or configured in a file is
+not proof that its current-session capability is loaded or usable.
+
 | Mode | Model mutation route | mxcli |
 |---|---|---|
 | `LIVE-SP-CURRENT` | Studio-Pro-MCP first. Concord MCP is the existing fallback only when a successful read-only probe confirms it is healthy and bound to this project. | Never use mxcli for model mutations, including `mxcli exec`. Do not fall back to mxcli after an MCP failure. Read-only mxcli operations remain subject to their own operation contract. |

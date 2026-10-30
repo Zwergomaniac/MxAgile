@@ -126,9 +126,13 @@ try {
 
     # CLAUDE.md should contain @AGENT.md reference
     Assert-True "CLAUDE.md block contains @AGENT.md"  ($claudeContent -match "@AGENT\.md") "@AGENT.md reference not found in CLAUDE.md"
+    Assert-True "CLAUDE.md managed block routes tool conflicts to canonical policy" `
+        ($claudeContent -match 'tool-instruction-conflict\.md') "Tool conflict policy reference not found in CLAUDE.md"
 
     # AGENTS.md should contain actual AGENT.md content
     Assert-True "AGENTS.md block contains agent content" ($agentsContent -match "Fixture project instructions") "AGENT.md content not found in AGENTS.md"
+    Assert-True "AGENTS.md managed block routes tool conflicts to canonical policy" `
+        ($agentsContent -match 'tool-instruction-conflict\.md') "Tool conflict policy reference not found in AGENTS.md"
 
     # ==========================================================================
     # Section 2: Claude Skill Projections

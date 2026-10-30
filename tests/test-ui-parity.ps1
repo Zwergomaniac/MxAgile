@@ -75,6 +75,9 @@ $MockupLife     = Join-Path $ScriptDir ".mxagile/policies/mockup-lifecycle.md"
 $UiAgent        = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 $ProcState      = Join-Path $ScriptDir ".mxagile/schemas/process-state.schema.json"
 $PageSchema     = Join-Path $ScriptDir ".mxagile/schemas/page.schema.json"
+$EvidenceContract = Join-Path $ScriptDir ".mxagile/policies/evidence-contract.md"
+$FindingReconciliation = Join-Path $ScriptDir ".mxagile/policies/parity-finding-reconciliation.md"
+$IdentityLifecycle = Join-Path $ScriptDir ".mxagile/policies/test-identity-lifecycle.md"
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -249,6 +252,171 @@ Write-Host "TEST Q: Parity output goes to planning/parity/, legacy stays in ui-i
 Assert-FileContains "Q.1 ui-agent.md outputs parity files to planning/parity/" $UiAgent 'planning/parity/'
 Assert-FileContains "Q.2 ui-agent.md preserves legacy comparison.yaml" $UiAgent 'Legacy'
 Assert-FileContains "Q.3 ui-parity.md references parity schema file location" $ParityPol 'parity-verification.schema.json'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST R: Runtime identity, navigation, evidence cleanliness, and static/runtime boundary" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+
+Assert-FileContains "R.1 identity policy separates bootstrap login from requested role" `
+    $IdentityLifecycle '(?is)Initial authentication.*Role establishment'
+
+Assert-FileContains "R.2 current project helpers outrank historical identity reports" `
+    $IdentityLifecycle '(?is)Current executable project configuration and tests outrank historical reports'
+
+Assert-FileContains "R.3 UI agent uses inventory navigation and current project helpers" `
+    $UiAgent '(?is)Navigation und Evidence-Cleanliness.*Navigationseintrag im UI-Inventar.*ausfuehrbare Playwright-Tests/Helper'
+
+Assert-FileContains "R.4 guessed deep links are disallowed when canonical navigation exists" `
+    $UiAgent 'Erratene.*URLs sind nicht zulaessig'
+
+Assert-FileContains "R.5 evidence contract blocks capture from contaminated sessions" `
+    $EvidenceContract 'mark the session as'
+
+Assert-FileContains "R.6 evidence cleanliness checks screen, role, and unexpected overlays" `
+    $EvidenceContract 'requested role is active'
+
+Assert-FileContains "R.6.1 evidence cleanliness checks unexpected dialogs and overlays" `
+    $EvidenceContract 'unexpected error/warning dialog.*blocking overlay'
+
+Assert-FileContains "R.6.2 contaminated evidence is not captured or promoted" `
+    $EvidenceContract 'Do not capture or promote evidence from that state'
+
+Assert-FileContains "R.7 absent Visible condition does not prove runtime visibility" `
+    $FindingReconciliation 'Visible` condition does NOT prove'
+
+Assert-FileContains "R.7.1 Visible absence does not prove a button is shown to every role" `
+    $FindingReconciliation 'does NOT prove that a button is visible to every role'
+
+Assert-FileContains "R.8 missing microflow grant does not prove rendered button behavior" `
+    $FindingReconciliation 'absence of a role.s microflow grant does NOT prove'
+
+Assert-FileContains "R.9 runtime display and authorization remain separate evidence" `
+    $FindingReconciliation 'evidence wins for the observed display'
+
+Assert-FileContains "R.9.1 authorization remains separate from observed display" `
+    $FindingReconciliation 'separate evidence for authorization'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST S: Fresh-Full parity requires independent whole-screen reconciliation" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+
+Assert-FileContains "S.1 full pass includes hypothesis verification and whole-screen discovery" `
+    $ParityPol '(?is)Hypothesis verification.*Whole-screen runtime discovery'
+
+Assert-FileContains "S.2 whole-screen pass is mandatory even when known findings are closed" `
+    $ParityPol '(?is)mandatory even when the hypothesis pass closed all known items'
+
+Assert-FileContains "S.3 whole-screen discovery may create unlisted deviations" `
+    $ParityPol 'may discover new deviations not present in the UI inventory'
+
+Assert-FileContains "S.4 runtime structures are reconciled in both directions" `
+    $ParityPol 'compares both directions'
+
+Assert-FileContains "S.5 full-screen scope is limited to target page roles states and viewports" `
+    $ParityPol 'active target and requested page remain authoritative for scope'
+
+Assert-FileContains "S.6 full-screen review does not imply pixel-perfect identity" `
+    $ParityPol 'Do not require pixel identity'
+
+Assert-FileContains "S.7 cosmetic differences are not automatically high/material" `
+    $ParityPol 'spacing-only changes'
+
+Assert-FileContains "S.8 differences remain subject to contract-extension and decision reconciliation" `
+    $FindingReconciliation 'CONFIRMED_PARITY_DIFFERENCE_REQUIRING_CONTRACT_CHECK'
+
+Assert-FileContains "S.9 fresh_full scope is recorded in parity schema" `
+    $ParitySchema 'verification_scope'
+
+Assert-FileContains "S.10 fresh_full requires whole_screen_review" `
+    $ParitySchema '(?is)verification_scope.*fresh_full.*whole_screen_review'
+
+Assert-FileContains "S.11 fresh_full PASS requires completed whole-screen review" `
+    $ParitySchema '(?is)overall_result.*PASS.*whole_screen_review.*complete'
+
+Assert-FileContains "S.12 UI Agent requires independent fresh-full runtime pass" `
+    $UiAgent 'Fresh-Full-Abgleich'
+
+Assert-FileContains "S.12.2 new UI parity reports use schema version 2" `
+    $UiAgent 'schema_version: 2'
+
+Assert-FileContains "S.12.3 report output includes comparison identity and evidence matrix" `
+    $UiAgent '(?is)comparison_identity.*evidence_matrix'
+
+Assert-FileContains "S.12.1 whole-screen pass is not limited to listed U-items" `
+    $UiAgent 'vorherigen Findings stehen'
+
+$paritySchemaObject = Get-Content -LiteralPath $ParitySchema -Raw | ConvertFrom-Json
+$wholeScreenSchema = $paritySchemaObject.properties.whole_screen_review
+Assert-True "S.13 blocked whole-screen review requires a non-empty reason" `
+    ($wholeScreenSchema.properties.blocked_reason.minLength -ge 1) `
+    "blocked_reason.minLength=$($wholeScreenSchema.properties.blocked_reason.minLength)"
+
+$schemaRequiresFreshFullReview = $false
+$schemaGatesFreshFullPass = $false
+$schemaBlocksPassWhenFreshFullReviewBlocked = $false
+foreach ($condition in @($paritySchemaObject.allOf)) {
+    $conditionIf = $condition.'if'
+    $scopeProperty = $conditionIf.properties.PSObject.Properties['verification_scope']
+    if ($null -eq $scopeProperty) { continue }
+    $requiredProperty = $condition.then.PSObject.Properties['required']
+    if ($scopeProperty.Value.const -eq 'fresh_full' -and
+        $null -ne $requiredProperty -and $requiredProperty.Value -contains 'whole_screen_review') {
+        $schemaRequiresFreshFullReview = $true
+    }
+    $resultProperty = $conditionIf.properties.PSObject.Properties['overall_result']
+    if ($scopeProperty.Value.const -eq 'fresh_full' -and
+        $null -ne $resultProperty -and $resultProperty.Value.const -eq 'PASS' -and
+        $condition.then.properties.whole_screen_review.properties.status.const -eq 'complete') {
+        $schemaGatesFreshFullPass = $true
+    }
+    $reviewProperty = $conditionIf.properties.PSObject.Properties['whole_screen_review']
+    $notProperty = $condition.then.PSObject.Properties['not']
+    if ($scopeProperty.Value.const -eq 'fresh_full' -and $null -ne $reviewProperty -and
+        $reviewProperty.Value.properties.status.const -eq 'blocked' -and $null -ne $notProperty -and
+        $notProperty.Value.properties.overall_result.const -eq 'PASS') {
+        $schemaBlocksPassWhenFreshFullReviewBlocked = $true
+    }
+}
+Assert-True "S.14 schema conditionally requires review for fresh_full scope" `
+    $schemaRequiresFreshFullReview "Fresh-full whole-screen conditional is missing"
+
+Assert-True "S.15 schema gates fresh_full PASS on completed review" `
+    $schemaGatesFreshFullPass "Fresh-full PASS completion condition is missing"
+
+Assert-True "S.16 schema prohibits PASS when fresh_full review is blocked" `
+    $schemaBlocksPassWhenFreshFullReviewBlocked "Blocked fresh-full review can still report overall PASS"
+
+Assert-FileContains "S.17 schema-v2 parity records carry immutable identity" `
+    $ParitySchema 'comparison_identity'
+
+Assert-FileContains "S.18 evidence matrix keeps six evidence layers separate" `
+    $ParitySchema 'contract_parity.*model_parity.*structural_dom_parity.*behavioral_parity.*role_parity.*visual_whole_screen_parity'
+
+Assert-FileContains "S.19 DOM evidence cannot claim visual whole-screen parity" `
+    $ParityPol 'A DOM, HTML, or Accessibility snapshot MUST NOT be labeled visual parity'
+
+Assert-FileContains "S.20 reference drift invalidates prior evidence rather than reusing it" `
+    $ParityPol 'REFERENCE_DRIFT.*invalidate evidence'
+
+Assert-FileContains "S.21 comparison identity carries target path revision fingerprint page roles/states and app/model revisions" `
+    $ParitySchema 'canonical_mockup_path.*revision.*fingerprint.*target_page.*roles.*states.*app_revision.*model_revision'
+
+Assert-FileContains "S.22 visual evidence matrix remains a distinct status" `
+    $ParitySchema 'visual_whole_screen_parity'
+
+Assert-FileContains "S.23 whole-screen completion records reference, runtime, and visually reviewed capture IDs" `
+    $ParitySchema 'reference_capture_ids.*runtime_capture_ids.*visually_reviewed_capture_ids'
+
+Assert-FileContains "S.24 visually reviewed capture IDs must cover both comparison sides" `
+    $EvidenceContract 'include the IDs from both lists'
+
+Assert-FileContains "S.25 evidence matrix capture IDs are unique" `
+    $ParitySchema 'capture_ids.*uniqueItems.*true'
+
+Assert-FileContains "S.26 new parity reports never copy the v1 dimensions-only example" `
+    $UiAgent '(?is)Neue Reports.*schema_version: 2.*comparison_identity.*evidence_matrix'
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

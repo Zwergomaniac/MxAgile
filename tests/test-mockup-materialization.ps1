@@ -43,6 +43,8 @@ $MatPol    = Join-Path $ScriptDir ".mxagile/policies/mockup-materialization.md"
 $AnaPol    = Join-Path $ScriptDir ".mxagile/policies/mockup-analysis.md"
 $PageSchema= Join-Path $ScriptDir ".mxagile/schemas/page.schema.json"
 $EvSchema  = Join-Path $ScriptDir ".mxagile/schemas/evidence-manifest.schema.json"
+$ParitySchema = Join-Path $ScriptDir ".mxagile/schemas/parity-verification.schema.json"
+$EvidenceContract = Join-Path $ScriptDir ".mxagile/policies/evidence-contract.md"
 $UiAgent   = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 $FixDir    = Join-Path $ScriptDir "tests/fixtures/ui-parity"
 
@@ -155,6 +157,54 @@ Assert-True "12.3 fixture-AF states .concord/screenshots/mockup is legacy source
 Write-Host ""
 Write-Host "TEST 13: UI-Agent references mockup-materialization policy" -ForegroundColor Cyan
 Assert-FileContains "13.1 ui-agent.md references mockup-materialization policy" $UiAgent 'mockup-materialization.md'
+
+# Test 14: Immutable comparison identity and visual capture provenance
+Write-Host ""
+Write-Host "TEST 14: Immutable comparison identity and atomic capture provenance" -ForegroundColor Cyan
+Assert-FileContains "14.1 parity schema requires identity and matrix for schema v2" $ParitySchema 'schema_version.*2.*comparison_identity|comparison_identity.*evidence_matrix'
+Assert-FileContains "14.2 comparison identity records canonical path, revision, fingerprint, page, role/state, app/model revision" $ParitySchema 'canonical_mockup_path.*revision.*fingerprint.*target_page.*roles.*states.*app_revision.*model_revision'
+Assert-FileContains "14.3 changed identity is explicit REFERENCE_DRIFT" $ParitySchema 'REFERENCE_DRIFT'
+Assert-FileContains "14.4 evidence manifest records capture groups" $EvSchema 'capture_groups'
+Assert-FileContains "14.5 capture group binds capture_id and same-capture screenshot/snapshots" $EvSchema 'capture_id.*screenshot_path.*snapshots'
+$evidenceSchema = Get-Content -LiteralPath $EvSchema -Raw | ConvertFrom-Json
+Assert-True "14.5.1 capture groups distinguish mockup from application" `
+    (@($evidenceSchema.definitions.capture_group.properties.capture_source.enum) -contains 'mockup' -and
+     @($evidenceSchema.definitions.capture_group.properties.capture_source.enum) -contains 'application') `
+    "capture_source enum must contain mockup and application"
+Assert-FileContains "14.5.2 promoted capture groups require a BOUND identity" $EvSchema 'status.*BOUND'
+Assert-FileContains "14.6 capture group records session, run, role, screen, URL and cleanliness" $EvSchema 'session_id'
+Assert-FileContains "14.6.1 capture group records run ID and role" $EvSchema 'run_id'
+Assert-FileContains "14.6.2 capture group records runtime URL and target screen" $EvSchema 'runtime_url'
+Assert-FileContains "14.6.3 capture group records cleanliness state" $EvSchema 'cleanliness_state'
+Assert-FileContains "14.7 promoted capture cleanliness is schema constrained" $EvSchema 'const.*clean'
+Assert-FileContains "14.8 evidence contract rejects filename/timestamp pairing" $EvidenceContract 'Similar filenames, nearby timestamps'
+Assert-FileContains "14.8.1 evidence contract requires explicit capture identity" $EvidenceContract 'do NOT establish capture identity'
+Assert-FileContains "14.9 visual promotion requires opened reference and actual screenshots" $EvidenceContract 'reference and actual screenshots were opened'
+Assert-FileContains "14.9.1 visual promotion requires actual visual inspection" $EvidenceContract 'visually\s+inspected'
+Assert-FileContains "14.10 visual target must be rendered in a browser" $MatPol 'active target must be rendered in a browser'
+Assert-FileContains "14.10.1 visual target binds the accepted revision" $MatPol 'accepted revision, role'
+Assert-FileExists "14.11 REV-17/REV-9 reference-drift fixture exists" (Join-Path $FixDir "fixture-AO-rev17-selected-rev9-reference-drift.yaml")
+$fixAO = Get-Content -LiteralPath (Join-Path $FixDir "fixture-AO-rev17-selected-rev9-reference-drift.yaml") -Raw
+Assert-True "14.12 wrong revision is blocked as REFERENCE_DRIFT" ($fixAO -match 'revision: REV-17' -and $fixAO -match 'revision: REV-9' -and $fixAO -match 'status: REFERENCE_DRIFT') "fixture misses the revision-drift state"
+Assert-True "14.13 unopened screenshots and unpaired DOM cannot claim visual PASS" ($fixAO -match 'screenshot_opened: false' -and $fixAO -match 'capture_id: null' -and $fixAO -match 'visual_whole_screen_parity: NOT_VERIFIED') "fixture does not block unreviewed/unpaired visual evidence"
+Assert-True "14.14 drifted forensic run has no promotion or implementation scope" ($fixAO -match 'promotion: blocked' -and $fixAO -match 'implementation_scope: none' -and $fixAO -match 'overall_result: NOT_VERIFIED') "fixture allows downstream scope from invalid evidence"
+Assert-FileContains "14.15 evidence artifacts bind to capture_id" $EvSchema 'capture_id'
+Assert-FileContains "14.16 capture group repeats the immutable comparison identity" $EvSchema 'capture_group.*comparison_identity|comparison_identity.*runtime_url'
+Assert-FileContains "14.17 separate capture groups are linked from evidence entries" $EvSchema 'capture_groups'
+Assert-FileContains "14.18 legacy whole-screen PASS without paired inspected evidence is not current" $EvidenceContract 'not current evidence'
+$manifestSchemaObject = Get-Content -LiteralPath $EvSchema -Raw | ConvertFrom-Json
+$entryConditions = @($manifestSchemaObject.definitions.evidence_entry.allOf)
+$captureCondition = $entryConditions | Where-Object {
+    $conditionIf = $_.PSObject.Properties['if'].Value
+    $null -ne $conditionIf.properties.PSObject.Properties['capture_groups']
+} | Select-Object -First 1
+$captureThen = if ($null -ne $captureCondition) { $captureCondition.then } else { $null }
+Assert-True "14.19 evidence entries with capture groups require a shared comparison identity" `
+    ($null -ne $captureThen -and @($captureThen.required) -contains 'comparison_identity') `
+    "Capture-group conditional must require comparison_identity"
+Assert-True "14.20 target and actual artifacts require capture_id when groups exist" `
+    ($null -ne $captureThen -and @($captureThen.properties.target_evidence.items.required) -contains 'capture_id' -and @($captureThen.properties.actual_evidence.items.required) -contains 'capture_id') `
+    "Capture-group conditional must require capture_id on target_evidence and actual_evidence items"
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

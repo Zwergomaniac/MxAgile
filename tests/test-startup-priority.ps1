@@ -104,6 +104,19 @@ Assert-FileContains "inject script: scope rule defined" `
 Assert-FileContains "inject script: policy reference present" `
     $injectScriptPath 'lifecycle-resync\.md'
 
+Assert-FileContains "inject script: global tool and skill conflict gate is present" `
+    $injectScriptPath 'tool-instruction-conflict\.md'
+
+Assert-FileContains "inject script: selected tool capability blocks arbitrary PATH or skill-order choice" `
+    $injectScriptPath 'Never choose by PATH or skill load order'
+
+$startupContent = Get-Content -LiteralPath $injectScriptPath -Raw
+$toolGateOffset = $startupContent.IndexOf('Before any CLI/MCP/tool command or external/tool-provided skill', [System.StringComparison]::Ordinal)
+$brainOffset = $startupContent.IndexOf('**Project Brain after Re-Sync**', [System.StringComparison]::Ordinal)
+Assert-True "inject script: conflict gate precedes Project Brain command" `
+    ($toolGateOffset -ge 0 -and $brainOffset -gt $toolGateOffset) `
+    "Tool-gate offset=$toolGateOffset, Brain offset=$brainOffset"
+
 Write-Host ""
 
 # =========================================================================

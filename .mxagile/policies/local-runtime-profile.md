@@ -10,6 +10,7 @@ and apply project-specific local runtime configuration so that agents can start 
 runtime consistently, without trial-and-error.
 
 Related policies:
+- `policies/tool-instruction-conflict.md` — technical source authority, tool selection, and capability conflicts
 - `policies/development-runtime.md` — warm local loop, when to start/stop, verification invariants
 - `policies/credential-discovery.md` — credential discovery order, secret safety, bootstrap contract
 - `policies/runtime-strategy.md` — Local First, Docker By Verification Need escalation model
@@ -18,6 +19,73 @@ Related policies:
 
 Projects declare local runtime configuration in `mxagile-project.yaml` under the `local_runtime`
 key. See `.mxagile/schemas/mxagile-project.schema.json` for the full field contract.
+
+## mxcli Binary and Command Contract
+
+Before every mxcli invocation, identify any project-owned binary path/version declaration in
+the current project instructions or configuration. Resolve that exact path with the
+distributed helper; when no path is declared, the project's canonical root binary is
+selected before PATH:
+
+```powershell
+$resolveMxcliParams = @{ ProjectRoot = $ProjectRoot }
+if ($projectDeclaredMxcliPath) {
+   $resolveMxcliParams.ConfiguredPath = $projectDeclaredMxcliPath
+}
+$resolvedMxcli = & .mxagile/tools/Resolve-MxAgileMxcli.ps1 @resolveMxcliParams
+$mxcliPath = ($resolvedMxcli | ConvertFrom-Json).path
+```
+
+Omit `-ConfiguredPath` when no project path is declared. Run `& $mxcliPath --version` and
+record the absolute path and exact version as non-secret preparation metadata. Use that
+same path for every command in the operation. Do not invoke bare `mxcli` or choose by PATH
+precedence.
+
+If the project-local binary is missing, use the canonical `install-mxcli.ps1` acquisition
+path where installation is authorized, or report the missing-tool prerequisite. PATH may
+be used only when the project contract explicitly permits it; then pass
+`-AllowPathFallback` and report `PATH_EXPLICIT_FALLBACK`. A missing explicitly declared
+binary must never silently fall through to a different executable.
+
+Before using a version-sensitive command or flag, inspect its command-specific `--help` or
+the capability contract using the selected `$mxcliPath`. Do not infer support from a skill,
+another mxcli version, or a remembered invocation. If help contradicts the required command
+contract, stop with `TOOL_CAPABILITY_GAP`; do not switch binaries or silently alter the
+requested behavior. Resolve competing instructions using
+`policies/tool-instruction-conflict.md`.
+
+## Browser Base URL and Allowed Origin
+
+Before Playwright/browser navigation, resolve the exact URL for the selected project and
+runner:
+
+1. An explicit current-session URL override, when authorized for this verification.
+2. `mxagile-project.yaml local_runtime.app_url` when declared.
+3. The selected runner's existing project configuration (`baseURL` or equivalent) when no
+   project `app_url` is declared.
+4. The schema/Core default `http://localhost:8080` only when no higher source exists.
+
+Read the selected runner's configuration as well: for `playwright-cli`, inspect
+`.playwright/cli.config.json` including `network.allowedOrigins`; for `@playwright/test`,
+inspect the project `playwright.config.*` including `use.baseURL`, browser channel/binary,
+and projects/viewports. These are runner configuration, not interchangeable sources for
+the canonical project URL. If project `app_url` and a runner `baseURL` disagree, resolve the
+project/tool contract conflict before navigation. Never silently replace the project URL.
+
+Compare origins exactly: scheme, host, and effective port must match. `localhost` and
+`127.0.0.1` are different origins even if they reach the same loopback interface. When an
+`allowedOrigins` list exists, the selected URL's origin must be present in that list. An
+allowlist authorizes an origin; it does not select or rewrite the base URL. Preserve any
+configured base path when navigating.
+
+If a failed attempt used a different origin than the resolved project URL, compare the
+attempted URL with the configured `app_url` and `allowedOrigins`. When the mismatch is
+confirmed, perform exactly one controlled retry with the canonical URL. If it succeeds,
+classify the cause as `ORIGIN_MISMATCH`. If the canonical-origin attempt also fails, stop
+with the observed browser failure and compact evidence; do not generate speculative
+firewall, extension, enterprise-policy, loopback, web-security, browser-swap, or API/OQL
+workaround hypotheses. Do not change browser binaries, security flags, Playwright versions,
+listen addresses, or mxcli versions as part of this check.
 
 ### Non-Secret vs. Secret Values
 

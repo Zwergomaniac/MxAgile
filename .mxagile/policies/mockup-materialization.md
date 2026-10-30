@@ -34,6 +34,13 @@ Before using a mockup as a parity target, classify it:
 Recording in page YAML: `mockup_type: static | executable | unknown`  
 Schema: `.mxagile/schemas/page.schema.json`
 
+For `VISUAL_WHOLE_SCREEN_PARITY`, the active target must be rendered in a browser and its
+resulting screenshot opened and visually inspected for the exact accepted revision, role,
+state, and viewport. This applies to static and executable targets. Grep results, partial
+HTML/JS reads, Context Mode extraction, or an unrendered source file may support contract or
+structure analysis, but none proves the visual target state. If the active revision cannot be
+rendered or its screenshot cannot be inspected, visual status remains `NOT_VERIFIED`.
+
 ---
 
 ## Static Mockup Behavior

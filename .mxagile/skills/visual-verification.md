@@ -5,6 +5,22 @@ Canonical MxAgile skill for Playwright-based visual and parity verification of M
 Covers: scroll container discovery, systematic viewport coverage, evidence completeness, and
 integration with the 7-dimension parity contract (`policies/ui-parity.md`).
 
+## Canonical Browser Target
+
+Before opening a runtime page, use the project browser contract in
+`policies/local-runtime-profile.md`: resolve the project `local_runtime.app_url`, selected
+runner configuration, exact `allowedOrigins`, and configured browser binary/channel. Never
+substitute `127.0.0.1` for `localhost` or another host without explicit contract evidence.
+For `Fresh-Full` parity, scroll/evidence coverage is part of an independent whole-screen
+runtime discovery pass, not only a capture of previously listed findings. See
+`policies/ui-parity.md` § Fresh-Full UI Parity.
+
+Every schema-v2 parity run preserves one `comparison_identity`. Render the complete canonical
+active target revision in the browser when visual parity is required and open/inspect its
+screenshots. Capture each runtime screenshot with its DOM/accessibility/YAML snapshots in one
+operation and record one shared `capture_id`; a separate `eval()` and later screenshot are not
+a paired capture. Record the capture-group identity and cleanliness in the evidence manifest.
+
 ---
 
 ## Mendix Scrolling Behavior

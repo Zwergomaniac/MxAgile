@@ -127,6 +127,15 @@ Assert-FileContains "K.2 source mockups reconstructable from fresh clone" $KnowP
 Assert-FileContains "K.3 parity reports reconstructable from fresh clone" $KnowPol 'Understand current parity state'
 Assert-FileContains "K.4 evidence manifest reconstructable from fresh clone" $KnowPol 'Trace a parity finding'
 
+# L: Current parity evidence has immutable identity and capture provenance
+Write-Host ""
+Write-Host "TEST L: Current parity evidence has immutable identity and capture provenance" -ForegroundColor Cyan
+Assert-FileContains "L.1 evidence manifest schema defines capture groups" $EvSchema 'capture_groups'
+Assert-FileContains "L.2 promoted evidence artifacts can bind to a capture_id" $EvSchema 'capture_id'
+Assert-FileContains "L.3 evidence entries carry the immutable comparison identity" $EvSchema 'comparison_identity'
+Assert-FileContains "L.4 capture groups require a clean state" $EvSchema 'cleanliness_state'
+Assert-FileContains "L.5 promotion requires bound identity and visual inspection" $EvPol 'comparison_identity.status.*BOUND|visually.*inspected'
+
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount
 Write-Host ""
