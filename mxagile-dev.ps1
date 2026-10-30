@@ -133,11 +133,22 @@ function Show-RootHelp {
 
 # ---- Interactive menu helpers ------------------------------------------------
 
+function Read-MenuInput {
+    param([string] $Prompt = '')
+    if ([Console]::IsInputRedirected) {
+        if ($Prompt) { Write-Host ($Prompt + ': ') -NoNewline }
+        return [Console]::ReadLine()
+    }
+    try { return Read-Host $Prompt } catch { return $null }
+}
+
 function Read-MenuChoice {
     param([string] $Prompt = '  Choice')
-    $raw = $null
-    try { $raw = Read-Host $Prompt } catch { $raw = '' }
-    if ($null -eq $raw) { $raw = '' }
+    $raw = Read-MenuInput -Prompt $Prompt
+    if ($null -eq $raw) {
+        Write-Host '  Input closed. Goodbye.' -ForegroundColor DarkGray
+        exit 0
+    }
     $raw = $raw.Trim()
     if ($raw.ToUpper() -eq 'Q') {
         Write-Host '  Goodbye.' -ForegroundColor DarkGray
@@ -148,7 +159,7 @@ function Read-MenuChoice {
 
 function Wait-Continue {
     Write-Host ''
-    try { $null = Read-Host '  Press Enter to continue' } catch { }
+    $null = Read-MenuInput -Prompt '  Press Enter to continue'
 }
 
 function Get-TestSuites {

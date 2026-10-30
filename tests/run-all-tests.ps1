@@ -116,7 +116,7 @@ if (-not $skipTier2 -and $tier2Tests.Count -gt 0) {
             Write-Host 'Tier 2 tests require mxcli. Pre-downloading binary cache (one-time, ~91 MB)...' -ForegroundColor Cyan
             New-Item -ItemType Directory -Path $mxcliCacheDir -Force | Out-Null
             $installerScript = Join-Path $ScriptDir '..\scripts\install-mxcli.ps1'
-            & pwsh -NoProfile -File $installerScript -TargetDir $mxcliCacheDir
+            & pwsh -NoProfile -NonInteractive -File $installerScript -TargetDir $mxcliCacheDir
             if ($LASTEXITCODE -ne 0) {
                 Write-Warning ("mxcli pre-download failed (exit $LASTEXITCODE). Tier 2 tests will fall back to per-test downloads.")
             }
@@ -145,6 +145,7 @@ if (-not $skipTier2) {
 
 $results     = [System.Collections.Generic.List[object]]::new()
 $failedCount = 0
+$incompleteCount = 0
 
 foreach ($testFile in $testsToRun) {
     $meta = $inventory[$testFile.Name]
@@ -159,16 +160,20 @@ foreach ($testFile in $testsToRun) {
     Write-Host '======================================================================'
 
     $startTime = Get-Date
+    $skippedCount = 0
     try {
-        & pwsh -NoProfile -File $testFile.FullName
+        $output = @(& pwsh -NoProfile -NonInteractive -File $testFile.FullName 2>&1)
         $exitCode = $LASTEXITCODE
+        foreach ($line in $output) { Write-Host "$line" }
+        $skippedCount = @($output | Where-Object { "$_" -match '^\s*(?:SKIP(?:PED)?\s*[:\[]|\[SKIP(?:PED)?\])' }).Count
     } catch {
         Write-Error ('Terminating error in ' + $testFile.Name + ': ' + ($_ | Out-String))
         $exitCode = -1
     }
     $duration = (Get-Date) - $startTime
-    $status   = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
+    $status   = if ($exitCode -ne 0) { 'FAIL' } elseif ($skippedCount -gt 0) { 'INCOMPLETE' } else { 'PASS' }
     if ($status -eq 'FAIL') { $failedCount++ }
+    if ($status -eq 'INCOMPLETE') { $incompleteCount++ }
 
     $results.Add([PSCustomObject]@{
         Tier     = $tier
@@ -178,6 +183,7 @@ foreach ($testFile in $testsToRun) {
         Network  = $net
         Mxcli    = $mx
         ExitCode = $exitCode
+        Skipped  = $skippedCount
     })
     Write-Host ''
 }
@@ -189,7 +195,7 @@ Write-Host '====================================================================
 if ($SelectedTests.Count -gt 0) { Write-Host 'TARGETED REGRESSION SUMMARY' }
 else { Write-Host 'FULL REGRESSION SUMMARY' }
 Write-Host '======================================================================'
-$results | Format-Table Tier, TestFile, Status, Duration, Network, Mxcli -AutoSize
+$results | Format-Table Tier, TestFile, Status, Duration, Network, Mxcli, Skipped -AutoSize
 
 Write-Host ''
 $t0Fail = ($results | Where-Object { $_.Tier -eq 0 -and $_.Status -eq 'FAIL' }).Count
@@ -199,11 +205,13 @@ $t2Fail = ($results | Where-Object { $_.Tier -eq 2 -and $_.Status -eq 'FAIL' }).
 Write-Host 'Tier 0 (static/contract):   ' -NoNewline
 if (@($results | Where-Object { $_.Tier -eq 0 }).Count -eq 0) { Write-Host 'NOT EXECUTED' -ForegroundColor Yellow }
 elseif ($t0Fail -gt 0) { Write-Host ('FAIL (' + $t0Fail + ')') -ForegroundColor Red }
+elseif (@($results | Where-Object { $_.Tier -eq 0 -and $_.Status -eq 'INCOMPLETE' }).Count -gt 0) { Write-Host 'INCOMPLETE (skipped scenarios)' -ForegroundColor Yellow }
 else               { Write-Host 'PASS' -ForegroundColor Green }
 
 Write-Host 'Tier 1 (component/fixture): ' -NoNewline
 if (@($results | Where-Object { $_.Tier -eq 1 }).Count -eq 0) { Write-Host 'NOT EXECUTED' -ForegroundColor Yellow }
 elseif ($t1Fail -gt 0) { Write-Host ('FAIL (' + $t1Fail + ')') -ForegroundColor Red }
+elseif (@($results | Where-Object { $_.Tier -eq 1 -and $_.Status -eq 'INCOMPLETE' }).Count -gt 0) { Write-Host 'INCOMPLETE (skipped scenarios)' -ForegroundColor Yellow }
 else               { Write-Host 'PASS' -ForegroundColor Green }
 
 Write-Host 'Tier 2 (integration):       ' -NoNewline
@@ -213,6 +221,8 @@ if ($skipTier2) {
     Write-Host 'NOT EXECUTED' -ForegroundColor Yellow
 } elseif ($t2Fail -gt 0) {
     Write-Host ('FAIL (' + $t2Fail + ')') -ForegroundColor Red
+} elseif (@($results | Where-Object { $_.Tier -eq 2 -and $_.Status -eq 'INCOMPLETE' }).Count -gt 0) {
+    Write-Host 'INCOMPLETE (skipped scenarios)' -ForegroundColor Yellow
 } else {
     Write-Host 'PASS' -ForegroundColor Green
 }
@@ -221,6 +231,9 @@ Write-Host ''
 if ($failedCount -gt 0) {
     Write-Host ('FULL REGRESSION: FAIL  (' + $failedCount + ' test(s) failed)') -ForegroundColor Red
     exit 1
+} elseif ($incompleteCount -gt 0) {
+    Write-Host ('REGRESSION: INCOMPLETE (' + $incompleteCount + ' suite(s) skipped scenarios); FULL PASS NOT ESTABLISHED') -ForegroundColor Yellow
+    exit 2
 } elseif ($skipTier2) {
     Write-Host 'FULL REGRESSION: INCOMPLETE  (Tier 2 skipped -- MXAGILE_SKIP_TIER2 was set)' -ForegroundColor Yellow
     exit 0

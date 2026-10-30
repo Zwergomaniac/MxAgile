@@ -2,6 +2,9 @@
 
 import importlib.util
 import unittest
+import json
+import subprocess
+import tempfile
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("impact_runner", Path(__file__).with_name("run-impact-tests.py"))
@@ -32,7 +35,7 @@ class ImpactTests(unittest.TestCase):
 
     def test_full_runner_uses_supported_host_and_does_not_promote_targeted_runs(self):
         runner = (Path(__file__).parent / "run-all-tests.ps1").read_text(encoding="utf-8-sig")
-        self.assertIn("& pwsh -NoProfile -File $testFile.FullName", runner)
+        self.assertIn("& pwsh -NoProfile -NonInteractive -File $testFile.FullName", runner)
         self.assertNotIn("powershell -NoProfile -File $testFile.FullName", runner)
         self.assertIn("$SelectedTests.Count -gt 0", runner)
         self.assertIn("TARGETED REGRESSION: PASS; FULL REGRESSION: NOT EXECUTED", runner)
@@ -44,3 +47,15 @@ class ImpactTests(unittest.TestCase):
         self.assertNotIn("powershell -NoProfile -File", runner)
         source = (Path(__file__).parent / "run-impact-tests.py").read_text(encoding="utf-8-sig")
         self.assertIn('["pwsh", "-NoProfile", "-File"', source)
+
+    def test_skipped_scenario_is_incomplete_not_full_pass(self):
+        with tempfile.TemporaryDirectory(prefix='mxagile-runner-') as directory:
+            root = Path(directory)
+            source = (Path(__file__).parent / 'run-all-tests.ps1').read_text(encoding='utf-8-sig')
+            (root / 'run-all-tests.ps1').write_text(source, encoding='utf-8')
+            (root / 'test-inventory.json').write_text(json.dumps([{'File': 'test-skipped.ps1', 'Tier': 0}]), encoding='utf-8')
+            (root / 'test-skipped.ps1').write_text("Write-Host 'SKIP: fixture unavailable'\nexit 0\n", encoding='utf-8')
+            result = subprocess.run(['pwsh', '-NoProfile', '-NonInteractive', '-File', str(root / 'run-all-tests.ps1')], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn('REGRESSION: INCOMPLETE', result.stdout)
+            self.assertNotIn('FULL REGRESSION: PASS', result.stdout)

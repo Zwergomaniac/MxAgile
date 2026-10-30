@@ -2,6 +2,17 @@
 
 ## Impact-aware gates (2026-10-30)
 
+Unattended execution hardening (2026-10-31): normal Full-Runner child processes
+use `-NonInteractive`. Interactive CLI fixtures own redirected stdin/stdout/stderr,
+close stdin after their prescribed answers and have a 30-second timeout. The CLI
+reads redirected input explicitly and exits at EOF instead of redisplaying its
+menu indefinitely. The focused interactive run passed 25 assertions; the complete
+CLI run passed 94 assertions with five optional fixture-dependent checks skipped.
+The transformation behavioral suite also completed (100 assertions passed).
+Explicit SKIP/SKIPPED records now make a suite INCOMPLETE; the Full Runner must
+not promote such results to a full PASS. A real isolated runner fixture covers
+this distinction. Previous interrupted full runs remain NOT COMPLETED.
+
 `python tests/run-impact-tests.py --list` selects affected consumers from the
 working-tree diff (including untracked files). `--base <commit>` includes committed
 changes since that commit. Selection is deterministic and deduplicated. Unmapped

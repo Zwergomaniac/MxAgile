@@ -26,6 +26,8 @@
     Q. Canonical scripts remain authoritative — CLI contains no reimplemented logic
 #>
 
+param([switch]$InteractiveOnly)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -80,16 +82,30 @@ function Invoke-CLI {
 
 function Invoke-CLIInteractive {
     param([string] $InputSequence)
-    # Does NOT set MXAGILE_NONINTERACTIVE -- the CLI enters interactive mode.
-    # Pipes the input sequence as stdin so Read-Host calls consume it.
-    $prevEAP = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $rawOutput = ($InputSequence | & powershell -NoProfile -File $script:CliPath 2>&1)
-    $ec = $LASTEXITCODE
-    $ErrorActionPreference = $prevEAP
-    return @{
-        Output   = ($rawOutput | Out-String)
-        ExitCode = $ec
+    $start = [System.Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = (Get-Command powershell -ErrorAction Stop).Source
+    $start.Arguments = '-NoProfile -File "' + $script:CliPath + '"'
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $start.EnvironmentVariables.Remove('MXAGILE_NONINTERACTIVE')
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $start
+    try {
+        [void]$process.Start()
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        $process.StandardInput.Write($InputSequence)
+        $process.StandardInput.Close()
+        if (-not $process.WaitForExit(30000)) {
+            $process.Kill()
+            throw 'Interactive CLI fixture exceeded 30 seconds; its owned process was stopped.'
+        }
+        return @{ Output = $stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult(); ExitCode = $process.ExitCode }
+    } finally {
+        $process.Dispose()
     }
 }
 
@@ -109,6 +125,7 @@ function Remove-TempDir {
 
 # ─── A. Root help ─────────────────────────────────────────────────────────────
 
+if (-not $InteractiveOnly) {
 Write-Host '  Scenario A: Root help'
 
 $r = Invoke-CLI
@@ -335,7 +352,11 @@ Assert-True 'Q8: no migration state-machine logic in CLI' ($cliContent -notmatch
 
 # ─── R. Interactive mode ──────────────────────────────────────────────────────
 
+}
 Write-Host '  Scenario R: Interactive mode'
+
+$r = Invoke-CLIInteractive ''
+Assert-True 'R0: closed stdin exits 0 without waiting for a console' ($r.ExitCode -eq 0 -and $r.Output -match 'Input closed') "exit $($r.ExitCode)"
 
 # R1-R3: Basic startup — interactive mode shows main menu, Q quits cleanly
 $r = Invoke-CLIInteractive "Q`n"
