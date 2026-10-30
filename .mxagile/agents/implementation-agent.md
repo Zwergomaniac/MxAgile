@@ -11,10 +11,17 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/operating-mode.md` — Betriebsmodus-Erkennung (PFLICHT vor erster Modell-Mutation)
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
 - `.mxagile/policies/development-runtime.md` — Warm Local Development Loop
+- `.mxagile/policies/local-runtime-profile.md` — project-pinned mxcli and runtime profile resolution
+- `.mxagile/policies/tool-instruction-conflict.md` — resolve conflicting technical instructions and tool capabilities
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
 - `.mxagile/policies/mission-completion.md` — Completion Levels, Terminal-State Guard, Phase-Boundary Continuation
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
+
+Before any mxcli invocation, resolve and use the exact project-declared/project-local binary
+per `policies/local-runtime-profile.md`. Record its absolute path and version; validate
+version-sensitive command syntax against that same binary. Never run bare PATH `mxcli` or
+follow an external skill's unverified flags.
 
 ## Architecture Ownership Compliance
 

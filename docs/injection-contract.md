@@ -56,6 +56,7 @@ Consumers of this contract include:
 | `.opencode/skills/mxagile/` | GENERATE | `.mxagile/skills/*.md` | `generate-mxagile-platform-skills.ps1` | MxAgile (generated — do not edit) | Overwrite on rerun | Always regenerated |
 | `.hermes/skills/mxagile/` | GENERATE | `.mxagile/skills/*.md` | `generate-mxagile-platform-skills.ps1` | MxAgile (generated — do not edit) | Overwrite on rerun | Always regenerated |
 | `update-mxcli.ps1` | COPY | `MxAi-Dev-System/scripts/install-mxcli.ps1` | `install-core.ps1` | MxAgile | Overwrite on rerun | Always copied |
+| `.mxagile/tools/Resolve-MxAgileMxcli.ps1` | COPY | `scripts/Resolve-MxAgileMxcli.ps1` | `install-core.ps1` | MxAgile | Overwrite on install/update | Always copied |
 | `mxcli.exe` | RUNTIME | mxcli download service | `install-mxcli.ps1` (via `mxagile-init.ps1`) | MxAgile | Update via `update-mxcli.ps1` | Skip if exists and up-to-date |
 | `.mxagile/layers/{id}/` | COPY (from Git/Local) | Company Layer Git/Local source | `fetch-layer.ps1` or `install-core.ps1` | Company Layer | Replace on reinstall | Replace existing |
 | `.mxagile/layers/{id}/provenance.json` | GENERATE | Installation metadata | `fetch-layer.ps1` / `install-core.ps1` | MxAgile | Overwrite on reinstall | Always regenerated |

@@ -347,7 +347,15 @@ When starting, resuming, or picking up work, follow this order:
    delivery position (wave, phase, completed/remaining checklist items) BEFORE anything else.
    The Startup Re-Sync algorithm is in `policies/lifecycle-resync.md` step 0.
 
-2. **Project Brain after Re-Sync** — consult `./mxcli brain plan` or `docs/brain/` only
+    Before any CLI/MCP/tool command or external/tool-provided skill, read
+    `.mxagile/policies/tool-instruction-conflict.md`. Identify project-owned contracts versus
+    generated harness projections, resolve the project's selected executable, and verify its
+    version and command capabilities. Never choose by PATH or skill load order; if the
+    instructions still conflict or the selected tool lacks a required capability, stop only
+    that operation and report the conflict/gap.
+
+2. **Project Brain after Re-Sync** — consult the already-resolved project mxcli `brain plan`
+    command or `docs/brain/` only
    AFTER the lifecycle position is established. Brain is supplementary context, not lifecycle state.
 
 3. **Empty Brain does NOT require Git history** — if Brain has no slices, continue from

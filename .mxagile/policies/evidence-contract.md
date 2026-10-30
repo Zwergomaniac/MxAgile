@@ -95,6 +95,24 @@ The UI-Agent Verifying-Modus is responsible for:
 
 Developers are NOT required to manually discover and move timestamped screenshots.
 
+## Evidence Cleanliness Gate
+
+Before capturing a screenshot, DOM snapshot, or other runtime evidence, verify all of the
+following in the active browser session:
+
+- The expected screen was reached through a successful navigation.
+- The requested role is active and confirmed from the runtime session.
+- No unexpected error/warning dialog, modal, toast, blocking overlay, or failed-navigation
+   state obscures or changes the screen.
+- The browser is not carrying a known contaminated state from a prior failed action.
+
+If navigation fails or an unexpected dialog/overlay appears, mark the session as
+contaminated for evidence purposes. Do not capture or promote evidence from that state.
+Recover through the project's safe navigation/session mechanism, verify the dialog is gone,
+the expected screen and role are restored, then capture. When cleanliness cannot be
+re-established, discard that attempt and classify verification as outstanding rather than
+using a contaminated artifact.
+
 ---
 
 ## Evidence Manifest

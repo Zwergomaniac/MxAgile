@@ -10,6 +10,7 @@ and apply project-specific local runtime configuration so that agents can start 
 runtime consistently, without trial-and-error.
 
 Related policies:
+- `policies/tool-instruction-conflict.md` — technical source authority, tool selection, and capability conflicts
 - `policies/development-runtime.md` — warm local loop, when to start/stop, verification invariants
 - `policies/credential-discovery.md` — credential discovery order, secret safety, bootstrap contract
 - `policies/runtime-strategy.md` — Local First, Docker By Verification Need escalation model
@@ -18,6 +19,40 @@ Related policies:
 
 Projects declare local runtime configuration in `mxagile-project.yaml` under the `local_runtime`
 key. See `.mxagile/schemas/mxagile-project.schema.json` for the full field contract.
+
+## mxcli Binary and Command Contract
+
+Before every mxcli invocation, identify any project-owned binary path/version declaration in
+the current project instructions or configuration. Resolve that exact path with the
+distributed helper; when no path is declared, the project's canonical root binary is
+selected before PATH:
+
+```powershell
+$resolveMxcliParams = @{ ProjectRoot = $ProjectRoot }
+if ($projectDeclaredMxcliPath) {
+   $resolveMxcliParams.ConfiguredPath = $projectDeclaredMxcliPath
+}
+$resolvedMxcli = & .mxagile/tools/Resolve-MxAgileMxcli.ps1 @resolveMxcliParams
+$mxcliPath = ($resolvedMxcli | ConvertFrom-Json).path
+```
+
+Omit `-ConfiguredPath` when no project path is declared. Run `& $mxcliPath --version` and
+record the absolute path and exact version as non-secret preparation metadata. Use that
+same path for every command in the operation. Do not invoke bare `mxcli` or choose by PATH
+precedence.
+
+If the project-local binary is missing, use the canonical `install-mxcli.ps1` acquisition
+path where installation is authorized, or report the missing-tool prerequisite. PATH may
+be used only when the project contract explicitly permits it; then pass
+`-AllowPathFallback` and report `PATH_EXPLICIT_FALLBACK`. A missing explicitly declared
+binary must never silently fall through to a different executable.
+
+Before using a version-sensitive command or flag, inspect its command-specific `--help` or
+the capability contract using the selected `$mxcliPath`. Do not infer support from a skill,
+another mxcli version, or a remembered invocation. If help contradicts the required command
+contract, stop with `TOOL_CAPABILITY_GAP`; do not switch binaries or silently alter the
+requested behavior. Resolve competing instructions using
+`policies/tool-instruction-conflict.md`.
 
 ### Non-Secret vs. Secret Values
 

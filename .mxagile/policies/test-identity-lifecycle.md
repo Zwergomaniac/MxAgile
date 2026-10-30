@@ -47,6 +47,37 @@ Test identity creation is **NOT authorized** when:
 - No cleanup mechanism has been defined.
 - A canonical test identity already covers this role/scope combination.
 
+## Resolving Project Test Identities and Role Switches
+
+Runtime verification has two separate authentication steps:
+
+1. **Initial authentication** establishes a bootstrap session using the project-declared
+  `local_runtime.admin_username_env_key` and `admin_password_env_key`, resolved through
+  `policies/credential-discovery.md`.
+2. **Role establishment** switches that session to the identity required by the active
+  verification scenario. The bootstrap administrator is not proof that the requested
+  application role is active.
+
+For each requested role, resolve the mechanism from current project-owned sources in this
+order:
+
+1. The active scenario, test contract, and project/Company Layer identity declarations.
+2. A project-declared identity or role-switch helper, Playwright configuration, package/test
+  command, or current executable test under the project's test/helper directories.
+3. A project-declared runtime probe for available identities or roles, if one exists.
+
+Use the declared mechanism and verify the resulting role in the running session before
+capturing role evidence. Do not invent identity names, use the bootstrap account as a role
+switch, enumerate users through an undeclared endpoint, or create a test identity to mask a
+runtime configuration mismatch. Keep secret values at the actual helper/login consumer.
+
+Current executable project configuration and tests outrank historical reports, logs, and
+screenshots. Historical artifacts may provide evidence or search clues only; they must not
+become operative credential or role-switch configuration. If current sources and the
+declared runtime probe do not resolve the requested role, classify the affected path as
+`ROLE_SWITCH_BLOCKED` or `TEST_IDENTITY_UNAVAILABLE`. Do not ask again where initial login
+credentials are stored; that is a separate credential-discovery question.
+
 ---
 
 ## Lifecycle Phases

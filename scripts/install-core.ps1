@@ -431,6 +431,13 @@ try {
     Copy-Item -LiteralPath $resolverSource -Destination (Join-Path $destToolsDir "Get-MxAgileCapabilities.ps1") -Force
     Write-Host "[OK] Distributed .mxagile/tools/Get-MxAgileCapabilities.ps1 (on-demand only)."
 
+    $mxcliResolverSource = Join-Path $PSScriptRoot "Resolve-MxAgileMxcli.ps1"
+    if (-not (Test-Path -LiteralPath $mxcliResolverSource -PathType Leaf)) {
+        throw "Resolve-MxAgileMxcli.ps1 not found in script directory: $mxcliResolverSource"
+    }
+    Copy-Item -LiteralPath $mxcliResolverSource -Destination (Join-Path $destToolsDir "Resolve-MxAgileMxcli.ps1") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/Resolve-MxAgileMxcli.ps1."
+
     $studioProDetectorSource = Join-Path $PSScriptRoot "check-studio-pro-status.ps1"
     if (-not (Test-Path -LiteralPath $studioProDetectorSource -PathType Leaf)) {
         throw "check-studio-pro-status.ps1 not found in script directory: $studioProDetectorSource"
@@ -505,6 +512,7 @@ try {
             consumer_note      = "Distribution-owned scripts are NOT consumer project artifacts. Their absence in a consumer project is expected and normal, never a defect."
             project_distributed = @(
                 ".mxagile/tools/Get-MxAgileCapabilities.ps1",
+                ".mxagile/tools/Resolve-MxAgileMxcli.ps1",
                 ".mxagile/tools/check-studio-pro-status.ps1"
             )
         }

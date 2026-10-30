@@ -21,6 +21,16 @@ Implementing ist kein Verifikationsnachweis (siehe `policies/development-runtime
 4. **Konsistenz** — `mxcli docker check -p <project>.mpr` — keine CE-Fehler
    (bei CE0066 → Update security, siehe `.mxagile/policies/consistency-check.md`)
 5. **Runtime** — Applikation laeuft und ist erreichbar (per Runtime-Strategie):
+  - Vor jedem mxcli-Aufruf Projektbinary und Version gemaess `policies/local-runtime-profile.md`
+    aufloesen; widerspruechliche Tool-/Skill-Anweisungen und aktuelle CLI-Capabilities gemaess
+    `policies/tool-instruction-conflict.md` pruefen. Kein PATH-Fallback ohne Projektfreigabe.
+   - Vor dem Start `local_runtime` vollstaendig aufloesen: Runtime-Pfad, `db_type`,
+     `db_name`, `app_url`/Port, Constants und Credential-Key-Referenzen. Keine DB-Art
+     erraten oder `--db-type` ohne Help-Nachweis dieser Binary verwenden.
+   - Wenn Runtime-/Browser-Evidenz benoetigt wird: Credential-Verfuegbarkeit vor dem
+     Runtime-Start gemaess `policies/credential-discovery.md` vollstaendig und secret-safe
+     pruefen. Fehlende/EMPTY Keys fuehren erst nach Pruefung aller kanonischen Quellen zur
+     gezielten Eskalation. Keine Credential-Werte in Analyse oder Bericht laden.
    - Standard: `mxcli run --local` im autonomen Verifikationsmodus (ohne `--watch`)
      — siehe `policies/development-runtime.md` § Runtime Modes
    - Readiness Gate: APPLICATION_REACHABLE muss per HTTP-Poll bestaetigt sein bevor

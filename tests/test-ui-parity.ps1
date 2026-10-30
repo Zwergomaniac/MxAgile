@@ -75,6 +75,9 @@ $MockupLife     = Join-Path $ScriptDir ".mxagile/policies/mockup-lifecycle.md"
 $UiAgent        = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 $ProcState      = Join-Path $ScriptDir ".mxagile/schemas/process-state.schema.json"
 $PageSchema     = Join-Path $ScriptDir ".mxagile/schemas/page.schema.json"
+$EvidenceContract = Join-Path $ScriptDir ".mxagile/policies/evidence-contract.md"
+$FindingReconciliation = Join-Path $ScriptDir ".mxagile/policies/parity-finding-reconciliation.md"
+$IdentityLifecycle = Join-Path $ScriptDir ".mxagile/policies/test-identity-lifecycle.md"
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -249,6 +252,50 @@ Write-Host "TEST Q: Parity output goes to planning/parity/, legacy stays in ui-i
 Assert-FileContains "Q.1 ui-agent.md outputs parity files to planning/parity/" $UiAgent 'planning/parity/'
 Assert-FileContains "Q.2 ui-agent.md preserves legacy comparison.yaml" $UiAgent 'Legacy'
 Assert-FileContains "Q.3 ui-parity.md references parity schema file location" $ParityPol 'parity-verification.schema.json'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST R: Runtime identity, navigation, evidence cleanliness, and static/runtime boundary" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+
+Assert-FileContains "R.1 identity policy separates bootstrap login from requested role" `
+    $IdentityLifecycle '(?is)Initial authentication.*Role establishment'
+
+Assert-FileContains "R.2 current project helpers outrank historical identity reports" `
+    $IdentityLifecycle '(?is)Current executable project configuration and tests outrank historical reports'
+
+Assert-FileContains "R.3 UI agent uses inventory navigation and current project helpers" `
+    $UiAgent '(?is)Navigation und Evidence-Cleanliness.*Navigationseintrag im UI-Inventar.*ausfuehrbare Playwright-Tests/Helper'
+
+Assert-FileContains "R.4 guessed deep links are disallowed when canonical navigation exists" `
+    $UiAgent 'Erratene.*URLs sind nicht zulaessig'
+
+Assert-FileContains "R.5 evidence contract blocks capture from contaminated sessions" `
+    $EvidenceContract 'mark the session as'
+
+Assert-FileContains "R.6 evidence cleanliness checks screen, role, and unexpected overlays" `
+    $EvidenceContract 'requested role is active'
+
+Assert-FileContains "R.6.1 evidence cleanliness checks unexpected dialogs and overlays" `
+    $EvidenceContract 'unexpected error/warning dialog.*blocking overlay'
+
+Assert-FileContains "R.6.2 contaminated evidence is not captured or promoted" `
+    $EvidenceContract 'Do not capture or promote evidence from that state'
+
+Assert-FileContains "R.7 absent Visible condition does not prove runtime visibility" `
+    $FindingReconciliation 'Visible` condition does NOT prove'
+
+Assert-FileContains "R.7.1 Visible absence does not prove a button is shown to every role" `
+    $FindingReconciliation 'does NOT prove that a button is visible to every role'
+
+Assert-FileContains "R.8 missing microflow grant does not prove rendered button behavior" `
+    $FindingReconciliation 'absence of a role.s microflow grant does NOT prove'
+
+Assert-FileContains "R.9 runtime display and authorization remain separate evidence" `
+    $FindingReconciliation 'evidence wins for the observed display'
+
+Assert-FileContains "R.9.1 authorization remains separate from observed display" `
+    $FindingReconciliation 'separate evidence for authorization'
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

@@ -193,6 +193,19 @@ Key fields: `db_type`, `db_name`, `db_host`, `app_port`, `constant_overrides`,
 
 **Full contract:** `policies/local-runtime-profile.md`
 
+### Tool and Instruction Preflight
+
+Before every mxcli command, resolve the project-declared or project-local binary using
+`policies/local-runtime-profile.md` and `.mxagile/tools/Resolve-MxAgileMxcli.ps1`. Record its
+absolute path and `--version`; invoke only that path. The `mxcli` text in command examples
+below means this already-resolved executable, not a fresh PATH lookup.
+
+Check version-sensitive syntax with command-specific `--help` from the same executable.
+Instructions from project-owned configuration, Company Layers, MxAgile Core, harness
+projections, and external/tool-provided skills are reconciled per
+`policies/tool-instruction-conflict.md`. Unsupported syntax is a capability gap, not
+permission to substitute a different binary or change the operation.
+
 ## Configuration Precedence
 
 For **database name** (autonomous execution), the precedence is:

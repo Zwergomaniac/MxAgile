@@ -72,6 +72,7 @@ $DevRuntime = Join-Path $ScriptDir ".mxagile/policies/development-runtime.md"
 $LocalProf  = Join-Path $ScriptDir ".mxagile/policies/local-runtime-profile.md"
 $CredPol    = Join-Path $ScriptDir ".mxagile/policies/credential-discovery.md"
 $RuntimeStr = Join-Path $ScriptDir ".mxagile/policies/runtime-strategy.md"
+$ToolConflict = Join-Path $ScriptDir ".mxagile/policies/tool-instruction-conflict.md"
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -375,6 +376,44 @@ Assert-FileContains "R.9 policy requires downstream acceptance before VERIFIED s
 
 # R.10: ownership table distinguishes four override categories
 Assert-FileContains "R.10 policy defines four override ownership categories" $LocalProf '(?i)temporary diagnostic|Temporary diagnostic'
+
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "TEST S: Project-pinned mxcli and technical instruction conflict resolution" -ForegroundColor Cyan
+# ---------------------------------------------------------------------------
+
+Assert-FileContains "S.1 local-runtime-profile uses the distributed mxcli resolver" `
+    $LocalProf 'Resolve-MxAgileMxcli\.ps1'
+
+Assert-FileContains "S.2 every invocation uses the resolved absolute binary" `
+    $LocalProf 'Do not invoke bare `mxcli` or choose by PATH'
+
+Assert-FileContains "S.3 exact selected version is recorded" `
+    $LocalProf 'absolute path and exact version'
+
+Assert-FileContains "S.4 command-specific help validates version-sensitive flags" `
+    $LocalProf 'command-specific `--help`'
+
+Assert-FileContains "S.5 unsupported syntax is a capability gap" `
+    $LocalProf 'TOOL_CAPABILITY_GAP'
+
+Assert-FileContains "S.6 conflict policy distinguishes project-owned and generated instructions" `
+    $ToolConflict 'project-authored'
+
+Assert-FileContains "S.7 external skills are advisory and cannot select a binary" `
+    $ToolConflict 'External or tool-provided skills'
+
+Assert-FileContains "S.7.1 external skills are advisory" `
+    $ToolConflict 'skills are advisory guidance'
+
+Assert-FileContains "S.8 unsupported tool command does not silently change behavior" `
+    $ToolConflict 'Do not substitute another PATH binary'
+
+Assert-FileContains "S.8.1 unsupported command does not change requested semantics" `
+    $ToolConflict 'change the requested semantics'
+
+Assert-FileContains "S.9 development runtime requires resolver before mxcli commands" `
+    $DevRuntime 'Resolve-MxAgileMxcli\.ps1'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

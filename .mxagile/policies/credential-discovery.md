@@ -29,6 +29,37 @@ Before declaring any credential blocker, inspect these sources in order:
 
 Do NOT ask the developer where the configuration is before performing this discovery.
 
+## Runtime and Browser Preflight
+
+For any planned runtime, login, role, acceptance, or parity verification, credential
+availability is a runtime-preparation prerequisite, not a blocker-recovery step. Determine
+the required credential categories and key names from the project/company declaration and
+the verification scenario. Before starting a runtime when runtime evidence is planned, and
+always before attempting login or declaring a credential blocker:
+
+1. Perform the complete discovery order above. A missing file or EMPTY key is not a reason
+  to stop; continue to the next permitted source.
+2. Record only each required key's state and the source checked. Never print or copy values
+  into model context, reports, process state, evidence, Context Mode, logs, or agent handoffs.
+3. Use discovered values only at the actual credential-consuming operation through its
+  existing local mechanism. Do not materialize secret values for planning or analysis.
+4. If runtime startup is prepared in the background while analysis continues, complete the
+  availability check first. Availability checking does not authorize loading values early.
+
+If the discovery path has not completed, the state is `NOT_CHECKED`, not
+`USER_INPUT_REQUIRED`, `SECRET_INPUT_REQUIRED`, or a credential blocker. Do not ask where
+credentials are stored. After all sources are exhausted, continue autonomously when a
+usable set exists. Otherwise request only the specific missing/empty keys and credential
+category, name the sources checked, and make one targeted request for that configuration
+state. If values were found but authentication fails, follow the existing validation and
+retry classifications; do not reveal or request those values again.
+
+`.env.mendix` is intentionally gitignored, but this is not a prohibition on credential
+discovery. It may be checked locally for only the required key names and PRESENT/MISSING/
+EMPTY state. Do not emit its contents, use a command that echoes values, or place values in
+the agent conversation. `.env.mendix.example` is a versioned template, not a credential
+source; never treat its placeholders as usable credentials.
+
 ## Configuration Precedence
 
 When multiple sources define the same credential or setting, resolve in this order:

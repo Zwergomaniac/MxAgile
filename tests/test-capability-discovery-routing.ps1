@@ -21,6 +21,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Scripts  = Join-Path $RepoRoot 'scripts'
 $Installer = Join-Path $Scripts 'install-core.ps1'
 $ResolverSrc = Join-Path $Scripts 'Get-MxAgileCapabilities.ps1'
+$MxcliResolverSrc = Join-Path $Scripts 'Resolve-MxAgileMxcli.ps1'
 $StudioProDetectorSrc = Join-Path $Scripts 'check-studio-pro-status.ps1'
 $CapabilityPolicySrc = Join-Path $RepoRoot '.mxagile/policies/capability-discovery.md'
 
@@ -81,6 +82,7 @@ Assert-True 'fresh install exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
 $freshGitignore = Get-Content (Join-Path $proj '.gitignore') -Raw
 Assert-True 'fresh install ignores project-local Context Mode runtime roots' (($freshGitignore -match '(?m)^\.context-mode/\r?$') -and ($freshGitignore -match '(?m)^\.github/context-mode/\r?$')) 'runtime roots missing from .gitignore'
 $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
+$mxcliResolver = Join-Path $proj '.mxagile/tools/Resolve-MxAgileMxcli.ps1'
 $detector = Join-Path $proj '.mxagile/tools/check-studio-pro-status.ps1'
 $contextAdapter = Join-Path $proj '.mxagile/adapters/copilot/context-mode-cli.yaml'
 $contextIntegration = Join-Path $proj '.mxagile/integrations/context-mode.yaml'
@@ -88,6 +90,8 @@ $capabilityPolicy = Join-Path $proj '.mxagile/policies/capability-discovery.md'
 Assert-True 'capability discovery policy included in fresh install' ((Test-Path $capabilityPolicy) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'policy missing or hash differs'
 Assert-True 'resolver distributed to .mxagile/tools' (Test-Path $tool) 'tool missing'
 Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-FileHash $tool).Hash -eq (Get-FileHash $ResolverSrc).Hash)) 'hash differs'
+Assert-True 'mxcli runtime resolver distributed to .mxagile/tools' (Test-Path $mxcliResolver) 'mxcli resolver missing'
+Assert-True 'distributed mxcli runtime resolver equals source' ((Test-Path $mxcliResolver) -and ((Get-FileHash $mxcliResolver).Hash -eq (Get-FileHash $MxcliResolverSrc).Hash)) 'mxcli resolver hash differs'
 Assert-True 'Context Mode Copilot adapter included in fresh install' (Test-Path $contextAdapter) 'adapter missing'
 Assert-True 'installed adapter equals canonical adapter' ((Test-Path $contextAdapter) -and ((Get-FileHash $contextAdapter).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/adapters/copilot/context-mode-cli.yaml')).Hash)) 'adapter hash differs'
 Assert-True 'Context Mode integration contract included in fresh install' (Test-Path $contextIntegration) 'integration contract missing'
@@ -107,6 +111,7 @@ foreach ($f in 'AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md') {
 }
 $prov = Get-Content (Join-Path $proj '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
 Assert-True 'provenance lists project-distributed resolver' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Get-MxAgileCapabilities.ps1') 'provenance missing resolver entry'
+Assert-True 'provenance lists project-distributed mxcli runtime resolver' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Resolve-MxAgileMxcli.ps1') 'provenance missing mxcli resolver entry'
 Assert-True 'provenance lists project-distributed detector' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/check-studio-pro-status.ps1') 'provenance missing detector entry'
 
 # installed agent reaches resolver (default project root = installed project) and gets guidance
@@ -155,6 +160,7 @@ $updatedGitignore = Get-Content $projectGitignore -Raw
 Assert-True 'update preserves project .gitignore and adds runtime ignores' (($updatedGitignore -match 'project-owned') -and ($updatedGitignore -match 'custom-runtime/') -and ($updatedGitignore -match '(?m)^\.context-mode/\r?$') -and ($updatedGitignore -match '(?m)^\.github/context-mode/\r?$')) "project .gitignore was overwritten or runtime ignores missing: $updatedGitignore"
 $srcHash = (Get-FileHash $ResolverSrc).Hash
 Assert-True 'update restores resolver to current distribution version' ((Get-FileHash $tool).Hash -eq $srcHash) 'not restored'
+Assert-True 'update restores mxcli runtime resolver to current distribution version' ((Get-FileHash $mxcliResolver).Hash -eq (Get-FileHash $MxcliResolverSrc).Hash) 'mxcli resolver not restored'
 Assert-True 'update restores detector to current distribution version' ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) 'not restored'
 $adapterHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/adapters/copilot/context-mode-cli.yaml')).Hash
 $integrationHash = (Get-FileHash (Join-Path $RepoRoot '.mxagile/integrations/context-mode.yaml')).Hash
@@ -163,7 +169,7 @@ Assert-True 'update restores Context Mode integration contract' ((Get-FileHash $
 Assert-True 'update retires stale files in .mxagile/tools' (-not (Test-Path (Join-Path $proj '.mxagile/tools/stale.ps1'))) 'stale file kept'
 Assert-True 'update preserves project-owned scripts/' ((Get-Content (Join-Path $proj 'scripts/mine.ps1') -Raw) -match 'project-owned') 'project file lost'
 $null = & pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1
-Assert-True 'repeated update exit 0 and Context Mode payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'not idempotent'
+Assert-True 'repeated update exit 0 and tool payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $mxcliResolver).Hash -eq (Get-FileHash $MxcliResolverSrc).Hash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'not idempotent'
 $repeatedGitignore = Get-Content $projectGitignore -Raw
 Assert-True 'repeated update does not duplicate Context Mode ignore entries' ((([regex]::Matches($repeatedGitignore, '(?m)^\.context-mode/\r?$')).Count -eq 1) -and (([regex]::Matches($repeatedGitignore, '(?m)^\.github/context-mode/\r?$')).Count -eq 1)) 'ignore entries duplicated'
 $agents = Get-Content (Join-Path $proj 'AGENTS.md') -Raw

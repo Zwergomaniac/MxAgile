@@ -147,7 +147,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Pure static checks on credential-discovery.md, safety-rules.md, development-runtime.md, discovery-agent.md, process-state.schema.json."
+    "Reason": "Pure static regression checks on credential-discovery policy, secret safety, runtime/UI/acceptance preflight routing, generated agent projections, project credential schema, and process-state."
   },
   {
     "File": "test-ui-driven-readiness.ps1",
@@ -252,7 +252,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Pure static Assert-FileContains checks on parity-verification.schema.json, ui-parity.md, observe-before-mutate.md, mockup-lifecycle.md."
+    "Reason": "Pure static contract checks on parity schemas, UI parity, identity lifecycle, canonical navigation, evidence cleanliness, and static-vs-runtime role visibility."
   },
   {
     "File": "test-documentation-consistency.ps1",
@@ -643,6 +643,21 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": false,
     "Reason": "Calls test-install-bootstrap-regression.ps1 (Tier 2) as regression suite. Transitively requires mxcli download."
+  },
+  {
+    "File": "test-mxcli-runtime-resolution.ps1",
+    "Tier": 1,
+    "FastGate": false,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Uses isolated temporary fake binaries to verify project-declared/project-local mxcli precedence, explicit PATH fallback, missing-binary blocking, and install-core distribution."
   },
   {
     "File": "test-mxcli-acquisition.ps1",
@@ -1122,7 +1137,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Capability discovery routing and resolver distribution: lazy startup rule 7 (generic, no Context Mode text, no startup probe), resolver-before-Concord policy, large-source fallback prohibition, real install-core.ps1 fresh install and existing-project update into GUID temp projects: resolver, Context Mode adapter and integration contract distributed and restored, installed resolver accepts current-session evidence without executing context-mode, project-owned scripts preserved, repeated update idempotent."
+    "Reason": "Capability discovery and mxcli runtime resolution: lazy startup routing, project-pinned resolver and tool conflict gates, plus real install-core.ps1 fresh install and existing-project update into GUID temp projects. Verifies mxcli/context resolvers, adapters, integration contracts, provenance, idempotent update, and project-owned file preservation."
   },
   {
     "File": "test-context-mode-harness.ps1",

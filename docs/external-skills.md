@@ -57,6 +57,11 @@ External skills are implementation aids. The precedence order is:
 
 If an external skill instruction conflicts with MxAgile policy, MxAgile policy wins.
 
+For downstream project tool/runtime instructions, apply the more specific source-ownership
+and actual-capability gate in `.mxagile/policies/tool-instruction-conflict.md`. External
+mxcli/Concord skill examples do not select a binary or establish that a command, flag, or
+MCP capability is available in the active project/session.
+
 ## 4. MxAgile "Smallest Complete Change" Interpretation
 
 Ponytail's core principle is "be lazy: smallest complete change." In this repository,
