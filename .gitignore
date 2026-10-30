@@ -62,3 +62,6 @@ desktop.ini
 # Nested working repo (framework development)
 MxAi-Dev-System/
 .claude/worktrees/*
+
+# Local reference implementations
+.reference/

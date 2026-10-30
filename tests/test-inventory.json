@@ -480,6 +480,21 @@
     "Reason": "FastGate=false: ~177s runtime. 24 tests involving Git repo creation, layer package setup, and 2 Start-Job invocations (~23.5s overhead each). Tier-1 integration depth is important but runtime is too heavy for fast feedback. Belongs in FULL regression only."
   },
   {
+    "File": "test-project-status.ps1",
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Runs deterministic status builder fixture tests in a GUID temp project; validates output with PowerShell Test-Json. No network, mxcli, shared cache, or global state."
+  },
+  {
     "File": "test-artifact-trace-index.ps1",
     "Tier": 1,
     "FastGate": true,

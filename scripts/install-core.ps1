@@ -438,6 +438,13 @@ try {
     Copy-Item -LiteralPath $studioProDetectorSource -Destination (Join-Path $destToolsDir "check-studio-pro-status.ps1") -Force
     Write-Host "[OK] Distributed .mxagile/tools/check-studio-pro-status.ps1."
 
+    $projectStatusSource = Join-Path $PSScriptRoot "build_project_status.py"
+    if (-not (Test-Path -LiteralPath $projectStatusSource -PathType Leaf)) {
+        throw "build_project_status.py not found in script directory: $projectStatusSource"
+    }
+    Copy-Item -LiteralPath $projectStatusSource -Destination (Join-Path $destToolsDir "build_project_status.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/build_project_status.py (read-only projection)."
+
     # =========================================================================
     # Core Installation Provenance
     # Writes machine-readable identity to .mxagile/state/core-provenance.json so
@@ -505,7 +512,8 @@ try {
             consumer_note      = "Distribution-owned scripts are NOT consumer project artifacts. Their absence in a consumer project is expected and normal, never a defect."
             project_distributed = @(
                 ".mxagile/tools/Get-MxAgileCapabilities.ps1",
-                ".mxagile/tools/check-studio-pro-status.ps1"
+                ".mxagile/tools/check-studio-pro-status.ps1",
+                ".mxagile/tools/build_project_status.py"
             )
         }
     }

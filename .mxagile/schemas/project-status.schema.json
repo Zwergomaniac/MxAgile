@@ -1,0 +1,441 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:project-status/1",
+  "title": "MxAgile Project Status Projection",
+  "description": "Deterministic, read-only projection of canonical MxAgile artifacts. Never a lifecycle authority. Missing or non-deterministic sources are represented as unavailable or null. No generated timestamp is included so identical inputs produce identical JSON.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "projection",
+    "authority",
+    "source_fingerprint",
+    "project",
+    "mission",
+    "delivery",
+    "requirements",
+    "decisions",
+    "verification",
+    "findings",
+    "runtime",
+    "capabilities",
+    "context",
+    "sources",
+    "gaps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "projection": { "type": "boolean", "const": true },
+    "authority": { "type": "string", "const": "mxagile_canonical_artifacts" },
+    "source_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Deterministic hash of the canonical source files read by this projection."
+    },
+    "project": {
+      "type": "object",
+      "required": ["availability", "id", "name", "core_version", "active_target", "lifecycle"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "id": { "type": ["string", "null"] },
+        "name": { "type": ["string", "null"] },
+        "core_version": { "type": ["string", "null"] },
+        "active_target": {
+          "type": "object",
+          "required": ["availability", "mockup", "revision_id", "bundle_hash", "source_path"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "mockup": { "type": ["string", "null"] },
+            "revision_id": { "type": ["string", "null"] },
+            "bundle_hash": { "type": ["string", "null"] },
+            "source_path": { "type": ["string", "null"] }
+          }
+        },
+        "lifecycle": {
+          "type": "object",
+          "required": ["availability", "active_wave_id", "phase"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "active_wave_id": { "type": ["string", "null"] },
+            "phase": { "$ref": "#/definitions/nullable_phase" }
+          }
+        }
+      }
+    },
+    "mission": {
+      "type": "object",
+      "required": ["availability", "id", "status", "blocker_count", "blocker_types"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "id": { "type": ["string", "null"] },
+        "status": {
+          "type": ["string", "null"],
+          "enum": ["active", "complete", "blocked", "archived", null]
+        },
+        "blocker_count": { "$ref": "#/definitions/nullable_count" },
+        "blocker_types": {
+          "type": "object",
+          "required": ["INFRASTRUCTURE_GAP", "LOCATOR_UNSTABLE", "ROLE_SWITCH_BLOCKED", "DECISION_REQUIRED", "SCOPE_EXCEEDED", "OTHER"],
+          "additionalProperties": false,
+          "properties": {
+            "INFRASTRUCTURE_GAP": { "$ref": "#/definitions/nullable_count" },
+            "LOCATOR_UNSTABLE": { "$ref": "#/definitions/nullable_count" },
+            "ROLE_SWITCH_BLOCKED": { "$ref": "#/definitions/nullable_count" },
+            "DECISION_REQUIRED": { "$ref": "#/definitions/nullable_count" },
+            "SCOPE_EXCEEDED": { "$ref": "#/definitions/nullable_count" },
+            "OTHER": { "$ref": "#/definitions/nullable_count" }
+          }
+        }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "required": ["waves", "task_progress", "checklist_progress", "workpackages"],
+      "additionalProperties": false,
+      "properties": {
+        "waves": {
+          "type": "object",
+          "required": ["availability", "items", "phase_counts"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["wave_id", "phase", "gates"],
+                "additionalProperties": false,
+                "properties": {
+                  "wave_id": { "type": "string" },
+                  "phase": { "$ref": "#/definitions/nullable_phase" },
+                  "gates": {
+                    "type": "object",
+                    "required": ["gate_to_refinement", "gate_to_ready"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "gate_to_refinement": { "$ref": "#/definitions/nullable_gate" },
+                      "gate_to_ready": { "$ref": "#/definitions/nullable_gate" }
+                    }
+                  }
+                }
+              }
+            },
+            "phase_counts": {
+              "type": "object",
+              "required": ["discovery", "refinement", "ready", "implementing", "verifying", "done", "unknown"],
+              "additionalProperties": false,
+              "properties": {
+                "discovery": { "$ref": "#/definitions/nullable_count" },
+                "refinement": { "$ref": "#/definitions/nullable_count" },
+                "ready": { "$ref": "#/definitions/nullable_count" },
+                "implementing": { "$ref": "#/definitions/nullable_count" },
+                "verifying": { "$ref": "#/definitions/nullable_count" },
+                "done": { "$ref": "#/definitions/nullable_count" },
+                "unknown": { "$ref": "#/definitions/nullable_count" }
+              }
+            }
+          }
+        },
+        "task_progress": {
+          "type": "object",
+          "required": ["availability", "total", "status_counts"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "total": { "$ref": "#/definitions/nullable_count" },
+            "status_counts": {
+              "type": "object",
+              "required": ["pending", "in_progress", "done", "failed", "blocked", "deferred", "unknown"],
+              "additionalProperties": false,
+              "properties": {
+                "pending": { "$ref": "#/definitions/nullable_count" },
+                "in_progress": { "$ref": "#/definitions/nullable_count" },
+                "done": { "$ref": "#/definitions/nullable_count" },
+                "failed": { "$ref": "#/definitions/nullable_count" },
+                "blocked": { "$ref": "#/definitions/nullable_count" },
+                "deferred": { "$ref": "#/definitions/nullable_count" },
+                "unknown": { "$ref": "#/definitions/nullable_count" }
+              }
+            }
+          }
+        },
+        "checklist_progress": {
+          "type": "object",
+          "required": ["availability", "total", "done", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "total": { "$ref": "#/definitions/nullable_count" },
+            "done": { "$ref": "#/definitions/nullable_count" },
+            "source": { "type": ["string", "null"] }
+          }
+        },
+        "workpackages": {
+          "type": "object",
+          "required": ["availability", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "items": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "required": ["availability", "total", "status_counts"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "total": { "$ref": "#/definitions/nullable_count" },
+        "status_counts": {
+          "type": "object",
+          "required": ["draft", "accepted", "deferred", "superseded", "unknown"],
+          "additionalProperties": false,
+          "properties": {
+            "draft": { "$ref": "#/definitions/nullable_count" },
+            "accepted": { "$ref": "#/definitions/nullable_count" },
+            "deferred": { "$ref": "#/definitions/nullable_count" },
+            "superseded": { "$ref": "#/definitions/nullable_count" },
+            "unknown": { "$ref": "#/definitions/nullable_count" }
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "object",
+      "required": ["availability", "total", "status_counts", "pending_affected_requirements", "blocked_by_decision"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "total": { "$ref": "#/definitions/nullable_count" },
+        "status_counts": {
+          "type": "object",
+          "required": ["PROPOSED", "CONFIRMED", "REJECTED", "SUPERSEDED", "unknown"],
+          "additionalProperties": false,
+          "properties": {
+            "PROPOSED": { "$ref": "#/definitions/nullable_count" },
+            "CONFIRMED": { "$ref": "#/definitions/nullable_count" },
+            "REJECTED": { "$ref": "#/definitions/nullable_count" },
+            "SUPERSEDED": { "$ref": "#/definitions/nullable_count" },
+            "unknown": { "$ref": "#/definitions/nullable_count" }
+          }
+        },
+        "pending_affected_requirements": { "type": "array", "items": { "type": "string" } },
+        "blocked_by_decision": {
+          "type": "object",
+          "required": ["availability", "count"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "count": { "$ref": "#/definitions/nullable_count" }
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["test_contracts", "proof_points", "plans", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "test_contracts": {
+          "type": "object",
+          "required": ["availability", "status_counts"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "status_counts": {
+              "type": "object",
+              "required": ["draft", "active", "stale", "impacted", "superseded", "unknown"],
+              "additionalProperties": false,
+              "properties": {
+                "draft": { "$ref": "#/definitions/nullable_count" },
+                "active": { "$ref": "#/definitions/nullable_count" },
+                "stale": { "$ref": "#/definitions/nullable_count" },
+                "impacted": { "$ref": "#/definitions/nullable_count" },
+                "superseded": { "$ref": "#/definitions/nullable_count" },
+                "unknown": { "$ref": "#/definitions/nullable_count" }
+              }
+            }
+          }
+        },
+        "proof_points": {
+          "type": "object",
+          "required": ["availability", "status_counts"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "status_counts": {
+              "type": "object",
+              "required": ["active", "stale", "impacted", "deferred", "not_applicable", "unknown"],
+              "additionalProperties": false,
+              "properties": {
+                "active": { "$ref": "#/definitions/nullable_count" },
+                "stale": { "$ref": "#/definitions/nullable_count" },
+                "impacted": { "$ref": "#/definitions/nullable_count" },
+                "deferred": { "$ref": "#/definitions/nullable_count" },
+                "not_applicable": { "$ref": "#/definitions/nullable_count" },
+                "unknown": { "$ref": "#/definitions/nullable_count" }
+              }
+            }
+          }
+        },
+        "plans": {
+          "type": "object",
+          "required": ["availability", "status_counts"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "status_counts": {
+              "type": "object",
+              "required": ["draft", "active", "superseded", "unknown"],
+              "additionalProperties": false,
+              "properties": {
+                "draft": { "$ref": "#/definitions/nullable_count" },
+                "active": { "$ref": "#/definitions/nullable_count" },
+                "superseded": { "$ref": "#/definitions/nullable_count" },
+                "unknown": { "$ref": "#/definitions/nullable_count" }
+              }
+            }
+          }
+        },
+        "evidence": {
+          "type": "object",
+          "required": ["availability", "freshness", "recorded_counts", "current_counts"],
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "$ref": "#/definitions/availability" },
+            "freshness": { "type": "string", "enum": ["determinable", "partial", "unknown"] },
+            "recorded_counts": {
+              "type": "object",
+              "required": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "LEGACY_EVIDENCE", "unknown"],
+              "additionalProperties": false,
+              "properties": {
+                "PASS": { "$ref": "#/definitions/nullable_count" },
+                "FAIL": { "$ref": "#/definitions/nullable_count" },
+                "PARTIAL": { "$ref": "#/definitions/nullable_count" },
+                "NOT_VERIFIED": { "$ref": "#/definitions/nullable_count" },
+                "STALE": { "$ref": "#/definitions/nullable_count" },
+                "LEGACY_EVIDENCE": { "$ref": "#/definitions/nullable_count" },
+                "unknown": { "$ref": "#/definitions/nullable_count" }
+              }
+            },
+            "current_counts": {
+              "type": "object",
+              "required": ["verified", "unverified", "stale", "failed", "pending"],
+              "additionalProperties": false,
+              "properties": {
+                "verified": { "$ref": "#/definitions/nullable_count" },
+                "unverified": { "$ref": "#/definitions/nullable_count" },
+                "stale": { "$ref": "#/definitions/nullable_count" },
+                "failed": { "$ref": "#/definitions/nullable_count" },
+                "pending": { "$ref": "#/definitions/nullable_count" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "object",
+      "required": ["availability", "open", "blocking", "closed"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "open": { "$ref": "#/definitions/nullable_count" },
+        "blocking": { "$ref": "#/definitions/nullable_count" },
+        "closed": { "$ref": "#/definitions/nullable_count" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["readiness_availability", "recorded_readiness", "operating_mode_availability", "operating_mode"],
+      "additionalProperties": false,
+      "properties": {
+        "readiness_availability": { "$ref": "#/definitions/availability" },
+        "recorded_readiness": {
+          "type": "object",
+          "required": ["runtime_config", "runtime_mode", "database", "mock_data", "test_identities", "runtime_pipeline_stage", "dependency_sync_state"],
+          "additionalProperties": false,
+          "properties": {
+            "runtime_config": { "type": ["string", "null"], "enum": ["not_checked", "discovered", "incomplete", "user_input_required", "configured", "validation_failed", "ready", null] },
+            "runtime_mode": { "type": ["string", "null"], "enum": ["interactive", "autonomous", "none", null] },
+            "database": { "type": ["string", "null"], "enum": ["not_checked", "reachable", "unreachable", "auth_failed", "ready", null] },
+            "mock_data": { "type": ["string", "null"], "enum": ["not_checked", "required", "seeded", "unavailable", null] },
+            "test_identities": { "type": ["string", "null"], "enum": ["not_checked", "configured", "incomplete", "ready", null] },
+            "runtime_pipeline_stage": { "type": ["string", "null"], "enum": ["not_started", "prerequisite_discovery", "dependency_sync", "build_in_progress", "build_succeeded", "runtime_started", "application_reachable", "browser_rendered", "authenticated_session_ready", "failed", null] },
+            "dependency_sync_state": { "type": ["string", "null"], "enum": ["not_started", "active", "long_running", "stalled", "lock_contended", "completed", "failed", "unknown", null] }
+          }
+        },
+        "operating_mode_availability": { "$ref": "#/definitions/availability" },
+        "operating_mode": { "type": ["string", "null"], "enum": ["CLOSED-AUTONOM", "LIVE-SP-CURRENT", "LIVE-SP-OTHER", "AMBIGUOUS-SP-STATE", null] }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["availability", "active_count"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "active_count": { "$ref": "#/definitions/nullable_count" }
+      }
+    },
+    "context": {
+      "type": "object",
+      "description": "Durable values come from the last canonical context-epoch checkpoint. mode and current session pressure are unavailable unless separately attested; pressure is the recorded checkpoint value, not a live measurement.",
+      "required": ["availability", "epoch_id", "phase", "mode", "pressure"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "epoch_id": { "type": ["string", "null"] },
+        "phase": { "$ref": "#/definitions/nullable_phase" },
+        "mode": { "type": ["string", "null"] },
+        "pressure": { "type": ["string", "null"], "enum": ["UNKNOWN", "NORMAL", "PRESSURE", "ROLLOVER_RECOMMENDED", "ROLLOVER_REQUIRED", null] }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "required": ["availability", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "availability": { "$ref": "#/definitions/availability" },
+        "items": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "source", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string" },
+          "source": { "type": ["string", "null"] },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "availability": {
+      "type": "string",
+      "enum": ["available", "partial", "unavailable", "ambiguous"]
+    },
+    "nullable_count": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "nullable_phase": {
+      "type": ["string", "null"],
+      "enum": ["discovery", "refinement", "ready", "implementing", "verifying", "done", null]
+    },
+    "nullable_gate": {
+      "type": ["string", "null"],
+      "enum": ["not_recorded", "passed", "failed", null]
+    }
+  }
+}
