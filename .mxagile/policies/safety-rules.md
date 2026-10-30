@@ -22,7 +22,9 @@ Vor git add, Commit, Migration, Update, Modellmutation, Cleanup, Rebase oder Mer
 in bestehenden getrackten Projekten ausfuehren:
 `python .mxagile/tools/git_index_integrity.py --project-root .`
 (Framework-Entwicklung: `scripts/git_index_integrity.py`). Read-only, Exit 0 erlaubt
-Fortsetzung; jeder andere Exit blockiert diese Mutationen. Keine Umdeutung eines
+Fortsetzung; jeder andere Exit blockiert normale Mutationen. Ein read-only
+CONTROLLED_RECOVERY-Preflight und dessen eng autorisierte Recovery bleiben nach
+dem folgenden Vertrag moeglich; das ist keine Freigabe normaler Mutationen. Keine Umdeutung eines
 nicht pruefbaren Zustands als PASS. Unborn HEAD / Projekte ohne Git sind separat
 NOT_APPLICABLE, nicht "repariert".
 
@@ -38,13 +40,84 @@ HEAD wieder her, nicht den Working Tree. Dabei gehen vorhandene Staging-Auswahle
 verloren. Nur nach ausdruecklicher Recovery-Autorisierung bzw. einem eindeutig
 anwendbaren vorhandenen Autonomievertrag ausfuehren, nie als Nebenwirkung des
 Guards. Danach Guard erneut ausfuehren; Working Tree und HEAD vorher/nachher
-vergleichen. Der Guard selbst bietet absichtlich keinen Recovery-Schalter.
+vergleichen. Der Guard selbst bietet absichtlich keinen schreibenden Recovery-Schalter.
 
 index.lock + beobachteter Git-Prozess: GIT_OPERATION_IN_PROGRESS; die Beobachtung
 beweist nicht den Lock-Eigentuemer. Ohne beobachteten Prozess nur
 GIT_INDEX_LOCK_STALE_CANDIDATE, bei fehlender Prozesssicht LOCK_UNVERIFIED.
 Alle blockieren. Lock niemals allein aufgrund seiner Existenz/Alter loeschen.
 Externe Git-/Studio-Pro-Prozesse werden nicht durch Agentenregeln abgefangen.
+
+## CONTROLLED_RECOVERY
+
+Safety darf eine ausdruecklich beauftragte, begrenzte Recovery nicht pauschal
+verhindern. Aktivierung ausschliesslich bei belegtem beschaedigtem/unvollstaendigem
+Git-State, bekanntem sicheren Ziel, ausdruecklichem Nutzerauftrag, technisch zum
+aktuellen State passender Operation und zuvor diagnostiziertem Scope. Allgemeine
+Commit-/Autonomie-Autoritaet reicht nicht. Keine Recovery im Frameworkauftrag an
+CapTrack oder anderen fremden Projekten ausfuehren.
+
+Read-only Preflight: `python .mxagile/tools/git_index_integrity.py --project-root .
+--recovery merge-abort --user-authorized --scope-reviewed` (eine Kommandozeile).
+Fuer den Index stattdessen `--recovery index-rebuild`. Die Flags dokumentieren
+den tatsaechlichen Nutzerauftrag und die erfolgte Scope-Pruefung; der Agent darf
+sie nicht aus eigenem Convenience-Bedarf setzen. Der Helper erteilt keine neue
+Autoritaet und fuehrt keinen der ausgegebenen Git-Schreibbefehle aus.
+Unmittelbar vor Ausfuehrung neu pruefen; bei geaendertem HEAD, Scope, Locks oder
+Fingerprints den alten Plan verwerfen. Vorherigen READY-JSON-Befund ausserhalb
+des Projekts sichern. Nach dem einzelnen autorisierten Git-Schritt dessen Exitcode
+festhalten und `--verify-before <externe-baseline.json> --command-exit <code>`
+aufrufen. Unbekannter Exitcode ist kein Erfolg. Snapshot/Diff-Fingerprints sind
+Diagnostik, kein Ersatz fuer eine notwendige Sicherung fachlicher Aenderungen.
+Der mechanische READY-Pfad ist bewusst auf Merge-Abort und leeren Index begrenzt;
+andere Recovery-Klassen erfordern den beschriebenen manuellen, begrenzten Review,
+keine staerkere automatische Fallback-Operation.
+
+Auftraege und begrenzte Autoritaet:
+- "Brich den fehlgeschlagenen Merge ab": nativer Tool-Abbruch, danach gegebenenfalls
+  `git merge --abort`, nur bei aktuell belegtem MERGE_HEAD und Scope-Pruefung.
+- "Stelle den Index aus HEAD wieder her": bei belegtem leerem beschaedigtem Index
+  `git restore --source=HEAD --staged -- :/`, ohne Working-Tree-Reset.
+- "Setze ausschliesslich diese fehlerhafte Aenderung zurueck": nur benannte Dateien
+  und benannter Zielstand, nach Sicherung/Pruefung unabhaengiger Aenderungen.
+- Rebase-/Cherry-Pick-Abbruch nur mit passendem explizitem Auftrag und aktuell
+  belegten Git-Metadaten. Mendix-Cachefehler allein beweisen keinen Git-Merge.
+
+Vor JEDEM Versuch: HEAD, Branch, `git status --porcelain=v1 -z`, echte Git-Metadaten
+fuer Merge/Rebase/Cherry-Pick, Index Entry Count, staged/unstaged/untracked Scope,
+Locks und beobachtbare Git-/SQLite-/Toolprozesse erfassen. `git rev-parse --git-path`
+beruecksichtigt Worktrees. Keine Operation aus Erinnerung ableiten. Vorherigen
+HEAD, Scope und unabhaengige Aenderungen pruefbar ausserhalb des Recovery-Scope
+sichern. Bei unbekannter Vorher-Semantik/ueberlappenden fachlichen Aenderungen STOP
+und gezielte Klaerung; eine User-Autorisierung erlaubt nicht deren stillen Verlust.
+
+Hierarchie: funktionsfaehiger nativer Tool-Abbruch; Standard-Git-Abbruch zum
+belegten Operationstyp; index-only/state-only; explizit dateigebundenes Restore.
+Working-Tree-destruktive Recovery ist keine automatische naechste Stufe.
+`git reset --hard`, `git clean -fd`, force checkout/destructive restore, Force Push,
+History Rewrite, unbekannte untracked Dateien loeschen oder ungesicherte fachliche
+Aenderungen ueberschreiben bleiben ohne weitere konkrete Grundlage gesperrt.
+Wenn noetig: gezielte Nutzereskalation, kein stiller Fallback.
+
+Bei recipe-cache.sqlite-shm / recipe-cache.sqlite-wal oder anderen unlink-Fehlern:
+Tracked-Status und Zugehoerigkeit zum Recovery-Scope pruefen, Runtime-/Cache-Natur
+von fachlichen Daten trennen, aktuelle Datei-Lock-/Prozessbeobachtung erfassen.
+Ein Prozessname beweist keinen File-Handle-Eigentuemer; UNKNOWN bleibt UNKNOWN.
+Nicht aggressiver loeschen, index.lock nicht entfernen, keine Prozesse blind
+beenden. Vor Retry Ursache/Lock-Freigabe neu beobachten; gegebenenfalls Nutzer
+zum normalen Schliessen des belegten Tools auffordern. Ephemeral bedeutet nicht
+automatisch loeschbar, besonders bei getrackten Dateien.
+
+Nach JEDEM Versuch: erwarteten HEAD, plausiblen Index, beendeten Operation-State,
+`git status`, `git diff`, `git diff --cached`, erhaltene unabhaengige Aenderungen
+und keine unerwarteten Dateiverluste pruefen. Raw-Diffs/Secrets nicht in Berichte
+kopieren. Nur vollstaendig belegte Nachbedingungen erlauben RECOVERY_SUCCESS.
+Sonst RECOVERY_PARTIAL / RECOVERY_FAILED und STOP, keine staerkere Folgeoperation.
+
+Nach RECOVERY_SUCCESS ist Lifecycle-/Project-State-Re-Sync vor Fortsetzung Pflicht.
+Vorherige Merge-/Working-Tree-Annahmen verwerfen. Recovery erfuellt keine Gates,
+promotet keine Evidence, schliesst keine Findings und startet keine Migration.
+Der bestehende Interrupt-/Resume-/Re-Sync-Vertrag bleibt unveraendert.
 
 ## Begrenzte Artefakt-Edits
 

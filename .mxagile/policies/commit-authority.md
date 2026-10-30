@@ -33,6 +33,22 @@ All universal safety rules apply at all times.
 Push authority is never implied by commit authority.
 Destructive operation authority is never implied by commit or push authority.
 
+## Controlled Recovery Exception
+
+CONTROLLED_RECOVERY follows `policies/safety-rules.md`, not normal checkpoint
+authority. An explicit current request to abort a proven failed merge or rebuild
+a proven damaged empty index authorizes that bounded recovery after preflight;
+do not refuse it solely because normal Git writes are restricted. Generic
+workflow defaults must not make legitimate recovery impossible. Mandatory
+repository/compliance controls remain in force; unresolved conflicts require a
+specific escalation, not an invented permission.
+
+Recovery grants no commit, push, destructive reset or history-rewrite authority.
+Unrelated changes must be preserved. A failed unlink, lock or partial abort never
+authorizes deleting files, killing unknown processes or reset --hard. After the
+post-check, RECOVERY_SUCCESS still requires lifecycle/project re-sync before
+resuming. All ordinary commit preconditions continue to apply afterwards.
+
 ---
 
 ## Authority Levels

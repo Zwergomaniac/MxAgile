@@ -383,7 +383,9 @@ When starting, resuming, or picking up work, follow this order:
 
 9. **Git index integrity before mutations** - run `python .mxagile/tools/git_index_integrity.py --project-root .`
     before git add/commit, migration, update, model writes, cleanup, rebase or merge.
-    Any nonzero result blocks these operations; follow `.mxagile/policies/safety-rules.md`.
+    Any nonzero result blocks normal mutations; follow `.mxagile/policies/safety-rules.md`.
+    Explicit recovery requests use its CONTROLLED_RECOVERY preflight, bounded operation and post-check;
+    do not reject authorized recovery solely because normal Git writes are restricted.
     Never interpret an empty damaged index as project deletions or repair it without authority.
 
 Detailed policy: `.mxagile/policies/lifecycle-resync.md`
