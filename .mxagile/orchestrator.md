@@ -14,11 +14,13 @@ Ownership-Guard: siehe `policies/ownership-guard.md`.
 
 ## Bounded Agent Delegation
 
-Delegate only bounded semantic investigation when the attested harness capability
-is `supported`; deterministic work stays with helpers/scripts, and lifecycle,
-gate, integration, and final decisions stay with the main agent. Full routing,
-handoff, result-reuse, model-profile, anti-amplification and interruption contract:
-`policies/agent-delegation.md`.
+Before substantive semantic analysis, the main agent MUST apply and persist the
+routing gate in `policies/agent-delegation.md`. When its bounded-semantic conditions
+are met, it must invoke the actual spawn tool exposed by the attested current harness;
+capability support alone is not delegation. Deterministic work stays with
+helpers/scripts, and lifecycle, gate, integration, and final decisions stay with the
+main agent. The policy defines routing, handoff, result reuse, model profiles,
+anti-amplification, and interruption behavior.
 
 ---
 

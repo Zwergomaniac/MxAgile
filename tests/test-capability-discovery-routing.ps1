@@ -24,6 +24,7 @@ $ResolverSrc = Join-Path $Scripts 'Get-MxAgileCapabilities.ps1'
 $EpochReaderSrc = Join-Path $Scripts 'Read-MxAgileEpochCheckpoint.ps1'
 $DelegationResultSaverSrc = Join-Path $Scripts 'Save-MxAgileDelegationResult.ps1'
 $DelegationResultReaderSrc = Join-Path $Scripts 'Get-MxAgileDelegationResult.ps1'
+$RoutingDecisionSaverSrc = Join-Path $Scripts 'Save-MxAgileRoutingDecision.ps1'
 $MxcliResolverSrc = Join-Path $Scripts 'Resolve-MxAgileMxcli.ps1'
 $StudioProDetectorSrc = Join-Path $Scripts 'check-studio-pro-status.ps1'
 $ProjectStatusSrc = Join-Path $Scripts 'build_project_status.py'
@@ -118,6 +119,7 @@ $tool = Join-Path $proj '.mxagile/tools/Get-MxAgileCapabilities.ps1'
 $epochReader = Join-Path $proj '.mxagile/tools/Read-MxAgileEpochCheckpoint.ps1'
 $resultSaver = Join-Path $proj '.mxagile/tools/Save-MxAgileDelegationResult.ps1'
 $resultReader = Join-Path $proj '.mxagile/tools/Get-MxAgileDelegationResult.ps1'
+$routingDecisionSaver = Join-Path $proj '.mxagile/tools/Save-MxAgileRoutingDecision.ps1'
 $mxcliResolver = Join-Path $proj '.mxagile/tools/Resolve-MxAgileMxcli.ps1'
 $detector = Join-Path $proj '.mxagile/tools/check-studio-pro-status.ps1'
 $statusBuilder = Join-Path $proj '.mxagile/tools/build_project_status.py'
@@ -137,6 +139,7 @@ Assert-True 'distributed resolver equals source' ((Test-Path $tool) -and ((Get-F
 Assert-True 'checkpoint reader dependency distributed to .mxagile/tools' ((Test-Path $epochReader) -and ((Get-FileHash $epochReader).Hash -eq (Get-FileHash $EpochReaderSrc).Hash)) 'reader missing or hash differs'
 Assert-True 'delegation result saver distributed to .mxagile/tools' ((Test-Path $resultSaver) -and ((Get-FileHash $resultSaver).Hash -eq (Get-FileHash $DelegationResultSaverSrc).Hash)) 'saver missing or hash differs'
 Assert-True 'delegation result reader distributed to .mxagile/tools' ((Test-Path $resultReader) -and ((Get-FileHash $resultReader).Hash -eq (Get-FileHash $DelegationResultReaderSrc).Hash)) 'reader missing or hash differs'
+Assert-True 'routing decision writer distributed to .mxagile/tools' ((Test-Path $routingDecisionSaver) -and ((Get-FileHash $routingDecisionSaver).Hash -eq (Get-FileHash $RoutingDecisionSaverSrc).Hash)) 'routing writer missing or hash differs'
 Assert-True 'status builder distributed to .mxagile/tools' ((Test-Path $statusBuilder) -and ((Get-FileHash $statusBuilder).Hash -eq (Get-FileHash $ProjectStatusSrc).Hash)) 'builder missing or hash differs'
 Assert-True 'status schema distributed with canonical Core payload' ((Test-Path $statusSchema) -and ((Get-FileHash $statusSchema).Hash -eq (Get-FileHash (Join-Path $RepoRoot '.mxagile/schemas/project-status.schema.json')).Hash)) 'schema missing or hash differs'
 Assert-True 'loopback board server distributed to .mxagile/tools' ((Test-Path $boardServer) -and ((Get-FileHash $boardServer).Hash -eq (Get-FileHash $ProjectBoardServerSrc).Hash)) 'board server missing or hash differs'
@@ -170,6 +173,7 @@ Assert-True 'provenance lists project-distributed resolver' (@($prov.distributio
 Assert-True 'provenance lists checkpoint reader dependency' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Read-MxAgileEpochCheckpoint.ps1') 'provenance missing checkpoint reader entry'
 Assert-True 'provenance lists delegated result saver' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Save-MxAgileDelegationResult.ps1') 'provenance missing result saver entry'
 Assert-True 'provenance lists delegated result reader' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Get-MxAgileDelegationResult.ps1') 'provenance missing result reader entry'
+Assert-True 'provenance lists routing decision writer' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Save-MxAgileRoutingDecision.ps1') 'provenance missing routing decision writer entry'
 Assert-True 'provenance lists project-distributed mxcli runtime resolver' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/Resolve-MxAgileMxcli.ps1') 'provenance missing mxcli resolver entry'
 Assert-True 'provenance lists project-distributed detector' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/check-studio-pro-status.ps1') 'provenance missing detector entry'
 Assert-True 'provenance lists project-distributed status builder' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/build_project_status.py') 'provenance missing status builder entry'
@@ -246,6 +250,7 @@ $updatedGitignore = Get-Content $projectGitignore -Raw
 Assert-True 'update preserves project .gitignore and adds runtime ignores' (($updatedGitignore -match 'project-owned') -and ($updatedGitignore -match 'custom-runtime/') -and ($updatedGitignore -match '(?m)^\.context-mode/\r?$') -and ($updatedGitignore -match '(?m)^\.github/context-mode/\r?$')) "project .gitignore was overwritten or runtime ignores missing: $updatedGitignore"
 $srcHash = (Get-FileHash $ResolverSrc).Hash
 Assert-True 'update restores resolver to current distribution version' ((Get-FileHash $tool).Hash -eq $srcHash) 'not restored'
+Assert-True 'update restores routing decision writer to current distribution version' ((Get-FileHash $routingDecisionSaver).Hash -eq (Get-FileHash $RoutingDecisionSaverSrc).Hash) 'routing writer not restored'
 Assert-True 'update restores mxcli runtime resolver to current distribution version' ((Get-FileHash $mxcliResolver).Hash -eq (Get-FileHash $MxcliResolverSrc).Hash) 'mxcli resolver not restored'
 Assert-True 'update restores detector to current distribution version' ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) 'not restored'
 Assert-True 'update restores status builder to current distribution version' ((Get-FileHash $statusBuilder).Hash -eq (Get-FileHash $ProjectStatusSrc).Hash) 'not restored'
@@ -258,7 +263,7 @@ Assert-True 'update restores Context Mode integration contract' ((Get-FileHash $
 Assert-True 'update retires stale files in .mxagile/tools' (-not (Test-Path (Join-Path $proj '.mxagile/tools/stale.ps1'))) 'stale file kept'
 Assert-True 'update preserves project-owned scripts/' ((Get-Content (Join-Path $proj 'scripts/mine.ps1') -Raw) -match 'project-owned') 'project file lost'
 $repeatedOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1)
-Assert-True 'repeated update exit 0 and tool payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $mxcliResolver).Hash -eq (Get-FileHash $MxcliResolverSrc).Hash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'not idempotent'
+Assert-True 'repeated update exit 0 and tool payload remains idempotent' (($LASTEXITCODE -eq 0) -and ((Get-FileHash $tool).Hash -eq $srcHash) -and ((Get-FileHash $routingDecisionSaver).Hash -eq (Get-FileHash $RoutingDecisionSaverSrc).Hash) -and ((Get-FileHash $mxcliResolver).Hash -eq (Get-FileHash $MxcliResolverSrc).Hash) -and ((Get-FileHash $detector).Hash -eq (Get-FileHash $StudioProDetectorSrc).Hash) -and ((Get-FileHash $contextAdapter).Hash -eq $adapterHash) -and ((Get-FileHash $contextIntegration).Hash -eq $integrationHash) -and ((Get-FileHash $capabilityPolicy).Hash -eq (Get-FileHash $CapabilityPolicySrc).Hash)) 'not idempotent'
 $repeatedCompletion = Get-Content (Join-Path $proj '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
 Assert-True 'U7 repeated update reruns Doctor deterministically without project edits' ($repeatedCompletion.doctor.executed -and $repeatedCompletion.installed_at -ne $invalidCompletion.installed_at -and ($repeatedCompletion.doctor.report | ConvertTo-Json -Depth 30 -Compress) -eq ($invalidCompletion.doctor.report | ConvertTo-Json -Depth 30 -Compress) -and (Get-FileHash $invalidProcess).Hash -eq $beforeProcess) 'Doctor stale, nondeterministic or mutating'
 $repeatedGitignore = Get-Content $projectGitignore -Raw

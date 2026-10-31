@@ -2,24 +2,59 @@
 
 ## Routing Decision
 
-Resolve only the relevant capability when semantic delegation is a real candidate:
+Before substantive semantic analysis of a work package, the main agent MUST make
+and persist a routing decision. A capability declaration or an available Context
+Mode operation is not a routing decision and is never evidence that a subagent was
+spawned.
+
+Classify each bounded work package independently:
 
 ```powershell
 & ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -Capability subagent_spawn -Format json -ModelProfile MID
 ```
 
-Use the adapter's `integration.status` and `state` fields. `supported` is required;
-`unsupported`, `unknown`, missing adapter, conflicting runtime evidence, disabled
-configuration, or absent model mapping must not block work. Fall back to an actually
-usable Context Mode operation for large raw sources, or keep the bounded work with
-the main agent. Never infer one harness's support from another harness.
+Use the adapter's `integration.status` and `state` fields and inspect the current
+session's actual tool namespace. `supported` is necessary, but does not prove that a
+spawn tool is visible or call it. Never infer one harness's support or tool signature
+from another harness or another session. Record the decision with
+`.mxagile/tools/Save-MxAgileRoutingDecision.ps1` before beginning the semantic
+analysis; this applies to `DELEGATE`, `MAIN_AGENT`, `CONTEXT_MODE`, `HELPER`, and
+`FALLBACK` routes. Every non-delegation decision requires a concrete reason.
+
+Write only decision metadata and project-relative references to a temporary JSON file
+under `.concord/scratch/`, then persist it with:
+
+```powershell
+& ./.mxagile/tools/Save-MxAgileRoutingDecision.ps1 -ProjectRoot . -InputFile <decision-json>
+```
+
+The input carries `mission_id`, unique `decision_id`, `session_identity` when known,
+`work_package`, `requested_agent_type`, `work_class`, bounded `scope`, `artifact_count`,
+`semantic`, `deterministic`, `capability_state`, `requested_profile`, `route`, `reason`,
+`fallback_reason`, `delegation_attempted`, `spawn_outcome`, `delegation_id`,
+`result_reference`, `main_consumed`, `compaction_occurred`, `result_reused`,
+`stale_result_rejected`, `batch_restarted`, and `references` (`path` and optional
+`identity`). The writer timestamps the record, fingerprints referenced sources, and
+links it from the active Context Epoch. Never put source contents or transcripts in
+the input.
 
 Routing order:
 
 1. Deterministic work uses its helper, script, doctor, or parser.
-2. Large raw-source retrieval may use Context Mode only when usable for the required operation.
-3. A subagent is preferred only for a separable, bounded semantic mission whose compact result is cheaper and useful after accounting for spawn, policy reads, repository reads, handoff, result size, parallelism, and main-agent context pressure.
-4. Otherwise the main agent performs targeted work.
+2. Large raw-source retrieval may use Context Mode only when usable for the required operation; persist the compact decision-relevant finding.
+3. Then classify semantic work derived from those sources independently. For separable bounded semantic work, when delegation is `supported`, an actual spawn tool is visible, authority permits it, no deterministic helper is sufficient, anti-amplification limits are respected, and a compact result is useful, delegation is the default and MUST be attempted.
+4. If any delegation condition is not met, persist `MAIN_AGENT` or `FALLBACK` with the exact reason and continue fail-soft. Context Mode must never suppress this second semantic routing decision.
+5. The main agent performs final integration, conflict resolution, lifecycle/gate decisions, and user decisions.
+
+For `DELEGATE`, persist the decision first, then invoke the harness-native named-agent,
+subagent, or fork operation actually exposed by the current session. Use only its
+observed tool name and supported parameters. Pass the bounded handoff, requested
+profile, and no conversation transcript. Update the routing record with attempted
+dispatch evidence. On spawn failure, update the route to `FALLBACK`, record the failed
+attempt and concrete fallback reason, then continue with the main agent. On success,
+save a compact completed result, retrieve it through the result reader, and explicitly
+consume it before reconciliation. A declaration, handoff file, or simulated invocation
+is not a successful spawn.
 
 Do not delegate YAML quoting, schema checks, regex/provenance mapping, Git index
 checks, framework updates, lifecycle re-sync, or final planning decisions.

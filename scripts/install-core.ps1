@@ -576,7 +576,7 @@ try {
     Copy-Item -LiteralPath $epochReaderSource -Destination (Join-Path $destToolsDir 'Read-MxAgileEpochCheckpoint.ps1') -Force
     Write-Host "[OK] Distributed .mxagile/tools/Read-MxAgileEpochCheckpoint.ps1."
 
-    foreach ($delegationTool in @('Save-MxAgileDelegationResult.ps1', 'Get-MxAgileDelegationResult.ps1')) {
+    foreach ($delegationTool in @('Save-MxAgileDelegationResult.ps1', 'Get-MxAgileDelegationResult.ps1', 'Save-MxAgileRoutingDecision.ps1')) {
         $delegationToolSource = Join-Path $PSScriptRoot $delegationTool
         if (-not (Test-Path -LiteralPath $delegationToolSource -PathType Leaf)) {
             throw "$delegationTool not found in script directory: $delegationToolSource"
@@ -692,6 +692,7 @@ try {
                 ".mxagile/tools/Read-MxAgileEpochCheckpoint.ps1",
                 ".mxagile/tools/Save-MxAgileDelegationResult.ps1",
                 ".mxagile/tools/Get-MxAgileDelegationResult.ps1",
+                ".mxagile/tools/Save-MxAgileRoutingDecision.ps1",
                 ".mxagile/tools/Resolve-MxAgileMxcli.ps1",
                 ".mxagile/tools/check-studio-pro-status.ps1",
                 ".mxagile/tools/build_project_status.py",

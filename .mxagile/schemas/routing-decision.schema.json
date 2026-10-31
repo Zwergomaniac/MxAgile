@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:routing-decision",
+  "title": "MxAgile Mission Routing Decision",
+  "description": "Compact, resumable evidence of a work-package route. Contains references and fingerprints only, never transcripts or raw source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mission_id",
+    "decision_id",
+    "recorded_at",
+    "session_identity",
+    "work_package",
+    "requested_agent_type",
+    "work_class",
+    "scope",
+    "artifact_count",
+    "semantic",
+    "deterministic",
+    "capability_state",
+    "requested_profile",
+    "route",
+    "reason",
+    "fallback_reason",
+    "delegation_attempted",
+    "spawn_outcome",
+    "delegation_id",
+    "result_reference",
+    "main_consumed",
+    "compaction_occurred",
+    "result_reused",
+    "stale_result_rejected",
+    "batch_restarted",
+    "source_fingerprints"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "mission_id": { "type": "string", "minLength": 1 },
+    "decision_id": { "type": "string", "pattern": "^ROUTE-[A-Za-z0-9._-]+$" },
+    "recorded_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "session_identity": { "type": ["string", "null"] },
+    "work_package": { "type": "string", "minLength": 1 },
+    "requested_agent_type": { "type": ["string", "null"] },
+    "work_class": {
+      "type": "string",
+      "enum": ["deterministic", "raw_source_retrieval", "bounded_semantic", "integration", "lifecycle", "other"]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "paths"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "paths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "artifact_count": { "type": "integer", "minimum": 0 },
+    "semantic": { "type": "boolean" },
+    "deterministic": { "type": "boolean" },
+    "capability_state": { "type": "string", "enum": ["supported", "unsupported", "unknown", "not_applicable"] },
+    "requested_profile": { "type": ["string", "null"], "enum": ["LIGHT", "MID", "HIGH", null] },
+    "route": { "type": "string", "enum": ["DELEGATE", "MAIN_AGENT", "CONTEXT_MODE", "HELPER", "FALLBACK"] },
+    "reason": { "type": "string", "minLength": 1 },
+    "fallback_reason": { "type": ["string", "null"] },
+    "delegation_attempted": { "type": "boolean" },
+    "spawn_outcome": { "type": "string", "enum": ["not_attempted", "pending", "started", "failed", "completed"] },
+    "delegation_id": { "type": ["string", "null"], "pattern": "^DELEGATION-[A-Za-z0-9._-]+$" },
+    "result_reference": { "type": ["string", "null"] },
+    "main_consumed": { "type": "boolean" },
+    "compaction_occurred": { "type": "boolean" },
+    "result_reused": { "type": "boolean" },
+    "stale_result_rejected": { "type": "boolean" },
+    "batch_restarted": { "type": "boolean" },
+    "source_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "identity": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    }
+  }
+}

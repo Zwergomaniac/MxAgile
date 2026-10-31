@@ -371,6 +371,18 @@ When starting, resuming, or picking up work, follow this order:
    initialization or adoption), OR if the user asks how MxAgile works: follow
    `.mxagile/policies/user-orientation.md`. Orientation is brief and never blocks the user's request.
 
+**Mandatory bounded-semantic routing gate** — Before substantive semantic analysis of a work
+package, read `.mxagile/policies/agent-delegation.md`, classify deterministic work and raw-source
+retrieval separately, resolve `subagent_spawn` for the current session, inspect the actually
+available harness tool, and persist the routing decision before analysis. If bounded semantic work
+is separable, authority permits it, the capability is supported, the live spawn tool is available,
+no deterministic helper is sufficient, anti-amplification is respected, and a compact result is
+useful, you MUST invoke that live harness tool with the bounded handoff and requested profile.
+Capability `supported` or a prepared handoff alone is not a spawn. For every non-delegation route,
+persist the concrete reason and continue with the permitted fallback. Raw-source retrieval does not
+replace routing semantic work derived from its findings. Never invent tool names or signatures; use
+only the current session's discovered tool interface.
+
 7. **Optional capabilities, on demand only** — never at startup. When an optional capability could
    clearly help the current task, query only that capability through
    `.mxagile/policies/capability-discovery.md`. Installed does not mean usable; never assume health;

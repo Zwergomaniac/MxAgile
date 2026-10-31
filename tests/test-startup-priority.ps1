@@ -111,6 +111,18 @@ Assert-FileContains "inject script: global tool and skill conflict gate is prese
 Assert-FileContains "inject script: selected tool capability blocks arbitrary PATH or skill-order choice" `
     $injectScriptPath 'Never choose by PATH or skill load order'
 
+Assert-FileContains "inject script: bounded-semantic routing gate is mandatory" `
+    $injectScriptPath 'Mandatory bounded-semantic routing gate'
+
+Assert-FileContains "inject script: delegation must invoke a discovered live harness tool" `
+    $injectScriptPath 'MUST invoke that live harness tool'
+
+Assert-FileContains "inject script: invocation uses only discovered current-session tool interface" `
+    $injectScriptPath 'current session''s discovered tool interface'
+
+Assert-FileContains "inject script: every route decision is persisted before analysis" `
+    $injectScriptPath 'persist the routing decision before analysis'
+
 $startupContent = Get-Content -LiteralPath $injectScriptPath -Raw
 $toolGateOffset = $startupContent.IndexOf('Before any CLI/MCP/tool command or external/tool-provided skill', [System.StringComparison]::Ordinal)
 $brainOffset = $startupContent.IndexOf('**Project Brain after Re-Sync**', [System.StringComparison]::Ordinal)
@@ -267,6 +279,9 @@ if ($wsExists) {
     Assert-FileContains "ws CLAUDE.md: lifecycle-resync.md reference" `
         $wsClaudePath 'lifecycle-resync\.md'
 
+    Assert-FileContains "ws CLAUDE.md: mandatory bounded-semantic routing gate" `
+        $wsClaudePath 'Mandatory bounded-semantic routing gate'
+
     # AGENTS.md
     Assert-FileContains "ws AGENTS.md: startup routing present" `
         $wsAgentsPath 'Lifecycle Re-Sync First|Re-Sync First'
@@ -279,6 +294,9 @@ if ($wsExists) {
 
     Assert-FileContains "ws AGENTS.md: lifecycle-resync.md reference" `
         $wsAgentsPath 'lifecycle-resync\.md'
+
+    Assert-FileContains "ws AGENTS.md: mandatory bounded-semantic routing gate" `
+        $wsAgentsPath 'Mandatory bounded-semantic routing gate'
 
     # skillssource/AGENTS.md
     if (Test-Path -LiteralPath $wsSkillsAgentsPath) {

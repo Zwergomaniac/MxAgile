@@ -359,6 +359,7 @@
             "evidence_manifest",
             "campaign_result",
             "delegated_result",
+            "routing_decision",
             "process_state",
             "checkpoint",
             "wave_report",
