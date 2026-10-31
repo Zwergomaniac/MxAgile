@@ -288,6 +288,29 @@ $ratioBlock
     [System.IO.File]::WriteAllText($pPath, $profiles, [System.Text.UTF8Encoding]::new($false))
 }
 
+# ─── Checkpoint artifact references survive compaction writes ─────────────
+$artifactProject = $null
+try {
+    $artifactProject = New-TempProject
+    $artifactYaml = @'
+  - id: DELEGATION-001
+    type: other
+    path_or_reference: ".concord/delegated-results/DELEGATION-001.json"
+    integrity_metadata:
+      sha256_prefix: "abcd1234"
+'@
+    & $writerScript -ProjectRoot $artifactProject -MissionId "MISSION-TEST" `
+        -MissionStatus active -CurrentPhase implementing -ArtifactsYaml $artifactYaml | Out-Null
+    & $writerScript -ProjectRoot $artifactProject -MissionId "MISSION-TEST" `
+        -MissionStatus active -CurrentPhase implementing -PreserveEvidence | Out-Null
+    $checkpoint = Get-Content (Join-Path $artifactProject ".concord\context-epoch.yaml") -Raw
+    Assert-True "Checkpoint artifact references survive a preserve-evidence rewrite" `
+        (($checkpoint -match 'id: DELEGATION-001') -and ($checkpoint -match 'delegated-results/DELEGATION-001.json')) `
+        "Artifact reference was dropped: $checkpoint"
+} finally {
+    if ($artifactProject) { Remove-TempProject $artifactProject }
+}
+
 # ─── K: Model policy - harness overrides profile ────────────────────────
 Write-Host ""
 Write-Host "--- K: Model policy - harness overrides profile ---" -ForegroundColor Yellow

@@ -91,6 +91,8 @@ param(
     [string]$FailedClaimsYaml     = "",
     [string]$UnverifiedClaimsYaml = "",
     [string]$DecisionsYaml        = "",
+    [string]$ArtifactsYaml        = "",
+    [string]$AdditionalArtifactsYaml = "",
 
     [switch]$PreserveEvidence,
     [switch]$WriteHandoffCopy
@@ -191,6 +193,7 @@ $existingVerified   = $VerifiedClaimsYaml
 $existingFailed     = $FailedClaimsYaml
 $existingUnverified = $UnverifiedClaimsYaml
 $existingDecisions  = $DecisionsYaml
+$existingArtifacts  = $ArtifactsYaml
 
 if ($PreserveEvidence) {
     $existingPaths = @(
@@ -204,9 +207,13 @@ if ($PreserveEvidence) {
             if ([string]::IsNullOrEmpty($existingFailed))     { $existingFailed     = Extract-YamlBlock $ec 'failed' }
             if ([string]::IsNullOrEmpty($existingUnverified)) { $existingUnverified = Extract-YamlBlock $ec 'unverified' }
             if ([string]::IsNullOrEmpty($existingDecisions))  { $existingDecisions  = Extract-YamlBlock $ec 'decisions' }
+            if ([string]::IsNullOrEmpty($existingArtifacts))  { $existingArtifacts  = Extract-YamlBlock $ec 'artifacts' }
             break
         }
     }
+}
+if (-not [string]::IsNullOrWhiteSpace($AdditionalArtifactsYaml)) {
+    $existingArtifacts = @($existingArtifacts, $AdditionalArtifactsYaml | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
 }
 
 # ---------------------------------------------------------------------------
@@ -267,6 +274,7 @@ $verifiedBlock   = Format-ClaimsBlock $existingVerified   'verified'
 $failedBlock     = Format-ClaimsBlock $existingFailed     'failed'
 $unverifiedBlock = Format-ClaimsBlock $existingUnverified 'unverified'
 $decisionsBlock  = Format-ClaimsBlock $existingDecisions  'decisions'
+$artifactsBlock  = Format-ClaimsBlock $existingArtifacts  'artifacts'
 
 $waveStr = if ([string]::IsNullOrEmpty($detectedWave)) { '' } else { "`n  wave: $detectedWave" }
 $checklistStr = ''
@@ -313,7 +321,7 @@ open_gates: []
 
 user_overrides: []
 
-artifacts: []
+$artifactsBlock
 
 next_action:
   description: $nextActionQ

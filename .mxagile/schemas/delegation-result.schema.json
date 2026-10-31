@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:delegation-result",
+  "title": "MxAgile Delegation Result",
+  "description": "Compact, resumable result from one completed bounded semantic delegation. Never contains a transcript, raw source, or secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mission_id",
+    "delegation_id",
+    "completed_at",
+    "scope",
+    "source_fingerprints",
+    "conclusion",
+    "findings",
+    "provenance",
+    "affected_ids",
+    "unknowns",
+    "conflicts",
+    "decision_candidates",
+    "evidence_references",
+    "model_profile"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "mission_id": { "type": "string", "minLength": 1 },
+    "delegation_id": { "type": "string", "pattern": "^DELEGATION-[A-Za-z0-9._-]+$" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "paths"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "paths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "source_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "identity": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "conclusion": { "type": "string", "minLength": 1 },
+    "findings": { "type": "array", "items": { "type": "string" } },
+    "provenance": { "type": "array", "items": { "type": "string" } },
+    "affected_ids": { "type": "array", "items": { "type": "string" } },
+    "unknowns": { "type": "array", "items": { "type": "string" } },
+    "conflicts": { "type": "array", "items": { "type": "string" } },
+    "decision_candidates": { "type": "array", "items": { "type": "string" } },
+    "evidence_references": { "type": "array", "items": { "type": "string" } },
+    "model_profile": { "type": ["string", "null"], "enum": ["LIGHT", "MID", "HIGH", null] }
+  }
+}

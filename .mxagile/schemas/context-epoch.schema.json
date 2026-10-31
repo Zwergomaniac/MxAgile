@@ -358,6 +358,7 @@
             "verification_plan",
             "evidence_manifest",
             "campaign_result",
+            "delegated_result",
             "process_state",
             "checkpoint",
             "wave_report",

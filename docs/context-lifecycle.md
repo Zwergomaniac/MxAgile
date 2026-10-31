@@ -216,6 +216,18 @@ On resume after an interruption or Context Epoch rollover:
 13. Continue without repeating already-VERIFIED work
 14. Record the re-synchronization result in an updated checkpoint
 
+### Delegated Result Reuse
+
+Completed bounded semantic work is stored as a compact result under
+`.concord/delegated-results/` and referenced from the Context Epoch `artifacts` list.
+The pre-compaction checkpoint preserves these references. After resume, reuse is
+allowed only when the active mission matches and every recorded source fingerprint
+is current; changed or missing sources make the result `STALE`. Running or interrupted
+delegations are not completed work. Result transcripts are never checkpointed, and
+Context Mode does not automatically index every result.
+
+Full handoff and result contract: `.mxagile/policies/agent-delegation.md`.
+
 ### Repository Incompatibility
 
 If actual state is incompatible with the checkpoint:

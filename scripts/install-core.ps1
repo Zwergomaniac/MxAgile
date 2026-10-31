@@ -569,6 +569,22 @@ try {
     Copy-Item -LiteralPath $resolverSource -Destination (Join-Path $destToolsDir "Get-MxAgileCapabilities.ps1") -Force
     Write-Host "[OK] Distributed .mxagile/tools/Get-MxAgileCapabilities.ps1 (on-demand only)."
 
+    $epochReaderSource = Join-Path $PSScriptRoot 'Read-MxAgileEpochCheckpoint.ps1'
+    if (-not (Test-Path -LiteralPath $epochReaderSource -PathType Leaf)) {
+        throw "Read-MxAgileEpochCheckpoint.ps1 not found in script directory: $epochReaderSource"
+    }
+    Copy-Item -LiteralPath $epochReaderSource -Destination (Join-Path $destToolsDir 'Read-MxAgileEpochCheckpoint.ps1') -Force
+    Write-Host "[OK] Distributed .mxagile/tools/Read-MxAgileEpochCheckpoint.ps1."
+
+    foreach ($delegationTool in @('Save-MxAgileDelegationResult.ps1', 'Get-MxAgileDelegationResult.ps1')) {
+        $delegationToolSource = Join-Path $PSScriptRoot $delegationTool
+        if (-not (Test-Path -LiteralPath $delegationToolSource -PathType Leaf)) {
+            throw "$delegationTool not found in script directory: $delegationToolSource"
+        }
+        Copy-Item -LiteralPath $delegationToolSource -Destination (Join-Path $destToolsDir $delegationTool) -Force
+        Write-Host "[OK] Distributed .mxagile/tools/$delegationTool."
+    }
+
     $mxcliResolverSource = Join-Path $PSScriptRoot "Resolve-MxAgileMxcli.ps1"
     if (-not (Test-Path -LiteralPath $mxcliResolverSource -PathType Leaf)) {
         throw "Resolve-MxAgileMxcli.ps1 not found in script directory: $mxcliResolverSource"
@@ -673,6 +689,9 @@ try {
             consumer_note      = "Distribution-owned scripts are NOT consumer project artifacts. Their absence in a consumer project is expected and normal, never a defect."
             project_distributed = @(
                 ".mxagile/tools/Get-MxAgileCapabilities.ps1",
+                ".mxagile/tools/Read-MxAgileEpochCheckpoint.ps1",
+                ".mxagile/tools/Save-MxAgileDelegationResult.ps1",
+                ".mxagile/tools/Get-MxAgileDelegationResult.ps1",
                 ".mxagile/tools/Resolve-MxAgileMxcli.ps1",
                 ".mxagile/tools/check-studio-pro-status.ps1",
                 ".mxagile/tools/build_project_status.py",
