@@ -1,5 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "x-mxagile-contract-version": 2,
   "title": "MxAgile Evidence Manifest",
   "description": "Canonical index mapping verification scenarios to their promoted evidence artifacts. Enables traceability from Requirement/acceptance clause through scenario to screenshot/DOM assertion/result. File location: planning/evidence/manifests/<wave-id>-evidence-manifest.yaml. Git tracked. See policies/evidence-contract.md.",
   "type": "object",

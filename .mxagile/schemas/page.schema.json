@@ -1,12 +1,21 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
+    "x-mxagile-contract-version": 2,
     "title": "MxAgile Page YAML",
     "description": "A structured, semantic representation of a UI mockup page. Produced by the UI-Agent Analyze mode. Consumed by the Implementation-Agent and UI-Agent Verify mode.",
     "type": "object",
+    "additionalProperties": false,
     "properties": {
         "page_id": {
             "type": "string",
             "pattern": "^PAGE-[A-Z0-9_-]+$"
+        },
+        "page_name": { "type": "string" },
+        "title": { "type": "string" },
+        "mockup_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional source Design Contract mockup identity. The active target remains bound separately by target_mockup/target_revision."
         },
         "source_mockup": {
             "type": "string",
@@ -32,7 +41,7 @@
             "description": "Optional: the accepted revision ID of the target mockup bundle. Set when a SPA bundle revision was accepted. Links to planning/target-mockups/<mockup-name>/_history/<target_revision>/revision.yaml. Absent for single-file legacy targets or when no revision has been accepted yet."
         },
         "bundle_hash": {
-            "type": "string",
+            "type": ["string", "null"],
             "pattern": "^sha256:[a-f0-9]{64}$",
             "description": "Optional: deterministic SHA-256 hash of the target bundle at the time of last accepted revision. See policies/spa-mockup-bundle.md for the canonical algorithm. Used for staleness detection when the active working bundle diverges from the accepted revision."
         },
@@ -58,12 +67,27 @@
         },
         "roles": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+                "oneOf": [
+                    { "type": "string" },
+                    {
+                        "type": "object",
+                        "required": ["role"],
+                        "additionalProperties": false,
+                        "properties": {
+                            "role": { "type": "string", "minLength": 1 },
+                            "can_access": { "type": "boolean" },
+                            "notes": { "type": "string" }
+                        }
+                    }
+                ]
+            }
         },
         "sections": {
             "type": "array",
             "items": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
                     "id": { "type": "string" },
                     "title": { "type": "string" },
@@ -71,6 +95,7 @@
                         "type": "array",
                         "items": {
                             "type": "object",
+                            "additionalProperties": false,
                             "properties": {
                                 "id": { "type": "string" },
                                 "type": { "type": "string", "description": "e.g., form, table, listview" },
@@ -104,8 +129,14 @@
                                             "id": { "type": "string", "pattern": "^FIELD-[A-Z0-9_-]+$" },
                                             "label": { "type": "string" },
                                             "type": { "type": "string", "description": "e.g., text, number, date, dropdown, checkbox" },
-                                            "suggested_mendix_type": { "type": "string" }
+                                            "suggested_mendix_type": { "type": "string" },
+                                            "entity": { "type": "string" },
+                                            "standard_widget": { "type": "boolean" },
+                                            "display_mode": { "type": "string", "enum": ["edit", "display"] },
+                                            "required": { "type": "boolean" },
+                                            "visible_to_roles": { "type": "array", "items": { "type": "string" } }
                                         },
+                                        "additionalProperties": false,
                                         "required": ["id", "label"]
                                     }
                                 },
@@ -121,8 +152,10 @@
                                                 "enum": ["primary", "secondary", "destructive", "link"],
                                                 "description": "Visual prominence of the action in the mockup."
                                             },
-                                            "triggers": { "type": "string", "description": "e.g., opens a page, calls a microflow, closes page" }
+                                            "triggers": { "type": "string", "description": "e.g., opens a page, calls a microflow, closes page" },
+                                            "suggested_mendix_type": { "type": "string" }
                                         },
+                                        "additionalProperties": false,
                                         "required": ["id", "label"]
                                     }
                                 }
@@ -137,6 +170,7 @@
             "description": "Typed navigation relationships originating from this page. Each entry maps an action to its target page.",
             "items": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
                     "action_id": {
                         "type": "string",
@@ -149,7 +183,9 @@
                     "condition": {
                         "type": ["string", "null"],
                         "description": "Optional guard condition under which this navigation fires (e.g., 'only when IsValid = true')."
-                    }
+                    },
+                    "trigger": { "type": "string" },
+                    "roles": { "type": "array", "items": { "type": "string" } }
                 },
                 "required": ["action_id", "leads_to_page"]
             }
@@ -159,6 +195,7 @@
             "description": "Meaningful UI states captured during mockup analysis (e.g., empty state, error state, loading, expanded tab). Each state may carry a list of effects describing what happens when that state is entered or triggered.",
             "items": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
                     "state_id": {
                         "type": "string",
@@ -190,31 +227,36 @@
                         ],
                         "description": "Semantic classification of this interaction state. Used by downstream agents to categorise and verify interactions systematically. expandable_area: collapsible sections (e.g. department overview, target cards). modal: full overlay dialog. popup: inline or anchored overlay. snippet: embedded content revealed on another page context. filter: filter/search applied. hover_state: content visible only on hover. keyboard: keyboard-triggered state. read_only: view-only mode for normally editable content. disabled: control present but non-interactive. validation: form validation error state. success_feedback: positive action confirmation. error_feedback: negative action result. loading: async loading in progress. empty: no data available. role_dependent: state differs by authenticated role. other: does not fit a defined type."
                     },
-                    "trigger": {
-                        "type": "string",
-                        "description": "What causes this state (e.g., 'no records found', 'Name field left empty and Save clicked', 'user clicks Abteilung expand arrow')."
-                    },
                     "screenshot": {
                         "type": "string",
                         "description": "Path to mockup screenshot of this state under .concord/screenshots/mockup/."
                     },
                     "trigger": {
-                        "type": "object",
-                        "description": "Structured trigger descriptor for this interaction state.",
-                        "properties": {
-                            "type": {
+                        "oneOf": [
+                            {
                                 "type": "string",
-                                "enum": ["click", "hover", "focus", "blur", "change", "submit", "keyboard", "load", "timer", "drag", "drop"]
+                                "description": "Legacy free-text trigger retained without inferring a structured trigger type."
                             },
-                            "key": {
-                                "type": ["string", "null"],
-                                "description": "Keyboard key name when type=keyboard, e.g. 'Enter', 'Space', 'Escape', 'ArrowUp', 'ArrowDown'. Null otherwise."
-                            },
-                            "label": {
-                                "type": "string",
-                                "description": "Free-text description of the trigger for human readability, e.g. 'User clicks Expand arrow on Abteilung row'."
+                            {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "description": "Structured trigger descriptor for this interaction state.",
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["click", "hover", "focus", "blur", "change", "submit", "keyboard", "load", "timer", "drag", "drop"]
+                                    },
+                                    "key": {
+                                        "type": ["string", "null"],
+                                        "description": "Keyboard key name when type=keyboard, e.g. 'Enter', 'Space', 'Escape', 'ArrowUp', 'ArrowDown'. Null otherwise."
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "description": "Free-text description of the trigger for human readability, e.g. 'User clicks Expand arrow on Abteilung row'."
+                                    }
+                                }
                             }
-                        }
+                        ]
                     },
                     "initial_state": {
                         "type": "string",

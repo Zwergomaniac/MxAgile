@@ -16,6 +16,12 @@ When a Design Contract is the upstream source, DC source IDs and canonical IDs o
   A test contract can only be derived AFTER a canonical requirement exists (produced in Refinement).
   Never write a DC source `REQ-NNN` value into `requirement_ids`.
 
+- **`proof_points[].traceability.requirement_ids`** — optional, unique canonical Requirement IDs
+  for the narrower proof-point relationship. This does not replace or rewrite the parent contract's
+  broader `requirement_ids`; both may name the same Requirement and both are retained independently.
+  Omit the field or use an empty array when the PP has no narrower mapping. The Doctor verifies that
+  every supplied ID resolves to exactly one canonical Requirement.
+
 - **`traceability.design_contract_elements`** (per proof point) — this is the ONLY location
   where DC source IDs (`REQ-NNN`, `DEC-NNN`, `PERM-NNN`, `ROLE-NNN`) may appear in a test contract.
   Use it to preserve the DC element IDs that each proof point originates from.

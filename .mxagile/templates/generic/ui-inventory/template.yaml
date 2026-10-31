@@ -18,26 +18,29 @@ source_mockup: "input-resources/ui-ux/customer-overview.html"
 layout_reference: ".concord/screenshots/mockup/Customer_Overview_default.png"
 
 sections:
-  - section_id: SEC-001
+  - id: SEC-001
     title: "[Section heading]"
     components:
-      fields:
-        - id: FLD-001
-          label: "[Field label]"
-          entity: "[Entity.Attribute]"
-          suggested_mendix_type: TextBox
-          standard_widget: true
-          display_mode: edit    # edit | display
-          required: false
-          visible_to_roles: []  # empty = all roles
-      actions:
-        - id: ACT-001
-          label: "[Button label]"
-          visual_priority: primary   # primary | secondary | tertiary | destructive
-          suggested_mendix_type: MicroflowButton
+      - id: COMP-001
+        type: form
+        fields:
+          - id: FIELD-001
+            label: "[Field label]"
+            entity: "[Entity.Attribute]"
+            suggested_mendix_type: TextBox
+            standard_widget: true
+            display_mode: edit    # edit | display
+            required: false
+            visible_to_roles: []  # empty = all roles
+        actions:
+          - id: ACT-001
+            label: "[Button label]"
+            visual_priority: primary   # primary | secondary | destructive
+            suggested_mendix_type: MicroflowButton
 
 navigation:
-  - target: "[PageName or flow destination]"
+  - action_id: ACT-001
+    leads_to_page: "[Page name or PAGE-NNN]"
     trigger: "[What causes this navigation — button click, breadcrumb, etc.]"
     roles: []   # empty = all roles can navigate here
 
@@ -56,11 +59,6 @@ interaction_states:
     initial_state: "[System state before trigger]"
     resulting_state: "[System state after trigger]"
     visual_feedback: "[What the user sees change]"
-    data_effect: null
-    navigation_effect: null
-    permission_effect: null
-    focus_effect: null
-
     persistence: none   # none | local | session | persisted
 
     # Optional nullable states
@@ -87,7 +85,6 @@ interaction_states:
         target: "[UI element or container ID being affected]"
         description: "[What happens to the target element]"
         reversible: true
-        precondition: null
         derived_page: false   # CRITICAL: false for all snippet/popup/expandable effects — they do NOT derive new Mendix pages
 
       - effect_id: EFF-001-COLLAPSE
@@ -95,7 +92,6 @@ interaction_states:
         target: "[same UI element as above]"
         description: "[What happens when the interaction is reversed]"
         reversible: true
-        precondition: null
         derived_page: false
 
 roles:
@@ -103,5 +99,4 @@ roles:
     can_access: true
     notes: ""
 
-requirements:
-  - REQ-001
+# Requirement-to-page links are authoritative on Requirement.screens/derivedFrom.

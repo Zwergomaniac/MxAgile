@@ -70,6 +70,7 @@ Do not remove the proof point — it remains as an unmet obligation.
 ## Step 5 — Write Contract
 
 Write to `planning/test-contracts/TC-NNN.yaml` using `schemas/test-contract.schema.json`.
+Set `schema_version: 2` for new contracts. Existing `schema_version: 1` contracts remain readable.
 
 Existing descriptive `TC-NNN-<ASCII suffix>.yaml` filenames are accepted only under
 `policies/project-compatibility.md`: matching numeric ID, full schema validity,

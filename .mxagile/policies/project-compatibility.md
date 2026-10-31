@@ -59,6 +59,36 @@ No task-ID/title similarity is used. A contradiction is DECISION_REQUIRED.
 `assignment_provenance` preserves the rule and exact source; `migrated_from`
 is retained. Workpackages are never invented; absence is reported separately.
 
+## Legacy Compatibility Matrix
+
+This matrix separates observed legacy shapes from verified framework producers. SCR-001/SCR-002
+supplies field-shape evidence, but the exact CapTrack producer/version is not present in this
+framework repository; those historical producer cells remain explicitly unverified. Compatibility
+does not authorize editing CapTrack or accepting arbitrary fields.
+
+| Cluster | Legacy shape → current shape | Historical producer evidence | Equivalence and migration/projection | Original mutation / ambiguity | Validation after projection |
+|---|---|---|---|---|---|
+| FW-A Test Contract | `proof_points[].traceability.requirement_ids[]` → same canonical PP-level field; TC-level `requirement_ids[]` remains broader contract coverage | Previous `test-contract.schema.json` rejected the field; exact project producer/version unknown | Direct relationship semantics; additive Contract v2 field, no rename or data conversion | No mutation required. Missing/empty PP list is allowed; duplicate IDs fail schema; unknown targets are reported, not invented | Full TC schema, canonical Requirement-target lookup, duplicate/ambiguous identity checks; artifact index emits distinct TC- and PP-provenance edges |
+| FW-B Requirement source | `stakeholder` → category; `design_contract_revN` → `source: design_contract`, `source_ref: REV-N` | `stakeholder` and `security_review` occur in framework fixtures; Discovery documents `source: design_contract`; historical revision-string producer/version not found | `requirement_design_contract_revision_v1` projects only the exact `design_contract_rev<digits>` form; finite categories are enumerated | No mutation required. Unknown values and conflicting `source_ref` remain schema/authority diagnostics | Requirement v2 schema plus full artifact-reference validation; source reference remains provenance, not ACTIVE_TARGET authority |
+| FW-C Process State | `runtime_verification`, `feature_scope`, `terminal_state`, or unknown audit keys at process-state root → no automatic target | Current producer/policy owns wave phase and gates in `planning/lifecycle/process-state.yaml`; exact historical producer/version for the reported keys not found | No equivalence established: runtime evidence belongs to parity records, feature-scope progress to mission state, terminal phases to lifecycle definitions | No mutation/projection. Wrong-authority fields are `DECISION_REQUIRED`; unknown fields remain schema errors. `done` remains the only configured terminal wave phase | Current process-state v1 schema; lifecycle/mission/parity authorities remain independently validated |
+| FW-D Evidence Manifest | ISO-date `created` → `created_at`; `scenarios[]` → `entries[]` only when the complete transformed manifest validates | Current producer is `evidence-manifest.schema.json`; historical producer/version and original `scenarios` granularity are unverified | `evidence_manifest_created_v1` is an exact date alias. `evidence_manifest_scenarios_v1` is permitted only when entries satisfy the full current entry contract | No mutation required. Conflicting old/current values or non-equivalent scenario payloads are blocking; stale result and capture fields are copied unchanged | Full manifest schema, wave and Requirement reference checks, evidence-path checks; no state promotion or freshness update |
+| FW-E Requirement date | ISO-date `created` → `created_at` | Current Requirement schema previously had neither field; exact historical producer/version unknown | `requirement_created_v1` maps a valid ISO date only | No mutation required. Conflicting values, malformed date, or any other shape is not projected | Full Requirement v2 schema and Doctor reference validation |
+| FW-F Page/UI Inventory | Template-era `section_id` → `sections[].id`; navigation `target` → `leads_to_page` only when the legacy item also has `action_id`; current producer fields include `page_name`, `title`, `mockup_id`, structured roles | `.mxagile/templates/generic/ui-inventory/template.yaml` is direct producer evidence for these legacy properties; its version is not recorded | `page_section_id_v1` is an exact alias. The navigation target is only a projection when its action binding is already explicit; the old template omitted `action_id`, so those records do not validate through this rule. Page Contract v2 explicitly models the remaining producer fields and rejects unknown root/core nested properties | No mutation required. Missing action bindings, conflicting aliases, `page`/`source`/`screen_id`, unknown mockup references, and active-target drift are not guessed or rewritten | Full Page v2 schema, existing ACTIVE_TARGET/revision checks, and path/reference checks |
+
+### Projection and Version Rules
+
+Schemas marked `x-mxagile-contract-version: 2` are Requirement, Test Contract, Evidence Manifest,
+and Page. Test Contract records may use `schema_version: 1` or `2`; new producers write `2` and
+v1 remains readable. Process State remains v1 and was not broadened. Read-only projections return
+deep copies, are idempotent, preserve source bytes, and never write project artifacts. A projection
+is exposed as `LEGACY_VARIANT` / `SAFE_DETERMINISTIC` only when the projected whole artifact
+validates. Conflicts fail closed. Physical migration is not required for these shapes; the
+existing repair apply path does not rewrite these alias forms.
+
+Evidence projection never changes `parity_result`, verification timestamps, capture IDs, capture
+groups, provenance, or Requirement/Proof-Point links. `scenarios` is not treated as equivalent
+merely because it is an array: the target `entries` schema and post-projection references must pass.
+
 ## Repair contract
 
 ### Explicit migration rules (current schema contract)

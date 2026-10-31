@@ -338,8 +338,27 @@ When a Design Contract source ID is already occupied canonically by an unrelated
 | `design_contract_ref` (any artifact) | YES — partial | `<mockup.id>@revision=<N>` only, not element IDs |
 | `requirement.derivedFrom` | NO | `^PAGE-` IDs only |
 | `test-contract.requirement_ids` | NO | Canonical `REQ-NNN.yml` IDs only |
+| `test-contract.proof_points[].traceability.requirement_ids` | NO | Optional unique canonical IDs; narrower PP traceability, validated separately from TC coverage |
 | `revision.acceptance_decisions` | NO | Canonical `planning/decisions/DEC-NNN.md` IDs only |
 | Any invented field (`related_decisions`, etc.) | NO | Not a valid schema field in any canonical artifact |
+
+### Evolved Contract Versions
+
+Requirement, Test Contract, Evidence Manifest, and Page schemas declare
+`x-mxagile-contract-version: 2`. Test Contract artifacts with `schema_version: 1` remain readable;
+new producers write `schema_version: 2`. `proof_points[].traceability.requirement_ids` is optional,
+unique, and validated independently from the parent TC's required `requirement_ids`.
+
+Requirement `source` is a finite category (`native`, `legacy`, `migrated`, `stakeholder`,
+`security_review`, or `design_contract`); a Design Contract revision belongs in `source_ref`, not
+an ever-growing enum. Historical `design_contract_revN` and ISO-date `created` values are
+read-only projected by the Compatibility Doctor. Requirement `created_at` is the current field.
+
+Evidence Manifest `created`/`scenarios` and Page `section_id`/navigation `target` have only the
+bounded projections documented in `.mxagile/policies/project-compatibility.md`. Page identity and
+ACTIVE_TARGET authority remain `page_id`, `source_mockup`, `target_mockup`, and the accepted
+revision; the Page schema does not accept a second `active_target` flag. Process State remains
+wave-scoped and unchanged at contract version 1.
 
 ### Intake Failure Semantics
 
