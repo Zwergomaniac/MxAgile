@@ -10,6 +10,7 @@
     "mission_id",
     "delegation_id",
     "task",
+    "agent_type",
     "scope",
     "authority_references",
     "artifact_paths",
@@ -25,6 +26,7 @@
     "mission_id": { "type": "string", "minLength": 1 },
     "delegation_id": { "type": "string", "pattern": "^DELEGATION-[A-Za-z0-9._-]+$" },
     "task": { "type": "string", "minLength": 1 },
+    "agent_type": { "type": "string", "minLength": 1 },
     "scope": {
       "type": "object",
       "additionalProperties": false,

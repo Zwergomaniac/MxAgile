@@ -14,14 +14,14 @@ $ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
 $rootPrefix = $ProjectRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
 $input = Get-Content -LiteralPath $InputFile -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
 $allowedProperties = @(
-    'schema_version', 'mission_id', 'delegation_id', 'scope', 'references', 'conclusion',
+    'schema_version', 'mission_id', 'delegation_id', 'agent_type', 'scope', 'references', 'conclusion',
     'findings', 'provenance', 'affected_ids', 'unknowns', 'conflicts', 'decision_candidates',
     'evidence_references', 'model_profile', 'model_resolution'
 )
 $actualProperties = @($input.PSObject.Properties.Name)
 $unexpected = @($actualProperties | Where-Object { $_ -notin $allowedProperties })
 $requiredProperties = @(
-    'schema_version', 'mission_id', 'delegation_id', 'scope', 'references', 'conclusion',
+    'schema_version', 'mission_id', 'delegation_id', 'agent_type', 'scope', 'references', 'conclusion',
     'findings', 'provenance', 'affected_ids', 'unknowns', 'conflicts', 'decision_candidates',
     'evidence_references', 'model_profile', 'model_resolution'
 )
@@ -30,6 +30,7 @@ if ($unexpected.Count -gt 0) { throw "Unexpected result properties: $($unexpecte
 if ($missing.Count -gt 0) { throw "Missing result properties: $($missing -join ', ')" }
 if ($input.schema_version -ne '1.1') { throw "Unsupported delegation result schema version '$($input.schema_version)'" }
 if ($input.delegation_id -notmatch '^DELEGATION-[A-Za-z0-9._-]+$') { throw 'Invalid delegation_id.' }
+if ([string]::IsNullOrWhiteSpace([string]$input.agent_type)) { throw 'agent_type must be non-empty.' }
 if ($input.model_profile -notin @('LIGHT', 'MID', 'HIGH', $null)) { throw 'Invalid model_profile.' }
 $resolution = $input.model_resolution
 $resolutionProperties = @($resolution.PSObject.Properties.Name)
@@ -90,6 +91,7 @@ $result = [ordered]@{
     schema_version = '1.1'
     mission_id = [string]$input.mission_id
     delegation_id = [string]$input.delegation_id
+    agent_type = [string]$input.agent_type
     completed_at = (Get-Date).ToUniversalTime().ToString('o')
     scope = [ordered]@{ summary = [string]$input.scope.summary; paths = @($input.scope.paths) }
     source_fingerprints = @($sourceFingerprints)
@@ -135,7 +137,7 @@ if ($checkpointRaw -notmatch "(?m)^\s*-\s+id:\s*`"?$([regex]::Escape([string]$in
     } else {
         $artifactSection = [regex]::Match($checkpointRaw, '(?m)^artifacts:\s*$')
         if (-not $artifactSection.Success) { throw 'Active checkpoint has no artifacts section.' }
-        $nextSection = [regex]::Match($checkpointRaw, '(?m)^[^\s#][^:\r\n]*:', $artifactSection.Index + $artifactSection.Length)
+        $nextSection = [regex]::new('(?m)^[^\s#][^:\r\n]*:').Match($checkpointRaw, $artifactSection.Index + $artifactSection.Length)
         $insertAt = if ($nextSection.Success) { $nextSection.Index } else { $checkpointRaw.Length }
         $checkpointRaw = $checkpointRaw.Insert($insertAt, "$($artifactYaml.TrimEnd())$lineEnding")
     }

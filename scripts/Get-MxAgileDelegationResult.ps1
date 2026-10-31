@@ -27,8 +27,11 @@ if ($result.schema_version -notin @('1.0', '1.1') -or $result.delegation_id -ne 
 if ($result.schema_version -eq '1.1' -and $null -eq $result.model_resolution) {
     throw 'Delegation result 1.1 is missing model-resolution evidence.'
 }
+if ($result.schema_version -eq '1.1' -and [string]::IsNullOrWhiteSpace([string]$result.agent_type)) {
+    throw 'Delegation result 1.1 is missing agent-type evidence.'
+}
 $allowedProperties = @(
-    'schema_version', 'mission_id', 'delegation_id', 'completed_at', 'scope', 'source_fingerprints',
+    'schema_version', 'mission_id', 'delegation_id', 'agent_type', 'completed_at', 'scope', 'source_fingerprints',
     'conclusion', 'findings', 'provenance', 'affected_ids', 'unknowns', 'conflicts',
     'decision_candidates', 'evidence_references', 'model_profile', 'model_resolution'
 )

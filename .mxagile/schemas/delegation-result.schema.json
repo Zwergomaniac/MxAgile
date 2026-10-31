@@ -76,7 +76,7 @@
   "allOf": [
     {
       "if": { "properties": { "schema_version": { "const": "1.1" } } },
-      "then": { "required": ["model_resolution"] }
+      "then": { "required": ["model_resolution", "agent_type"] }
     }
   ]
 }
