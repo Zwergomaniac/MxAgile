@@ -6,6 +6,8 @@ delegation:
   named_agents: unknown
   generic_fork: unknown
   model_selection: unknown
+  profile_resolution: unknown
+  profile_resolution_notes: "Delegation and model profile resolution have not been verified for this harness."
   max_concurrency: null
   concurrency_notes: "Not assessed; no verified delegation contract."
   evidence: "No repository-verified agent delegation contract."

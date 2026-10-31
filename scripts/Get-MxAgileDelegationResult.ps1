@@ -21,13 +21,16 @@ if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
 }
 
 $result = Get-Content -LiteralPath $resultPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-if ($result.schema_version -ne '1.0' -or $result.delegation_id -ne $DelegationId) {
+if ($result.schema_version -notin @('1.0', '1.1') -or $result.delegation_id -ne $DelegationId) {
     throw 'Delegation result identity or schema version is invalid.'
+}
+if ($result.schema_version -eq '1.1' -and $null -eq $result.model_resolution) {
+    throw 'Delegation result 1.1 is missing model-resolution evidence.'
 }
 $allowedProperties = @(
     'schema_version', 'mission_id', 'delegation_id', 'completed_at', 'scope', 'source_fingerprints',
     'conclusion', 'findings', 'provenance', 'affected_ids', 'unknowns', 'conflicts',
-    'decision_candidates', 'evidence_references', 'model_profile'
+    'decision_candidates', 'evidence_references', 'model_profile', 'model_resolution'
 )
 $unexpectedProperties = @($result.PSObject.Properties.Name | Where-Object { $_ -notin $allowedProperties })
 if ($unexpectedProperties.Count -gt 0) { throw 'Delegation result contains fields outside its compact schema.' }

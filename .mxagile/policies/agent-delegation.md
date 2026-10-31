@@ -98,10 +98,51 @@ after interruption.
 ## Profiles and Observability
 
 Core mission semantics use `LIGHT`, `MID`, and `HIGH` from `.mxagile/delegation.yaml`.
-The harness adapter alone maps a profile to an available model. If selection or a
-mapping is unavailable, use the agent's available model without blocking. Escalate
-from MID to HIGH for genuine ambiguity or conflicting active references; size alone
-is not an escalation reason. Deterministic work has no model profile.
+They describe reasoning demand, not model price, identity, or context capacity. The
+physical context window is modeled independently by `.mxagile/model-profiles.yaml`
+and the context-lifecycle contract. A large window or a model ID such as
+`claude-fable-5-1` does not imply a higher reasoning profile; there is no `ULTRA`
+Core profile.
+
+Harness adapters declare model-selection support separately from profile resolution:
+
+- `static_mapping` requires a verified harness-specific mapping in that adapter.
+- `dynamic_capability` may request a harness effort supported by the selected model;
+	the request is not proof of the actual model or accepted effort.
+- `unknown` means model selection may exist but MxAgile has no verified profile
+	mapping or capability result. An empty mapping must state this reason.
+- `unsupported` means the harness cannot select a model/profile; an empty mapping is
+	expected.
+
+Current adapter coverage:
+
+| Harness | Model selection | Profile resolution | Empty mapping / discovery evidence |
+| --- | --- | --- | --- |
+| Claude Code | supported | static mapping | Verified harness aliases live only in its adapter. |
+| Codex | supported | dynamic capability request | `model_reasoning_effort` is model-dependent; no concrete model is claimed without runtime evidence. |
+| VS Code Copilot | supported | unknown | Model availability is session-dependent; no reliable profile-capability ranking is exposed to MxAgile. |
+| Copilot CLI | supported | unknown | Selection exists, but verified capability discovery and profile ranking are not wired into MxAgile. |
+| OpenCode | supported | unknown | Available model IDs can be listed, but the catalog does not rank MxAgile reasoning capability. |
+| Hermes, Grok, Concord, generic | unknown | unknown | No verified selection/discovery contract; no mapping is inferred. |
+
+Thus, dynamic model-ID discovery alone is insufficient for profile resolution:
+MxAgile needs reliable capability metadata or a harness-owned mapping. Codex can
+accept a capability-dependent effort request, but the selected model and accepted
+effort remain runtime facts. No current adapter reports model selection as explicitly
+unsupported; if one does, its empty mapping is correct and fallback is mandatory.
+
+If the profile cannot be resolved, continue with the harness's available/default
+agent model and report `fallback_used: true` with a reason. Do not claim a resolved
+model unless the adapter mapping or harness runtime proves it. Escalate from MID to
+HIGH for genuine ambiguity or conflicting active references; size alone is not an
+escalation reason. Deterministic work has no model profile.
+
+Each actual delegation handoff and persisted result records model-selection status,
+profile-resolution status, resolution method, resolved model when known, requested
+reasoning effort when applicable, and fallback use/reason. Result schema 1.1 adds
+this evidence while the reader continues to accept compact 1.0 results. Dynamic or
+undisclosed runtime choices remain unresolved rather than being inferred from the
+adapter.
 
 Session completion should report spawned mission IDs, requested profiles, resolved
 model identifiers only when the harness proves them, result references, reused results,

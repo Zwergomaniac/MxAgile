@@ -474,11 +474,16 @@ function Resolve-DelegationIntegration {
         named_agents = 'unknown'
         generic_fork = 'unknown'
         model_selection = 'unknown'
+        profile_resolution = 'unknown'
+        profile_resolution_notes = ''
         max_concurrency = $null
         concurrency_notes = ''
         requested_profile = if ($Profile) { $Profile } else { $null }
         resolved_model = $null
-        model_resolution = if ($Profile) { 'use_available_agent_model' } else { 'not_requested' }
+        requested_reasoning_effort = $null
+        model_resolution = if ($Profile) { 'fallback_available_model' } else { 'not_requested' }
+        fallback_used = [bool]$Profile
+        fallback_reason = if ($Profile) { 'No verified profile-specific resolution was available.' } else { $null }
         route_allowed = $false
         fallback = 'main_agent_or_context_mode'
         reason = ''
@@ -508,16 +513,29 @@ function Resolve-DelegationIntegration {
     $adapterLines = Get-Content -LiteralPath $adapterPath
     $inDelegation = $false
     $inProfiles = $false
+    $inReasoningEfforts = $false
     $profileMappings = @{}
+    $reasoningEfforts = @{}
     foreach ($line in $adapterLines) {
         if ($line -match '^delegation:\s*$') { $inDelegation = $true; continue }
         if (-not $inDelegation) { continue }
         if ($line -match '^\S') { $inDelegation = $false; $inProfiles = $false; continue }
-        if ($line -match '^  profiles:\s*$') { $inProfiles = $true; continue }
+        if ($line -match '^  profiles:\s*$') { $inProfiles = $true; $inReasoningEfforts = $false; continue }
+        if ($line -match '^  reasoning_efforts:\s*$') { $inProfiles = $false; $inReasoningEfforts = $true; continue }
+        if ($line -match '^  (?:profile_resolution|profile_resolution_notes|harness_id|status|named_agents|generic_fork|model_selection|max_concurrency|concurrency_notes|evidence|assessed_date):') {
+            $inProfiles = $false
+            $inReasoningEfforts = $false
+        }
         if ($line -match '^  harness_id:\s*([a-z0-9_]+)\s*$') { $result.adapter_harness_id = $Matches[1] }
         elseif ($line -match '^  concurrency_notes:\s*(.*?)\s*$') { $result.concurrency_notes = $Matches[1].Trim('"').Trim("'") }
+        elseif ($line -match '^  profile_resolution:\s*(static_mapping|dynamic_capability|unknown|unsupported)\s*$') { $result.profile_resolution = $Matches[1] }
+        elseif ($line -match '^  profile_resolution_notes:\s*(.*?)\s*$') { $result.profile_resolution_notes = $Matches[1].Trim('"').Trim("'") }
         if ($inProfiles -and $line -match '^    (LIGHT|MID|HIGH):\s*(.*?)\s*$') {
             $profileMappings[$Matches[1]] = $Matches[2].Trim().Trim('"').Trim("'")
+            continue
+        }
+        if ($inReasoningEfforts -and $line -match '^    (LIGHT|MID|HIGH):\s*(.*?)\s*$') {
+            $reasoningEfforts[$Matches[1]] = $Matches[2].Trim().Trim('"').Trim("'")
             continue
         }
         if ($line -match '^  status:\s*(supported|unsupported|unknown)\s*$') { $result.status = $Matches[1] }
@@ -543,11 +561,28 @@ function Resolve-DelegationIntegration {
     }
 
     if ($Profile) {
-        if ($result.model_selection -eq 'supported' -and $profileMappings.ContainsKey($Profile) -and $profileMappings[$Profile] -and $profileMappings[$Profile] -ne 'null') {
+        if ($result.model_selection -eq 'supported' -and $result.profile_resolution -eq 'static_mapping' -and $profileMappings.ContainsKey($Profile) -and $profileMappings[$Profile] -and $profileMappings[$Profile] -ne 'null') {
             $result.resolved_model = $profileMappings[$Profile]
-            $result.model_resolution = 'adapter_profile_mapping'
+            $result.model_resolution = 'static_mapping'
+            $result.fallback_used = $false
+            $result.fallback_reason = $null
+        } elseif ($result.model_selection -eq 'supported' -and $result.profile_resolution -eq 'dynamic_capability' -and $reasoningEfforts.ContainsKey($Profile)) {
+            $result.requested_reasoning_effort = $reasoningEfforts[$Profile]
+            $result.model_resolution = 'dynamic_capability_request'
+            $result.fallback_used = $false
+            $result.fallback_reason = $null
         } else {
-            $result.model_resolution = 'use_available_agent_model'
+            $result.model_resolution = 'fallback_available_model'
+            $result.fallback_used = $true
+            if ($result.model_selection -eq 'unsupported') {
+                $result.fallback_reason = 'Harness does not support model selection.'
+            } elseif ($result.model_selection -eq 'unknown') {
+                $result.fallback_reason = 'Harness model-selection support is unknown.'
+            } elseif ($result.profile_resolution -eq 'unknown') {
+                $result.fallback_reason = 'No verified profile mapping or capability-based resolution is available.'
+            } else {
+                $result.fallback_reason = 'The requested profile has no supported mapping in this adapter.'
+            }
         }
     }
     return $result

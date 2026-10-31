@@ -1,6 +1,10 @@
 # MxAgile Model Capability Profiles
 # Managed by: MxAgile Core
 #
+# This file describes physical context capacity only. It is independent of the
+# LIGHT/MID/HIGH mission reasoning profiles in delegation.yaml.
+# A model ID here does not imply a stronger reasoning profile or create a new
+# Core profile.
 # Separates physical model capability (A) from MxAgile working-context policy (B).
 # See docs/context-lifecycle.md — "Model-Aware Context Management".
 #

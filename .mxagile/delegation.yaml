@@ -1,15 +1,16 @@
 schema_version: "1.0"
 
-# Semantic effort classes. Harness adapters resolve these profiles locally.
+# Mission reasoning profiles. Harness adapters resolve these preferences locally.
+# They describe reasoning demand, not model price, identity, or context capacity.
 model_profiles:
   LIGHT:
-    use_for: "Low-ambiguity classification, structured extraction, and short summaries."
-    reliability_guard: "Use only when the expected decision is straightforward and adequately reliable."
+    use_for: "Low-ambiguity classification, structured extraction, and short summaries with a straightforward expected decision."
+    reliability_guard: "Use only when the expected decision is straightforward and adequately reliable; otherwise prefer MID."
   MID:
-    use_for: "Default for bounded requirement batches, UI/parity work, acceptance, and routine implementation analysis."
+    use_for: "Default for bounded semantic work with ordinary ambiguity, including requirement batches, UI/parity, acceptance, and routine implementation analysis."
   HIGH:
-    use_for: "Planning, ambiguous historical reconstruction, contract conflicts, root-cause analysis, and difficult reconciliation."
-    escalation_guard: "Do not select only because the task or source set is large."
+    use_for: "Use when reasoning must reconcile materially competing interpretations, reconstruct ambiguous history, resolve contract conflicts, or perform difficult root-cause/planning analysis."
+    escalation_guard: "Do not select only because the task, source set, or context window is large, or because a model is more expensive."
 
 # Defaults describe mission shape, not provider/model identity.
 agent_defaults:
@@ -31,6 +32,7 @@ mission_overrides:
   migration_classification: MID
   ambiguous_historical_reconstruction: HIGH
   conflicting_active_reference: HIGH
+  semantic_compatibility_reconciliation: HIGH
   difficult_refinement_conflict: HIGH
   mocketeer_revision_conflict: HIGH
   ambiguous_maintenance_root_cause: HIGH

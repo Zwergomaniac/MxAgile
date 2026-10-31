@@ -6,6 +6,8 @@ delegation:
   named_agents: supported
   generic_fork: unknown
   model_selection: supported
+  profile_resolution: unknown
+  profile_resolution_notes: "OpenCode can list currently available model IDs, but that catalog does not provide a verified mapping to MxAgile reasoning demand."
   max_concurrency: null
   concurrency_notes: "The assessed agent documentation does not state a fixed concurrency limit."
   evidence: "https://opencode.ai/docs/agents/; primary agents can invoke named subagents, and per-agent model configuration is documented. No generic conversation-fork contract was identified."

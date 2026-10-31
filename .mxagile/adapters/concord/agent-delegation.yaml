@@ -6,6 +6,8 @@ delegation:
   named_agents: unknown
   generic_fork: unknown
   model_selection: unknown
+  profile_resolution: unknown
+  profile_resolution_notes: "Concord is treated as a tool integration; no agent model selection or profile resolution contract is verified."
   max_concurrency: null
   concurrency_notes: "Not assessed; Concord is currently treated as a tool integration, not an agent harness."
   evidence: "Concord is a tool integration and no separate agent delegation contract has been verified."

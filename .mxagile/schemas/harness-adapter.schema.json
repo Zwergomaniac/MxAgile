@@ -117,7 +117,7 @@
     "delegation_capability": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["harness_id", "status", "named_agents", "generic_fork", "model_selection"],
+      "required": ["harness_id", "status", "named_agents", "generic_fork", "model_selection", "profile_resolution", "profile_resolution_notes"],
       "properties": {
         "harness_id": {
           "type": "string",
@@ -127,6 +127,12 @@
         "named_agents": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
         "generic_fork": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
         "model_selection": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
+        "profile_resolution": {
+          "type": "string",
+          "enum": ["static_mapping", "dynamic_capability", "unknown", "unsupported"],
+          "description": "How this harness resolves MxAgile mission profiles. Dynamic capability means the harness accepts a capability-dependent preference; it does not prove which model was actually selected."
+        },
+        "profile_resolution_notes": { "type": "string" },
         "max_concurrency": {
           "type": ["integer", "null"],
           "minimum": 1,
@@ -137,6 +143,11 @@
           "type": "object",
           "additionalProperties": { "type": "string" },
           "description": "Optional harness-owned resolution of LIGHT/MID/HIGH to currently supported model identifiers. Never a Core ranking."
+        },
+        "reasoning_efforts": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Optional harness-owned mapping of mission profiles to capability-dependent reasoning-effort requests. A request is not proof that the selected model supports it."
         },
         "evidence": { "type": "string" },
         "assessed_date": { "type": "string", "format": "date" }

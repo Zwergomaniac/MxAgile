@@ -6,6 +6,8 @@ delegation:
   named_agents: supported
   generic_fork: supported
   model_selection: supported
+  profile_resolution: unknown
+  profile_resolution_notes: "Available model IDs are session-dependent and discoverable in the Copilot UI, but no reliable capability ranking or MxAgile profile resolver is available to this adapter."
   max_concurrency: null
   evidence: "https://code.visualstudio.com/docs/agents/run/subagents and https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference; Copilot delegates with its native task tool and supports custom-agent model preferences."
   concurrency_notes: "No fixed concurrency limit is stated in the assessed VS Code Copilot documentation; profile/model availability is session-dependent."

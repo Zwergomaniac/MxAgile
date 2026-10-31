@@ -42,7 +42,7 @@ try {
     [System.IO.File]::WriteAllText($checkpointPath, $checkpointText, [System.Text.UTF8Encoding]::new($false))
 
     $input = [ordered]@{
-        schema_version = '1.0'
+        schema_version = '1.1'
         mission_id = 'MISSION-TEST-001'
         delegation_id = 'DELEGATION-001'
         scope = [ordered]@{ summary = 'Classify REQ-001'; paths = @('requirements/REQ-001.yml') }
@@ -56,11 +56,23 @@ try {
         decision_candidates = @()
         evidence_references = @('requirements/REQ-001.yml')
         model_profile = 'MID'
+        model_resolution = [ordered]@{
+            model_selection = 'supported'
+            profile_resolution = 'static_mapping'
+            resolution = 'static_mapping'
+            resolved_model = 'sonnet'
+            requested_reasoning_effort = $null
+            fallback_used = $false
+            fallback_reason = $null
+        }
     }
     $inputPath = Join-Path $root 'handoff.json'
     Write-JsonFile $inputPath $input
     $saved = (& $Save -ProjectRoot $root -InputFile $inputPath | ConvertFrom-Json)
     Assert-True 'Result is saved with a durable reference' ($saved.state -eq 'COMPLETED' -and (Test-Path (Join-Path $root $saved.result_reference))) 'Save result missing'
+    $savedResult = Get-Content (Join-Path $root $saved.result_reference) -Raw | ConvertFrom-Json
+    Assert-True 'Result persists requested-profile resolution and actual fallback evidence' `
+        ($savedResult.model_resolution.model_selection -eq 'supported' -and $savedResult.model_resolution.resolved_model -eq 'sonnet' -and -not $savedResult.model_resolution.fallback_used) 'Model resolution evidence missing'
     $checkpoint = Get-Content (Join-Path $root '.concord/context-epoch.yaml') -Raw
     Assert-True 'Checkpoint links the compact result' ($checkpoint -match 'DELEGATION-001' -and $checkpoint -match 'delegated-results') 'Checkpoint reference missing'
     Assert-True 'Adding a result reference preserves unrelated lifecycle state' `
@@ -73,6 +85,16 @@ try {
 
     $current = (& $Get -ProjectRoot $root -DelegationId 'DELEGATION-001' | ConvertFrom-Json)
     Assert-True 'Matching source fingerprints permit compact result reuse' ($current.state -eq 'CURRENT' -and $current.reusable -and $current.result.mission_id -eq 'MISSION-TEST-001') 'Current result not reusable'
+    $resultPath = Join-Path $root '.concord/delegated-results/DELEGATION-001.json'
+    $currentResultJson = Get-Content $resultPath -Raw
+    $legacyResult = $currentResultJson | ConvertFrom-Json
+    $legacyResult.schema_version = '1.0'
+    $legacyResult.PSObject.Properties.Remove('model_resolution')
+    Write-JsonFile $resultPath $legacyResult
+    $legacy = (& $Get -ProjectRoot $root -DelegationId 'DELEGATION-001' | ConvertFrom-Json)
+    Assert-True 'Legacy 1.0 results remain reusable without model-resolution fields' `
+        ($legacy.state -eq 'CURRENT' -and $legacy.result.schema_version -eq '1.0' -and 'model_resolution' -notin @($legacy.result.PSObject.Properties.Name)) 'Legacy result compatibility failed'
+    [System.IO.File]::WriteAllText($resultPath, $currentResultJson, [System.Text.UTF8Encoding]::new($false))
     $linkedCheckpoint = Get-Content (Join-Path $root '.concord/context-epoch.yaml') -Raw
     & $Writer -ProjectRoot $root -MissionId 'MISSION-TEST-001' -MissionObjective 'Test result reuse' `
         -MissionStatus active -CurrentPhase implementing -EpochId EPOCH-001 | Out-Null
@@ -90,7 +112,6 @@ try {
     $stale = (& $Get -ProjectRoot $root -DelegationId 'DELEGATION-001' | ConvertFrom-Json)
     Assert-True 'Changed source fingerprint blocks reuse' ($stale.state -eq 'STALE' -and -not $stale.reusable -and $stale.stale_references -contains 'requirements/REQ-001.yml') 'Stale result was reusable'
 
-    $resultPath = Join-Path $root '.concord/delegated-results/DELEGATION-001.json'
     $tampered = Get-Content $resultPath -Raw | ConvertFrom-Json
     $tampered.source_fingerprints[0].path = '../outside.txt'
     Write-JsonFile $resultPath $tampered

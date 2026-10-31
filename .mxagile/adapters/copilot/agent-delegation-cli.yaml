@@ -6,6 +6,8 @@ delegation:
   named_agents: supported
   generic_fork: supported
   model_selection: supported
+  profile_resolution: unknown
+  profile_resolution_notes: "The CLI accepts model selection, but no verified runtime model-capability discovery or LIGHT/MID/HIGH ranking is wired into MxAgile."
   max_concurrency: null
   concurrency_notes: "Plan limits vary; documentation lists 2-32 defaults and a session setting. COPILOT_SUBAGENT_MAX_CONCURRENT may be configured; do not assume one effective value."
   evidence: "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli and https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference; task subagents, /fork, model fields and plan-dependent limits are documented."

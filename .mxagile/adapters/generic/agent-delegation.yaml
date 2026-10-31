@@ -6,6 +6,8 @@ delegation:
   named_agents: unknown
   generic_fork: unknown
   model_selection: unknown
+  profile_resolution: unknown
+  profile_resolution_notes: "A generic adapter has no host-specific model catalog or profile capability evidence."
   max_concurrency: null
   concurrency_notes: "No host-specific concurrency contract is available."
   evidence: "Generic adapter makes no host-specific delegation claim."

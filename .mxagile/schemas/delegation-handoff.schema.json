@@ -17,10 +17,11 @@
     "allowed_tools",
     "forbidden_mutations",
     "expected_result_schema",
-    "model_profile"
+    "model_profile",
+    "model_resolution"
   ],
   "properties": {
-    "schema_version": { "type": "string", "const": "1.0" },
+    "schema_version": { "type": "string", "const": "1.1" },
     "mission_id": { "type": "string", "minLength": 1 },
     "delegation_id": { "type": "string", "pattern": "^DELEGATION-[A-Za-z0-9._-]+$" },
     "task": { "type": "string", "minLength": 1 },
@@ -61,8 +62,22 @@
     },
     "allowed_tools": { "type": "array", "items": { "type": "string" } },
     "forbidden_mutations": { "type": "array", "items": { "type": "string" } },
-    "expected_result_schema": { "type": "string", "const": "delegation-result/1.0" },
+    "expected_result_schema": { "type": "string", "const": "delegation-result/1.1" },
     "model_profile": { "type": ["string", "null"], "enum": ["LIGHT", "MID", "HIGH", null] },
+    "model_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_selection", "profile_resolution", "resolution", "resolved_model", "requested_reasoning_effort", "fallback_used", "fallback_reason"],
+      "properties": {
+        "model_selection": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
+        "profile_resolution": { "type": "string", "enum": ["static_mapping", "dynamic_capability", "unknown", "unsupported"] },
+        "resolution": { "type": "string", "enum": ["static_mapping", "dynamic_capability_request", "fallback_available_model", "not_requested"] },
+        "resolved_model": { "type": ["string", "null"] },
+        "requested_reasoning_effort": { "type": ["string", "null"] },
+        "fallback_used": { "type": "boolean" },
+        "fallback_reason": { "type": ["string", "null"] }
+      }
+    },
     "context_budget_tokens": { "type": ["integer", "null"], "minimum": 1 },
     "result_budget_tokens": { "type": ["integer", "null"], "minimum": 1 }
   }

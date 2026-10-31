@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "fixture_id": "semantic-compatibility-reconciliation",
+  "main_profile": "HIGH",
+  "final_reconciliation_profile": "HIGH",
+  "main_retains_lifecycle_and_final_authority": true,
+  "one_agent_per_artifact": false,
+  "bounded_semantic_batches": [
+    { "work_kind": "requirement_semantics", "preferred_profile": "MID" },
+    { "work_kind": "legacy_decisions", "preferred_profile": "MID" },
+    { "work_kind": "test_contract_semantics", "preferred_profile": "MID" },
+    { "work_kind": "evidence_reconciliation", "preferred_profile": "MID" }
+  ],
+  "deterministic_work": [
+    { "work_kind": "task_wave_provenance", "route": "helper_first", "preferred_profile": null }
+  ]
+}

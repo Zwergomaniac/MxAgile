@@ -45,17 +45,17 @@ try {
     Assert-True 'R1 supported Claude adapter is available but not spuriously active' `
         ($claude.state.available -and -not $claude.state.active -and $claude.integration.status -eq 'supported') $claude.state.reason
     Assert-True 'Claude adapter resolves MID only in its harness layer' `
-        ($claude.integration.resolved_model -eq 'sonnet' -and $claude.integration.model_resolution -eq 'adapter_profile_mapping') 'MID mapping missing'
+        ($claude.integration.resolved_model -eq 'sonnet' -and $claude.integration.model_resolution -eq 'static_mapping' -and -not $claude.integration.fallback_used) 'MID mapping missing'
 
     $copilot = Invoke-DelegationCapability -SessionHarness 'vscode_copilot' -Profile 'HIGH'
     Assert-True 'VS Code Copilot profile mapping may remain unresolved without blocking' `
-        ($copilot.state.available -and $null -eq $copilot.integration.resolved_model -and $copilot.integration.model_resolution -eq 'use_available_agent_model') 'Model fallback failed'
+        ($copilot.state.available -and $null -eq $copilot.integration.resolved_model -and $copilot.integration.profile_resolution -eq 'unknown' -and $copilot.integration.model_resolution -eq 'fallback_available_model' -and $copilot.integration.fallback_used -and $copilot.integration.fallback_reason) 'Model fallback failed'
     $copilotAdapter = Join-Path $tempRoot '.mxagile/adapters/copilot/agent-delegation-vscode.yaml'
     (Get-Content $copilotAdapter -Raw).Replace('model_selection: supported', 'model_selection: unsupported') |
         Set-Content -LiteralPath $copilotAdapter -Encoding UTF8
     $noModelSelection = Invoke-DelegationCapability -SessionHarness 'vscode_copilot' -Profile 'HIGH'
     Assert-True 'R14 no model-selection support falls back to the available agent model' `
-        ($noModelSelection.state.available -and $noModelSelection.integration.resolved_model -eq $null -and $noModelSelection.integration.model_resolution -eq 'use_available_agent_model') 'Model selection blocked delegation'
+        ($noModelSelection.state.available -and $noModelSelection.integration.resolved_model -eq $null -and $noModelSelection.integration.model_resolution -eq 'fallback_available_model' -and $noModelSelection.integration.fallback_used -and $noModelSelection.integration.fallback_reason -match 'does not support') 'Model selection blocked delegation'
     (Get-Content $copilotAdapter -Raw).Replace('model_selection: unsupported', 'model_selection: supported') |
         Set-Content -LiteralPath $copilotAdapter -Encoding UTF8
 
@@ -70,6 +70,9 @@ try {
     $codex = Invoke-DelegationCapability -SessionHarness 'codex'
     Assert-True 'Codex delegation is resolved from its own assessed adapter' `
         ($codex.integration.status -eq 'supported' -and $codex.state.available) 'Codex contract missing'
+    $codexProfile = Invoke-DelegationCapability -SessionHarness 'codex' -Profile 'MID'
+    Assert-True 'Codex requests a capability-dependent reasoning effort without claiming a resolved model' `
+        ($codexProfile.integration.profile_resolution -eq 'dynamic_capability' -and $codexProfile.integration.requested_reasoning_effort -eq 'medium' -and $null -eq $codexProfile.integration.resolved_model -and -not $codexProfile.integration.fallback_used) 'Dynamic reasoning request missing or overclaimed'
 
     $noAttestation = Invoke-DelegationCapability
     Assert-True 'R3 missing harness attestation remains unknown' ($noAttestation.integration.status -eq 'unknown') 'Support was guessed'
@@ -106,24 +109,40 @@ try {
     foreach ($adapterFile in $adapterFiles) {
         $adapterText = Get-Content $adapterFile.FullName -Raw
         $adapterStatus = [regex]::Match($adapterText, '(?m)^  status:\s*(\S+)').Groups[1].Value
-        $adapterHasFields = @(@('harness_id', 'named_agents', 'generic_fork', 'model_selection', 'max_concurrency', 'concurrency_notes', 'evidence') |
+        $adapterDuplicateKeys = @([regex]::Matches($adapterText, '(?m)^  (harness_id|status|named_agents|generic_fork|model_selection|profile_resolution|profile_resolution_notes|max_concurrency|concurrency_notes|evidence|assessed_date):') |
+            Group-Object { $_.Groups[1].Value } | Where-Object Count -gt 1)
+        $adapterHasFields = @(@('harness_id', 'named_agents', 'generic_fork', 'model_selection', 'profile_resolution', 'profile_resolution_notes', 'max_concurrency', 'concurrency_notes', 'evidence') |
             Where-Object { $adapterText -notmatch ('(?m)^  {0}:' -f $_) })
-        if ($adapterStatus -notin @('supported', 'unsupported', 'unknown') -or $adapterHasFields.Count -gt 0) { $allAdaptersValid = $false }
+        $profileResolution = [regex]::Match($adapterText, '(?m)^  profile_resolution:\s*(\S+)').Groups[1].Value
+        $profileNotes = [regex]::Match($adapterText, '(?m)^  profile_resolution_notes:\s*(.+)$').Groups[1].Value
+        if ($adapterStatus -notin @('supported', 'unsupported', 'unknown') -or $profileResolution -notin @('static_mapping', 'dynamic_capability', 'unknown', 'unsupported') -or [string]::IsNullOrWhiteSpace($profileNotes) -or $adapterHasFields.Count -gt 0 -or $adapterDuplicateKeys.Count -gt 0) { $allAdaptersValid = $false }
     }
     Assert-True 'Harness adapter schema includes three-state delegation contract' `
         ($adapterSchema.definitions.delegation_capability.properties.status.enum -join ',' -eq 'supported,unsupported,unknown') 'Adapter state enum missing'
+    Assert-True 'Harness adapter schema separates static, dynamic, unknown and unsupported profile resolution' `
+        ($adapterSchema.definitions.delegation_capability.properties.profile_resolution.enum -join ',' -eq 'static_mapping,dynamic_capability,unknown,unsupported' -and 'profile_resolution' -in $adapterSchema.definitions.delegation_capability.required -and 'profile_resolution_notes' -in $adapterSchema.definitions.delegation_capability.required) 'Profile-resolution states missing'
+    $profiles = Get-Content (Join-Path $RepoRoot '.mxagile/delegation.yaml') -Raw
+    Assert-True 'Core reasoning profiles remain LIGHT/MID/HIGH and independent of context-capacity profiles' `
+        (($profiles -match '(?m)^\s+LIGHT:' -and $profiles -match '(?m)^\s+MID:' -and $profiles -match '(?m)^\s+HIGH:' -and $profiles -notmatch '(?m)^\s+ULTRA:' -and $profiles -match '(?i)not.*context capacity|context window')) 'Reasoning profile semantics or capacity separation missing'
+    $realityFixture = Get-Content (Join-Path $RepoRoot 'tests/fixtures/delegation/semantic-compatibility.json') -Raw | ConvertFrom-Json
+    $boundedProfiles = @($realityFixture.bounded_semantic_batches | ForEach-Object preferred_profile | Sort-Object -Unique)
+    Assert-True 'Semantic compatibility reality fixture keeps HIGH integration and bounded MID semantic batches' `
+        ($realityFixture.main_profile -eq 'HIGH' -and $realityFixture.final_reconciliation_profile -eq 'HIGH' -and $boundedProfiles.Count -eq 1 -and $boundedProfiles[0] -eq 'MID' -and -not $realityFixture.one_agent_per_artifact -and $realityFixture.main_retains_lifecycle_and_final_authority) 'Reality routing fixture is incomplete'
+    Assert-True 'Deterministic task-to-wave provenance remains helper-first with no model' `
+        ($realityFixture.deterministic_work[0].work_kind -eq 'task_wave_provenance' -and $realityFixture.deterministic_work[0].route -eq 'helper_first' -and $null -eq $realityFixture.deterministic_work[0].preferred_profile) 'Deterministic work was assigned a model profile'
     Assert-True 'Every present harness adapter declares identity, status, model and concurrency evidence' $allAdaptersValid 'Adapter inventory contains an incomplete declaration'
-    $handoffFields = @('mission_id','task','scope','authority_references','artifact_paths','source_fingerprints','allowed_tools','forbidden_mutations','expected_result_schema')
+    $handoffFields = @('mission_id','task','scope','authority_references','artifact_paths','source_fingerprints','allowed_tools','forbidden_mutations','expected_result_schema','model_resolution')
     $missingHandoffFields = @($handoffFields | Where-Object { $_ -notin @($handoffSchema.required) })
     Assert-True 'R8 handoff carries mission, bounded scope, authority, tools, mutations, schema and budget' `
         ($missingHandoffFields.Count -eq 0 -and $handoffSchema.additionalProperties -eq $false -and $null -ne $handoffSchema.properties.context_budget_tokens) "Handoff fields missing: $($missingHandoffFields -join ', ')"
+    Assert-True 'Handoff and result schemas carry explicit model-resolution observability' `
+        ($handoffSchema.properties.model_resolution.required -contains 'fallback_used' -and $resultSchema.properties.model_resolution.required -contains 'resolved_model') 'Model resolution contract incomplete'
     $resultFields = @('conclusion','findings','provenance','affected_ids','unknowns','conflicts','decision_candidates','evidence_references','source_fingerprints')
     $missingResultFields = @($resultFields | Where-Object { $_ -notin @($resultSchema.required) })
     Assert-True 'R10 result schema carries provenance, fingerprints and compact findings' `
         ($missingResultFields.Count -eq 0 -and $resultSchema.additionalProperties -eq $false) "Result fields missing: $($missingResultFields -join ', ')"
 
     $policy = Get-Content $PolicyPath -Raw
-    $profiles = Get-Content (Join-Path $RepoRoot '.mxagile/delegation.yaml') -Raw
     Assert-True 'R4 deterministic repair stays with helpers' (($policy -match 'Do not delegate YAML quoting') -and ($policy -match 'schema checks')) 'Deterministic routing missing'
     Assert-True 'R5/R6 batching rejects one-agent-per-artifact for 87/52 cases' `
         (($policy -match '87 requirements') -and ($policy -match '52 decisions') -and ($policy -match 'one subagent per file or requirement')) 'Anti-amplification fixture missing'
@@ -134,7 +153,7 @@ try {
     Assert-True 'R11/R12 UI parity defaults MID and planning defaults HIGH' `
         (($profiles -match '(?m)^\s+ui:\s+MID\s*$') -and ($profiles -match '(?m)^\s+planning:\s+HIGH\s*$')) 'Mission profile defaults missing'
     Assert-True 'R13 deterministic migration and maintenance use no model; semantic work escalates by ambiguity' `
-        (($profiles -match '(?m)^\s+deterministic_work:\s+null\s*$') -and ($profiles -match '(?m)^\s+deterministic_core_update:\s+null\s*$') -and ($profiles -match '(?m)^\s+migration_classification:\s+MID\s*$') -and ($profiles -match '(?m)^\s+ambiguous_historical_reconstruction:\s+HIGH\s*$') -and ($profiles -match '(?m)^\s+ambiguous_maintenance_root_cause:\s+HIGH\s*$')) 'Mission profile policy missing'
+        (($profiles -match '(?m)^\s+deterministic_work:\s+null\s*$') -and ($profiles -match '(?m)^\s+deterministic_core_update:\s+null\s*$') -and ($profiles -match '(?m)^\s+migration_classification:\s+MID\s*$') -and ($profiles -match '(?m)^\s+ambiguous_historical_reconstruction:\s+HIGH\s*$') -and ($profiles -match '(?m)^\s+ambiguous_maintenance_root_cause:\s+HIGH\s*$') -and ($profiles -match '(?m)^\s+semantic_compatibility_reconciliation:\s+HIGH\s*$')) 'Mission profile policy missing'
 } finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
