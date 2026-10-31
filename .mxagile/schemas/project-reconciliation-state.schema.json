@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:project-reconciliation-state/1",
+  "title": "MxAgile Worktree Reconciliation State",
+  "description": "Gitignored, worktree-local watermark. This runtime record is not lifecycle authority and is not portable across clones or worktrees.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "repository_identity",
+    "worktree_identity",
+    "branch_ref",
+    "branch_key",
+    "last_reconciled_commit",
+    "head_tree_oid",
+    "project_fingerprint",
+    "artifact_index_fingerprint",
+    "baseline_kind",
+    "updated_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "repository_identity": { "$ref": "#/definitions/fingerprint" },
+    "worktree_identity": { "$ref": "#/definitions/fingerprint" },
+    "branch_ref": { "type": "string", "pattern": "^refs/heads/.+" },
+    "branch_key": { "$ref": "#/definitions/fingerprint" },
+    "last_reconciled_commit": { "$ref": "#/definitions/object_id" },
+    "head_tree_oid": { "$ref": "#/definitions/object_id" },
+    "project_fingerprint": { "$ref": "#/definitions/fingerprint" },
+    "artifact_index_fingerprint": {
+      "anyOf": [{ "$ref": "#/definitions/fingerprint" }, { "type": "null" }]
+    },
+    "baseline_kind": { "type": "string", "enum": ["EXPLICIT_ADOPTION", "RECONCILED"] },
+    "last_change_set_ids": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^CS-[A-Za-z0-9._-]+$" },
+      "uniqueItems": true
+    },
+    "context_epoch": { "type": ["string", "null"] },
+    "last_report_id": { "anyOf": [{ "$ref": "#/definitions/fingerprint" }, { "type": "null" }] },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "definitions": {
+    "object_id": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "fingerprint": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  }
+}

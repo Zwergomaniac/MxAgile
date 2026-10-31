@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:change-set/1",
+  "title": "MxAgile Commit Change Set",
+  "description": "Tracked provenance record referenced by Git trailers. It attests only the listed paths and their exact parent/commit blob identities; it is workflow provenance, not a security boundary.",
+  "type": "object",
+  "required": ["schema_version", "change_set_id", "mission_id", "parent_commits", "paths", "reconciliation"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "change_set_id": { "type": "string", "pattern": "^CS-[A-Za-z0-9._-]+$" },
+    "mission_id": { "type": "string", "minLength": 1 },
+    "context_epoch": { "type": ["string", "null"] },
+    "result_references": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "parent_commits": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/object_id" }
+    },
+    "paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/path_change" }
+    },
+    "reconciliation": { "$ref": "#/definitions/reconciliation" },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "definitions": {
+    "object_id": {
+      "type": "string",
+      "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+    },
+    "path_change": {
+      "type": "object",
+      "required": ["path", "status", "before_blob", "after_blob"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "status": { "type": "string", "enum": ["A", "M", "D"] },
+        "before_blob": { "anyOf": [{ "$ref": "#/definitions/object_id" }, { "type": "null" }] },
+        "after_blob": { "anyOf": [{ "$ref": "#/definitions/object_id" }, { "type": "null" }] }
+      }
+    },
+    "reconciliation": {
+      "type": "object",
+      "required": ["status", "outcome", "project_fingerprint", "references"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "const": "COMPLETE" },
+        "outcome": {
+          "type": "string",
+          "enum": ["NO_IMPACT", "IMPACT_RECONCILED", "DECISION_REQUIRED_PERSISTED"]
+        },
+        "project_fingerprint": { "$ref": "#/definitions/fingerprint" },
+        "references": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "completed_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

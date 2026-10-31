@@ -14,6 +14,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = (
+        (("scripts/reconcile_external_changes.py", "tests/test_external_change_reconciliation.py",
+            ".mxagile/schemas/change-set.schema.json", ".mxagile/schemas/project-reconciliation-state.schema.json",
+            ".mxagile/policies/external-change-reconciliation.md"),
+         1, ("test_external_change_reconciliation.py",)),
     (("mxagile-dev.ps1", "tests/test-mxagile-dev-cli.ps1"), 1, ("test-mxagile-dev-cli.ps1",)),
     (("scripts/canonicalize_artifacts.py",), 2,
      ("test-wp10-artifact-schemas.ps1", "test-migration-fixtures.ps1", "test_git_index_integrity.py")),

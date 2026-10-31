@@ -606,6 +606,13 @@ try {
     Copy-Item -LiteralPath $projectStatusSource -Destination (Join-Path $destToolsDir "build_project_status.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/build_project_status.py (read-only projection)."
 
+    $reconciliationSource = Join-Path $PSScriptRoot "reconcile_external_changes.py"
+    if (-not (Test-Path -LiteralPath $reconciliationSource -PathType Leaf)) {
+        throw "reconcile_external_changes.py not found in script directory."
+    }
+    Copy-Item -LiteralPath $reconciliationSource -Destination (Join-Path $destToolsDir "reconcile_external_changes.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/reconcile_external_changes.py (read-only report; explicit baseline adoption)."
+
     $projectBoardServerSource = Join-Path $PSScriptRoot "serve_project_board.py"
     if (-not (Test-Path -LiteralPath $projectBoardServerSource -PathType Leaf)) {
         throw "serve_project_board.py not found in script directory: $projectBoardServerSource"
@@ -696,6 +703,7 @@ try {
                 ".mxagile/tools/Resolve-MxAgileMxcli.ps1",
                 ".mxagile/tools/check-studio-pro-status.ps1",
                 ".mxagile/tools/build_project_status.py",
+                ".mxagile/tools/reconcile_external_changes.py",
                 ".mxagile/tools/serve_project_board.py",
                 ".mxagile/tools/project_compatibility.py",
                 ".mxagile/tools/git_index_integrity.py",

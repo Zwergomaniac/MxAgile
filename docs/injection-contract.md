@@ -58,6 +58,7 @@ Consumers of this contract include:
 | `update-mxcli.ps1` | COPY | `MxAi-Dev-System/scripts/install-mxcli.ps1` | `install-core.ps1` | MxAgile | Overwrite on rerun | Always copied |
 | `.mxagile/tools/Resolve-MxAgileMxcli.ps1` | COPY | `scripts/Resolve-MxAgileMxcli.ps1` | `install-core.ps1` | MxAgile | Overwrite on install/update | Always copied |
 | `.mxagile/tools/git_index_integrity.py` | COPY | `scripts/git_index_integrity.py` | `install-core.ps1` | MxAgile | Overwrite on install/update; read-only preflight before project mutation | Never repairs index or removes locks |
+| `.mxagile/tools/reconcile_external_changes.py` | COPY | `scripts/reconcile_external_changes.py` | `install-core.ps1` | MxAgile | Read-only report; explicit baseline adoption writes only ignored worktree-local state | Never scans historical commits during adoption |
 | `mxcli.exe` | RUNTIME | mxcli download service | `install-mxcli.ps1` (via `mxagile-init.ps1`) | MxAgile | Update via `update-mxcli.ps1` | Skip if exists and up-to-date |
 | `.mxagile/layers/{id}/` | COPY (from Git/Local) | Company Layer Git/Local source | `fetch-layer.ps1` or `install-core.ps1` | Company Layer | Replace on reinstall | Replace existing |
 | `.mxagile/layers/{id}/provenance.json` | GENERATE | Installation metadata | `fetch-layer.ps1` / `install-core.ps1` | MxAgile | Overwrite on reinstall | Always regenerated |
