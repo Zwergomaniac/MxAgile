@@ -34,6 +34,8 @@ Set-StrictMode -Version Latest
 $TestsDir  = $PSScriptRoot
 $RepoRoot  = Split-Path -Parent $TestsDir
 $CliPath   = Join-Path $RepoRoot 'mxagile-dev.ps1'
+. (Join-Path $TestsDir 'helpers/MxAgileBaselineFixture.ps1')
+$script:PowerShellExe = (Get-Command pwsh -ErrorAction Stop).Source
 
 $PassCount   = 0
 $FailCount   = 0
@@ -66,7 +68,7 @@ function Invoke-CLI {
     # Set MXAGILE_NONINTERACTIVE so no-arg invocations show help, not the interactive menu.
     $prevNI = $env:MXAGILE_NONINTERACTIVE
     $env:MXAGILE_NONINTERACTIVE = '1'
-    $rawOutput = & powershell -NoProfile -NonInteractive -File $script:CliPath @CliArgs 2>&1
+    $rawOutput = & $script:PowerShellExe -NoProfile -NonInteractive -File $script:CliPath @CliArgs 2>&1
     $ec = $LASTEXITCODE
     if ($null -eq $prevNI) {
         Remove-Item Env:\MXAGILE_NONINTERACTIVE -ErrorAction SilentlyContinue
@@ -83,7 +85,7 @@ function Invoke-CLI {
 function Invoke-CLIInteractive {
     param([string] $InputSequence)
     $start = [System.Diagnostics.ProcessStartInfo]::new()
-    $start.FileName = (Get-Command powershell -ErrorAction Stop).Source
+    $start.FileName = $script:PowerShellExe
     $start.Arguments = '-NoProfile -File "' + $script:CliPath + '"'
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -228,17 +230,16 @@ try {
 
 Write-Host '  Scenario I: migration status diagnostics'
 
-$migWs = Join-Path $RepoRoot '.testing-brownfield_migration_demo'
-if (Test-Path -LiteralPath $migWs -PathType Container) {
+$migWs = New-MxAgileBaselineFixture -Scenario migration-in-progress
+try {
     $r = Invoke-CLI @('migration', 'status', $migWs)
     Assert-True 'I1: migration status exits 0'        ($r.ExitCode -eq 0) "exit $($r.ExitCode)"
     Assert-True 'I2: output shows project type'       ($r.Output -match 'Project type') 'no Project type in output'
     Assert-True 'I3: output shows MIGRATION_IN_PROGRESS' ($r.Output -match 'MIGRATION_IN_PROGRESS') 'classification not shown'
     Assert-True 'I4: output shows state.yaml present' ($r.Output -match 'state\.yaml\s*:?\s*present') 'state.yaml status missing'
     Assert-True 'I5: state.yaml content shown (status: in_progress)' ($r.Output -match 'in_progress') 'state content not shown'
-} else {
-    Write-Host "  SKIP: .testing-brownfield_migration_demo not found (I1-I5 skipped)" -ForegroundColor Yellow
-    $script:PassCount += 5  # count as pass when workspace absent (not a CLI failure)
+} finally {
+    Remove-MxAgileBaselineFixture -Path $migWs
 }
 
 # ─── J. workspace create dispatches to create-test-workcopy.ps1 ──────────────

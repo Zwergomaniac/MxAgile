@@ -25,11 +25,18 @@ function New-MinimalFixture {
         [switch]$WithNodeModules,
         [switch]$WithMendixCache,
         [switch]$WithDockerBuild,
-        [switch]$WithLifecycle
+        [switch]$WithLifecycle,
+        [switch]$WithMprContents
     )
     $dir = Join-Path $env:TEMP "mxagile-test-fixture-$Name-$([guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
     New-Item -ItemType File -Path (Join-Path $dir "project.mpr") | Out-Null
+
+    if ($WithMprContents) {
+        $mprContents = Join-Path $dir 'mprcontents'
+        New-Item -ItemType Directory -Path $mprContents -Force | Out-Null
+        Set-Content -Path (Join-Path $mprContents 'fixture.dat') -Value 'synthetic Mendix content'
+    }
 
     if ($WithDfc) {
         $dfc = Join-Path $dir '.dfc-ai'
@@ -93,7 +100,7 @@ function Invoke-Workcopy {
     cmd /c mklink /j "$fakeTemplateDir" "$SourcePath" | Out-Null
 
     try {
-        powershell -NoProfile -ExecutionPolicy Bypass -File $CreateScript `
+        pwsh -NoProfile -File $CreateScript `
             -TemplateName $fakeTemplateName `
             -TestDirName "test-hygiene-$DestSuffix" `
             @extraArgs 2>&1 | Out-Null
@@ -316,7 +323,7 @@ $badDest = Join-Path $WorkspaceRoot ".testing-test-hygiene-I-bad"
 if (Test-Path $badDest) { Remove-Item -LiteralPath $badDest -Recurse -Force }
 $badExitCode = $null
 try {
-    powershell -NoProfile -ExecutionPolicy Bypass -File $CreateScript `
+    pwsh -NoProfile -File $CreateScript `
         -TemplateName $badTemplateName `
         -TestDirName "test-hygiene-I-bad" `
         2>&1 | Out-Null
@@ -372,73 +379,52 @@ try {
 # L: Greenfield fixture still works
 # ---------------------------------------------------------------------------
 Write-Host "--- L: Greenfield workflow ---"
-$greenfieldSrc = Join-Path $WorkspaceRoot "project-templates\greenfield"
-if (Test-Path -LiteralPath $greenfieldSrc -PathType Container) {
-    $destGreen = ".testing-test-hygiene-L-green"
-    $destFull = Join-Path $WorkspaceRoot $destGreen
-    if (Test-Path $destFull) { Remove-Item -LiteralPath $destFull -Recurse -Force }
+$greenfieldSource = New-MinimalFixture -Name 'L'
+try {
+    $r = Invoke-Workcopy -SourcePath $greenfieldSource -DestSuffix 'L-green'
     try {
-        powershell -NoProfile -ExecutionPolicy Bypass -File $CreateScript `
-            -TemplateName "greenfield" `
-            -TestDirName "test-hygiene-L-green" 2>&1 | Out-Null
-        Assert ($LASTEXITCODE -eq 0) "L1: greenfield workcopy exits 0"
-        Assert (Test-Path $destFull -PathType Container) "L2: greenfield dest created"
+        Assert ($r.ExitCode -eq 0) "L1: synthetic greenfield workcopy exits 0"
+        Assert (Test-Path -LiteralPath $r.DestPath -PathType Container) "L2: greenfield destination created"
+        Assert (Test-Path -LiteralPath (Join-Path $r.DestPath 'project.mpr') -PathType Leaf) "L3: greenfield .mpr preserved"
     } finally {
-        if (Test-Path $destFull) { Remove-Item -LiteralPath $destFull -Recurse -Force -ErrorAction SilentlyContinue }
+        if ($r.DestPath -and (Test-Path -LiteralPath $r.DestPath)) { Remove-Item -LiteralPath $r.DestPath -Recurse -Force -ErrorAction SilentlyContinue }
     }
-} else {
-    Write-Host "  SKIP L: greenfield template not present"
-    $PassCount++  # count as pass (skip)
-}
+} finally { Remove-Item -LiteralPath $greenfieldSource -Recurse -Force -ErrorAction SilentlyContinue }
 
 # ---------------------------------------------------------------------------
 # M: Brownfield migration fixture remains logically equivalent
 # ---------------------------------------------------------------------------
 Write-Host "--- M: Brownfield fixture fidelity ---"
-$brownSrc = Join-Path $WorkspaceRoot "project-templates\brownfield_migration_demo"
-if (Test-Path -LiteralPath $brownSrc -PathType Container) {
-    $destBrown = ".testing-test-hygiene-M-brown"
-    $destFull = Join-Path $WorkspaceRoot $destBrown
-    if (Test-Path $destFull) { Remove-Item -LiteralPath $destFull -Recurse -Force }
-    try {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        powershell -NoProfile -ExecutionPolicy Bypass -File $CreateScript `
-            -TemplateName "brownfield_migration_demo" `
-            -TestDirName "test-hygiene-M-brown" 2>&1 | Out-Null
-        $sw.Stop()
-        Assert ($LASTEXITCODE -eq 0) "M1: brownfield workcopy exits 0"
-        # .mpr preserved
-        $mpr = @(Get-ChildItem -LiteralPath $destFull -Filter '*.mpr' -File -ErrorAction SilentlyContinue)
-        Assert ($mpr.Count -ge 1) "M2: brownfield .mpr present"
-        # .dfc-ai preserved
-        Assert (Test-Path (Join-Path $destFull '.dfc-ai') -PathType Container) "M3: .dfc-ai present (migration start condition)"
-        # planning preserved
-        Assert (Test-Path (Join-Path $destFull 'planning') -PathType Container) "M4: planning/ present"
-        # mprcontents preserved
-        Assert (Test-Path (Join-Path $destFull 'mprcontents') -PathType Container) "M5: mprcontents/ present"
-        # No lifecycle.yaml (would corrupt migration start condition)
-        Assert (-not (Test-Path (Join-Path $destFull '.mxagile\lifecycle.yaml'))) "M6: no .mxagile/lifecycle.yaml introduced"
-        # node_modules excluded
-        $nmInDest = @(Get-ChildItem -LiteralPath $destFull -Recurse -Filter 'node_modules' -Directory -ErrorAction SilentlyContinue)
-        Assert ($nmInDest.Count -eq 0) "M7: no node_modules in destination"
-        # .mendix-cache excluded
-        Assert (-not (Test-Path (Join-Path $destFull '.mendix-cache') -PathType Container)) "M8: .mendix-cache excluded"
-        # .docker/build excluded
-        Assert (-not (Test-Path (Join-Path $destFull '.docker\build') -PathType Container)) "M9: .docker/build excluded"
-        # File count reduced vs source
-        $srcCount = @(Get-ChildItem -LiteralPath $brownSrc -Recurse -File -ErrorAction SilentlyContinue).Count
-        $dstCount = @(Get-ChildItem -LiteralPath $destFull -Recurse -File -ErrorAction SilentlyContinue).Count
-        Assert ($dstCount -lt $srcCount) "M10: destination has fewer files than source (exclusions applied)"
-        Assert ($dstCount -gt 1000) "M11: destination retains substantial fixture content (>1000 files)"
-        $elapsedSec = [math]::Round($sw.Elapsed.TotalSeconds, 1)
-        Write-Host "      (M elapsed: ${elapsedSec}s, src=$srcCount files, dst=$dstCount files)"
-    } finally {
-        if (Test-Path $destFull) { Remove-Item -LiteralPath $destFull -Recurse -Force -ErrorAction SilentlyContinue }
-    }
-} else {
-    Write-Host "  SKIP M: brownfield_migration_demo template not present"
-    $PassCount++
+$brownSrc = New-MinimalFixture -Name 'M' -WithDfc -WithPlanning -WithNodeModules -WithMendixCache -WithDockerBuild -WithMprContents
+$largeFiles = Join-Path $brownSrc 'synthetic-fixture-data'
+New-Item -ItemType Directory -Path $largeFiles -Force | Out-Null
+for ($fileIndex = 0; $fileIndex -lt 1001; $fileIndex++) {
+    $filePath = Join-Path $largeFiles ('artifact-{0:D4}.txt' -f $fileIndex)
+    [System.IO.File]::WriteAllText($filePath, "synthetic fixture $fileIndex`n", [System.Text.UTF8Encoding]::new($false))
 }
+try {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $r = Invoke-Workcopy -SourcePath $brownSrc -DestSuffix 'M-brown'
+    $sw.Stop()
+    try {
+        Assert ($r.ExitCode -eq 0) "M1: synthetic brownfield workcopy exits 0"
+        Assert (Test-Path (Join-Path $r.DestPath '.dfc-ai') -PathType Container) "M2: .dfc-ai preserved"
+        Assert (Test-Path (Join-Path $r.DestPath 'planning') -PathType Container) "M3: planning preserved"
+        Assert (Test-Path (Join-Path $r.DestPath 'mprcontents/fixture.dat') -PathType Leaf) "M4: mprcontents preserved"
+        Assert (-not (Test-Path (Join-Path $r.DestPath '.mxagile/lifecycle.yaml'))) "M5: no lifecycle sentinel introduced"
+        $nmInDest = @(Get-ChildItem -LiteralPath $r.DestPath -Recurse -Filter 'node_modules' -Directory -ErrorAction SilentlyContinue)
+        Assert ($nmInDest.Count -eq 0) "M6: node_modules excluded"
+        Assert (-not (Test-Path (Join-Path $r.DestPath '.mendix-cache') -PathType Container)) "M7: .mendix-cache excluded"
+        Assert (-not (Test-Path (Join-Path $r.DestPath '.docker/build') -PathType Container)) "M8: .docker/build excluded"
+        $srcCount = @(Get-ChildItem -LiteralPath $brownSrc -Recurse -File -ErrorAction SilentlyContinue).Count
+        $dstCount = @(Get-ChildItem -LiteralPath $r.DestPath -Recurse -File -ErrorAction SilentlyContinue).Count
+        Assert ($dstCount -lt $srcCount) "M9: excluded transient files reduce destination count"
+        Assert ($dstCount -gt 1000) "M10: large synthetic brownfield fixture retained (>1000 files)"
+        Write-Host "      (M elapsed: $([math]::Round($sw.Elapsed.TotalSeconds,1))s, source=$srcCount files, destination=$dstCount files)"
+    } finally {
+        if ($r.DestPath -and (Test-Path -LiteralPath $r.DestPath)) { Remove-Item -LiteralPath $r.DestPath -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+} finally { Remove-Item -LiteralPath $brownSrc -Recurse -Force -ErrorAction SilentlyContinue }
 
 # ---------------------------------------------------------------------------
 # Summary

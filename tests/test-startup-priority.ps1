@@ -34,6 +34,7 @@ Set-StrictMode -Version Latest
 
 $TestsDir  = $PSScriptRoot
 $ScriptDir = Split-Path -Parent $TestsDir
+. (Join-Path $TestsDir 'helpers/MxAgileBaselineFixture.ps1')
 $PassCount   = 0
 $FailCount   = 0
 $FailDetails = @()
@@ -63,8 +64,8 @@ function Assert-FileContains {
 # File paths  -  canonical sources
 $injectScriptPath   = Join-Path $ScriptDir "scripts\apply-project-agent-instructions.ps1"
 
-# File paths  -  test workspace (reality-test regression)
-$testWorkspace      = Join-Path $ScriptDir ".testing-greenfield-rt4"
+# File paths - a hermetic synthetic test workspace
+$testWorkspace      = New-MxAgileBaselineFixture -Scenario greenfield
 $wsClaudePath       = Join-Path $testWorkspace "CLAUDE.md"
 $wsAgentsPath       = Join-Path $testWorkspace "AGENTS.md"
 $wsCopilotPath      = Join-Path $testWorkspace ".github\copilot-instructions.md"
@@ -235,8 +236,16 @@ Write-Host ""
 
 Write-Host "--- 9 & 10: Reality-Test regression  -  test workspace entrypoints ---"
 
+$injectError = $null
+try {
+    & $injectScriptPath -ProjectRoot $testWorkspace | Out-Null
+} catch {
+    $injectError = $_.Exception.Message
+}
+Assert-True 'fixture: canonical injection succeeds' ($null -eq $injectError) ([string]$injectError)
+
 $wsExists = Test-Path -LiteralPath $testWorkspace -PathType Container
-Assert-True "test workspace .testing-greenfield-rt4 exists" $wsExists "Workspace not found: $testWorkspace"
+Assert-True "synthetic greenfield workspace exists" $wsExists "Workspace not found: $testWorkspace"
 
 if ($wsExists) {
     # CLAUDE.md
@@ -282,6 +291,7 @@ if ($wsExists) {
         Assert-True "ws skillssource/AGENTS.md exists" $false "File not found: $wsSkillsAgentsPath"
     }
 }
+Remove-MxAgileBaselineFixture -Path $testWorkspace
 
 Write-Host ""
 

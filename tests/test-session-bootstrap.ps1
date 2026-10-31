@@ -31,6 +31,7 @@ Set-StrictMode -Version Latest
 
 $TestsDir    = $PSScriptRoot
 $ScriptDir   = Split-Path -Parent $TestsDir
+. (Join-Path $TestsDir 'helpers/MxAgileBaselineFixture.ps1')
 $PassCount   = 0
 $FailCount   = 0
 $FailDetails = @()
@@ -67,10 +68,12 @@ function Assert-NotContains {
     }
 }
 
-# Paths under test
-$templateBootstrap  = Join-Path $ScriptDir "project-templates\brownfield_migration_demo\.claude\bootstrap-mxcli.sh"
-$testingBootstrap   = Join-Path $ScriptDir ".testing-brownfield_migration_demo\.claude\bootstrap-mxcli.sh"
-$templateSettings   = Join-Path $ScriptDir "project-templates\brownfield_migration_demo\.claude\settings.json"
+# Hermetic synthetic files representing output from `mxcli init`.
+$templateFixtureRoot = New-MxAgileBaselineFixture -Scenario session-bootstrap
+$testingFixtureRoot = New-MxAgileBaselineFixture -Scenario session-bootstrap
+$templateBootstrap  = Join-Path $templateFixtureRoot ".claude\bootstrap-mxcli.sh"
+$testingBootstrap   = Join-Path $testingFixtureRoot ".claude\bootstrap-mxcli.sh"
+$templateSettings   = Join-Path $templateFixtureRoot ".claude\settings.json"
 $installCorePath    = Join-Path $ScriptDir "scripts\install-core.ps1"
 
 Write-Host ""
@@ -80,29 +83,29 @@ Write-Host ""
 # ===========================================================================
 # GROUP A: Template bootstrap files do NOT contain the blocking exec line
 # ===========================================================================
-Write-Host "--- A: No blocking 'exec ./mxcli run --local' in templates ---"
+Write-Host "--- A: Synthetic mxcli-init output has no blocking SessionStart command ---"
 
-Assert-True "A1: template bootstrap file exists" `
+Assert-True "A1: synthetic bootstrap fixture exists" `
     (Test-Path -LiteralPath $templateBootstrap) `
     "Not found: $templateBootstrap"
 
-Assert-NotContains "A2: template bootstrap does NOT contain blocking exec line" `
+Assert-NotContains "A2: bootstrap fixture does NOT contain blocking exec line" `
     $templateBootstrap `
     '^exec\s+\./mxcli\s+run\s+--local'
 
-Assert-NotContains "A3: template bootstrap does NOT contain --ensure-db in exec context" `
+Assert-NotContains "A3: bootstrap fixture does NOT contain --ensure-db in exec context" `
     $templateBootstrap `
     '^exec.*--ensure-db'
 
-Assert-NotContains "A4: template bootstrap does NOT contain --setup in exec context" `
+Assert-NotContains "A4: bootstrap fixture does NOT contain --setup in exec context" `
     $templateBootstrap `
     '^exec.*--setup'
 
-Assert-True "A5: testing-fixture bootstrap file exists" `
+Assert-True "A5: independent synthetic bootstrap fixture exists" `
     (Test-Path -LiteralPath $testingBootstrap) `
     "Not found: $testingBootstrap"
 
-Assert-NotContains "A6: testing-fixture bootstrap does NOT contain blocking exec line" `
+Assert-NotContains "A6: independent bootstrap fixture does NOT contain blocking exec line" `
     $testingBootstrap `
     '^exec\s+\./mxcli\s+run\s+--local'
 
@@ -111,21 +114,21 @@ Write-Host ""
 # ===========================================================================
 # GROUP B: Template bootstrap files have bounded curl download timeout
 # ===========================================================================
-Write-Host "--- B: Bounded curl download timeout present ---"
+Write-Host "--- B: Synthetic bootstrap download has bounded timeout ---"
 
-Assert-Contains "B1: template bootstrap has --max-time on curl" `
+Assert-Contains "B1: bootstrap fixture has --max-time on curl" `
     $templateBootstrap '--max-time'
 
-Assert-Contains "B2: template bootstrap has --connect-timeout on curl" `
+Assert-Contains "B2: bootstrap fixture has --connect-timeout on curl" `
     $templateBootstrap '--connect-timeout'
 
-Assert-Contains "B3: template bootstrap defines DL_TIMEOUT variable" `
+Assert-Contains "B3: bootstrap fixture defines DL_TIMEOUT variable" `
     $templateBootstrap 'DL_TIMEOUT='
 
-Assert-Contains "B4: template bootstrap DL_TIMEOUT is configurable via env" `
+Assert-Contains "B4: bootstrap fixture DL_TIMEOUT is configurable via env" `
     $templateBootstrap 'MXCLI_DOWNLOAD_TIMEOUT'
 
-Assert-Contains "B5: testing-fixture bootstrap also has --max-time on curl" `
+Assert-Contains "B5: independent bootstrap fixture also has --max-time on curl" `
     $testingBootstrap '--max-time'
 
 Write-Host ""
@@ -133,9 +136,9 @@ Write-Host ""
 # ===========================================================================
 # GROUP C: Template settings.json SessionStart hook is present and safe
 # ===========================================================================
-Write-Host "--- C: settings.json SessionStart hook is safe ---"
+Write-Host "--- C: synthetic settings.json SessionStart hook is safe ---"
 
-Assert-True "C1: template settings.json exists" `
+Assert-True "C1: synthetic settings.json exists" `
     (Test-Path -LiteralPath $templateSettings) `
     "Not found: $templateSettings"
 
@@ -466,6 +469,9 @@ Write-Host ''
 # ===========================================================================
 # Final summary
 # ===========================================================================
+Remove-MxAgileBaselineFixture -Path $templateFixtureRoot
+Remove-MxAgileBaselineFixture -Path $testingFixtureRoot
+
 Write-Host '=== SessionStart Bootstrap Safety Test Results ==='
 Write-Host ('  PASS: ' + $PassCount) -ForegroundColor Green
 if ($FailCount -gt 0) {
@@ -480,7 +486,7 @@ if ($FailCount -gt 0) {
     exit 1
 } else {
     Write-Host ''
-    $msg = 'TEST PASSED: SessionStart bootstrap is safe for VS Code Extension initialization.'
+    $msg = 'TEST PASSED: SessionStart bootstrap contract is safe and deterministic.'
     Write-Host $msg -ForegroundColor Green
     exit 0
 }
