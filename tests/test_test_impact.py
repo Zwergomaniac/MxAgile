@@ -51,9 +51,12 @@ class ImpactTests(unittest.TestCase):
             ".mxagile/schemas/delegation-handoff.schema.json",
             ".mxagile/schemas/delegation-result.schema.json",
             ".mxagile/schemas/harness-adapter.schema.json",
+            ".mxagile/schemas/routing-decision.schema.json",
+            ".mxagile/schemas/context-epoch.schema.json",
             "scripts/Get-MxAgileCapabilities.ps1",
             "scripts/Get-MxAgileDelegationResult.ps1",
             "scripts/Save-MxAgileDelegationResult.ps1",
+            "scripts/Save-MxAgileRoutingDecision.ps1",
             "scripts/Write-MxAgileEpochCheckpoint.ps1",
         ])
         self.assertEqual(plan["tier"], 2)

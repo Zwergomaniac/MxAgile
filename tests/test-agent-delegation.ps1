@@ -104,6 +104,7 @@ try {
     $adapterSchema = Get-Content (Join-Path $RepoRoot '.mxagile/schemas/harness-adapter.schema.json') -Raw | ConvertFrom-Json
     $handoffSchema = Get-Content (Join-Path $RepoRoot '.mxagile/schemas/delegation-handoff.schema.json') -Raw | ConvertFrom-Json
     $resultSchema = Get-Content (Join-Path $RepoRoot '.mxagile/schemas/delegation-result.schema.json') -Raw | ConvertFrom-Json
+    $routingSchema = Get-Content (Join-Path $RepoRoot '.mxagile/schemas/routing-decision.schema.json') -Raw | ConvertFrom-Json
     $adapterFiles = @(Get-ChildItem (Join-Path $RepoRoot '.mxagile/adapters') -Recurse -File -Filter 'agent-delegation*.yaml')
     $allAdaptersValid = $adapterFiles.Count -gt 0
     foreach ($adapterFile in $adapterFiles) {
@@ -128,15 +129,23 @@ try {
     $boundedProfiles = @($realityFixture.bounded_semantic_batches | ForEach-Object preferred_profile | Sort-Object -Unique)
     Assert-True 'Semantic compatibility reality fixture keeps HIGH integration and bounded MID semantic batches' `
         ($realityFixture.main_profile -eq 'HIGH' -and $realityFixture.final_reconciliation_profile -eq 'HIGH' -and $boundedProfiles.Count -eq 1 -and $boundedProfiles[0] -eq 'MID' -and -not $realityFixture.one_agent_per_artifact -and $realityFixture.main_retains_lifecycle_and_final_authority) 'Reality routing fixture is incomplete'
+    Assert-True 'Semantic compatibility fixture requires an executed spawn and post-compaction reuse' `
+        ($realityFixture.runtime_expectations.minimum_actual_spawn_calls_when_supported -ge 1 -and $realityFixture.runtime_expectations.persist_routing_before_analysis -and $realityFixture.runtime_expectations.main_consumes_compact_result -and $realityFixture.runtime_expectations.reuse_after_compaction -and $realityFixture.runtime_expectations.reject_stale_result) 'Runtime expectations missing'
     Assert-True 'Deterministic task-to-wave provenance remains helper-first with no model' `
         ($realityFixture.deterministic_work[0].work_kind -eq 'task_wave_provenance' -and $realityFixture.deterministic_work[0].route -eq 'helper_first' -and $null -eq $realityFixture.deterministic_work[0].preferred_profile) 'Deterministic work was assigned a model profile'
     Assert-True 'Every present harness adapter declares identity, status, model and concurrency evidence' $allAdaptersValid 'Adapter inventory contains an incomplete declaration'
-    $handoffFields = @('mission_id','task','scope','authority_references','artifact_paths','source_fingerprints','allowed_tools','forbidden_mutations','expected_result_schema','model_resolution')
+    $handoffFields = @('mission_id','task','agent_type','scope','authority_references','artifact_paths','source_fingerprints','allowed_tools','forbidden_mutations','expected_result_schema','model_resolution')
     $missingHandoffFields = @($handoffFields | Where-Object { $_ -notin @($handoffSchema.required) })
     Assert-True 'R8 handoff carries mission, bounded scope, authority, tools, mutations, schema and budget' `
         ($missingHandoffFields.Count -eq 0 -and $handoffSchema.additionalProperties -eq $false -and $null -ne $handoffSchema.properties.context_budget_tokens) "Handoff fields missing: $($missingHandoffFields -join ', ')"
     Assert-True 'Handoff and result schemas carry explicit model-resolution observability' `
         ($handoffSchema.properties.model_resolution.required -contains 'fallback_used' -and $resultSchema.properties.model_resolution.required -contains 'resolved_model') 'Model resolution contract incomplete'
+    Assert-True 'Handoff and current result schema identify the requested agent type' `
+        ($handoffSchema.required -contains 'agent_type' -and $resultSchema.allOf[0].then.required -contains 'agent_type') 'Agent type evidence missing'
+    $routingFields = @('work_class','scope','artifact_count','semantic','deterministic','capability_state','requested_profile','route','reason','fallback_reason','delegation_attempted','spawn_outcome','source_fingerprints','main_consumed','compaction_occurred','result_reused','stale_result_rejected','batch_restarted')
+    $missingRoutingFields = @($routingFields | Where-Object { $_ -notin @($routingSchema.required) })
+    Assert-True 'Routing schema persists route, reason, spawn, reuse and source evidence' `
+        ($missingRoutingFields.Count -eq 0) "Missing routing fields: $($missingRoutingFields -join ', ')"
     $resultFields = @('conclusion','findings','provenance','affected_ids','unknowns','conflicts','decision_candidates','evidence_references','source_fingerprints')
     $missingResultFields = @($resultFields | Where-Object { $_ -notin @($resultSchema.required) })
     Assert-True 'R10 result schema carries provenance, fingerprints and compact findings' `
@@ -144,6 +153,10 @@ try {
 
     $policy = Get-Content $PolicyPath -Raw
     Assert-True 'R4 deterministic repair stays with helpers' (($policy -match 'Do not delegate YAML quoting') -and ($policy -match 'schema checks')) 'Deterministic routing missing'
+    Assert-True 'Bounded semantic work requires a persisted pre-analysis decision and actual live spawn' `
+        (($policy -match 'MUST make') -and ($policy -match 'Save-MxAgileRoutingDecision') -and ($policy -match 'MUST be attempted') -and ($policy -match 'actually exposed by the current session')) 'Executable route gate missing'
+    Assert-True 'Raw-source retrieval cannot replace semantic delegation routing' `
+        (($policy -match 'classify semantic work derived from those sources independently') -and ($policy -match 'Context Mode must never suppress')) 'Context and delegation routes are conflated'
     Assert-True 'R5/R6 batching rejects one-agent-per-artifact for 87/52 cases' `
         (($policy -match '87 requirements') -and ($policy -match '52 decisions') -and ($policy -match 'one subagent per file or requirement')) 'Anti-amplification fixture missing'
     Assert-True 'R7 main agent retains lifecycle and final planning authority' `
