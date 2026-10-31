@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
 RF-002: Context Mode setup/discovery state regression tests.
-Verifies that INSTALLED / REGISTERED / LOADED / ACTIVE states are clearly distinguished.
+Verifies setup states separately from the MxAgile capability ACTIVE state.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +32,8 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 $content = Get-Content $integrationFile -Raw
+$setupStatesMatch = [regex]::Match($content, '(?ms)^setup_states:\r?\n(.*?)(?=^\S[^:\r\n]*:|\z)')
+$setupStateKeys = @([regex]::Matches($setupStatesMatch.Groups[1].Value, '(?m)^    ([A-Z_]+):') | ForEach-Object { $_.Groups[1].Value })
 
 # -----------------------------------------------------------------------
 # Test 1: integration file defines setup_states section
@@ -44,15 +46,23 @@ if ($content -match "setup_states:") {
 }
 
 # -----------------------------------------------------------------------
-# Test 2: All four states defined
+# Test 2: Setup states use current setup/runtime vocabulary, not capability state
 # -----------------------------------------------------------------------
-foreach ($state in @("INSTALLED", "REGISTERED", "LOADED", "ACTIVE")) {
-    $t = "State '$state' defined in setup_states"
-    if ($content -match "\b$state\b:") {
+foreach ($state in @("INSTALLED", "CONFIGURED", "LOADED", "HEALTHY", "USABLE")) {
+    $t = "Setup state '$state' defined in setup_states"
+    if ($content -match "(?m)^    ${state}:") {
         Pass $t
     } else {
         Fail $t "setup_states does not define state '$state'"
     }
+}
+$t = "ACTIVE is a capability state, not a setup state"
+if (($setupStateKeys -notcontains 'ACTIVE') -and
+    ($content -match 'mapping_to_capability_states:') -and
+    ($content -match 'active:\s*"available AND enabled AND integration\.usable')) {
+    Pass $t
+} else {
+    Fail $t "ACTIVE must remain separate from setup_states and derive from capability usability"
 }
 
 # -----------------------------------------------------------------------

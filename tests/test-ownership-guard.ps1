@@ -49,7 +49,13 @@ $InstCore    = Join-Path $ScriptDir "scripts/install-core.ps1"
 Write-Host ""
 Write-Host "TEST A: FRAMEWORK_CHANGE classification happens before any action" -ForegroundColor Cyan
 Assert-FileContains "A.1 ownership-guard.md defines FRAMEWORK_CHANGE classification" $OwnerPol 'FRAMEWORK_CHANGE Classification'
-Assert-FileContains "A.2 orchestrator.md has FRAMEWORK_CHANGE as first startup check" $Orchestrator 'FRAMEWORK_CHANGE Detection.*ERSTES'
+$orchestratorContent = Get-Content -LiteralPath $Orchestrator -Raw -ErrorAction SilentlyContinue
+$orientationOffset = $orchestratorContent.IndexOf('## ORIENTATION Check (vor FRAMEWORK_CHANGE)', [System.StringComparison]::Ordinal)
+$frameworkChangeOffset = $orchestratorContent.IndexOf('## FRAMEWORK_CHANGE Detection', [System.StringComparison]::Ordinal)
+$startupResyncOffset = $orchestratorContent.IndexOf('## Startup Re-Sync', [System.StringComparison]::Ordinal)
+Assert-True "A.2 orchestrator checks orientation first, then framework ownership before lifecycle work" `
+    ($orientationOffset -ge 0 -and $frameworkChangeOffset -gt $orientationOffset -and $startupResyncOffset -gt $frameworkChangeOffset) `
+    "Offsets: orientation=$orientationOffset framework=$frameworkChangeOffset resync=$startupResyncOffset"
 Assert-FileContains "A.3 orchestrator.md checks workspace type before proceeding" $Orchestrator 'Consumer-Projekt.*NICHT veraendern'
 
 # TEST B: Consumer project agent does not patch installed .mxagile/
