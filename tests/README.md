@@ -8,7 +8,8 @@
 - Missing shared project templates were replaced in affected tests by GUID-scoped synthetic fixtures. No real project data is copied into fixtures.
 - Resolver absence checks now isolate `PATH`; CLI migration status gets a generated temporary project. Both run without optional-fixture skips.
 - Measured targeted runtimes: CLI 118.21 s (94/94 PASS; prior Full-Gate observation 137.77 s/INCOMPLETE) and Workcopy Hygiene 64.63 s (50/50 PASS; its 1,001-file synthetic copy took 4.1 s). WP-10 completed 108/108 in 5.89 s, versus 67.55 s in the prior Full-Gate run that included a nested acquisition suite.
-- Release Gate is not yet run for this stabilization mission. The one final gate is deferred until all targeted clusters pass.
+- Final Release Gate: PASS. Exactly one run was executed with `python tests/run-impact-tests.py --base 996ef6c --tier release`; Tier 0, Tier 1, and Tier 2 all passed, with 0 failed and 0 incomplete suites. The feature and baseline changes are committed, and the final impact plan has no unmapped paths.
+- Slowest measured suites in that final run: `test-layer-update.ps1` 312.37 s, `test-context-mode-harness.ps1` 161.36 s, `test-git-recovery.ps1` 117.20 s, and `test-mxagile-dev-cli.ps1` 112.48 s. These are observed run times, not performance savings estimates.
 
 The sections below marked historical retain the 2026-09-28 test architecture snapshot; their test counts and timing estimates are not current baseline values.
 
