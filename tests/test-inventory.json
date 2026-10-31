@@ -1168,6 +1168,36 @@
     "Reason": "MxAgile 1.5 capability resolver operational tests (scenarios A-P): syntax valid, expected parameters, no-.mxagile-dir error, JSON output structure (framework_version, capabilities, upgrade_awareness), disabled config reports enabled=false, enabled config reports enabled=true, missing dependency reports unavailable=true, enabled+unavailable not active, context_lifecycle active when enabled, -Capability filter, unknown capability error, CheckUpgrades with no state, UpdateDiscoveryState writes file, last_seen_version read. Uses GUID temp dirs in $env:TEMP with minimal .mxagile fixture. Runs Get-MxAgileCapabilities.ps1 as subprocess. No network, no mxcli."
   },
   {
+    "File": "test-agent-delegation.ps1",
+    "Tier": 1,
+    "FastGate": false,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Capability-driven bounded delegation and harness profile resolution. Uses a GUID temp project, isolated process-environment overrides, adapter fixtures, schema assertions, and the semantic-compatibility fixture. No network, mxcli, or shared state."
+  },
+  {
+    "File": "test-agent-delegation-results.ps1",
+    "Tier": 1,
+    "FastGate": false,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": true,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Delegated-result save/retrieve, source freshness, legacy 1.0 reuse, model-resolution persistence, and checkpoint compaction reuse. Uses a GUID temporary project and local Git repository; no network, mxcli, or shared cache."
+  },
+  {
     "File": "test-capability-discovery-routing.ps1",
     "Tier": 2,
     "FastGate": false,

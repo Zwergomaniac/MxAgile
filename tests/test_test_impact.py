@@ -24,6 +24,47 @@ class ImpactTests(unittest.TestCase):
     def test_installer_requires_integration(self):
         self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
 
+    def test_delegation_policy_and_adapter_paths_are_targeted(self):
+        paths = [
+            ".mxagile/adapters/claude/agent-delegation.yaml",
+            ".mxagile/delegation.yaml",
+            ".mxagile/model-profiles.yaml",
+            ".mxagile/policies/agent-delegation.md",
+            "tests/fixtures/delegation/semantic-compatibility.json",
+        ]
+        plan = impact.select(paths)
+        self.assertEqual(plan["tier"], 1)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-agent-delegation.ps1"])
+
+    def test_capability_catalog_and_orchestrator_have_distinct_consumers(self):
+        capabilities = impact.select([".mxagile/capabilities.yaml", ".mxagile/config.yaml", ".mxagile/version.yaml"])
+        self.assertEqual(capabilities["unmapped"], [])
+        self.assertIn("test-capabilities-resolver.ps1", capabilities["suites"])
+        self.assertIn("test-capability-discovery-routing.ps1", capabilities["suites"])
+        orchestrator = impact.select([".mxagile/orchestrator.md"])
+        self.assertEqual(orchestrator["tier"], 1)
+        self.assertIn("test-ownership-guard.ps1", orchestrator["suites"])
+
+    def test_delegated_result_and_handoff_contracts_are_targeted(self):
+        plan = impact.select([
+            ".mxagile/schemas/delegation-handoff.schema.json",
+            ".mxagile/schemas/delegation-result.schema.json",
+            ".mxagile/schemas/harness-adapter.schema.json",
+            "scripts/Get-MxAgileCapabilities.ps1",
+            "scripts/Get-MxAgileDelegationResult.ps1",
+            "scripts/Save-MxAgileDelegationResult.ps1",
+            "scripts/Write-MxAgileEpochCheckpoint.ps1",
+        ])
+        self.assertEqual(plan["tier"], 2)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertIn("test-agent-delegation.ps1", plan["suites"])
+        self.assertIn("test-agent-delegation-results.ps1", plan["suites"])
+        self.assertIn("test-context-lifecycle-rollover.ps1", plan["suites"])
+
+    def test_delegation_mapping_does_not_downgrade_installer(self):
+        self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
+
     def test_unknown_fails_closed(self):
         self.assertEqual(impact.select(["scripts/new-authority.py"])["tier"], 3)
 
