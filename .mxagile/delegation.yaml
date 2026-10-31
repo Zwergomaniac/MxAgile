@@ -1,0 +1,49 @@
+schema_version: "1.0"
+
+# Semantic effort classes. Harness adapters resolve these profiles locally.
+model_profiles:
+  LIGHT:
+    use_for: "Low-ambiguity classification, structured extraction, and short summaries."
+    reliability_guard: "Use only when the expected decision is straightforward and adequately reliable."
+  MID:
+    use_for: "Default for bounded requirement batches, UI/parity work, acceptance, and routine implementation analysis."
+  HIGH:
+    use_for: "Planning, ambiguous historical reconstruction, contract conflicts, root-cause analysis, and difficult reconciliation."
+    escalation_guard: "Do not select only because the task or source set is large."
+
+# Defaults describe mission shape, not provider/model identity.
+agent_defaults:
+  discovery: MID
+  refinement: MID
+  planning: HIGH
+  main_integration: MID
+  implementation: MID
+  ui: MID
+  acceptance: MID
+  migration: mission_dependent
+  mocketeer: mission_dependent
+  maintainer: mission_dependent
+
+mission_overrides:
+  deterministic_work: null
+  deterministic_core_update: null
+  deterministic_mocketeer_transformation: null
+  migration_classification: MID
+  ambiguous_historical_reconstruction: HIGH
+  conflicting_active_reference: HIGH
+  difficult_refinement_conflict: HIGH
+  mocketeer_revision_conflict: HIGH
+  ambiguous_maintenance_root_cause: HIGH
+  final_conflicting_findings_reconciliation: HIGH
+  final_lifecycle_or_gate_decision: main_agent_authority
+
+routing:
+  order:
+    - deterministic_helper_or_script
+    - context_mode_for_large_raw_source_when_usable
+    - subagent_for_bounded_semantic_investigation_when_supported
+    - targeted_main_agent_work
+  bounded_batching:
+    dimensions: [mission_coherence, artifact_count, estimated_context_size, handoff_size, harness_concurrency]
+    fixed_batch_size: null
+    one_agent_per_artifact: false

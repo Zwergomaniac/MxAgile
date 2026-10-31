@@ -102,8 +102,11 @@ param(
 
     [switch]$UpdateDiscoveryState,
 
-    [ValidateSet('auto', 'claude_code', 'copilot_cli', 'vscode_copilot', 'opencode', 'other')]
+    [ValidateSet('auto', 'claude_code', 'copilot_cli', 'vscode_copilot', 'opencode', 'codex', 'hermes', 'grok', 'concord', 'generic', 'other')]
     [string]$Harness = 'auto',
+
+    [ValidateSet('', 'LIGHT', 'MID', 'HIGH')]
+    [string]$ModelProfile = '',
 
     [ValidateSet('unknown', 'healthy', 'failed', 'timeout')]
     [string]$ContextModeHealth = 'unknown',
@@ -411,7 +414,7 @@ function Resolve-HarnessId {
     param([string]$Requested)
     $evidence = @()
     $envH = [Environment]::GetEnvironmentVariable('MXAGILE_HARNESS')
-    if ($envH -in @('claude_code', 'copilot_cli', 'vscode_copilot', 'opencode', 'other')) {
+    if ($envH -in @('claude_code', 'copilot_cli', 'vscode_copilot', 'opencode', 'codex', 'hermes', 'grok', 'concord', 'generic', 'other')) {
         $evidence += [ordered]@{ id = $envH; source = 'MXAGILE_HARNESS' }
     } elseif ($envH -eq 'claude') {
         $evidence += [ordered]@{ id = 'claude_code'; source = 'MXAGILE_HARNESS' }
@@ -457,6 +460,97 @@ function Resolve-HarnessId {
         }
     }
     return [pscustomobject]@{ id = 'unknown'; source = 'none'; ambiguous = $false; conflict = '' }
+}
+
+function Resolve-DelegationIntegration {
+    param([string]$ProjectRoot_, $HarnessResolution, [string]$Profile, [bool]$Enabled)
+
+    $result = [ordered]@{
+        status = 'unknown'
+        harness_id = $HarnessResolution.id
+        harness_evidence = $HarnessResolution.source
+        adapter = $null
+        adapter_harness_id = $null
+        named_agents = 'unknown'
+        generic_fork = 'unknown'
+        model_selection = 'unknown'
+        max_concurrency = $null
+        concurrency_notes = ''
+        requested_profile = if ($Profile) { $Profile } else { $null }
+        resolved_model = $null
+        model_resolution = if ($Profile) { 'use_available_agent_model' } else { 'not_requested' }
+        route_allowed = $false
+        fallback = 'main_agent_or_context_mode'
+        reason = ''
+    }
+
+    if ($HarnessResolution.ambiguous) {
+        $result.reason = $HarnessResolution.conflict
+        return $result
+    }
+    if ($HarnessResolution.id -eq 'unknown') {
+        $result.reason = 'No current-session harness attestation; delegation support is UNKNOWN.'
+        return $result
+    }
+
+    $adapterRelativePath = switch ($HarnessResolution.id) {
+        'claude_code' { 'adapters/claude/agent-delegation.yaml' }
+        'vscode_copilot' { 'adapters/copilot/agent-delegation-vscode.yaml' }
+        'copilot_cli' { 'adapters/copilot/agent-delegation-cli.yaml' }
+        default { "adapters/$($HarnessResolution.id)/agent-delegation.yaml" }
+    }
+    $adapterPath = Join-Path (Join-Path $ProjectRoot_ '.mxagile') $adapterRelativePath
+    if (-not (Test-Path -LiteralPath $adapterPath -PathType Leaf)) {
+        $result.reason = "No assessed delegation adapter for harness '$($HarnessResolution.id)'; support remains UNKNOWN."
+        return $result
+    }
+
+    $adapterLines = Get-Content -LiteralPath $adapterPath
+    $inDelegation = $false
+    $inProfiles = $false
+    $profileMappings = @{}
+    foreach ($line in $adapterLines) {
+        if ($line -match '^delegation:\s*$') { $inDelegation = $true; continue }
+        if (-not $inDelegation) { continue }
+        if ($line -match '^\S') { $inDelegation = $false; $inProfiles = $false; continue }
+        if ($line -match '^  profiles:\s*$') { $inProfiles = $true; continue }
+        if ($line -match '^  harness_id:\s*([a-z0-9_]+)\s*$') { $result.adapter_harness_id = $Matches[1] }
+        elseif ($line -match '^  concurrency_notes:\s*(.*?)\s*$') { $result.concurrency_notes = $Matches[1].Trim('"').Trim("'") }
+        if ($inProfiles -and $line -match '^    (LIGHT|MID|HIGH):\s*(.*?)\s*$') {
+            $profileMappings[$Matches[1]] = $Matches[2].Trim().Trim('"').Trim("'")
+            continue
+        }
+        if ($line -match '^  status:\s*(supported|unsupported|unknown)\s*$') { $result.status = $Matches[1] }
+        elseif ($line -match '^  named_agents:\s*(supported|unsupported|unknown)\s*$') { $result.named_agents = $Matches[1] }
+        elseif ($line -match '^  generic_fork:\s*(supported|unsupported|unknown)\s*$') { $result.generic_fork = $Matches[1] }
+        elseif ($line -match '^  model_selection:\s*(supported|unsupported|unknown)\s*$') { $result.model_selection = $Matches[1] }
+        elseif ($line -match '^  max_concurrency:\s*(\d+|null)\s*$') {
+            if ($Matches[1] -ne 'null') { $result.max_concurrency = [int]$Matches[1] }
+        }
+    }
+    $result.adapter = $adapterRelativePath
+    if ($result.adapter_harness_id -ne $HarnessResolution.id) {
+        $result.reason = "Adapter identity mismatch: expected '$($HarnessResolution.id)', received '$($result.adapter_harness_id)'; support remains UNKNOWN."
+        return $result
+    }
+    if ($result.status -eq 'supported') {
+        $result.route_allowed = $Enabled
+        $result.reason = if ($Enabled) { 'Harness adapter explicitly supports bounded delegation.' } else { 'Delegation is disabled in project configuration.' }
+    } elseif ($result.status -eq 'unsupported') {
+        $result.reason = 'Harness adapter explicitly reports delegation unsupported; use the main-agent or Context Mode fallback.'
+    } else {
+        $result.reason = 'Harness adapter does not establish delegation support; use the main-agent or Context Mode fallback.'
+    }
+
+    if ($Profile) {
+        if ($result.model_selection -eq 'supported' -and $profileMappings.ContainsKey($Profile) -and $profileMappings[$Profile] -and $profileMappings[$Profile] -ne 'null') {
+            $result.resolved_model = $profileMappings[$Profile]
+            $result.model_resolution = 'adapter_profile_mapping'
+        } else {
+            $result.model_resolution = 'use_available_agent_model'
+        }
+    }
+    return $result
 }
 
 function New-ContextModeDetection {
@@ -955,8 +1049,22 @@ function Resolve-Capability {
         if (-not $configEnabled) { $resolved.state_reason += ' Not enabled in project configuration.' }
     }
 
+    if ($Cap.id -eq 'subagent_spawn') {
+        $harnessResolution = Resolve-HarnessId -Requested $Harness
+        $delegation = Resolve-DelegationIntegration -ProjectRoot_ $ProjectRoot -HarnessResolution $harnessResolution `
+            -Profile $ModelProfile -Enabled $configEnabled
+        $resolved.integration = $delegation
+        switch ($delegation.status) {
+            'supported' { $resolved.available = $true; $resolved.unavailable = $false }
+            'unsupported' { $resolved.available = $false; $resolved.unavailable = $true }
+            default { $resolved.available = $false; $resolved.unavailable = $false }
+        }
+        $resolved.active = $false
+        $resolved.state_reason = $delegation.reason
+    }
+
     # Active = available AND enabled AND not unavailable (and, for integrations, verified usable)
-    if ($resolved.available -and $resolved.enabled -and -not $resolved.unavailable) {
+    if ($Cap.id -ne 'subagent_spawn' -and $resolved.available -and $resolved.enabled -and -not $resolved.unavailable) {
         $resolved.active = ($null -eq $resolved.integration) -or $resolved.integration.usable
         if ($resolved.degraded) {
             $resolved.active = $false  # degraded dep means DEGRADED, not ACTIVE

@@ -236,6 +236,30 @@ capabilities:
     notes: "Requires Graphify CLI installation. Run 'scripts/install-graphify.ps1' for project-local installation."
 
   # -----------------------------------------------------------------------
+  # Agent Orchestration
+  # -----------------------------------------------------------------------
+
+  - id: subagent_spawn
+    name: "Bounded Agent Delegation"
+    description: "Route bounded semantic investigations to a harness-supported subagent while the main agent retains lifecycle and integration authority."
+    category: agent-orchestration
+    version_introduced: "1.9"
+    default_state: "on"
+    config_location: ".mxagile/config.yaml"
+    config_key: "agent_delegation.enabled"
+    activation_mechanism: "Set agent_delegation.enabled: true. Delegation is used only when the current-session harness is attested and its adapter reports supported."
+    requires: []
+    external_dependencies: []
+    incompatibilities: []
+    availability_detection: "Resolve the attested harness and its agent-delegation adapter. Missing or unassessed adapter is UNKNOWN; never infer support from another harness."
+    risk: low
+    docs_ref: ".mxagile/policies/agent-delegation.md"
+    agent_may_recommend: true
+    agent_may_activate_config: false
+    user_approval_required: false
+    notes: "Capability support does not mean a subagent is active. Each delegation requires a bounded mission and a compact result artifact."
+
+  # -----------------------------------------------------------------------
   # Toolchain — Studio Pro MCP and Concord MCP
   # -----------------------------------------------------------------------
 

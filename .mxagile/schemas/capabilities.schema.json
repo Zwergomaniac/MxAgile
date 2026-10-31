@@ -42,7 +42,7 @@
         },
         "category": {
           "type": "string",
-          "enum": ["context-lifecycle", "context-optimization", "knowledge-graph", "toolchain"],
+          "enum": ["context-lifecycle", "context-optimization", "knowledge-graph", "agent-orchestration", "toolchain"],
           "description": "Capability category."
         },
         "version_introduced": {

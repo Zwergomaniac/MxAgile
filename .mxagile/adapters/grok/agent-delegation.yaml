@@ -1,0 +1,11 @@
+harness_id: grok
+assessed_date: "2026-10-31"
+delegation:
+  harness_id: grok
+  status: unknown
+  named_agents: unknown
+  generic_fork: unknown
+  model_selection: unknown
+  max_concurrency: null
+  concurrency_notes: "Not assessed; no verified delegation contract."
+  evidence: "No repository-verified agent delegation contract."

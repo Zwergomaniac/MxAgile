@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:delegation-handoff",
+  "title": "MxAgile Bounded Delegation Handoff",
+  "description": "Minimal task-scoped input to one subagent. Conversation history, repository-wide context, secrets, and historical reports are not handoff fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mission_id",
+    "delegation_id",
+    "task",
+    "scope",
+    "authority_references",
+    "artifact_paths",
+    "source_fingerprints",
+    "allowed_tools",
+    "forbidden_mutations",
+    "expected_result_schema",
+    "model_profile"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "mission_id": { "type": "string", "minLength": 1 },
+    "delegation_id": { "type": "string", "pattern": "^DELEGATION-[A-Za-z0-9._-]+$" },
+    "task": { "type": "string", "minLength": 1 },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "paths"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "paths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "authority_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "reference"],
+        "properties": {
+          "kind": { "type": "string" },
+          "reference": { "type": "string" },
+          "revision": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "artifact_paths": { "type": "array", "items": { "type": "string" } },
+    "source_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "allowed_tools": { "type": "array", "items": { "type": "string" } },
+    "forbidden_mutations": { "type": "array", "items": { "type": "string" } },
+    "expected_result_schema": { "type": "string", "const": "delegation-result/1.0" },
+    "model_profile": { "type": ["string", "null"], "enum": ["LIGHT", "MID", "HIGH", null] },
+    "context_budget_tokens": { "type": ["integer", "null"], "minimum": 1 },
+    "result_budget_tokens": { "type": ["integer", "null"], "minimum": 1 }
+  }
+}

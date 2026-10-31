@@ -1,0 +1,11 @@
+harness_id: generic
+assessed_date: "2026-10-31"
+delegation:
+  harness_id: generic
+  status: unknown
+  named_agents: unknown
+  generic_fork: unknown
+  model_selection: unknown
+  max_concurrency: null
+  concurrency_notes: "No host-specific concurrency contract is available."
+  evidence: "Generic adapter makes no host-specific delegation claim."

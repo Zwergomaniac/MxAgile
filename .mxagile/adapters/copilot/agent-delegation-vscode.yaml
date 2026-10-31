@@ -1,0 +1,12 @@
+harness_id: vscode_copilot
+assessed_date: "2026-10-31"
+delegation:
+  harness_id: vscode_copilot
+  status: supported
+  named_agents: supported
+  generic_fork: supported
+  model_selection: supported
+  max_concurrency: null
+  evidence: "https://code.visualstudio.com/docs/agents/run/subagents and https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference; Copilot delegates with its native task tool and supports custom-agent model preferences."
+  concurrency_notes: "No fixed concurrency limit is stated in the assessed VS Code Copilot documentation; profile/model availability is session-dependent."
+  profiles: {}

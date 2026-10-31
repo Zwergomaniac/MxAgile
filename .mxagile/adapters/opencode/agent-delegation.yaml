@@ -1,0 +1,12 @@
+harness_id: opencode
+assessed_date: "2026-10-31"
+delegation:
+  harness_id: opencode
+  status: supported
+  named_agents: supported
+  generic_fork: unknown
+  model_selection: supported
+  max_concurrency: null
+  concurrency_notes: "The assessed agent documentation does not state a fixed concurrency limit."
+  evidence: "https://opencode.ai/docs/agents/; primary agents can invoke named subagents, and per-agent model configuration is documented. No generic conversation-fork contract was identified."
+  profiles: {}

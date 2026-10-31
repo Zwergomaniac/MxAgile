@@ -7,7 +7,7 @@
   "properties": {
     "adapter_version": {
       "type": "string",
-      "const": "1.1",
+      "const": "1.2",
       "description": "Adapter contract version for forward-compatibility detection."
     },
     "model_capability": {
@@ -21,6 +21,10 @@
     "harness_capability": {
       "$ref": "#/definitions/harness_capability",
       "description": "What the harness can do for context lifecycle management."
+    },
+    "delegation": {
+      "$ref": "#/definitions/delegation_capability",
+      "description": "Harness-specific agent delegation contract. Absent fields are UNKNOWN and must never be inferred from another harness."
     },
     "context_transition": {
       "$ref": "#/definitions/context_transition",
@@ -107,6 +111,35 @@
           "description": "True if the harness supports the full epoch transition protocol (checkpoint + fresh context + resume). When false, rollover produces a deterministic rollover-ready state but cannot execute the transition.",
           "default": false
         }
+      }
+    },
+
+    "delegation_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["harness_id", "status", "named_agents", "generic_fork", "model_selection"],
+      "properties": {
+        "harness_id": {
+          "type": "string",
+          "enum": ["claude_code", "copilot_cli", "vscode_copilot", "opencode", "codex", "hermes", "grok", "concord", "generic", "unknown"]
+        },
+        "status": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
+        "named_agents": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
+        "generic_fork": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
+        "model_selection": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
+        "max_concurrency": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Effective verified concurrency ceiling for the current harness context. Null when session/plan configuration makes the effective value unknown."
+        },
+        "concurrency_notes": { "type": "string" },
+        "model_profiles": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Optional harness-owned resolution of LIGHT/MID/HIGH to currently supported model identifiers. Never a Core ranking."
+        },
+        "evidence": { "type": "string" },
+        "assessed_date": { "type": "string", "format": "date" }
       }
     },
 

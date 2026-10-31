@@ -50,6 +50,10 @@ graphify:
 # Schema:        .mxagile/schemas/context-epoch.schema.json
 # Documentation: docs/context-lifecycle.md
 # ---------------------------------------------------------------------------
+agent_delegation:
+  # A supported current-harness adapter is still required for every route.
+  enabled: true
+
 context_lifecycle:
   # Master switch. When false all sub-features are inactive.
   # DEFAULT POLICY (MxAgile 1.6, post-acceptance):

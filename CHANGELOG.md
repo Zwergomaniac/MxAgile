@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.9.0] - 2026-10-31
+
+### Added: Capability-Driven Bounded Delegation
+
+- Harness-attested `subagent_spawn` capability with explicit `supported`,
+	`unsupported`, and `unknown` states; no support is inferred across harnesses.
+- Bounded handoff and compact result schemas; source fingerprints, mission binding,
+	secret-pattern rejection, path confinement, and stale-result refusal.
+- Context Epoch artifact references survive checkpoint/compaction rewrites, allowing
+	completed results to be retrieved without rereading full reports or transcripts.
+- `LIGHT`, `MID`, and `HIGH` mission profiles with harness-owned model resolution,
+	dynamic batching constraints, conservative escalation, and main-agent authority.
+
 ## [1.8.0] - 2026-10-30
 
 ### Added: Deterministic Project Mission Control

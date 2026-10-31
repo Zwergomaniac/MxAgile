@@ -12,6 +12,14 @@ Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 Lifecycle Re-Sync & Interruption: siehe `policies/lifecycle-resync.md`.
 Ownership-Guard: siehe `policies/ownership-guard.md`.
 
+## Bounded Agent Delegation
+
+Delegate only bounded semantic investigation when the attested harness capability
+is `supported`; deterministic work stays with helpers/scripts, and lifecycle,
+gate, integration, and final decisions stay with the main agent. Full routing,
+handoff, result-reuse, model-profile, anti-amplification and interruption contract:
+`policies/agent-delegation.md`.
+
 ---
 
 ## Board Authority Guard

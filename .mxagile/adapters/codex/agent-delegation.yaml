@@ -1,0 +1,12 @@
+harness_id: codex
+assessed_date: "2026-10-31"
+delegation:
+  harness_id: codex
+  status: supported
+  named_agents: supported
+  generic_fork: unknown
+  model_selection: supported
+  max_concurrency: null
+  concurrency_notes: "Concurrency is configurable per session; the default is chosen by Codex and is not specified in the assessed documentation."
+  evidence: "https://learn.chatgpt.com/docs/agent-configuration/subagents; Codex documents built-in/custom named agents, parallel workflows, model selection, and configurable concurrency. No generic conversation-fork contract was identified."
+  profiles: {}

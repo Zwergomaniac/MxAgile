@@ -1,10 +1,10 @@
 # MxAgile Capability Discovery
 
-**MxAgile 1.5 — Context Optimization & Capability Discovery**
+**MxAgile 1.9 — Capability Discovery and Agent Orchestration**
 
 ## Overview
 
-MxAgile 1.5 introduces a machine-readable Capability Registry and a single authoritative resolver. Any agent or human can determine which Framework capabilities exist, are available in the current environment, and are enabled for the project — without relying on model memory.
+MxAgile 1.5 introduced a machine-readable Capability Registry and a single authoritative resolver. MxAgile 1.9 adds harness-attested bounded agent delegation. Any agent or human can determine which Framework capabilities exist, are available in the current environment, and are enabled for the project — without relying on model memory.
 
 ## Capability State Model
 
@@ -124,6 +124,25 @@ See `docs/context-optimization.md` for installation and configuration.
 | ID | Name | Introduced | Default | External Dep |
 |----|------|------------|---------|--------------|
 | `graphify` | Graphify Code Graph | 1.0 | off | graphify >=0.9.28 |
+
+### Agent Orchestration Category
+
+| ID | Name | Introduced | Default |
+|----|------|------------|---------|
+| `subagent_spawn` | Bounded Agent Delegation | 1.9 | on |
+
+Resolve this capability only when semantic delegation is a candidate:
+
+```powershell
+& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -Capability subagent_spawn -Format json -ModelProfile MID
+```
+
+Only an attested harness adapter with `integration.status: supported` allows a
+route. `unsupported`, `unknown`, missing adapter, or disabled project configuration
+falls back without blocking. `ACTIVE` remains false until an actual mission runs.
+The harness owns model-profile resolution; Core stores only `LIGHT`, `MID`, or
+`HIGH`. See `.mxagile/policies/agent-delegation.md` for handoff, anti-amplification,
+authority, result persistence, and resume rules.
 
 ## Safe Agentic Activation
 

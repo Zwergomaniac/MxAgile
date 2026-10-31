@@ -1,0 +1,11 @@
+harness_id: concord
+assessed_date: "2026-10-31"
+delegation:
+  harness_id: concord
+  status: unknown
+  named_agents: unknown
+  generic_fork: unknown
+  model_selection: unknown
+  max_concurrency: null
+  concurrency_notes: "Not assessed; Concord is currently treated as a tool integration, not an agent harness."
+  evidence: "Concord is a tool integration and no separate agent delegation contract has been verified."

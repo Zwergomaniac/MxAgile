@@ -1,7 +1,12 @@
-version: "1.8.0"
+version: "1.9.0"
 min_compatible: "1.0"
-updated: "2026-10-30"
+updated: "2026-10-31"
 changes:
+  "1.9.0":
+    - "Capability-driven bounded agent delegation with per-harness supported/unsupported/unknown states and conservative fallback"
+    - "Compact delegated result artifacts with mission binding, source fingerprints, stale-result refusal, and Context Epoch references across compaction"
+    - "Generic LIGHT/MID/HIGH mission profiles resolved only by harness adapters; no Core model ranking or provider mapping"
+    - "Bounded handoff schema, anti-amplification rules, main-agent authority, interruption/resume, and delegation observability contract"
   "1.8.0":
     - "Compatibility Doctor: read-only parser/schema/reference diagnostics, partial projection, post-update checks and controlled fingerprint-bound repair plans"
     - "Mission Control: read-only local project board with portfolio, project overview, waves, requirements, verification, findings, and decisions"
