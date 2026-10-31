@@ -170,7 +170,8 @@ def _read_yaml(filepath):
 def _emit_edge(edges, from_id, to_id, edge_type, provenance_type, source_field,
                all_artifact_ids, warn_prefix):
     """Helper: emit an edge if both endpoints exist in the index, or warn."""
-    if to_id in all_artifact_ids:
+    missing_ids = [artifact_id for artifact_id in (from_id, to_id) if artifact_id not in all_artifact_ids]
+    if not missing_ids:
         edges.append({
             'from': from_id,
             'to': to_id,
@@ -179,10 +180,10 @@ def _emit_edge(edges, from_id, to_id, edge_type, provenance_type, source_field,
         })
         print(f'[DEBUG] Edge: {from_id} --{edge_type}--> {to_id}')
         return True
-    else:
+    for missing_id in missing_ids:
         print(f'[WARN] Broken {source_field} reference in {warn_prefix}: '
-              f'{to_id} not found in index')
-        return False
+              f'{missing_id} not found in index')
+    return False
 
 
 # ---------------------------------------------------------------------------

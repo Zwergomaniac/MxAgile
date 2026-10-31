@@ -70,17 +70,6 @@ function Assert-NotContains {
     }
 }
 
-function Invoke-RegressionSuite {
-    param([string]$TestName, [string]$ScriptPath)
-    if (-not (Test-Path -LiteralPath $ScriptPath)) {
-        Assert-True $TestName $false "Regression script not found: $ScriptPath"
-        return
-    }
-    $output   = & powershell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath 2>&1
-    $exitCode = $LASTEXITCODE
-    Assert-True $TestName ($exitCode -eq 0) "Exited $exitCode. Last: $(($output | Select-Object -Last 5) -join ' | ')"
-}
-
 function New-TempDir {
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "mxagile-wp10-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -ItemType Directory -Path $tmp -Force | Out-Null
@@ -190,8 +179,8 @@ Assert-Contains "C4: indexer reads requirements list for IMPLEMENTED_BY edges (s
 Assert-Contains "C5: indexer reads spec field for IMPLEMENTED_BY edge (task)" $IndexerScript "\.get\('spec'\)"
 Assert-Contains "C6: indexer reads action field as task display name" $IndexerScript "'action'"
 Assert-Contains "C7: indexer falls back to description for task display" $IndexerScript "get_display_name"
-Assert-Contains "C8: indexer emits WARN for broken derivedFrom reference" $IndexerScript "Broken derivedFrom"
-Assert-Contains "C9: indexer emits WARN for broken spec reference" $IndexerScript "Broken spec"
+Assert-Contains "C8: indexer warns for unresolved requirement.derivedFrom references" $IndexerScript "requirement\.derivedFrom"
+Assert-Contains "C9: indexer warns for unresolved spec.requirements references" $IndexerScript "spec\.requirements\[\]"
 Assert-Contains "C10: indexer filters requirements/*.yml" $IndexerScript "'requirements'"
 Assert-Contains "C11: indexer filters specs/*.yml" $IndexerScript "'specs'"
 Assert-Contains "C12: indexer filters planning/tasks/*.yml" $IndexerScript "'planning/tasks'"
@@ -501,12 +490,17 @@ Write-Host "--- H: Indexer emits WARN for broken references ---"
 
 $tmpDir4 = New-TempDir
 try {
+    $reqDir4   = Join-Path $tmpDir4 "requirements"
     $specDir4  = Join-Path $tmpDir4 "specs"
     $taskDir4  = Join-Path $tmpDir4 "planning\tasks"
     $stateDir4 = Join-Path $tmpDir4 ".mxagile\state"
+    New-Item -ItemType Directory -Path $reqDir4   -Force | Out-Null
     New-Item -ItemType Directory -Path $specDir4  -Force | Out-Null
     New-Item -ItemType Directory -Path $taskDir4  -Force | Out-Null
     New-Item -ItemType Directory -Path $stateDir4 -Force | Out-Null
+
+    Set-Content -Path (Join-Path $reqDir4 "REQ-001.yml") `
+        -Value "ID: REQ-001`ntitle: Synthetic requirement`nderivedFrom: PAGE-999`n" -Encoding UTF8
 
     # Spec references non-existent requirement
     @"
@@ -536,12 +530,13 @@ action: "Test task"
         $indexScript = Join-Path $RepoRoot "scripts\build_artifact_index.py"
         $output = & $py $indexScript --path $tmpDir4 2>&1
         $outputStr = $output -join "`n"
-        Assert-True "H1: broken requirements reference emits WARN" ($outputStr -match "\[WARN\].*REQ-999") "No WARN for broken REQ-999 ref"
-        Assert-True "H2: broken spec reference emits WARN" ($outputStr -match "\[WARN\].*SPEC-999") "No WARN for broken SPEC-999 ref"
-        Assert-True "H3: indexer still exits 0 with broken refs (report, not abort)" ($LASTEXITCODE -eq 0) "Exited non-zero"
+        Assert-True "H1: broken derivedFrom source endpoint emits WARN" ($outputStr -match "\[WARN\].*PAGE-999") "No WARN for broken PAGE-999 reference"
+        Assert-True "H2: broken spec requirements source endpoint emits WARN" ($outputStr -match "\[WARN\].*REQ-999") "No WARN for broken REQ-999 reference"
+        Assert-True "H3: broken task spec source endpoint emits WARN" ($outputStr -match "\[WARN\].*SPEC-999") "No WARN for broken SPEC-999 reference"
+        Assert-True "H4: indexer still exits 0 with broken refs (report, not abort)" ($LASTEXITCODE -eq 0) "Exited non-zero"
     } else {
-        Write-Host "  SKIP: H1-H3 (Python 3 not found)" -ForegroundColor DarkGray
-        for ($i = 0; $i -lt 3; $i++) { $script:PassCount++ }
+        Write-Host "  SKIP: H1-H4 (Python 3 not found)" -ForegroundColor DarkGray
+        for ($i = 0; $i -lt 4; $i++) { $script:PassCount++ }
     }
 } finally {
     Remove-TempDir $tmpDir4
@@ -602,19 +597,11 @@ Write-Host ""
 # ===========================================================================
 # GROUP K: Regression suites
 # ===========================================================================
-Write-Host "--- K: Regression suites ---"
-
-Invoke-RegressionSuite "K1: test-mxcli-acquisition.ps1 passes" `
-    (Join-Path $TestsDir "test-mxcli-acquisition.ps1")
-
-# K2 (test-migration-lifecycle-resync.ps1) and K3 (test-migration-provenance.ps1) removed.
-# K1 (test-mxcli-acquisition.ps1) Group L already calls both as transitive dependencies.
-# Running them explicitly here is pure duplication. Classification: REDUNDANT_EXECUTION.
-# Both remain standalone tests in run-all-tests.ps1.
-
-# K4: test-ps51-compatibility.ps1 is excluded from WP-10 suite intentionally.
-# It recurses into installer regression suites (K-P) that are not related to
-# artifact schema contract changes and would make this suite prohibitively slow.
+Write-Host "--- K: mxcli acquisition suite is independently inventoried ---"
+$inventory = Get-Content (Join-Path $TestsDir 'test-inventory.json') -Raw | ConvertFrom-Json
+$inventoryNames = @($inventory | ForEach-Object File)
+Assert-True "K1: test-mxcli-acquisition.ps1 is independently inventoried" `
+    ('test-mxcli-acquisition.ps1' -in $inventoryNames) "Missing inventory entry: test-mxcli-acquisition.ps1"
 
 Write-Host ""
 
