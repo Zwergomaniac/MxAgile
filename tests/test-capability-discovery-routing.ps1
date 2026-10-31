@@ -193,6 +193,7 @@ try {
 
 # --- E2E: existing-project update + idempotence ---------------------------------------------
 Write-Host "--- Existing project update ---" -ForegroundColor Yellow
+$oldSessionInstructions = $block -replace '(?s)8\. \*\*MxAgile install/update.*?(?=9\. \*\*Git index)', "8. MxAgile update: compare installed commit with upstream.`n`n"
 Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content $statusBuilder '# tampered' -Encoding UTF8
@@ -214,6 +215,16 @@ $beforeProcess = (Get-FileHash $invalidProcess).Hash
 $updateOutput = @(& pwsh -NoProfile -Command "& '$Installer' -ProjectRoot '$proj' -IsUpdate `$true" 2>&1)
 Assert-True 'update exit 0' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
 $invalidCompletion = Get-Content (Join-Path $proj '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
+Assert-True 'same-session pre-update loaded instructions remain stale' ($oldSessionInstructions -notmatch 'CONTRACTS_RE_SYNCED|last-update-result') 'fixture must model a session without the new completion contract'
+Assert-True 'same-session install does not attest loaded session currency' ($invalidCompletion.session_contract.state -eq 'RE_SYNC_REQUIRED' -and $invalidCompletion.session_contract.policy -eq '.mxagile/policies/update-contract.md') 'disk generation falsely attests session reload'
+$legacyFilteredOutput = ($updateOutput | Select-String -Pattern 'version=|commit=|FAILED|\[OK\] Core') -join "`n"
+foreach ($required in @('Doctor_executed=True', 'Compatibility=BLOCKED', 'blocking_diagnostic_count=', 'safe_deterministic_count=', 'agent_repairable_count=', 'decision_required_count=', 'unsupported_count=', 'SESSION_CONTRACT=RE_SYNC_REQUIRED', 're-read .mxagile/policies/update-contract.md', 'UPDATE_INSTALLED_RESTART_REQUIRED / NOT_VERIFIED')) {
+    Assert-True "CapTrack legacy log filter preserves $required" ($legacyFilteredOutput.Contains($required)) 'real legacy filter hides completion evidence'
+}
+foreach ($projection in @('AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md')) {
+    $installedInstructions = Get-Content (Join-Path $proj $projection) -Raw
+    Assert-True "same-session re-read of $projection exposes new contract" ($installedInstructions -match 'korrekt aktualisiert' -and $installedInstructions -match 'CONTRACTS_RE_SYNCED' -and $installedInstructions -match 'UPDATE_INSTALLED_RESTART_REQUIRED') 'updated managed projection lacks completion boundary'
+}
 Assert-True 'U2 YAML error is visible without false overall PASS' ($invalidCompletion.framework.update_successful -and $invalidCompletion.doctor.executed -and $invalidCompletion.doctor.compatibility -eq 'BLOCKED' -and ($updateOutput -join "`n") -match 'SYNTAX_ERROR: planning/lifecycle/process-state.yaml') 'invalid YAML hidden'
 Assert-True 'U2 prior provenance is retained in completion' ($invalidCompletion.framework.previous_version -eq $freshCompletion.framework.version -and $invalidCompletion.framework.previous_commit -eq $freshCompletion.framework.commit) 'previous framework identity absent'
 Assert-True 'U2 diagnostic handoff contains no invalid source contents' ((Get-Content (Join-Path $proj '.mxagile/state/last-update-result.json') -Raw) -notmatch 'fixture-value') 'raw YAML leaked'

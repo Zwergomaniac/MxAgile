@@ -38,6 +38,10 @@ function Invoke-PostUpdateCompatibility {
             version = $CoreProvenance.version
             commit = $CoreProvenance.commit
         }
+        session_contract = [ordered]@{
+            state = 'RE_SYNC_REQUIRED'
+            policy = '.mxagile/policies/update-contract.md'
+        }
         doctor = [ordered]@{
             executed = $false
             exit_code = $null
@@ -131,7 +135,16 @@ function Invoke-PostUpdateCompatibility {
         }
     }
     Write-Host 'Agent completion MUST report framework success AND project compatibility; read .mxagile/state/last-update-result.json.'
-    $summary = [ordered]@{ installed_at = $result.installed_at; framework = $result.framework; doctor = [ordered]@{} }
+    Write-Host 'SESSION_CONTRACT: RE_SYNC_REQUIRED (installed projections do not reload this running session).'
+    Write-Host 'Before answering, explicitly re-read .mxagile/policies/update-contract.md and follow its same-session contract re-sync, including active instructions/skills.'
+    Write-Host 'Report CONTRACTS_RE_SYNCED only after successful re-reads; otherwise UPDATE_INSTALLED_RESTART_REQUIRED and Project compatibility NOT_VERIFIED.'
+    $countFields = @('blocking_diagnostic_count', 'safe_deterministic_count', 'agent_repairable_count', 'decision_required_count', 'unsupported_count')
+    $counts = foreach ($field in $countFields) {
+        $value = if ($null -eq $doctor[$field]) { 'UNKNOWN' } else { $doctor[$field] }
+        "$field=$value"
+    }
+    Write-Host "version=$($CoreProvenance.version) commit=$commit Framework_update=SUCCESS Doctor_executed=$($doctor.executed) Compatibility=$($doctor.compatibility) repair_status=$($doctor.repair_status) $($counts -join ' ') SESSION_CONTRACT=RE_SYNC_REQUIRED; re-read .mxagile/policies/update-contract.md before completion; otherwise UPDATE_INSTALLED_RESTART_REQUIRED / NOT_VERIFIED"
+    $summary = [ordered]@{ installed_at = $result.installed_at; framework = $result.framework; session_contract = $result.session_contract; doctor = [ordered]@{} }
     foreach ($key in $doctor.Keys) {
         if ($key -ne 'report') { $summary.doctor[$key] = $doctor[$key] }
     }

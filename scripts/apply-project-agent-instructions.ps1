@@ -376,10 +376,14 @@ When starting, resuming, or picking up work, follow this order:
    `.mxagile/policies/capability-discovery.md`. Installed does not mean usable; never assume health;
    an unavailable or failing optional capability never blocks the normal MxAgile path.
 
-8. **MxAgile install/update requests** - follow `.mxagile/policies/update-contract.md`.
+8. **MxAgile install/update requests and verification ("korrekt aktualisiert?")** - follow `.mxagile/policies/update-contract.md`.
     A normal update includes the read-only post-update Doctor without another question.
     Report framework success separately from project compatibility, including diagnostics and
     repair counts from `.mxagile/state/last-update-result.json`; unavailable checks are NOT_VERIFIED.
+    After setup, explicitly re-read the installed contracts and active instructions as specified
+    there before reporting CONTRACTS_RE_SYNCED. Files regenerated on disk are not loaded session
+    policy. If safe re-sync is unavailable, report UPDATE_INSTALLED_RESTART_REQUIRED and
+    compatibility NOT_VERIFIED. Commit equality alone never means "korrekt aktualisiert".
 
 9. **Git index integrity before mutations** - run `python .mxagile/tools/git_index_integrity.py --project-root .`
     before git add/commit, migration, update, model writes, cleanup, rebase or merge.

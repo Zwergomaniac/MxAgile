@@ -129,11 +129,23 @@ pwsh -File scripts/install-core.ps1 -ProjectRoot <project> -IsUpdate $true
 
 The public entry point is `mxagile-setup.ps1` (or the Company Layer variant), which
 handles distribution acquisition, commit resolution, and invokes `install-core.ps1`.
+Use that public entry point for "MxAgile updaten"; do not invoke the installer
+with only `-ProjectRoot`, which defaults to fresh-install semantics and loses
+previous provenance. Direct distribution invocations must pass the recorded
+update flag and resolved source/ref/commit parameters.
+From Bash, prefer `pwsh -NoProfile -File <distribution>/mxagile-setup.ps1
+-ProjectRoot <project> -DistributionSource <source> -NonInteractive`.
+Do not pass an unquoted PowerShell `$true` through Bash: shell expansion can
+silently select install mode instead of update mode.
 
 Do NOT create a second competing update mechanism. Do NOT create a second Core distribution
 channel. Extend the existing mechanism only.
 
 ### Mandatory post-update compatibility and agent completion
+
+This contract also applies to follow-up verification such as "ist mxagile korrekt
+aktualisiert?". Commit equality answers Core currency only, never project health.
+Read this contract and current compatibility evidence again before answering.
 
 A plain request such as "MxAgile updaten" includes the read-only post-update
 Doctor without another user question. The completion sequence is:
@@ -149,6 +161,9 @@ diagnostic evidence only, never lifecycle authority. If the result is absent
 directly with `doctor --project-root . --format json` and consume its result.
 Never infer compatibility from framework version, commit, installer exit 0,
 migration completion, or a previous Doctor result.
+Do not filter completion output to version/commit or `[OK] Core` lines and then
+infer overall success. Read the structured handoff even if a log filter shows
+framework installation succeeded; compatibility and session re-sync are required.
 
 The final agent response MUST contain:
 - Framework: previous and new version/commit (UNKNOWN when unavailable), and
@@ -166,6 +181,40 @@ source contents. If Python, dependencies, schemas, or valid Doctor output are
 unavailable, report `NOT_VERIFIED` with the concrete reason, never PASS. Framework
 installation may still be successful. A failed installer remains a failed update;
 do not use an older successful handoff to override it.
+
+### Same-session contract re-sync before completion
+
+Installing files does not reload instructions already loaded by the agent host.
+`projections_currency: CURRENT` proves disk generation only, not loaded session
+currency. Treat pre-update policies, skills and managed instructions as stale,
+including when setup was invoked by an old session without this contract loaded.
+The installer emits `RE_SYNC_REQUIRED` as a handoff, not proof of a reload.
+
+Before the same session reports completion:
+1. Re-read the installed `.mxagile/state/core-provenance.json` and
+  `.mxagile/state/projections-manifest.json`; verify their non-null commit match.
+2. Explicitly read the installed `.mxagile/policies/update-contract.md`,
+  `.mxagile/policies/project-compatibility.md`, `.mxagile/policies/lifecycle-resync.md`,
+  `AGENT.md`, and the active harness managed instruction projection (for example
+  `.github/copilot-instructions.md`, `CLAUDE.md` or `AGENTS.md`). Re-read any
+  active MxAgile agent/skill used for this update or verification from disk.
+  Previously loaded text and a regenerated manifest are not these read operations.
+3. Apply the existing Lifecycle Re-Sync read-only, preserving delivery state.
+  Report `CONTRACTS_RE_SYNCED` only after these observed reads succeed; do not
+  write a session attestation into the installer-owned result.
+4. Consume the invocation-bound Doctor handoff as above (or run Doctor if missing),
+  then report Framework Update and Project Compatibility separately, with Doctor
+  executed, blocking diagnostic count and all four repairability counts. Unknown
+  counts are UNKNOWN, never zero. Report repair need via `repair_status`; it must
+  not disappear behind a CURRENT commit or a nonblocking compatibility state.
+
+If the host cannot safely apply the re-read contracts, required reads fail, or
+projection identity cannot be verified, report `UPDATE_INSTALLED_RESTART_REQUIRED`:
+Framework update SUCCESS when installation succeeded; Project compatibility
+NOT_VERIFIED for this session, with the concrete reload/re-sync gap. Preserve any
+observed Doctor result as separate diagnostic evidence, not an overall healthy
+verdict. Request explicit reload/re-sync or a new session only for this gap.
+No unconditional restart is required when the read-only re-sync succeeds.
 
 The automatic step runs Doctor only, never repair. SAFE_DETERMINISTIC availability
 is not a green result before repair. Actual repairs follow the existing

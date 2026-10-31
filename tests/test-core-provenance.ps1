@@ -39,6 +39,13 @@ function Assert-FileContains {
 
 Write-Host "`nCore Provenance Contract — $RepoRoot" -ForegroundColor Cyan
 
+$updatePolicy = Get-Content (Join-Path $RepoRoot '.mxagile/policies/update-contract.md') -Raw -Encoding UTF8
+$routingSource = Get-Content (Join-Path $RepoRoot 'scripts/apply-project-agent-instructions.ps1') -Raw -Encoding UTF8
+Assert ($updatePolicy -match 'UPDATE_INSTALLED_RESTART_REQUIRED') 'Same-session update has an explicit fail-closed reload outcome'
+Assert ($updatePolicy -match 'CONTRACTS_RE_SYNCED') 'Same-session update requires observed contract re-read before completion'
+Assert ($updatePolicy -match 'korrekt\s+aktualisiert') 'Update verification questions use the two-axis completion contract'
+Assert ($routingSource -match 'korrekt aktualisiert' -and $routingSource -match 'CONTRACTS_RE_SYNCED') 'Always-on routing includes follow-up verification and same-session re-sync'
+
 # ──────────────────────────────────────────────────────────────
 # A  install-core.ps1: accepts ProvenanceCoreCommit and writes provenance
 # ──────────────────────────────────────────────────────────────

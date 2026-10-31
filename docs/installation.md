@@ -93,6 +93,26 @@ correct operation. There is no separate update command.
 
 Internally, `scripts/install-core.ps1` is the canonical installer invoked by all entry points.
 
+### Update completion and running sessions
+
+Framework currency is not project compatibility. After setup, consume the invocation-bound
+`.mxagile/state/last-update-result.json`: report framework success, Doctor executed,
+compatibility, blocking diagnostics and all four repairability counts separately.
+Missing verification is `NOT_VERIFIED`, never a healthy-project verdict.
+
+Generated instructions on disk do not reload a running agent session. The installer hands
+off `RE_SYNC_REQUIRED`; before completion, explicitly re-read the installed contracts and
+active instructions/skills using `.mxagile/policies/update-contract.md`. Successful read-only
+re-sync permits `CONTRACTS_RE_SYNCED` without restarting. If it cannot be applied safely,
+report `UPDATE_INSTALLED_RESTART_REQUIRED` and compatibility `NOT_VERIFIED` for that session.
+These rules also apply to follow-up questions about whether the update was correct.
+
+For Bash callers, use the public setup script with `-ProjectRoot`, `-DistributionSource`
+and `-NonInteractive`. Do not send an unquoted PowerShell `$true` through Bash to a direct
+installer invocation. Do not reduce completion to filtered version/commit or `[OK] Core`
+lines: the CapTrack reality regression ran Doctor successfully but discarded its `BLOCKED`
+result through exactly that filter, then answered from commit equality alone.
+
 ### What the update preserves
 
 | Protected | Synchronized |
