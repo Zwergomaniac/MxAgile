@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import copy
+import datetime
 import hashlib
 import json
 import os
@@ -63,6 +65,123 @@ def load_yaml(raw: str | bytes) -> Any:
     return yaml.load(raw, Loader=CanonicalLoader)
 
 
+def compatibility_projection(relative: str, value: Any) -> tuple[Any, list[str], list[str]]:
+    projected = copy.deepcopy(value)
+    rules: list[str] = []
+    conflicts: list[str] = []
+    if not isinstance(projected, dict):
+        return projected, rules, conflicts
+
+    artifact = (contract_for(relative) or (None, None))[0]
+    if artifact == 'requirement':
+        if 'created' in projected:
+            created = iso_date_value(projected['created'])
+            if created is not None:
+                current_created = iso_date_value(projected.get('created_at')) if 'created_at' in projected else created
+                if current_created != created:
+                    conflicts.append('created/created_at')
+                else:
+                    projected['created_at'] = created
+                    del projected['created']
+                    rules.append('requirement_created_v1')
+        if type(projected.get('created_at')) is datetime.date:
+            projected['created_at'] = projected['created_at'].isoformat()
+            rules.append('requirement_created_at_yaml_date_v1')
+
+        source = projected.get('source')
+        match = re.fullmatch(r'design_contract_rev([0-9]+)', source, re.IGNORECASE) if isinstance(source, str) else None
+        if match:
+            source_ref = f'REV-{match.group(1)}'
+            if 'source_ref' in projected and projected['source_ref'] != source_ref:
+                conflicts.append('source/source_ref')
+            else:
+                projected['source'] = 'design_contract'
+                projected['source_ref'] = source_ref
+                rules.append('requirement_design_contract_revision_v1')
+    elif artifact == 'evidence-manifest':
+        if 'created' in projected:
+            created = iso_date_value(projected['created'])
+            if created is not None:
+                current_created = iso_date_value(projected.get('created_at')) if 'created_at' in projected else created
+                if current_created != created:
+                    conflicts.append('created/created_at')
+                else:
+                    projected['created_at'] = created
+                    del projected['created']
+                    rules.append('evidence_manifest_created_v1')
+        if type(projected.get('created_at')) is datetime.date:
+            projected['created_at'] = projected['created_at'].isoformat()
+            rules.append('evidence_manifest_created_at_yaml_date_v1')
+        if 'scenarios' in projected and isinstance(projected['scenarios'], list):
+            scenarios = projected['scenarios']
+            if 'entries' in projected and projected['entries'] != scenarios:
+                conflicts.append('scenarios/entries')
+            else:
+                projected.setdefault('entries', scenarios)
+                del projected['scenarios']
+                rules.append('evidence_manifest_scenarios_v1')
+    elif artifact == 'page':
+        sections = projected.get('sections')
+        if isinstance(sections, list):
+            for section in sections:
+                if not isinstance(section, dict) or 'section_id' not in section:
+                    continue
+                if 'id' in section and section['id'] != section['section_id']:
+                    conflicts.append('sections[].id/section_id')
+                else:
+                    section['id'] = section.pop('section_id')
+                    rules.append('page_section_id_v1')
+        navigation = projected.get('navigation')
+        if isinstance(navigation, list):
+            for link in navigation:
+                if not isinstance(link, dict) or 'target' not in link:
+                    continue
+                if 'leads_to_page' in link and link['leads_to_page'] != link['target']:
+                    conflicts.append('navigation.target/leads_to_page')
+                else:
+                    link.setdefault('leads_to_page', link['target'])
+                    del link['target']
+                    rules.append('page_navigation_target_v1')
+    return projected, sorted(set(rules)), sorted(set(conflicts))
+
+
+def iso_date_value(value: Any) -> str | None:
+    if isinstance(value, datetime.datetime):
+        return None
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, str):
+        try:
+            datetime.date.fromisoformat(value)
+            return value
+        except ValueError:
+            pass
+    return None
+
+
+def raw_schema_errors(relative: str, value: Any) -> list[str]:
+    contract = contract_for(relative)
+    if not contract:
+        return []
+    if jsonschema is None:
+        return ['VALIDATOR_UNAVAILABLE']
+    schema_path = SCHEMA_ROOT / (contract[0] + '.schema.json')
+    if not schema_path.is_file():
+        return ['SCHEMA_UNAVAILABLE']
+    try:
+        validator = schema_validator(schema_path)
+        return sorted({str(error.validator) for error in validator.iter_errors(value)})
+    except (OSError, ValueError, jsonschema.exceptions.SchemaError):
+        return ['SCHEMA_UNAVAILABLE']
+
+
+def projected_for_validation(relative: str, value: Any) -> Any:
+    projected, rules, conflicts = compatibility_projection(relative, value)
+    if not rules or conflicts or raw_schema_errors(relative, projected):
+        return value
+    return projected
+
+
 def digest(raw: bytes) -> str:
     return 'sha256:' + hashlib.sha256(raw).hexdigest()
 
@@ -121,19 +240,7 @@ def schema_validator(path: Path) -> Any:
 
 
 def schema_errors(relative: str, value: Any) -> list[str]:
-    contract = contract_for(relative)
-    if not contract:
-        return []
-    if jsonschema is None:
-        return ['VALIDATOR_UNAVAILABLE']
-    schema_path = SCHEMA_ROOT / (contract[0] + '.schema.json')
-    if not schema_path.is_file():
-        return ['SCHEMA_UNAVAILABLE']
-    try:
-        validator = schema_validator(schema_path)
-        return sorted({str(error.validator) for error in validator.iter_errors(value)})
-    except (OSError, ValueError, jsonschema.exceptions.SchemaError):
-        return ['SCHEMA_UNAVAILABLE']
+    return raw_schema_errors(relative, projected_for_validation(relative, value))
 
 
 def assignment(root: Path, task: dict, waves: set[str]) -> tuple[str, str | None, str | None]:
@@ -168,18 +275,38 @@ def schema_diagnostics(relative: str, value: Any) -> list[tuple[str, str, str]]:
     if not path.is_file():
         return []
     issues = []
+    value = projected_for_validation(relative, value)
     for error in schema_validator(path).iter_errors(value):
         location = '/'.join(str(part) for part in error.absolute_schema_path)
         indexes = '/'.join(str(part) for part in error.absolute_path if isinstance(part, int))
         authority = f'.mxagile/schemas/{contract[0]}.schema.json#/{location}@{indexes}'
         repairability = 'AGENT_REPAIRABLE' if error.validator == 'additionalProperties' else 'DECISION_REQUIRED'
+        message = None
+        if contract[0] == 'process-state' and error.validator == 'additionalProperties' and isinstance(error.instance, dict):
+            extra_fields = set(error.instance) - set(error.schema.get('properties', {}))
+            misplaced = extra_fields.intersection({'runtime_verification', 'feature_scope', 'terminal_state'})
+            if misplaced:
+                field = sorted(misplaced)[0]
+                targets = {
+                    'runtime_verification': '.mxagile/schemas/parity-verification.schema.json',
+                    'feature_scope': '.mxagile/schemas/mission-state.schema.json#/properties/progress',
+                    'terminal_state': '.mxagile/lifecycle.yaml#/terminal_states',
+                }
+                repairability = 'DECISION_REQUIRED'
+                authority = targets[field]
+                message = f'Process-state field {field} is outside wave lifecycle authority; no lossless migration is established.'
+        if contract[0] == 'page' and error.validator == 'additionalProperties' and isinstance(error.instance, dict):
+            extra_fields = set(error.instance) - set(error.schema.get('properties', {}))
+            if extra_fields.intersection({'page', 'source', 'screen_id', 'active_target'}):
+                repairability = 'DECISION_REQUIRED'
+                authority = '.mxagile/policies/mockup-lifecycle.md'
         if error.validator == 'additionalProperties' and 'inspect' in error.absolute_path:
             repairability = 'DECISION_REQUIRED'
         if error.validator == 'required' and isinstance(error.instance, dict):
             for field in sorted(set(error.validator_value) - error.instance.keys()):
                 issues.append((f'Required canonical field is missing: {field}.', repairability, authority + '/' + field))
         else:
-            issues.append((f'Canonical schema constraint failed: {error.validator}.', repairability, authority))
+            issues.append((message or f'Canonical schema constraint failed: {error.validator}.', repairability, authority))
     return sorted(set(issues))
 
 
@@ -278,7 +405,20 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
             counts['invalid'] += 1
             continue
         counts['parsed'] += 1
-        documents[relative] = value
+        projected, projection_rules, projection_conflicts = compatibility_projection(relative, value)
+        if projection_conflicts:
+            for fields in projection_conflicts:
+                add('AUTHORITY_CONFLICT', relative, contract[1],
+                    'Legacy and current fields disagree; no compatibility projection was applied.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority=fields)
+        projection_valid = not projection_conflicts and not raw_schema_errors(relative, projected)
+        documents[relative] = projected if projection_valid else value
+        if projection_rules and projection_valid:
+            for rule in projection_rules:
+                add('LEGACY_VARIANT', relative, contract[1],
+                    'Known legacy shape is projected read-only to the current contract; source bytes are unchanged.',
+                    repairability='SAFE_DETERMINISTIC', repair=rule,
+                    authority='.mxagile/policies/project-compatibility.md', severity='INFO')
         errors = schema_errors(relative, value)
         if errors:
             counts['invalid'] += 1
@@ -294,6 +434,20 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
     for relative, value in documents.items():
         if isinstance(value.get('ID'), str):
             identities.setdefault(value['ID'], []).append(relative)
+    requirement_identities: dict[str, list[str]] = {}
+    for relative, value in documents.items():
+        if (contract_for(relative)[0] == 'requirement' and isinstance(value.get('ID'), str)
+                and value['ID'] == PurePosixPath(relative).stem and not schema_errors(relative, value)):
+            requirement_identities.setdefault(value['ID'], []).append(relative)
+    page_identities: dict[str, list[str]] = {}
+    page_names: dict[str, list[str]] = {}
+    page_inventory_present = any(contract_for(relative)[0] == 'page' for relative in documents)
+    for relative, value in documents.items():
+        if (contract_for(relative)[0] == 'page' and isinstance(value.get('page_id'), str)
+                and value['page_id'] == PurePosixPath(relative).stem and not schema_errors(relative, value)):
+            page_identities.setdefault(value['page_id'], []).append(relative)
+            if isinstance(value.get('page_name'), str) and value['page_name']:
+                page_names.setdefault(value['page_name'], []).append(relative)
     for paths_for_id in identities.values():
         if len(paths_for_id) > 1:
             for relative in paths_for_id:
@@ -314,12 +468,58 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
             refs = value.get(field, [])
             if not isinstance(refs, list):
                 continue
-            if any(not isinstance(ref, str) or ref not in identities for ref in refs):
+            targets = requirement_identities if contract_for(relative)[0] == 'test-contract' and field == 'requirement_ids' else identities
+            if any(not isinstance(ref, str) or ref not in targets for ref in refs):
                 add('REFERENCE_MISSING', relative, area, 'An artifact ID reference has no unique canonical target.',
                     blocking=True, repairability='AGENT_REPAIRABLE', authority=field)
-            elif any(len(identities[ref]) != 1 for ref in refs):
+            elif any(len(targets[ref]) != 1 for ref in refs):
                 add('REFERENCE_AMBIGUOUS', relative, area, 'An artifact ID reference has multiple canonical targets.',
                     blocking=True, repairability='DECISION_REQUIRED', authority=field)
+        if contract_for(relative)[0] == 'test-contract':
+            for point in value.get('proof_points', []) if isinstance(value.get('proof_points'), list) else []:
+                traceability = point.get('traceability', {}) if isinstance(point, dict) else {}
+                refs = traceability.get('requirement_ids', []) if isinstance(traceability, dict) else []
+                if not isinstance(refs, list):
+                    continue
+                if any(not isinstance(ref, str) or not requirement_identities.get(ref) for ref in refs):
+                    add('REFERENCE_MISSING', relative, area,
+                        'A proof-point Requirement reference has no canonical target.',
+                        blocking=True, repairability='AGENT_REPAIRABLE',
+                        authority='proof_points[].traceability.requirement_ids')
+                elif any(len(requirement_identities[ref]) != 1 for ref in refs):
+                    add('REFERENCE_AMBIGUOUS', relative, area,
+                        'A proof-point Requirement reference has multiple canonical targets.',
+                        blocking=True, repairability='DECISION_REQUIRED',
+                        authority='proof_points[].traceability.requirement_ids')
+        if contract_for(relative)[0] == 'page' and not schema_errors(relative, value):
+            for field in ('source_mockup', 'target_mockup'):
+                reference = value.get(field)
+                if isinstance(reference, str) and safe_file(root, reference) is None:
+                    add('REFERENCE_MISSING', relative, area, 'Page mockup path is missing or unsafe.',
+                        blocking=True, repairability='AGENT_REPAIRABLE', authority=field)
+            for link in value.get('navigation', []) if isinstance(value.get('navigation'), list) else []:
+                target = link.get('leads_to_page') if isinstance(link, dict) else None
+                if not isinstance(target, str) or not page_inventory_present:
+                    continue
+                targets = page_identities.get(target, []) or page_names.get(target, [])
+                if not targets:
+                    add('REFERENCE_MISSING', relative, area, 'Navigation target has no canonical Page target.',
+                        blocking=True, repairability='AGENT_REPAIRABLE', authority='navigation[].leads_to_page')
+                elif len(targets) != 1:
+                    add('REFERENCE_AMBIGUOUS', relative, area, 'Navigation target resolves to multiple Pages.',
+                        blocking=True, repairability='DECISION_REQUIRED', authority='navigation[].leads_to_page')
+            revision_id = value.get('target_revision')
+            mockup_name = value.get('mockup_name')
+            if isinstance(revision_id, str):
+                revisions = [item for path, item in documents.items()
+                             if contract_for(path)[0] == 'revision' and item.get('revision_id') == revision_id
+                             and (not isinstance(mockup_name, str) or item.get('mockup_name') == mockup_name)]
+                if not revisions:
+                    add('REFERENCE_MISSING', relative, area, 'Page target revision has no canonical revision manifest.',
+                        blocking=True, repairability='AGENT_REPAIRABLE', authority='mockup_name/target_revision')
+                elif len(revisions) > 1:
+                    add('REFERENCE_AMBIGUOUS', relative, area, 'Page target revision resolves to multiple manifests.',
+                        blocking=True, repairability='DECISION_REQUIRED', authority='mockup_name/target_revision')
         for field in ('spec', 'test_contract', 'test_contract_id'):
             ref = value.get(field)
             if isinstance(ref, str):
@@ -359,9 +559,15 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
             for entry in value.get('entries', []) if isinstance(value.get('entries'), list) else []:
                 if not isinstance(entry, dict):
                     continue
+                screen_id = entry.get('screen_id')
+                if isinstance(screen_id, str) and page_inventory_present and len(page_identities.get(screen_id, [])) != 1:
+                    category = 'REFERENCE_AMBIGUOUS' if page_identities.get(screen_id) else 'REFERENCE_MISSING'
+                    add(category, relative, area, 'Evidence screen reference has no unique canonical Page target.',
+                        blocking=True, repairability='DECISION_REQUIRED' if category == 'REFERENCE_AMBIGUOUS' else 'AGENT_REPAIRABLE',
+                        authority='entries[].screen_id')
                 traceability = entry.get('traceability', {})
                 references = traceability.get('requirements', []) if isinstance(traceability, dict) else []
-                if isinstance(references, list) and any(not isinstance(ref, str) or len(identities.get(ref, [])) != 1 for ref in references):
+                if isinstance(references, list) and any(not isinstance(ref, str) or len(requirement_identities.get(ref, [])) != 1 for ref in references):
                     add('REFERENCE_MISSING', relative, area, 'Evidence requirement references are missing or ambiguous.',
                         blocking=True, repairability='AGENT_REPAIRABLE', authority='traceability.requirements')
                 artifacts = entry.get('actual_evidence', [])
@@ -371,6 +577,13 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
                 if any(not isinstance(source, str) or not source.startswith('planning/') or not safe_file(root, source) for source in source_paths):
                     add('REFERENCE_MISSING', relative, area, 'Evidence artifact paths are missing or unsafe.',
                         blocking=True, repairability='AGENT_REPAIRABLE', authority='actual_evidence')
+        if contract_for(relative)[0] == 'parity-verification' and page_inventory_present:
+            page_id = value.get('page_id')
+            if isinstance(page_id, str) and len(page_identities.get(page_id, [])) != 1:
+                category = 'REFERENCE_AMBIGUOUS' if page_identities.get(page_id) else 'REFERENCE_MISSING'
+                add(category, relative, area, 'Parity report has no unique canonical Page target.',
+                    blocking=True, repairability='DECISION_REQUIRED' if category == 'REFERENCE_AMBIGUOUS' else 'AGENT_REPAIRABLE',
+                    authority='page_id')
         if area == 'tasks':
             state, wave, provenance = assignment(root, value, waves)
             if state not in ('explicit',):

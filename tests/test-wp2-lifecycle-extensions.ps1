@@ -65,10 +65,13 @@ if (Test-Path $tcSchema) {
         Assert ($null -ne $tc.properties.status) 'schema has status property'
         Assert ($null -ne $tc.properties.requirement_ids) 'schema has requirement_ids property'
         Assert ($null -ne $tc.properties.proof_points) 'schema has proof_points property'
+        Assert ($tc.'x-mxagile-contract-version' -eq 2) 'Test Contract schema contract version is 2'
+        Assert (($tc.properties.schema_version.enum -contains 1) -and ($tc.properties.schema_version.enum -contains 2)) 'schema reads TC record versions 1 and 2'
         Assert ($null -ne $tc.definitions.proof_point) 'schema defines proof_point'
         Assert ($null -ne $tc.definitions.proof_point.properties.claim) 'proof_point has claim'
         Assert ($null -ne $tc.definitions.proof_point.properties.role) 'proof_point has role'
         Assert ($null -ne $tc.definitions.proof_point.properties.required_layers) 'proof_point has required_layers'
+        Assert ($null -ne $tc.definitions.proof_point.properties.traceability.properties.requirement_ids) 'proof-point traceability supports Requirement IDs'
         Assert ($null -ne $tc.definitions.proof_point.properties.security_dimensions) 'proof_point has security_dimensions'
         # Operation-aware capability fields (Correction 2)
         Assert ($null -ne $tc.definitions.proof_point.properties.operation) 'proof_point has operation field'

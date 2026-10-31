@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import shutil
@@ -63,7 +64,9 @@ def write_revision(
 
 def write_page(root: Path, page_id: str, mockup_name: str, revision_id: str, section_ids: tuple[str, ...] = ()) -> None:
   sections = "\n".join(f"  - id: {section_id}\n    title: {section_id}" for section_id in section_ids)
-  content = f"page_id: {page_id}\nmockup_name: {mockup_name}\ntarget_revision: {revision_id}\n"
+  source_mockup = f"input-resources/ui-ux/{mockup_name}/index.html"
+  write_file(root, source_mockup, f"<html>{page_id}</html>\n")
+  content = f"page_id: {page_id}\nsource_mockup: {source_mockup}\nmockup_name: {mockup_name}\ntarget_revision: {revision_id}\n"
   if sections:
     content += f"sections:\n{sections}\n"
   write_file(root, f"planning/ui-inventory/{page_id}.yaml", content)
@@ -347,6 +350,216 @@ class ProjectStatusTests(unittest.TestCase):
       manifest = {"manifest_id": "MFT-W01", "wave_id": "W01", "entries": [{"entry_id": "E1", "scenario_id": "SCN-1", "screen_id": "PAGE-1", "role": "CEKO", "data_state": "populated", "parity_result": "NOT_VERIFIED", "comparison_identity": {"status": "BOUND"}, "capture_groups": []}]}
       errors = project_compatibility.schema_errors("planning/evidence/manifests/W01-evidence-manifest.yaml", manifest)
       self.assertIn("required", errors)
+
+    def test_proof_point_requirement_traceability_is_distinct_and_lossless(self) -> None:
+      proof_point = {
+        "id": "PP-001", "claim": "Claim", "role": "ROLE-USER", "data_state": "any",
+        "required_layers": ["MODEL"],
+      }
+      contract = {
+        "schema_version": 1, "ID": "TC-001", "title": "Contract", "status": "active",
+        "requirement_ids": ["REQ-001", "REQ-002"], "proof_points": [proof_point],
+      }
+      relative = "planning/test-contracts/TC-001.yaml"
+      self.assertEqual(project_compatibility.schema_errors(relative, contract), [])
+
+      proof_point["traceability"] = {"requirement_ids": ["REQ-001", "REQ-002"]}
+      self.assertEqual(project_compatibility.schema_errors(relative, contract), [])
+      self.assertEqual(proof_point["traceability"]["requirement_ids"], ["REQ-001", "REQ-002"])
+
+      for invalid_ids in (["REQ-001", "REQ-001"], ["REQ-1"], ["PAGE-001"]):
+        proof_point["traceability"]["requirement_ids"] = invalid_ids
+        self.assertIn("uniqueItems" if len(invalid_ids) == 2 and invalid_ids[0] == invalid_ids[1] else "pattern",
+                      project_compatibility.schema_errors(relative, contract))
+
+      proof_point["traceability"]["requirement_ids"] = []
+      self.assertEqual(project_compatibility.schema_errors(relative, contract), [])
+      contract["requirement_ids"] = ["REQ-001", "REQ-001"]
+      self.assertIn("uniqueItems", project_compatibility.schema_errors(relative, contract))
+
+    def test_doctor_checks_proof_point_requirement_references(self) -> None:
+      relative = "planning/test-contracts/TC-001.yaml"
+      content = """
+        schema_version: 1
+        ID: TC-001
+        title: Contract
+        status: active
+        requirement_ids: [REQ-001]
+        proof_points:
+          - id: PP-001
+            claim: Claim
+            role: ROLE-USER
+            data_state: any
+            required_layers: [MODEL]
+            traceability:
+              requirement_ids: [REQ-001]
+      """
+      write_file(self.root, relative, content)
+      report = build_project_status.build_status(self.root)["compatibility"]
+      pp_reference = [item for item in report["diagnostics"]
+                      if item["source_path"] == relative and item["authority"] == "proof_points[].traceability.requirement_ids"]
+      self.assertEqual(pp_reference, [])
+
+      write_file(self.root, relative, content.replace(
+        "              requirement_ids: [REQ-001]", "              requirement_ids: [REQ-999]", 1))
+      report = build_project_status.build_status(self.root)["compatibility"]
+      pp_reference = [item for item in report["diagnostics"]
+                      if item["source_path"] == relative and item["authority"] == "proof_points[].traceability.requirement_ids"]
+      self.assertEqual(len(pp_reference), 1)
+      self.assertEqual(pp_reference[0]["category"], "REFERENCE_MISSING")
+      self.assertEqual(pp_reference[0]["repairability"], "AGENT_REPAIRABLE")
+
+      write_file(self.root, "requirements/REQ-002.yml", "ID: REQ-002\ntitle: Invalid\ndescription: Invalid\nsource: unclassified\n")
+      write_file(self.root, relative, content.replace(
+        "              requirement_ids: [REQ-001]", "              requirement_ids: [REQ-002]", 1))
+      report = build_project_status.build_status(self.root)["compatibility"]
+      pp_reference = [item for item in report["diagnostics"]
+                      if item["source_path"] == relative and item["authority"] == "proof_points[].traceability.requirement_ids"]
+      self.assertEqual(len(pp_reference), 1)
+      self.assertEqual(pp_reference[0]["category"], "REFERENCE_MISSING")
+
+    def test_requirement_legacy_source_and_created_are_projected_read_only(self) -> None:
+      relative = "requirements/REQ-001.yml"
+      base = {"ID": "REQ-001", "title": "Legacy", "description": "Legacy requirement"}
+      self.assertEqual(project_compatibility.schema_errors(relative, base), [])
+      for source in ("native", "legacy", "migrated", "stakeholder", "security_review", "design_contract"):
+        self.assertEqual(project_compatibility.schema_errors(relative, {**base, "source": source}), [])
+
+      legacy = {"ID": "REQ-001", "title": "Legacy", "description": "Legacy requirement",
+                "source": "design_contract_rev17", "created": "2026-10-30"}
+      original = copy.deepcopy(legacy)
+      projected = project_compatibility.compatibility_projection(relative, legacy)
+      self.assertEqual(projected[0]["source"], "design_contract")
+      self.assertEqual(projected[0]["source_ref"], "REV-17")
+      self.assertEqual(projected[0]["created_at"], "2026-10-30")
+      self.assertEqual(projected[1], ["requirement_created_v1", "requirement_design_contract_revision_v1"])
+      self.assertEqual(projected[2], [])
+      self.assertEqual(project_compatibility.schema_errors(relative, legacy), [])
+      self.assertEqual(legacy, original)
+      self.assertEqual(project_compatibility.compatibility_projection(relative, projected[0])[1], [])
+      yaml_date = {**base, "created": project_compatibility.datetime.date(2026, 10, 30)}
+      self.assertEqual(project_compatibility.compatibility_projection(relative, yaml_date)[0]["created_at"], "2026-10-30")
+      matching_yaml_dates = {**yaml_date, "created_at": project_compatibility.datetime.date(2026, 10, 30)}
+      self.assertEqual(project_compatibility.compatibility_projection(relative, matching_yaml_dates)[2], [])
+      current_yaml_date = {**base, "created_at": project_compatibility.datetime.date(2026, 10, 30)}
+      current_projection = project_compatibility.compatibility_projection(relative, current_yaml_date)
+      self.assertEqual(current_projection[0]["created_at"], "2026-10-30")
+      self.assertEqual(current_projection[1], ["requirement_created_at_yaml_date_v1"])
+
+      write_file(self.root, relative, project_compatibility.yaml.safe_dump(legacy))
+      _, requirements, _ = build_project_status.read_collection(self.root, "requirements", "*.yml", "ID", {}, [])
+      self.assertEqual(requirements[0]["source"], "design_contract")
+      self.assertEqual(requirements[0]["source_ref"], "REV-17")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      self.assertTrue(any(item["source_path"] == relative and item["repairability"] == "SAFE_DETERMINISTIC"
+              for item in report["diagnostics"]))
+
+      conflict = {**legacy, "source_ref": "REV-18", "created_at": "2026-10-29"}
+      self.assertEqual(set(project_compatibility.compatibility_projection(relative, conflict)[2]),
+                       {"created/created_at", "source/source_ref"})
+      unknown = {**legacy, "source": "unclassified"}
+      self.assertNotEqual(project_compatibility.schema_errors(relative, unknown), [])
+
+    def test_evidence_manifest_projection_preserves_stale_state_and_capture_provenance(self) -> None:
+      relative = "planning/evidence/manifests/W01-evidence-manifest.yaml"
+      entry = {
+        "entry_id": "EVD-1", "scenario_id": "SCN-1", "screen_id": "PAGE-1",
+        "role": "ROLE-USER", "data_state": "populated", "parity_result": "STALE",
+        "actual_evidence": [{"artifact_id": "EVD-1-SCREEN", "type": "screenshot",
+                              "path": "planning/evidence/screenshots/actual.png",
+                              "capture_id": "CAP-001", "provenance": "original-capture"}],
+      }
+      legacy = {"manifest_id": "MFT-W01", "wave_id": "W01", "created": "2026-10-30",
+                "scenarios": [entry]}
+      projected, rules, conflicts = project_compatibility.compatibility_projection(relative, legacy)
+      self.assertEqual(conflicts, [])
+      self.assertCountEqual(rules, ["evidence_manifest_created_v1", "evidence_manifest_scenarios_v1"])
+      self.assertEqual(project_compatibility.schema_errors(relative, legacy), [])
+      self.assertEqual(projected["entries"][0]["parity_result"], "STALE")
+      artifact = projected["entries"][0]["actual_evidence"][0]
+      self.assertEqual(artifact["capture_id"], "CAP-001")
+      self.assertEqual(artifact["provenance"], "original-capture")
+      self.assertIn("scenarios", legacy)
+      self.assertEqual(project_compatibility.compatibility_projection(relative, projected)[1], [])
+
+      write_file(self.root, relative, project_compatibility.yaml.safe_dump(legacy))
+      _, records, _ = build_project_status.read_collection(
+        self.root, "planning/evidence/manifests", "*-evidence-manifest.yaml", "", {}, [])
+      self.assertEqual(records[0]["entries"][0]["parity_result"], "STALE")
+
+      mixed = {**legacy, "entries": [{"entry_id": "different"}]}
+      self.assertEqual(project_compatibility.compatibility_projection(relative, mixed)[2], ["scenarios/entries"])
+
+    def test_process_state_rejects_fields_owned_by_other_authorities(self) -> None:
+      relative = "planning/lifecycle/process-state.yaml"
+      for field in ("runtime_verification", "feature_scope", "terminal_state"):
+        state = {"waves": {}, field: "legacy"}
+        self.assertIn("additionalProperties", project_compatibility.schema_errors(relative, state))
+        issues = project_compatibility.schema_diagnostics(relative, state)
+        self.assertTrue(any(item[1] == "DECISION_REQUIRED" and field in item[0] for item in issues))
+      valid = {"waves": {"W01": {"phase": "done", "gates": {
+        "gate_to_refinement": {"result": "passed"}, "gate_to_ready": {"result": "passed"}}}}}
+      self.assertEqual(project_compatibility.schema_errors(relative, valid), [])
+      unknown = {"waves": {}, "unclassified_audit": "preserve"}
+      self.assertIn("additionalProperties", project_compatibility.schema_errors(relative, unknown))
+      self.assertTrue(any(issue[1] == "AGENT_REPAIRABLE"
+                          for issue in project_compatibility.schema_diagnostics(relative, unknown)))
+
+    def test_ui_inventory_producer_fields_and_legacy_identifiers(self) -> None:
+      relative = "planning/ui-inventory/PAGE-001.yaml"
+      template = project_compatibility.load_yaml(
+        (ROOT / ".mxagile" / "templates" / "generic" / "ui-inventory" / "template.yaml").read_text(encoding="utf-8"))
+      self.assertEqual(project_compatibility.schema_errors(relative, template), [])
+
+      legacy = copy.deepcopy(template)
+      legacy["sections"][0]["section_id"] = legacy["sections"][0].pop("id")
+      legacy["navigation"][0]["target"] = legacy["navigation"][0].pop("leads_to_page")
+      projected, rules, conflicts = project_compatibility.compatibility_projection(relative, legacy)
+      self.assertEqual(conflicts, [])
+      self.assertCountEqual(rules, ["page_section_id_v1", "page_navigation_target_v1"])
+      self.assertEqual(project_compatibility.schema_errors(relative, legacy), [])
+      self.assertEqual(projected["sections"][0]["id"], "SEC-001")
+      self.assertEqual(projected["navigation"][0]["leads_to_page"], "[Page name or PAGE-NNN]")
+      self.assertIn("section_id", legacy["sections"][0])
+      self.assertEqual(project_compatibility.compatibility_projection(relative, projected)[1], [])
+
+      unknown = {**template, "unclassified_property": "preserve-and-diagnose"}
+      self.assertIn("additionalProperties", project_compatibility.schema_errors(relative, unknown))
+      old_authority = {"page": "PAGE-001", "source": "input-resources/ui-ux/login.html"}
+      self.assertTrue(any(issue[1] == "DECISION_REQUIRED"
+                          for issue in project_compatibility.schema_diagnostics(relative, old_authority)))
+
+    def test_ui_inventory_navigation_evidence_and_revision_references(self) -> None:
+      write_file(self.root, "input-resources/ui-ux/page-one.html", "<html>Page One</html>\n")
+      write_file(self.root, "planning/ui-inventory/PAGE-1.yaml", """
+        page_id: PAGE-1
+        source_mockup: input-resources/ui-ux/page-one.html
+        page_name: Page One
+        navigation:
+          - action_id: ACT-001
+            leads_to_page: PAGE-2
+          - action_id: ACT-002
+            leads_to_page: PAGE-404
+      """)
+      write_file(self.root, "planning/ui-inventory/PAGE-2.yaml", """
+        page_id: PAGE-2
+        source_mockup: input-resources/ui-ux/missing-page.html
+        page_name: Page Two
+        mockup_name: MissingBundle
+        target_revision: REV-999
+      """)
+      manifest_path = self.root / "planning/evidence/manifests/W01-evidence-manifest.yaml"
+      manifest = project_compatibility.load_yaml(manifest_path.read_text(encoding="utf-8"))
+      manifest["entries"][0]["screen_id"] = "PAGE-404"
+      manifest_path.write_text(project_compatibility.yaml.safe_dump(manifest), encoding="utf-8")
+
+      diagnostics = build_project_status.build_status(self.root)["compatibility"]["diagnostics"]
+      missing_refs = {(item["authority"], item["category"]) for item in diagnostics
+                      if item["category"] == "REFERENCE_MISSING"}
+      self.assertIn(("navigation[].leads_to_page", "REFERENCE_MISSING"), missing_refs)
+      self.assertIn(("entries[].screen_id", "REFERENCE_MISSING"), missing_refs)
+      self.assertIn(("mockup_name/target_revision", "REFERENCE_MISSING"), missing_refs)
+      self.assertIn(("source_mockup", "REFERENCE_MISSING"), missing_refs)
 
     def test_duplicate_mapping_keys_are_not_silently_accepted(self) -> None:
       for wave in ("W3", "W4A", "W1C"):
@@ -719,8 +932,10 @@ class ProjectStatusTests(unittest.TestCase):
     def test_inventory_revision_drift_is_visible_against_canonical_active_target(self) -> None:
         write_revision(self.root, "Portal", 9, False, "b")
         write_revision(self.root, "Portal", 17, True, "c")
+        write_file(self.root, "input-resources/ui-ux/portal.html", "<html>Portal source</html>\n")
         write_file(self.root, "planning/ui-inventory/PAGE-PORTAL.yaml", """
           page_id: PAGE-PORTAL
+          source_mockup: input-resources/ui-ux/portal.html
           mockup_name: Portal
           target_revision: REV-009
           bundle_hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -732,6 +947,8 @@ class ProjectStatusTests(unittest.TestCase):
         self.assertEqual(target["authoritative_state"], "ACTIVE_TARGET")
         self.assertEqual(target["inventory_drift"]["state"], "mismatch")
         self.assertEqual(target["inventory_drift"]["mismatched_screen_ids"], ["PAGE-PORTAL"])
+        self.assertTrue(any(item["category"] == "STALE" and item["source_path"] == "planning/ui-inventory/PAGE-PORTAL.yaml"
+                for item in status["compatibility"]["diagnostics"]))
 
         write_file(self.root, "planning/ui-inventory/PAGE-PORTAL.yaml", """
           page_id: PAGE-PORTAL

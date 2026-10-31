@@ -13,7 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
-from project_compatibility import compatibility_report, identity_matches, load_yaml, schema_errors, safe_file
+from project_compatibility import compatibility_report, identity_matches, load_yaml, projected_for_validation, schema_errors, safe_file
 
 PHASES = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
 TASK_STATUSES = ("pending", "in_progress", "done", "failed", "blocked", "deferred")
@@ -120,6 +120,7 @@ def read_collection(
         if state != "available" or not isinstance(value, dict):
             invalid += 1
             continue
+        value = projected_for_validation(relative, value)
         if id_field:
             expected_id = path.parent.name if path.name == "revision.yaml" else path.stem
             if not identity_matches(relative, value.get(id_field), expected_id):

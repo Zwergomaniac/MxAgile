@@ -43,6 +43,7 @@ REGISTRY = [
     ('scenario',          'prerequisites.depends_on_scenarios[]', 'DEPENDS_ON_SCN',  'scenario',          'DECLARED'),
     # test_contract
     ('test_contract',     'requirement_ids[]',                  'COVERS',             'requirement',       'DECLARED'),
+    ('test_contract',     'proof_points[].traceability.requirement_ids[]', 'COVERS', 'requirement',       'DECLARED'),
     ('test_contract',     'design_contract_ref',                'DERIVED_FROM_DC',    'external',          'DERIVED'),
     # verification_plan
     ('verification_plan', 'test_contract_id',                   'PLANS',              'test_contract',     'DECLARED'),

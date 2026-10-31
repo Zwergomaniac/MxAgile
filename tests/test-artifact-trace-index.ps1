@@ -218,6 +218,7 @@ req: [REQ-01]
 ID: TC-001
 title: Calendar TC
 requirement_ids: [REQ-01]
+proof_points: [{id: PP-001, traceability: {requirement_ids: [REQ-01]}}]
 "@
     $vplContent = @"
 ID: VPL-001
@@ -232,7 +233,10 @@ test_contract_id: TC-001
     Assert-Condition ($tcNode) "TC-001 node not found in index."
     Assert-Condition ($tcNode.type -eq 'test_contract') "TC-001 type expected test_contract, got: $($tcNode.type)"
     $coversTC = $indexJson.edges | Where-Object { $_.from -eq 'TC-001' -and $_.to -eq 'REQ-01' -and $_.type -eq 'COVERS' }
-    Assert-Condition ($coversTC) "COVERS edge from TC-001 to REQ-01 was not created."
+    Assert-Condition ($coversTC.Count -eq 2) "Expected distinct TC-level and PP-level COVERS edges."
+    Assert-Condition (($coversTC.provenance.source -contains 'test_contract.requirement_ids[]') -and
+        ($coversTC.provenance.source -contains 'test_contract.proof_points[PP-001].traceability.requirement_ids[]')) `
+        "TC-level and PP-level traceability provenance was not preserved."
     $plansEdge = $indexJson.edges | Where-Object { $_.from -eq 'VPL-001' -and $_.to -eq 'TC-001' -and $_.type -eq 'PLANS' }
     Assert-Condition ($plansEdge) "PLANS edge from VPL-001 to TC-001 was not created."
     Write-Host "[PASS] TestContract + VerificationPlan nodes and edges"

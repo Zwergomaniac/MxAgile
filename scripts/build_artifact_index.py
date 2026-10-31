@@ -50,6 +50,7 @@ from pathlib import Path
 #   COVERS_SPEC           Scenario-> Spec          (SCN.traceability.specs[])
 #   DEPENDS_ON_SCN        Scenario-> Scenario      (SCN.prerequisites.depends_on_scenarios[])
 #   COVERS                TC      -> Requirement   (TC.requirement_ids[])
+#   COVERS                TC      -> Requirement   (TC proof-point traceability, PP-scoped provenance)
 #   DERIVED_FROM_DC       TC      -> design-contract-ref string (TC.design_contract_ref) [DERIVED]
 #   PLANS                 VPL     -> TC            (VPL.test_contract_id)
 #   GOVERNS               Decision-> Requirement   (DEC.affected_requirements[])
@@ -103,6 +104,7 @@ CANONICAL_EDGE_REGISTRY = [
     ('scenario',    'prerequisites.depends_on_scenarios[]', 'DEPENDS_ON_SCN', 'scenario', DECLARED),
     # test_contract
     ('test_contract', 'requirement_ids[]',          'COVERS',         'requirement',       DECLARED),
+    ('test_contract', 'proof_points[].traceability.requirement_ids[]', 'COVERS', 'requirement', DECLARED),
     ('test_contract', 'design_contract_ref',        'DERIVED_FROM_DC','external',          DERIVED),
     # verification_plan
     ('verification_plan', 'test_contract_id',       'PLANS',          'test_contract',     DECLARED),
@@ -536,6 +538,19 @@ def build_graph(artifacts):
             for req_id in _as_list(content.get('requirement_ids')):
                 _emit_edge(edges, node_id, req_id, 'COVERS', DECLARED,
                            'test_contract.requirement_ids[]', all_artifact_ids, node_id)
+
+            # Preserve the narrower PP-level relationship in edge provenance.
+            for point in _as_list(content.get('proof_points')):
+                if not isinstance(point, dict):
+                    continue
+                point_id = point.get('id')
+                traceability = point.get('traceability') or {}
+                if not isinstance(traceability, dict):
+                    continue
+                source_field = f'test_contract.proof_points[{point_id}].traceability.requirement_ids[]'
+                for req_id in _as_list(traceability.get('requirement_ids')):
+                    _emit_edge(edges, node_id, req_id, 'COVERS', DECLARED,
+                               source_field, all_artifact_ids, node_id)
 
             # DERIVED_FROM_DC: TC -> design-contract-ref (DERIVED — not a canonical artifact node)
             dc_ref = content.get('design_contract_ref')
