@@ -176,13 +176,21 @@ if (Test-Path -LiteralPath $inventoryPath -PathType Leaf) {
 
     $discoveredTests = @(Get-ChildItem -Path $ScriptDir -Filter 'test-*.ps1') +
                        @(Get-ChildItem -Path $ScriptDir -Filter 'smoke-test.ps1' -ErrorAction SilentlyContinue)
+    $discoveredNames = @($discoveredTests | ForEach-Object Name)
 
-    $missing = $discoveredTests | Where-Object { $_.Name -notin $inventoryFiles }
+    $missing = @($discoveredNames | Where-Object { $_ -notin $inventoryFiles })
     Assert-True -Condition ($missing.Count -eq 0) `
         -Name ('E.2 all discovered tests are in inventory (' + $missing.Count + ' missing)')
 
     if ($missing.Count -gt 0) {
-        $missing | ForEach-Object { Write-Host ('    missing: ' + $_.Name) -ForegroundColor Yellow }
+        $missing | ForEach-Object { Write-Host ('    missing: ' + $_) -ForegroundColor Yellow }
+    }
+
+    $orphaned = @($inventoryFiles | Where-Object { $_ -notin $discoveredNames })
+    Assert-True -Condition ($orphaned.Count -eq 0) `
+        -Name ('E.5 inventory contains no undiscovered or retired suites (' + $orphaned.Count + ' orphaned)')
+    if ($orphaned.Count -gt 0) {
+        $orphaned | ForEach-Object { Write-Host ('    orphaned: ' + $_) -ForegroundColor Yellow }
     }
 
     $t0 = ($inventoryData | Where-Object { $_.Tier -eq 0 }).Count

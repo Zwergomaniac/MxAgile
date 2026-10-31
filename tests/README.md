@@ -1,6 +1,18 @@
 # Test Architecture & Fast Feedback WP — Final Report
 
-## 1.8.x Workstream Completion (2026-10-31)
+## Current Baseline Recovery (2026-10-31)
+
+- Discovery/inventory equality: 116 `test-*.ps1` suites plus `smoke-test.ps1` = 117 discovered, 117 inventoried, 0 missing, 0 orphaned.
+- The 27 formerly unregistered suites are all `ACTIVE_RELEASE_TEST`: the authoritative Full Runner discovers and executes every test file; the old release report shows 26 PASS and RF-002 as the sole failure. No manual-only, obsolete, or superseded status was evidenced.
+- Current tiers: Tier 0 = 71, Tier 1 = 38, Tier 2 = 8. FastGate=true = 98; two are non-parallel and remain sequential.
+- Missing shared project templates were replaced in affected tests by GUID-scoped synthetic fixtures. No real project data is copied into fixtures.
+- Resolver absence checks now isolate `PATH`; CLI migration status gets a generated temporary project. Both run without optional-fixture skips.
+- Measured targeted runtimes: CLI 118.21 s (94/94 PASS; prior Full-Gate observation 137.77 s/INCOMPLETE) and Workcopy Hygiene 64.63 s (50/50 PASS; its 1,001-file synthetic copy took 4.1 s). WP-10 completed 108/108 in 5.89 s, versus 67.55 s in the prior Full-Gate run that included a nested acquisition suite.
+- Release Gate is not yet run for this stabilization mission. The one final gate is deferred until all targeted clusters pass.
+
+The sections below marked historical retain the 2026-09-28 test architecture snapshot; their test counts and timing estimates are not current baseline values.
+
+## Historical 1.8.x Workstream Completion Snapshot (2026-10-31)
 
 Implementation checkpoint: `39776ef` (nine cohesive local commits since `43fd60c`).
 No CapTrack files or `experiment/lifecycle-resync-helper` changes are part of this
@@ -124,7 +136,7 @@ Date: 2026-09-28
 
 ---
 
-## FASTGATE CLASSIFICATION
+## Historical FastGate Classification (2026-09-28)
 
 FastGate is an independent metadata axis from Tier. Tier describes integration depth; FastGate describes suitability for the normal developer/agent feedback loop.
 
@@ -157,7 +169,7 @@ All 32 FAST tests are ParallelSafe=true → entire FAST run executes in one para
 
 ---
 
-## SLOW TEST ANALYSIS
+## Historical Slow Test Analysis (2026-09-28)
 
 ### test-existing-project-update.ps1
 
@@ -316,7 +328,7 @@ All 9 Tier-1 FastGate=true tests are correctly marked ParallelSafe=true. Verifie
 
 ---
 
-## PERFORMANCE OPTIMIZATIONS IMPLEMENTED
+## Historical Performance Optimizations (2026-09-28)
 
 1. **FastGate metadata field** added to all 49 test-inventory.json entries. run-fast-tests.ps1 now selects `Tier-0 ∪ (Tier-1 ∧ FastGate=true)` instead of `Tier-0 ∪ Tier-1`.
 
@@ -332,7 +344,7 @@ All 9 Tier-1 FastGate=true tests are correctly marked ParallelSafe=true. Verifie
 
 ---
 
-## PERFORMANCE OPTIMIZATIONS DEFERRED
+## Historical Deferred Optimizations (2026-09-28)
 
 1. **test-layer-update.ps1 — immutable "healthy-1.2.0" repo fixture** (~12 git init/add/commit cycles eliminated). Requires refactoring `New-FakeLayerRepo` to accept a pre-built path and copying instead of re-initializing. Safe but non-trivial refactor; estimated saving ~30-40s. The remaining cost (~137s) is PROCESS_STARTUP_OVERHEAD from 31 pwsh launches, which is CONTRACT_REQUIRED.
 
@@ -346,7 +358,7 @@ All 9 Tier-1 FastGate=true tests are correctly marked ParallelSafe=true. Verifie
 
 ---
 
-## FAST PERFORMANCE
+## Historical Fast Performance Estimate (2026-09-28)
 
 **FAST test count:** 32 (23 Tier-0 + 9 Tier-1 FastGate=true)  
 **ParallelSafe count:** 32/32 (100% — entire FAST run is one parallel batch on PS7)  
@@ -368,7 +380,7 @@ All 9 Tier-1 FastGate=true tests are correctly marked ParallelSafe=true. Verifie
 
 ---
 
-## FULL PERFORMANCE
+## Historical Full Performance Estimate (2026-09-28)
 
 **FULL test count:** ~50 tests (all tiers)  
 **Previous measured baseline:** ~1592s (~26.5 min)  
@@ -391,7 +403,7 @@ All 9 Tier-1 FastGate=true tests are correctly marked ParallelSafe=true. Verifie
 
 ---
 
-## COVERAGE PRESERVATION
+## Historical Coverage Preservation (2026-09-28)
 
 The cascade removals eliminate no integration boundary coverage:
 
@@ -417,7 +429,7 @@ The cascade removals eliminate no integration boundary coverage:
 
 ---
 
-## SUMMARY METRICS
+## Historical Summary Metrics (2026-09-28)
 
 | Metric | Value |
 |---|---|

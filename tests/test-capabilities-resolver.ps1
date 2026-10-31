@@ -110,6 +110,23 @@ function Remove-TempProjectRoot {
     }
 }
 
+function Invoke-WithOptionalToolsHidden {
+    param([scriptblock]$Action)
+
+    $originalPath = $env:PATH
+    $emptyPath = Join-Path $env:TEMP "mxagile-empty-tool-path-$(New-Guid)"
+    New-Item -ItemType Directory -Path $emptyPath -Force | Out-Null
+    try {
+        $env:PATH = $emptyPath
+        $visible = @('rtk', 'context-mode' | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue })
+        if ($visible.Count -gt 0) { throw "Could not isolate optional tools from PATH: $($visible -join ', ')" }
+        & $Action
+    } finally {
+        $env:PATH = $originalPath
+        Remove-Item -LiteralPath $emptyPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "=== Capability Resolver Tests ===" -ForegroundColor Cyan
@@ -193,15 +210,14 @@ try {
     Remove-TempProjectRoot -Path $tmpEnabled
 }
 
-# I. RTK capability reports unavailable when rtk not in PATH
-# We don't install RTK — so rtk should not be in PATH in CI
+# I. RTK capability reports unavailable when rtk is absent from an isolated PATH
 $tmpRtkEnabled = New-TempProjectRoot -ConfigOverrides @{
     'context_optimization.enabled' = 'true'
     'context_optimization.rtk.enabled' = 'true'
 }
 try {
-    $rtkInPath = Get-Command rtk -ErrorAction SilentlyContinue
-    if (-not $rtkInPath) {
+    Invoke-WithOptionalToolsHidden {
+        Assert-True 'I0. RTK is absent from isolated PATH' ($null -eq (Get-Command rtk -ErrorAction SilentlyContinue)) 'RTK remained visible'
         $jsonOutput = & $Resolver -Format json -ProjectRoot $tmpRtkEnabled 2>&1
         if ($LASTEXITCODE -eq 0) {
             $json = $jsonOutput | ConvertFrom-Json
@@ -209,9 +225,6 @@ try {
             Assert-True 'I. RTK unavailable when not in PATH' ($rtkCap -and $rtkCap.state.unavailable -eq $true) "unavailable was: $($rtkCap.state.unavailable)"
             Assert-True 'I. RTK not active when unavailable' ($rtkCap -and $rtkCap.state.active -eq $false) "active was: $($rtkCap.state.active)"
         }
-    } else {
-        Write-Host "  SKIP: I. RTK is in PATH - skipping unavailable test" -ForegroundColor DarkGray
-        $script:PassCount++
     }
 } finally {
     Remove-TempProjectRoot -Path $tmpRtkEnabled
@@ -223,17 +236,14 @@ $tmpJ = New-TempProjectRoot -ConfigOverrides @{
     'context_optimization.context_mode.enabled' = 'true'
 }
 try {
-    $cmInPath = Get-Command 'context-mode' -ErrorAction SilentlyContinue
-    if (-not $cmInPath) {
+    Invoke-WithOptionalToolsHidden {
+        Assert-True 'J0. Context Mode is absent from isolated PATH' ($null -eq (Get-Command 'context-mode' -ErrorAction SilentlyContinue)) 'Context Mode remained visible'
         $jsonOutput = & $Resolver -Format json -ProjectRoot $tmpJ 2>&1
         if ($LASTEXITCODE -eq 0) {
             $json = $jsonOutput | ConvertFrom-Json
             $cmCap = $json.capabilities | Where-Object { $_.id -eq 'context_mode_integration' }
             Assert-True 'J. Enabled+unavailable NOT active' ($cmCap -and $cmCap.state.active -eq $false) "active was: $($cmCap.state.active)"
         }
-    } else {
-        Write-Host "  SKIP: J. context-mode is in PATH" -ForegroundColor DarkGray
-        $script:PassCount++
     }
 } finally {
     Remove-TempProjectRoot -Path $tmpJ

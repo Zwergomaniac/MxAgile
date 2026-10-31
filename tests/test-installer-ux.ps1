@@ -18,8 +18,7 @@
     8.  pause logic placed AFTER finally block (does not interfere with cleanup)
     9.  Core installer (install-mxagile.ps1) has ProvenanceFlavor "core"
     10. Mercedes installer (install-mxagile-mercedes.ps1) has ProvenanceFlavor "mercedes"
-    11. Regression: test-install-bootstrap-regression.ps1 passes
-    12. Regression: test-startup-priority.ps1 passes
+    11. Bootstrap and startup regressions remain independent release suites
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -61,17 +60,6 @@ function Assert-NotContains {
     } else {
         Assert-True $TestName (-not ($content -match $Pattern)) "Pattern '$Pattern' must NOT appear in $FilePath"
     }
-}
-
-function Invoke-RegressionSuite {
-    param([string]$TestName, [string]$ScriptPath)
-    if (-not (Test-Path -LiteralPath $ScriptPath)) {
-        Assert-True $TestName $false "Regression script not found: $ScriptPath"
-        return
-    }
-    $output   = & powershell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath 2>&1
-    $exitCode = $LASTEXITCODE
-    Assert-True $TestName ($exitCode -eq 0) "Exited $exitCode. Last: $(($output | Select-Object -Last 5) -join ' | ')"
 }
 
 $coreInstaller     = Join-Path $ScriptDir "install-mxagile.ps1"
@@ -229,13 +217,12 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 # Regression
 # ---------------------------------------------------------------------------
-Write-Host "--- 9-10: Regression suites ---"
-
-Invoke-RegressionSuite "9: test-install-bootstrap-regression.ps1 passes" `
-    (Join-Path $TestsDir "test-install-bootstrap-regression.ps1")
-
-Invoke-RegressionSuite "10: test-startup-priority.ps1 passes" `
-    (Join-Path $TestsDir "test-startup-priority.ps1")
+Write-Host "--- 9-10: Bootstrap and startup suites run independently ---"
+$inventory = Get-Content (Join-Path $TestsDir 'test-inventory.json') -Raw | ConvertFrom-Json
+$inventoryNames = @($inventory | ForEach-Object File)
+foreach ($suite in @('test-install-bootstrap-regression.ps1', 'test-startup-priority.ps1')) {
+    Assert-True "$suite is independently inventoried" ($suite -in $inventoryNames) "Missing inventory entry: $suite"
+}
 
 Write-Host ""
 

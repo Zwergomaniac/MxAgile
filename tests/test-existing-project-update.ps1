@@ -191,9 +191,10 @@ Write-Host ""
 # ===========================================================================
 Write-Host "--- B: Company Layer preservation ---"
 
-# .mxagile/layers/ exists in dev tree to confirm it is a known path
-Assert-True "B1: .mxagile/layers/ directory exists in canonical source tree" `
-    (Test-Path -LiteralPath (Join-Path $MxAgileDir "layers") -PathType Container) "Not found"
+# Company Layers are independently published and installed into the consumer project.
+$companyLayerDoc = Join-Path $RepoRoot "docs\company-layers.md"
+Assert-Contains "B1: Company Layer documentation identifies the project-owned layer destination" `
+    $companyLayerDoc '\.mxagile/layers/<layer-id>'
 
 Assert-Contains "B2: installer excludes layers/ from payload copy" `
     $InstallCorePath '-Exclude "layers", "state"'
@@ -582,26 +583,12 @@ Write-Host ""
 # ===========================================================================
 # GROUP G: Regression suites
 # ===========================================================================
-Write-Host "--- G: Regression suites ---"
-
-function Invoke-RegressionSuite {
-    param([string]$TestName, [string]$ScriptPath)
-    if (-not (Test-Path -LiteralPath $ScriptPath)) {
-        Assert-True $TestName $false "Regression script not found: $ScriptPath"
-        return
-    }
-    $output   = & powershell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath 2>&1
-    $exitCode = $LASTEXITCODE
-    Assert-True $TestName ($exitCode -eq 0) "Exited $exitCode. Last: $(($output | Select-Object -Last 5) -join ' | ')"
+Write-Host "--- G: Migration/schema suites remain independently inventoried ---"
+$inventory = Get-Content (Join-Path $TestsDir 'test-inventory.json') -Raw | ConvertFrom-Json
+$inventoryNames = @($inventory | ForEach-Object File)
+foreach ($suite in @('test-migration-provenance.ps1', 'test-migration-lifecycle-resync.ps1', 'test-wp10-artifact-schemas.ps1')) {
+    Assert-True "G: $suite remains independently inventoried" ($suite -in $inventoryNames) "Missing inventory entry: $suite"
 }
-
-Invoke-RegressionSuite "G1: test-migration-provenance.ps1 passes" `
-    (Join-Path $TestsDir "test-migration-provenance.ps1")
-
-# G2 (test-migration-lifecycle-resync.ps1) and G3 (test-wp10-artifact-schemas.ps1) removed.
-# Both are standalone tests executed by run-all-tests.ps1 and both transitively call
-# test-install-bootstrap-regression.ps1, which G1 already exercises. Running them here
-# duplicates the full Tier-2 cascade. Classification: REDUNDANT_EXECUTION.
 
 Write-Host ""
 

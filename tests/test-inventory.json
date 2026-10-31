@@ -119,18 +119,18 @@
   },
   {
     "File": "test-startup-priority.ps1",
-    "Tier": 0,
+    "Tier": 1,
     "FastGate": true,
     "NetworkRequired": false,
     "RealMxcliRequired": false,
     "CreatesSubprocesses": false,
-    "FilesystemFixture": false,
+    "FilesystemFixture": true,
     "UsesGit": false,
     "UsesSharedCache": false,
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Reads apply-project-agent-instructions.ps1 and .testing-greenfield-rt4/ workspace entrypoints. Pure static content matching."
+    "Reason": "Creates a GUID synthetic greenfield project, runs canonical instruction injection, and verifies generated entrypoints. No shared workspace or network."
   },
   {
     "File": "test-runtime-strategy.ps1",
@@ -475,7 +475,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": false,
-    "Reason": "FastGate=false: ~94s runtime driven by 50+ robocopy operations. Creates a junction in the SHARED project-templates/ directory — cannot run in parallel. Belongs in FULL regression only."
+    "Reason": "ACTIVE_RELEASE_TEST: creates only GUID synthetic greenfield/brownfield sources with 1,001 marker files; checks Robocopy fidelity and transient exclusions. Uses a temporary junction under shared project-templates, so it remains non-parallel. Measured 64.63s after pwsh child-host and synthetic fixture updates."
   },
   {
     "File": "test-mxagile-dev-cli.ps1",
@@ -490,7 +490,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": true,
     "ParallelSafe": false,
-    "Reason": "FastGate=false: ~151s runtime with many CLI subprocess launches. Sets $env:MXAGILE_NONINTERACTIVE in parent process (global env mutation). Too slow and not parallel-safe for fast feedback loop."
+    "Reason": "ACTIVE_RELEASE_TEST: CLI dispatch and interactive-menu contract. Uses synthetic migration state in a GUID temp project, launches isolated pwsh children, and scopes MXAGILE_NONINTERACTIVE restoration. Measured 118.21s; FastGate=false and non-parallel."
   },
   {
     "File": "test-layer-update.ps1",
@@ -595,7 +595,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Groups A-D, G-J static reads; E-F create GUID temp fixtures and simulate fixup logic inline. No subprocess, network, or mxcli. Fast (inline logic, no heavy subprocess)."
+    "Reason": "ACTIVE_RELEASE_TEST: validates synthetic mxcli-init bootstrap/settings fixtures, bounded download and safe SessionStart behavior, plus install-core fixup contracts. Fixtures are GUID temp projects; no template workspace, network, or mxcli."
   },
   {
     "File": "test-init-idempotency.ps1",
@@ -609,7 +609,7 @@
     "UsesSharedCache": true,
     "UsesFixedTempPath": true,
     "ModifiesGlobalState": false,
-    "ParallelSafe": false,
+    "ParallelSafe": true,
     "Reason": "Uses fixed path tests/temp-project/. Calls mxagile-init.ps1 inline -> install-mxcli.ps1 -> downloads mxcli from network."
   },
   {
@@ -619,7 +619,7 @@
     "NetworkRequired": true,
     "RealMxcliRequired": true,
     "CreatesSubprocesses": true,
-    "FilesystemFixture": true,
+    "FilesystemFixture": false,
     "UsesGit": false,
     "UsesSharedCache": true,
     "UsesFixedTempPath": false,
@@ -644,48 +644,48 @@
   },
   {
     "File": "test-migration-provenance.ps1",
-    "Tier": 2,
-    "FastGate": false,
-    "NetworkRequired": true,
-    "RealMxcliRequired": true,
-    "CreatesSubprocesses": true,
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
     "FilesystemFixture": true,
     "UsesGit": false,
-    "UsesSharedCache": true,
+    "UsesSharedCache": false,
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
-    "ParallelSafe": false,
-    "Reason": "GUID fixtures. Calls test-install-bootstrap-regression.ps1 (Tier 2) as regression suite. Transitively requires mxcli download."
+    "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: executes the canonical migration bootstrap against GUID synthetic projects and verifies provenance/state preservation; no network or mxcli. Bootstrap/startup companion suites run independently."
   },
   {
     "File": "test-migration-lifecycle-resync.ps1",
-    "Tier": 2,
-    "FastGate": false,
-    "NetworkRequired": true,
-    "RealMxcliRequired": true,
-    "CreatesSubprocesses": true,
-    "FilesystemFixture": true,
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
+    "FilesystemFixture": false,
     "UsesGit": false,
-    "UsesSharedCache": true,
+    "UsesSharedCache": false,
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
-    "ParallelSafe": false,
-    "Reason": "Calls test-migration-provenance.ps1 and test-install-bootstrap-regression.ps1 (both Tier 2). Transitively requires mxcli download."
+    "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static lifecycle-resync, migration completion authority, and artifact-canonicalization separation assertions. Related migration/bootstrap suites run independently."
   },
   {
     "File": "test-installer-ux.ps1",
-    "Tier": 2,
-    "FastGate": false,
-    "NetworkRequired": true,
-    "RealMxcliRequired": true,
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
     "CreatesSubprocesses": true,
     "FilesystemFixture": true,
     "UsesGit": false,
-    "UsesSharedCache": true,
+    "UsesSharedCache": false,
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
-    "ParallelSafe": false,
-    "Reason": "Calls test-install-bootstrap-regression.ps1 (Tier 2) as regression suite. Transitively requires mxcli download."
+    "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static installer UX contracts plus one bounded fast-fail child invocation; bootstrap/startup companions run independently."
   },
   {
     "File": "test-mxcli-runtime-resolution.ps1",
@@ -704,18 +704,18 @@
   },
   {
     "File": "test-mxcli-acquisition.ps1",
-    "Tier": 2,
-    "FastGate": false,
-    "NetworkRequired": true,
-    "RealMxcliRequired": true,
-    "CreatesSubprocesses": true,
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
     "FilesystemFixture": false,
     "UsesGit": false,
-    "UsesSharedCache": true,
+    "UsesSharedCache": false,
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
-    "ParallelSafe": false,
-    "Reason": "Groups A-K are static. Group L calls test-migration-lifecycle-resync.ps1 and test-migration-provenance.ps1 (both Tier 2)."
+    "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static acquisition-policy contract checks. Migration/provenance companion suites are independently run by the full runner."
   },
   {
     "File": "test-core-installer.ps1",
@@ -749,33 +749,33 @@
   },
   {
     "File": "test-wp10-artifact-schemas.ps1",
-    "Tier": 2,
-    "FastGate": false,
-    "NetworkRequired": true,
-    "RealMxcliRequired": true,
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
     "CreatesSubprocesses": true,
     "FilesystemFixture": true,
     "UsesGit": false,
-    "UsesSharedCache": true,
+    "UsesSharedCache": false,
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
-    "ParallelSafe": false,
-    "Reason": "Groups E-H run Python scripts (GUID fixtures). Group K calls test-mxcli-acquisition.ps1 (Tier 2) as regression suite."
+    "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: schema/canonicalization contracts and GUID Python indexer fixtures; mxcli acquisition remains an independent suite."
   },
   {
     "File": "test-existing-project-update.ps1",
-    "Tier": 2,
-    "FastGate": false,
-    "NetworkRequired": true,
-    "RealMxcliRequired": true,
-    "CreatesSubprocesses": true,
+    "Tier": 1,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": false,
     "FilesystemFixture": true,
     "UsesGit": false,
-    "UsesSharedCache": true,
+    "UsesSharedCache": false,
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
-    "ParallelSafe": false,
-    "Reason": "Groups A-F in-process GUID fixtures. Group G calls test-migration-provenance.ps1 and test-wp10-artifact-schemas.ps1 (both Tier 2)."
+    "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: in-process GUID fixtures verify Core ownership, Company Layer/migration preservation, and WP-10 state reconciliation. Integration companions run independently."
   },
   {
     "File": "test-install-bootstrap-regression.ps1",
@@ -1316,5 +1316,194 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "MxAgile 1.7.1 Autonomy-First hardening (41-50). Unsupported harness: ROLLOVER_RECOMMENDED/REQUIRED → COMPACTION_SKIPPED_UNSUPPORTED, Success=true, no /compact request, no new-session request, IsHumanGate=false, MissionContinues=true, RequiredAction empty, TransitionState≠TRANSITION_COMPLETED. OpenCode DryRun: COMPACTION_AUTOMATABLE. Claude Code DryRun: COMPACTION_AUTOMATABLE, CompactionAutomatable=true. Evidence isolation: skip cannot promote evidence. Policy + schema contain 5 diagnostic states."
+  },
+  {
+    "File": "test-ac-faithfulness.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static AC-source traceability contract and synthetic coverage fixtures; read-only."
+  },
+  {
+    "File": "test-active-target-invariant-interruption.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static interruption-safety assertions for the active-target invariant and lifecycle-resync contract."
+  },
+  {
+    "File": "test-active-target-invariant.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: Tier-0 static checks of active_target schema, policy, and synthetic revision fixtures."
+  },
+  {
+    "File": "test-architecture-drift-prevention.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static architecture ownership, wave-significance, and framework-purity contract checks using synthetic names."
+  },
+  {
+    "File": "test-core-regression.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: Tier-0 static validation of synthetic Core fixtures, platform boundaries, roles, gaps, lifecycle, and framework purity."
+  },
+  {
+    "File": "test-cross-contract-consistency.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static cross-contract consistency checks between Core schemas, Mocketeer knowledge, and migration fixtures."
+  },
+  {
+    "File": "test-extend-semantics.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static EXTEND semantics and synthetic verification-lifecycle fixture contract."
+  },
+  {
+    "File": "test-external-skills.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: Tier-0 static external-skill presence, provenance, precedence, and hygiene validation; no network or agent invocation."
+  },
+  {
+    "File": "test-graph-capability.ps1", "Tier": 1, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: graph capability operations against a GUID temporary artifact project; launches local Python helpers only, no network or mxcli."
+  },
+  {
+    "File": "test-graphify-install.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: Tier-0 static installer safety/parameter validation; installer, uv, Graphify, and network are not executed."
+  },
+  {
+    "File": "test-hardening-rf001-resume-priority.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static resume-priority policy and contract regression."
+  },
+  {
+    "File": "test-hardening-rf002-context-mode-discovery.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static Context Mode setup-state versus capability-state contract regression."
+  },
+  {
+    "File": "test-hardening-rf003-ctx-index-authoring.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static scan that authoring guidance uses ctx_index and does not instruct ctx_store use."
+  },
+  {
+    "File": "test-hardening-rf004-sp-detector.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static bounded-timeout and process-detector contract checks."
+  },
+  {
+    "File": "test-hardening-rf005-ps-preflight.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static PowerShell 7 preflight placement checks across setup/install entrypoints."
+  },
+  {
+    "File": "test-hardening-rf010-completion-cleanliness.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static mission completion and project-scope cleanliness contract checks."
+  },
+  {
+    "File": "test-mendix-scroll-policy.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static Mendix-aware Playwright scroll policy and synthetic fixture contract checks."
+  },
+  {
+    "File": "test-migration-fixtures.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static validation of canonical migration input/output and unsafe-scenario fixtures."
+  },
+  {
+    "File": "test-negative-schema.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: Tier-0 negative validation of canonical schema enums, required fields, and policy invariants."
+  },
+  {
+    "File": "test-revision-lifecycle.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: Tier-0 static revision lifecycle, effect, role coverage, and contract-migration validation."
+  },
+  {
+    "File": "test-role-access-semantics.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static role/access semantics and generic synthetic fixture validation."
+  },
+  {
+    "File": "test-runtime-startup-recovery.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static evidence-first startup recovery and classification policy regression."
+  },
+  {
+    "File": "test-scope-aware-verification.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static assertions against synthetic scope-aware verification fixtures; no runtime app required."
+  },
+  {
+    "File": "test-scss-engineering-policy.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static SCSS ownership, composition-root, and concern-classification policy validation."
+  },
+  {
+    "File": "test-transformation-behavioral.ps1", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: behavioral transformations against synthetic HTML/spec fixtures in a GUID temp directory; launches isolated pwsh executors; measured ~34s, so excluded from Fast Gate."
+  },
+  {
+    "File": "test-verification-economics-regression.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static regression for late-materialized verification contracts and synthetic requirement/TC fixtures."
+  },
+  {
+    "File": "test-verification-gap-taxonomy.ps1", "Tier": 0, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
+    "Reason": "ACTIVE_RELEASE_TEST: static verification-gap taxonomy definitions, routing, and fixture coverage checks."
   }
 ]

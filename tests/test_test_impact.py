@@ -65,6 +65,16 @@ class ImpactTests(unittest.TestCase):
     def test_delegation_mapping_does_not_downgrade_installer(self):
         self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
 
+    def test_baseline_fixture_helper_and_indexer_have_targeted_consumers(self):
+        fixtures = impact.select(["tests/helpers/MxAgileBaselineFixture.ps1"])
+        self.assertEqual(fixtures["tier"], 1)
+        self.assertEqual(fixtures["unmapped"], [])
+        self.assertEqual(fixtures["suites"], ["test-mxagile-dev-cli.ps1", "test-session-bootstrap.ps1", "test-startup-priority.ps1"])
+        indexer = impact.select(["scripts/build_artifact_index.py"])
+        self.assertEqual(indexer["tier"], 1)
+        self.assertEqual(indexer["unmapped"], [])
+        self.assertIn("test-wp10-artifact-schemas.ps1", indexer["suites"])
+
     def test_unknown_fails_closed(self):
         self.assertEqual(impact.select(["scripts/new-authority.py"])["tier"], 3)
 

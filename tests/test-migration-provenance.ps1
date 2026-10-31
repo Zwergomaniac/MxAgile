@@ -25,10 +25,7 @@
     O  - Static: policy references lifecycle.yaml as success signal
     P  - Static: policy instructs temp dir cleanup
     Q  - Runtime: provenance.yaml does not overwrite state.yaml or brownfield-baseline
-    R  - Regression: test-migration-crash-safety.ps1 passes
-    S  - Regression: test-dfc-migration-preflight.ps1 passes
-    T  - Regression: test-install-bootstrap-regression.ps1 passes
-    U  - Regression: test-startup-priority.ps1 passes
+    R-U - Crash-safety, DFC-preflight, bootstrap, and startup suites run independently
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -481,32 +478,14 @@ try {
 Write-Host ""
 
 # =========================================================================
-# GROUP R,S,T,U: Regression suites
+# GROUP R-U: Related suites run independently by run-all-tests.ps1
 # =========================================================================
-Write-Host "--- R,S,T,U: Regression suites ---"
-
-function Invoke-RegressionSuite {
-    param([string]$TestName, [string]$ScriptPath)
-    if (-not (Test-Path -LiteralPath $ScriptPath)) {
-        Assert-True $TestName $false "Regression script not found: $ScriptPath"
-        return
-    }
-    $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath 2>&1
-    $exitCode = $LASTEXITCODE
-    Assert-True $TestName ($exitCode -eq 0) "Exited with code $exitCode. Last output: $(($output | Select-Object -Last 5) -join ' | ')"
+Write-Host "--- R-U: Related migration/bootstrap suites are independently inventoried ---"
+$inventory = Get-Content (Join-Path $TestsDir 'test-inventory.json') -Raw | ConvertFrom-Json
+$inventoryNames = @($inventory | ForEach-Object File)
+foreach ($suite in @('test-migration-crash-safety.ps1', 'test-dfc-migration-preflight.ps1', 'test-install-bootstrap-regression.ps1', 'test-startup-priority.ps1')) {
+    Assert-True "$suite is independently inventoried" ($suite -in $inventoryNames) "Missing inventory entry: $suite"
 }
-
-Invoke-RegressionSuite "R: test-migration-crash-safety.ps1 passes" `
-    (Join-Path $TestsDir "test-migration-crash-safety.ps1")
-
-Invoke-RegressionSuite "S: test-dfc-migration-preflight.ps1 passes" `
-    (Join-Path $TestsDir "test-dfc-migration-preflight.ps1")
-
-Invoke-RegressionSuite "T: test-install-bootstrap-regression.ps1 passes" `
-    (Join-Path $TestsDir "test-install-bootstrap-regression.ps1")
-
-Invoke-RegressionSuite "U: test-startup-priority.ps1 passes" `
-    (Join-Path $TestsDir "test-startup-priority.ps1")
 
 Write-Host ""
 
