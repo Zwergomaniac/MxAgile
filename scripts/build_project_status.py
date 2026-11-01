@@ -885,6 +885,7 @@ def _build_status(project_root: Path) -> dict[str, Any]:
     context_doc, context_state = read_yaml_file(root, "planning/lifecycle/context-epoch.yaml", hashes, gaps, parsed_documents)
 
     requirement_state, requirements, requirement_paths = read_collection(root, "requirements", "*.yml", "ID", hashes, gaps, parsed_documents)
+    _spec_state, _specs, _spec_paths = read_collection(root, "specs", "*.yml", "ID", hashes, gaps, parsed_documents)
     task_state, tasks, task_paths = read_collection(root, "planning/tasks", "*.yml", "ID", hashes, gaps, parsed_documents)
     decision_state, decisions, decision_paths = read_collection(root, "planning/decisions", "*.yml", "ID", hashes, gaps, parsed_documents)
     finding_state, finding_records, finding_paths = read_collection(root, "planning/findings", "*.yml", "ID", hashes, gaps, parsed_documents)

@@ -872,6 +872,8 @@ class ProjectStatusTests(unittest.TestCase):
       for directory in ("planning/evidence/manifests", "planning/target-mockups"):
         shutil.rmtree(self.root / directory)
         (self.root / directory).mkdir(parents=True)
+      shutil.rmtree(self.root / "planning/parity")
+      (self.root / "planning/parity").mkdir(parents=True)
       (self.root / "planning/findings").mkdir()
       write_file(self.root, "specs/SPEC-001.yml", "ID: SPEC-001\ntitle: Fixture\ndescription: Fixture spec\nrequirements: [REQ-001]\n")
       write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\n")
