@@ -29,7 +29,7 @@ RULES = (
     1, ("test_project_status.py", "test_parity_gallery.py")),
     ((".mxagile/board/*", "scripts/*project_status.py", "scripts/serve_project_board.py", "tests/test_parity_gallery.py", "tests/test-parity-gallery.ps1", "tests/test_board_performance.py", "docs/project-status-inventory.md", ".mxagile/policies/gap-verification-repair.md", ".mxagile/policies/project-compatibility.md"),
      1, ("test_project_status.py", "test_parity_gallery.py", "test_board_performance.py", "test-board-authority.ps1")),
-    (("tests/test_board_http.py",), 1, ("test_board_http.py",)),
+    (("scripts/serve_project_board.py", "tests/test_board_http.py"), 1, ("test_board_http.py",)),
     (("*parity*", "*evidence*"), 2,
      ("test_project_status.py", "test-ui-parity.ps1", "test-verification-lifecycle.ps1")),
     (("scripts/install-core.ps1", "scripts/*setup*", "mxagile-setup*", ".mxagile/policies/update-contract.md"),

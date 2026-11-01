@@ -379,7 +379,10 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 "img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
             )
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            self.log_message("CLIENT_DISCONNECT")
 
     def _read_file(self, path: Path) -> bytes | None:
         try:
