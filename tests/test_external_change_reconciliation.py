@@ -795,6 +795,29 @@ class ReconciliationBaselineTests(unittest.TestCase):
         self.assertEqual(result["status"], "AMBIGUOUS_HISTORY")
         self.assertEqual(result["commits"][-1]["classification"], "AMBIGUOUS")
 
+    def test_active_operations_are_root_bound_and_block_delta_scan(self) -> None:
+        for name, operation in (
+            ("MERGE_HEAD", "MERGE"), ("CHERRY_PICK_HEAD", "CHERRY_PICK"),
+            ("REVERT_HEAD", "REVERT"), ("rebase-merge", "REBASE"), ("rebase-apply", "REBASE"),
+        ):
+            with self.subTest(operation=name):
+                metadata = self.root / ".git" / name
+                if name.startswith("rebase-"):
+                    metadata.mkdir()
+                else:
+                    metadata.write_text(self.git("rev-parse", "HEAD") + "\n", encoding="ascii")
+                try:
+                    with patch.object(reconciliation, "working_tree_changes", side_effect=AssertionError("Delta scan during Git operation")):
+                        report = reconciliation.build_report(self.root)
+                    self.assertEqual(report["status"], "GIT_OPERATION_IN_PROGRESS")
+                    self.assertEqual(report["operations_in_progress"], [operation])
+                    self.assertEqual(report["working_changes"], {"staged": [], "unstaged": [], "untracked": []})
+                finally:
+                    if metadata.is_dir():
+                        metadata.rmdir()
+                    else:
+                        metadata.unlink()
+
     def test_integrity_failure_blocks_range_before_delta_scan(self) -> None:
         failure = {"state": "GIT_INDEX_INTEGRITY_FAILURE", "mutations_allowed": False}
         with patch.object(reconciliation, "inspect_index", return_value=failure):

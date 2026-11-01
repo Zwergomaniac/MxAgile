@@ -45,6 +45,10 @@ Assert ($updatePolicy -match 'UPDATE_INSTALLED_RESTART_REQUIRED') 'Same-session 
 Assert ($updatePolicy -match 'CONTRACTS_RE_SYNCED') 'Same-session update requires observed contract re-read before completion'
 Assert ($updatePolicy -match 'korrekt\s+aktualisiert') 'Update verification questions use the two-axis completion contract'
 Assert ($routingSource -match 'korrekt aktualisiert' -and $routingSource -match 'CONTRACTS_RE_SYNCED') 'Always-on routing includes follow-up verification and same-session re-sync'
+Assert ($routingSource.IndexOf('Repository Boundary and Git Integrity') -lt $routingSource.IndexOf('Lifecycle Re-Sync FIRST')) 'Git boundary/integrity precedes startup drift analysis'
+Assert ($routingSource.IndexOf('External Change Detection') -gt $routingSource.IndexOf('Lifecycle Re-Sync FIRST') -and $routingSource.IndexOf('External Change Detection') -lt $routingSource.IndexOf('Project Brain after Re-Sync')) 'External detection follows contract re-sync before normal work'
+Assert ($routingSource -match 'not reading legitimate canonical lifecycle') 'Integrity failure preserves canonical artifact reads'
+Assert ($routingSource -match 'BASELINE_REQUIRED, not permission to scan history') 'Missing baseline never authorizes a startup history scan'
 
 # ──────────────────────────────────────────────────────────────
 # A  install-core.ps1: accepts ProvenanceCoreCommit and writes provenance

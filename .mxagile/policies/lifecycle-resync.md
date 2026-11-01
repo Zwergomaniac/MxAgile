@@ -135,6 +135,15 @@ Git-History darf NUR inspiziert werden wenn:
 Das Fehlen von `process-state.yaml` bedeutet: Lifecycle-Phase aus vorhandenen
 Artefakten ableiten (Checkliste, Story-Specs, Gate-Artefakte) — NICHT: Git-Log lesen.
 
+Davon getrennt ist die begrenzte read-only Change Detection nach
+`external-change-reconciliation.md`: erst Repository Boundary/Git Integrity,
+dann Framework-/Contract-Re-Sync, danach worktree-lokalen Reconciliation-State
+pruefen, External Changes erkennen und erforderliche Impacts reconciliieren.
+Nur ein gueltiger gebundener Watermark erlaubt dessen begrenzten Commit-Range;
+ohne Baseline kein History-Scan. Git-Deltas rekonstruieren niemals Lifecycle-State.
+Git-Integrity-Fehler blockieren Drift-Auswertung und normale Mutation, nicht das
+Lesen legitimer kanonischer Lifecycle-/Contract-Artefakte.
+
 ---
 
 ## Git-Mutationen verboten waehrend Orientation/Re-Sync

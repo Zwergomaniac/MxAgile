@@ -98,13 +98,15 @@ def _git_paths(root: Path) -> dict[str, Path]:
 
 def _active_operations(root: Path) -> list[str]:
     operations: list[str] = []
-    for name in ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"):
-        if Path(_git_text(root, "rev-parse", "--git-path", name)).exists():
-            operations.append(name.removesuffix("_HEAD"))
-    for name in ("rebase-merge", "rebase-apply"):
-        if Path(_git_text(root, "rev-parse", "--git-path", name)).exists():
-            operations.append("REBASE")
-            break
+    for name, operation in (
+        ("MERGE_HEAD", "MERGE"), ("CHERRY_PICK_HEAD", "CHERRY_PICK"),
+        ("REVERT_HEAD", "REVERT"), ("rebase-merge", "REBASE"), ("rebase-apply", "REBASE"),
+    ):
+        path = Path(_git_text(root, "rev-parse", "--git-path", name))
+        if not path.is_absolute():
+            path = root / path
+        if path.exists():
+            operations.append(operation)
     return sorted(set(operations))
 
 
@@ -282,6 +284,13 @@ def _snapshot(root: Path) -> dict[str, Any]:
         worktree_identity = _sha256(str(paths["git_dir"]))
         state_path, _, _ = _branch_state_path(root, branch_ref)
         operations = _active_operations(root)
+        if operations:
+            result.update(
+                status="GIT_OPERATION_IN_PROGRESS", operations_in_progress=operations,
+                repository_identity=repository_identity, worktree_identity=worktree_identity,
+                branch_ref=branch_ref, head=head, state_path=state_path,
+            )
+            return result
         status_bytes = _git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
         changes = working_tree_changes(root)
         shallow = _git_text(root, "rev-parse", "--is-shallow-repository") == "true"
@@ -297,9 +306,6 @@ def _snapshot(root: Path) -> dict[str, Any]:
             "shallow_repository": shallow,
             "state_path": state_path,
         })
-        if operations:
-            result["status"] = "GIT_OPERATION_IN_PROGRESS"
-            return result
         if not status_bytes:
             pass
         else:

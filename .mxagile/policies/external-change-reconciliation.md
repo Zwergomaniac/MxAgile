@@ -16,6 +16,21 @@ insufficient MxAgile provenance; it does not claim that a person made the change
   trailers are discovery hints; neither trailer nor manifest alone establishes attribution.
 - The board and project-status output are read-only projections, never authority.
 
+## Startup Order
+
+Establish the repository boundary and check Git integrity, then re-read the installed
+framework and canonical lifecycle contracts. An integrity failure blocks Git-derived
+drift analysis and normal mutation, not legitimate canonical artifact reads. Respect
+the current Safety/CONTROLLED_RECOVERY contract; damaged index deletions are never
+external project changes.
+
+After contract re-sync, inspect the worktree-local reconciliation state, perform
+read-only external change detection, and reconcile required artifact impacts before
+normal lifecycle work. Missing state remains BASELINE_REQUIRED without a historical
+scan or automatic adoption. Reconciliation only orchestrates existing authorities;
+it creates no second lifecycle, compatibility, Requirement, Decision, Evidence,
+Finding or ACTIVE_TARGET state. The Board only consumes the validated projection.
+
 ## Attribution
 
 Verify the change-set schema, trailer IDs, exact parent list, declared paths and

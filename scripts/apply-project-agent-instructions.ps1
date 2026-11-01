@@ -342,6 +342,11 @@ $MxAgileStartupBlock = @'
 
 When starting, resuming, or picking up work, follow this order:
 
+**Repository Boundary and Git Integrity** - establish this project's root and follow
+`.mxagile/policies/safety-rules.md` before Git-derived drift analysis. Run the read-only
+Git index guard before change detection. A blocked Git state blocks drift analysis and
+normal mutations, not reading legitimate canonical lifecycle or framework contracts.
+
 1. **Lifecycle Re-Sync FIRST** — check for `.mxagile/` and `.concord/scratch/process-state.yaml`.
    If present, read `.mxagile/policies/lifecycle-resync.md` and reconstruct the current
    delivery position (wave, phase, completed/remaining checklist items) BEFORE anything else.
@@ -353,6 +358,14 @@ When starting, resuming, or picking up work, follow this order:
     version and command capabilities. Never choose by PATH or skill load order; if the
     instructions still conflict or the selected tool lacks a required capability, stop only
     that operation and report the conflict/gap.
+
+**External Change Detection** - after framework/contract re-sync and before normal lifecycle
+work, if `.mxagile/policies/external-change-reconciliation.md` is present, read it and inspect
+the worktree-local reconciliation state. Only with valid Git integrity, run its read-only
+report and perform required bounded impact reconciliation before continuing. Missing state
+means BASELINE_REQUIRED, not permission to scan history or adopt a baseline automatically.
+Reconciliation orchestrates existing authorities; it never replaces lifecycle, compatibility,
+Requirements, Decisions, Evidence, Findings or ACTIVE_TARGET. The Board remains a consumer.
 
 2. **Project Brain after Re-Sync** — consult the already-resolved project mxcli `brain plan`
     command or `docs/brain/` only
