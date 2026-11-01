@@ -24,6 +24,18 @@ function Assert {
     }
 }
 
+function Measure-CanonicalPrompt {
+    param([AllowEmptyString()][string]$Text)
+    $characters = $Text.Replace("`r`n", "`n").Replace("`r", "`n").Length
+    $remaining = 8000 - $characters
+    [pscustomobject]@{
+        Characters = $characters
+        Remaining = $remaining
+        WithinLimit = ($characters -le 8000)
+        HasSafetyMargin = ($remaining -ge 100)
+    }
+}
+
 Write-Host "`nMxMocketeer Validation — $ProductRoot" -ForegroundColor Cyan
 
 # ──────────────────────────────────────────────────────────────
@@ -53,9 +65,27 @@ foreach ($rel in $required) {
 Write-Host "`n[2] System prompt within M365 character limit (8 000)"
 $promptPath = Join-Path $ProductRoot 'system-prompt.md'
 if (Test-Path $promptPath) {
-    $chars = (Get-Content $promptPath -Raw -Encoding UTF8).Length
-    Write-Host "    Character count: $chars"
-    Assert ($chars -le 8000) "System prompt <= 8 000 characters" "actual: $chars"
+    $promptText = Get-Content $promptPath -Raw -Encoding UTF8
+    $measurement = Measure-CanonicalPrompt $promptText
+    $chars = $measurement.Characters
+    Write-Host "    Character count (canonical LF): $chars"
+    Assert $measurement.WithinLimit "System prompt <= 8 000 characters" "actual: $chars"
+
+    $lfText = $promptText.Replace("`r`n", "`n").Replace("`r", "`n")
+    $lf = Measure-CanonicalPrompt $lfText
+    $crlf = Measure-CanonicalPrompt ($lfText.Replace("`n", "`r`n"))
+    Assert ($lf.Characters -eq $crlf.Characters -and $lf.Remaining -eq $crlf.Remaining) 'LF/CRLF prompts have identical canonical length and margin'
+    Assert ($lf.WithinLimit -eq $crlf.WithinLimit -and $lf.HasSafetyMargin -eq $crlf.HasSafetyMargin) 'LF/CRLF prompts have identical validation results'
+    Write-Host "    EOL regression: LF=$($lf.Characters)/$($lf.Remaining), CRLF=$($crlf.Characters)/$($crlf.Remaining) (length/margin)"
+
+    foreach ($newline in @("`n", "`r`n", "`r")) {
+        $atMargin = Measure-CanonicalPrompt (('x' * 7899) + $newline)
+        Assert ($atMargin.Characters -eq 7900 -and $atMargin.Remaining -eq 100 -and $atMargin.WithinLimit -and $atMargin.HasSafetyMargin) 'Canonical 7900 characters preserve exactly 100 characters of safety margin'
+        $belowMargin = Measure-CanonicalPrompt (('x' * 7900) + $newline)
+        Assert ($belowMargin.Characters -eq 7901 -and $belowMargin.Remaining -eq 99 -and $belowMargin.WithinLimit -and -not $belowMargin.HasSafetyMargin) 'Canonical 7901 characters fail the unchanged safety margin'
+        $overLimit = Measure-CanonicalPrompt (('x' * 8000) + $newline)
+        Assert ($overLimit.Characters -eq 8001 -and -not $overLimit.WithinLimit -and -not $overLimit.HasSafetyMargin) 'Canonical 8001 characters fail the unchanged hard limit'
+    }
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -225,9 +255,9 @@ foreach ($rel in $knowledgeFiles) {
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[7] System prompt safety margin (>= 100 chars remaining)"
 if (Test-Path $promptPath) {
-    $remaining = 8000 - $chars
+    $remaining = $measurement.Remaining
     Write-Host "    Remaining margin: $remaining characters"
-    Assert ($remaining -ge 100) "System prompt has >= 100 chars safety margin" "remaining: $remaining"
+    Assert $measurement.HasSafetyMargin "System prompt has >= 100 chars safety margin" "remaining: $remaining"
     Assert ($remaining -le 7900) "System prompt not suspiciously empty" "remaining: $remaining"
 }
 

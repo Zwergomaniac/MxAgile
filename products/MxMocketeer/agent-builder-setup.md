@@ -3,6 +3,23 @@
 ## Instructions
 Copy the complete content of `system-prompt.md` into the **Instructions** field.
 
+### Canonical Text and Length Budget
+
+The release representation is the complete UTF-8 prompt text with CRLF and bare
+CR line endings normalized to LF. Each line break counts once. No trimming,
+content removal or Unicode normalization is performed; a trailing newline counts.
+Validation uses the resulting .NET string length, retains the 8000-character hard
+limit and requires at least 100 characters of reserve (at most 7900 characters).
+Git checkout line endings must not change this result.
+
+Use the same canonical text for the Instructions field. From this product directory
+in PowerShell, prepare the clipboard without changing the source file:
+
+```powershell
+$prompt = Get-Content ./system-prompt.md -Raw -Encoding UTF8
+Set-Clipboard -Value ($prompt.Replace("`r`n", "`n").Replace("`r", "`n"))
+```
+
 ## Knowledge Files
 Upload all seven files from `knowledge/` as knowledge:
 1. `knowledge/design-contract.txt` — Design Contract v1 schema, structured flows schema, maturity assessment schema, preservation rules
