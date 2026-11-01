@@ -46,6 +46,8 @@
           "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
         },
         "status": { "type": "string", "enum": ["A", "M", "D"] },
+        "before_mode": { "type": ["string", "null"], "pattern": "^(?:100644|100755|120000|160000)$" },
+        "after_mode": { "type": ["string", "null"], "pattern": "^(?:100644|100755|120000|160000)$" },
         "before_blob": { "anyOf": [{ "$ref": "#/definitions/object_id" }, { "type": "null" }] },
         "after_blob": { "anyOf": [{ "$ref": "#/definitions/object_id" }, { "type": "null" }] }
       }

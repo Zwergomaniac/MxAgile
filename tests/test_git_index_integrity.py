@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import git_index_integrity
+import reconcile_external_changes
 
 
 class IndexIntegrityTests(unittest.TestCase):
@@ -43,6 +44,9 @@ class IndexIntegrityTests(unittest.TestCase):
         self.assertEqual(index_path.read_bytes(), before)
         self.assertEqual(self.command("rev-parse", "HEAD"), head)
         self.assertEqual(len(list(self.root.glob("*.mxunit"))), 6170)
+        drift = reconcile_external_changes.build_report(self.root)
+        self.assertEqual(drift["status"], "GIT_INTEGRITY_BLOCKED")
+        self.assertEqual(drift["working_changes"], {"staged": [], "unstaged": [], "untracked": []})
         self.command("restore", "--source=HEAD", "--staged", "--", ":/")
         self.assertEqual(git_index_integrity.inspect_index(self.root)["state"], "GIT_INDEX_PLAUSIBLE")
         self.assertEqual(len(list(self.root.glob("*.mxunit"))), 6170)

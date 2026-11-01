@@ -63,6 +63,55 @@ If a repair reveals that the correct implementation requires changing the fachli
 → Route to Mockup Refinement.
 → Repair only after a new REV-NNN is accepted.
 
+## External Change Reconciliation
+
+`planning/findings/FIND-*.yml` validated by `.mxagile/schemas/finding.schema.json`
+is the canonical Finding authority. `FINDINGS.md` is human-readable campaign or
+historical narrative only; it is not parsed as lifecycle state and is never the
+only source for Project Status.
+
+The existing GAP lifecycle remains authoritative. `VERIFIED` is the resolved
+state and requires completed verification. `SUPERSEDED` requires `superseded_by`
+to identify the replacing Finding. `RETIRED` requires a durable reason, including
+when a Finding is no longer applicable. Do not invent a parallel ACTIVE/RESOLVED
+state machine.
+
+External-change reports compare changed paths with canonical Finding
+`source_artifacts` and explicit related artifact IDs. An unrelated delta leaves
+the Finding unchanged. A match produces the read-only projection
+`REASSESS_REQUIRED`; it does not change `lifecycle_status` or mark a Finding
+resolved. Persist an assessment only in the canonical Finding's `reconciliation`
+record, bound to the exact affected-path/blob fingerprint and evidence or
+decision references. The Watermark gate remains blocked until every affected
+active or terminal Finding has a current assessment.
+
+`FRAMEWORK_FOLLOWUP` is an origin classification, not a lifecycle state. A Core
+update alone never resolves it. Resolution requires the framework change, a
+current Doctor result, reality/verification evidence, and a canonical Finding
+update to `VERIFIED` with framework/resolution commit and evidence references.
+
+## Finding Projection and Compaction
+
+Project Status keeps non-terminal Findings in the active `items` projection and
+emits `VERIFIED`, `SUPERSEDED`, and `RETIRED` records as compact `history`
+references. The history preserves ID, terminal state, category, severity, wave /
+workpackage, Requirement / Decision IDs, source and Evidence references, terminal
+resolution or supersession reference, commits when known, and canonical path.
+Board history is collapsed by default; no Markdown is scraped in the browser.
+
+Phase 2 does not move, delete, or bulk-migrate Finding files. A later explicit
+compaction may move only schema-valid terminal records into
+`planning/findings/archive/`; it must retain the fields above, preserve each
+original Finding ID, and leave an active projection/reference. `FINDINGS.md` and
+unstructured historical reports remain intact unless a separately approved
+migration establishes their authority and mappings.
+
+Reconcile Findings at mission/campaign completion, after Framework update plus
+Doctor, after external-change review, before a major Wave/Mission, or during an
+explicit compaction. Do not run a Finding migration or reconciliation after
+every agent turn. New sessions load active structured Findings and only relevant
+terminal references, not the complete historical `FINDINGS.md`.
+
 ## GAP Record Format
 
 Each identified GAP is recorded as an entry in the parity report or a standalone GAP record:

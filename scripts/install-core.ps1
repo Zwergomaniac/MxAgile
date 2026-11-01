@@ -612,6 +612,18 @@ try {
     }
     Copy-Item -LiteralPath $reconciliationSource -Destination (Join-Path $destToolsDir "reconcile_external_changes.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/reconcile_external_changes.py (read-only report; explicit baseline adoption)."
+    $reconciliationGitSource = Join-Path $PSScriptRoot "reconciliation_git.py"
+    if (-not (Test-Path -LiteralPath $reconciliationGitSource -PathType Leaf)) {
+        throw "reconciliation_git.py not found in script directory."
+    }
+    Copy-Item -LiteralPath $reconciliationGitSource -Destination (Join-Path $destToolsDir "reconciliation_git.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/reconciliation_git.py (parent-aware delta verification)."
+    $impactResolverSource = Join-Path $PSScriptRoot "resolve_impact.py"
+    if (-not (Test-Path -LiteralPath $impactResolverSource -PathType Leaf)) {
+        throw "resolve_impact.py not found in script directory."
+    }
+    Copy-Item -LiteralPath $impactResolverSource -Destination (Join-Path $destToolsDir "resolve_impact.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/resolve_impact.py (read-only impact fingerprint support)."
 
     $projectBoardServerSource = Join-Path $PSScriptRoot "serve_project_board.py"
     if (-not (Test-Path -LiteralPath $projectBoardServerSource -PathType Leaf)) {
@@ -704,6 +716,8 @@ try {
                 ".mxagile/tools/check-studio-pro-status.ps1",
                 ".mxagile/tools/build_project_status.py",
                 ".mxagile/tools/reconcile_external_changes.py",
+                ".mxagile/tools/reconciliation_git.py",
+                ".mxagile/tools/resolve_impact.py",
                 ".mxagile/tools/serve_project_board.py",
                 ".mxagile/tools/project_compatibility.py",
                 ".mxagile/tools/git_index_integrity.py",

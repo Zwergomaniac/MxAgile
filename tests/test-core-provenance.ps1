@@ -63,6 +63,9 @@ Assert ($ic -match 'consumer_note') 'A9: provenance carries consumer_note about 
 Assert ($ic -match "CoreCommit.*CoreVersion|CoreVersion.*CoreCommit") 'A10: passes CoreCommit and CoreVersion to setup-agent-system'
 Assert ($ic -match 'IsNullOrWhiteSpace.*ProvenanceCoreCommit|ProvenanceCoreCommit.*IsNullOrWhiteSpace') 'A11: self-resolves commit when caller did not provide it'
 Assert ($ic -match 'Split-Path.*PSScriptRoot.*Parent|PSScriptRoot.*Parent') 'A12: self-resolution uses PSScriptRoot parent as distribution root'
+Assert ($ic -match 'reconcile_external_changes\.py') 'A13: distributes the external-change report and baseline helper'
+Assert ($ic -match 'reconciliation_git\.py') 'A14: distributes the deterministic Git range verifier'
+Assert ($ic -match 'resolve_impact\.py') 'A15: distributes the existing Artifact Index fingerprint/impact helper'
 
 # ──────────────────────────────────────────────────────────────
 # B  mxagile-setup.ps1: resolves commit SHA and passes it through

@@ -404,6 +404,16 @@ only the current session's discovered tool interface.
     do not reject authorized recovery solely because normal Git writes are restricted.
     Never interpret an empty damaged index as project deletions or repair it without authority.
 
+10. **Optional commit provenance** - only after the current change's impact has been fully
+    reconciled, follow `.mxagile/policies/external-change-reconciliation.md` before preparing
+    a local commit Change-Set. The helper does not stage or commit. Missing or unsupported
+    provenance remains external; never rewrite a Studio Pro commit or install a Git hook.
+
+11. **Finding authority and context** - use schema-valid `planning/findings/FIND-*.yml` records
+    as canonical GAP lifecycle state. Read active Findings and only relevant terminal references.
+    `FINDINGS.md` is human-readable narrative, never the sole authority; do not load its full
+    history by default or infer resolution from prose.
+
 Detailed policy: `.mxagile/policies/lifecycle-resync.md`
 '@
 

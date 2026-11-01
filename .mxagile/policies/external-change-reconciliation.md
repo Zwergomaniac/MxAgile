@@ -12,8 +12,8 @@ insufficient MxAgile provenance; it does not claim that a person made the change
 - A watermark is bound to repository identity, worktree identity, branch ref,
   commit and project fingerprint. It is not shared across worktrees or clones.
 - `planning/reconciliation/change-sets/CS-<id>.json` is a tracked provenance
-  record. `MxAgile-Change-Set` and `MxAgile-Mission` commit trailers are discovery
-  hints; neither trailer nor manifest alone establishes attribution.
+  record. `MxAgile-Origin`, `MxAgile-Mission` and `MxAgile-Change-Set` commit
+  trailers are discovery hints; neither trailer nor manifest alone establishes attribution.
 - The board and project-status output are read-only projections, never authority.
 
 ## Attribution
@@ -44,6 +44,18 @@ persisted impact outcomes, and unchanged HEAD, branch, worktree and Git integrit
 State writes use a same-directory temporary file and atomic replacement. An
 interrupted run or changed HEAD leaves the previous watermark intact.
 
+## Optional Commit Producer
+
+Only after the MxAgile change and impact outcome are complete, an agent may run
+`reconcile_external_changes.py prepare-change-set` with explicit mission, change-set,
+reconciliation-outcome and persisted-reference arguments. The helper requires a
+valid Git integrity result, a named branch, no in-progress Git operation, a staged
+path set with no unstaged/untracked paths, and an outcome fingerprint. It writes
+the manifest under `planning/reconciliation/change-sets/` and prints the three
+trailers; it never stages the manifest, creates a commit, installs a hook, or
+rewrites history. The caller reviews and stages the manifest and commit message
+through the normal Git client. Studio Pro commits are not rewritten.
+
 ## Working Tree and Impact
 
 Committed, staged, unstaged and untracked paths are reported separately. Dirty
@@ -60,3 +72,42 @@ authority is mutated by this workflow.
 Mendix model changes use only a capability-verified project-local `mxcli`.
 Without reliable semantic evidence, report `SEMANTIC_REVIEW_REQUIRED`; do not
 diff MPR-v2 internals with a new engine or feed raw binary diffs to an LLM.
+
+## Reference Authority
+
+`mockup_id` identifies an upstream Design Contract; `mockup_name` identifies the
+SPA bundle directory used by accepted revisions and UI inventory. They are not
+aliases. The current UI-Agent and revision producer use `mockup_name`; the Page
+schema requires it whenever `target_revision` is present. Legacy pages with only
+`mockup_id` are not projected to a bundle identity because that mapping is not
+deterministic.
+
+New or changed `input-resources/ui-ux/` and `planning/target-mockups/` paths are
+reference candidates only. The report keeps the current canonical ACTIVE_TARGET
+unchanged and marks the candidate `REFERENCE_RECONCILIATION_REQUIRED` (dirty
+files remain `DIRTY_REFERENCE_UNRECONCILED`). No recency or filename heuristic
+promotes a candidate.
+
+Reference identity is derived from reference type, canonical path, bundle/revision
+identity, bundle fingerprint and authority-source identities. Identical identity
+projections may be deduplicated; the same physical path with a different authority
+or reference type remains separately visible and must be labeled as such.
+
+## Board Projection Cache
+
+The loopback board keeps an in-memory, single-flight status snapshot. Its cheap
+invalidation signature covers repository HEAD/branch/index/porcelain state,
+file identity, size, mode, mtime, ctime and (on Windows) NTFS ChangeTime across
+`planning/`, canonical collections, UI references, installed schemas/tools and
+worktree reconciliation state. A missing/unreadable metadata field disables
+reuse. The signature is only a cache invalidator, never project authority; the
+builder still computes canonical SHA-256 fingerprints on rebuild. The signature
+is checked before and after a build, and a changing source snapshot is not cached.
+
+Within a build, Collection and Compatibility share the same parsed artifact
+snapshot. Checklist parsing is reused per path; contract matching and validators
+are cached only for the process/build and keyed by exact path/schema metadata.
+Subrequests use the same snapshot. No database, worker, persistent status cache or
+file watcher is introduced. If a browser disconnects during a response, only
+`ConnectionAbortedError`, `ConnectionResetError` and `BrokenPipeError` are logged
+as `CLIENT_DISCONNECT`; build/serialization failures remain visible as HTTP 503.

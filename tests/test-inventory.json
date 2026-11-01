@@ -1505,5 +1505,12 @@
     "FilesystemFixture": false, "UsesGit": false, "UsesSharedCache": false,
     "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": true,
     "Reason": "ACTIVE_RELEASE_TEST: static verification-gap taxonomy definitions, routing, and fixture coverage checks."
+  },
+  {
+    "File": "test-reconciliation-board.ps1", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "External-change, finding, watermark, reference authority, Board cache, and HTTP fixtures use isolated temporary Git projects and loopback servers."
   }
 ]
