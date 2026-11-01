@@ -33,6 +33,9 @@
 .gallery-capture small { color: var(--muted); font: 11px var(--mono); }
 .gallery-capture a { overflow-wrap: anywhere; }
 .gallery-history summary { cursor: pointer; color: var(--muted); overflow-wrap: anywhere; }
+.finding-history { margin-top: 20px; border-top: 1px solid var(--line); }
+.finding-history summary { padding: 12px 0; cursor: pointer; color: var(--muted); font: 10px var(--mono); }
+.finding-history[open] summary { color: var(--ink); }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -84,6 +87,7 @@ a { color: inherit; }
 .status-note { color: var(--amber); font: 10px var(--mono); letter-spacing: .08em; }
 .target-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px; }
 .target-card { min-width: 0; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 14px 15px; background: var(--panel); border: 1px solid var(--line); }
+.reference-candidate { border-style: dashed; border-color: #72552b; }
 .target-meta { min-width: 0; }
 .target-meta strong { display: block; margin-bottom: 5px; font: 18px var(--serif); font-weight: 400; }
 .target-file { overflow-wrap: anywhere; color: var(--muted); font: 10px var(--mono); }
@@ -91,6 +95,10 @@ a { color: inherit; }
 .target-open { padding: 9px 11px; border: 1px solid #45715e; color: var(--mint); background: var(--mint-dark); text-decoration: none; white-space: nowrap; font-size: 12px; }
 .target-open:hover { background: #244b3b; }
 .target-unknown { padding: 12px 14px; color: var(--amber); background: #292319; border-left: 2px solid var(--amber); font: 11px var(--mono); }
+.drift-section { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.drift-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
+.drift-facts .count-pair { min-width: 0; padding: 12px; background: var(--panel); white-space: normal; }
+.drift-facts .count-pair > div { margin-top: 7px; color: var(--ink); overflow-wrap: anywhere; }
 .attention-strip { display: grid; grid-template-columns: minmax(185px, .7fr) 2fr; gap: 18px; align-items: center; margin: 19px 0 14px; padding: 14px 16px; border: 1px solid #544229; background: #211d16; }
 .attention-title { display: flex; align-items: center; gap: 10px; }
 .attention-mark { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid #8a6935; color: var(--amber); font: 14px var(--mono); }

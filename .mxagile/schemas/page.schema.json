@@ -15,7 +15,7 @@
         "mockup_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Optional source Design Contract mockup identity. The active target remains bound separately by target_mockup/target_revision."
+                    "description": "Optional upstream Design Contract mockup identity. This is not the SPA bundle directory identity; the active target remains bound by target_mockup or mockup_name/target_revision."
         },
         "source_mockup": {
             "type": "string",
@@ -33,7 +33,7 @@
         },
         "mockup_name": {
             "type": "string",
-            "description": "Name of the SPA mockup bundle this screen belongs to. Matches the directory name under planning/target-mockups/<mockup-name>/ and input-resources/ui-ux/<mockup-name>/. Required when ui_driven=true and the source is a SPA bundle. Absent for single-file legacy mockups. Enables Bundle -> Screen relationship in the artifact index."
+                    "description": "Canonical SPA bundle identity. Must match the directory name under planning/target-mockups/<mockup-name>/ and input-resources/ui-ux/<mockup-name>/. Required whenever target_revision is present. It is not interchangeable with mockup_id, which identifies an upstream Design Contract."
         },
         "target_revision": {
             "type": "string",
@@ -429,5 +429,11 @@
             }
         }
     },
-    "required": ["page_id", "source_mockup"]
+    "required": ["page_id", "source_mockup"],
+    "allOf": [
+        {
+            "if": { "required": ["target_revision"] },
+            "then": { "required": ["mockup_name"] }
+        }
+    ]
 }

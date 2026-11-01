@@ -51,7 +51,7 @@ own authority; the board introduces no repair buttons or repair semantics.
 | Requirements | `requirements/REQ-NNN.yml`; status `draft`, `accepted`, `deferred`, `superseded` | Yes | Yes | No | Yes for current file contents, not downstream impact |
 | Decisions | `planning/decisions/DEC-NNN.yml`; status `PROPOSED`, `CONFIRMED`, `REJECTED`, `SUPERSEDED` | Yes | Yes | No | Yes for current file contents |
 | Decision-linked requirements | `DEC.affected_requirements[]` | Yes | Yes when explicitly linked | No | Partial; missing links are not inferred |
-| GAP Findings | `planning/findings/FIND-*.yml`; `.mxagile/schemas/finding.schema.json` lifecycle and severity | Yes | Yes for recorded GAP lifecycle | No | File hash only; evidence/model freshness is separate |
+| GAP Findings | `planning/findings/FIND-*.yml`; `.mxagile/schemas/finding.schema.json` lifecycle and severity | Yes | Yes for recorded GAP lifecycle | No | Active items are full records; VERIFIED/SUPERSEDED/RETIRED are compact history references; `FINDINGS.md` narrative is not authority |
 | Test contracts/proof points | `planning/test-contracts/TC-NNN.yaml`; statuses on contracts and proof points | Yes | Yes | No | Explicit `stale`/`impacted` only |
 | Verification plans | `planning/verification-plans/VPL-NNN.yaml`; status and layer assignments | Yes | Yes | No | Partial; plan status does not establish evidence freshness |
 | Verification/evidence | `planning/evidence/manifests/*-evidence-manifest.yaml` and parity reports; `parity_result` includes `PASS`, `FAIL`, `PARTIAL`, `NOT_VERIFIED`, `STALE`, `LEGACY_EVIDENCE` | Yes | Yes for recorded results | No | Partial; target revision/hash may be compared |
@@ -61,6 +61,23 @@ own authority; the board introduces no repair buttons or repair semantics.
 | Capabilities | `.mxagile/capabilities.yaml` registry and `.mxagile/config.yaml`; resolver adds environment/session evidence | Partial | Static configuration is deterministic; active state is contextual | No | No for current-session capability health |
 | Context / Context Mode | `planning/lifecycle/context-epoch.yaml` handoff; `.concord/context-epoch.yaml` operational state; Context Mode evidence is session-local | Partial | Recorded fields are deterministic | No | No for current session or pressure without an attested measurement |
 | Sources/sessions | No canonical source/session registry | No | No | Yes | No |
+
+## Reference Identity and Cache
+
+SPA reference identity is keyed by `mockup_name` (bundle directory), accepted
+revision, canonical path, bundle fingerprint and the revision-manifest authority
+source. `mockup_id` remains the separate upstream Design Contract identity and is
+never projected as `mockup_name`. A legacy UI inventory that contains only
+`mockup_id` cannot bind an SPA revision; it remains a diagnostic/reconciliation
+candidate rather than an ACTIVE_TARGET.
+
+Mission Control may show an external reference candidate beside the ACTIVE_TARGET,
+but it is never promoted by recency. Candidate and active cards label their
+reference type and authority source. The read-only status service caches only in
+memory behind a metadata/Git invalidation signature; canonical hashes remain the
+builder's authority. Schema, source, reference, Finding, Decision, Git index,
+branch, HEAD or dirty-state changes invalidate the projection. Unavailable
+metadata disables cache reuse.
 
 ### State authority notes
 

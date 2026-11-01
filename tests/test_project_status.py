@@ -312,6 +312,146 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertNotIn("SECRET-SYNTAX", json.dumps(first))
       self.assertNotIn("do-not-export", json.dumps(first))
 
+    def test_compatibility_reuses_collection_source_bytes(self) -> None:
+      target = (self.root / "planning/tasks/TASK-001.yml").resolve()
+      original_read_bytes = Path.read_bytes
+      reads = 0
+
+      def counted_read_bytes(path: Path) -> bytes:
+        nonlocal reads
+        if path.resolve() == target:
+          reads += 1
+        return original_read_bytes(path)
+
+      with patch.object(Path, "read_bytes", counted_read_bytes):
+        status = build_project_status.build_status(self.root)
+      self.assertEqual(status["delivery"]["tasks"]["items"][0]["id"], "TASK-001")
+      self.assertEqual(reads, 1)
+
+    def test_assignment_reuses_one_checklist_read_for_multiple_tasks(self) -> None:
+      checklist = write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\nitems: []\n")
+      for task_id in ("TASK-001", "TASK-002"):
+        write_file(self.root, f"planning/tasks/{task_id}.yml", f"""
+          ID: {task_id}
+          spec: SPEC-001
+          action: {task_id}
+          status: pending
+          migrated_from: planning/checklists/W01-implementation-checklist.yaml
+        """)
+      target = checklist.resolve()
+      original_read_bytes = Path.read_bytes
+      reads = 0
+
+      def counted_read_bytes(path: Path) -> bytes:
+        nonlocal reads
+        if path.resolve() == target:
+          reads += 1
+        return original_read_bytes(path)
+
+      with patch.object(Path, "read_bytes", counted_read_bytes):
+        status = build_project_status.build_status(self.root)
+      self.assertEqual(status["delivery"]["tasks"]["items"][0]["migrated_from"], "planning/checklists/W01-implementation-checklist.yaml")
+      self.assertEqual(reads, 1)
+
+    def test_terminal_findings_are_compact_history_and_board_defaults_collapsed(self) -> None:
+      write_finding(self.root, "FIND-ACTIVE", "CLASSIFIED", "MATERIAL")
+      write_file(self.root, "planning/findings/FIND-OLD.yml", """
+        ID: FIND-OLD
+        title: Replaced finding
+        gap_type: VISUAL_GAP
+        severity: MATERIAL
+        lifecycle_status: SUPERSEDED
+        observation: Historical narrative that must not enter the compact projection.
+        source_artifacts:
+          - source_type: active_target
+            canonical_path: planning/target-mockups/Board.html
+        requirement_ids: [REQ-001]
+        decision_ids: [DEC-001]
+        evidence_refs: [EVD-OLD]
+        resolution_references: [FIND-NEW]
+        superseded_by: FIND-NEW
+      """)
+      write_file(self.root, "planning/findings/FIND-RESOLVED.yml", """
+        ID: FIND-RESOLVED
+        title: Verified finding
+        gap_type: VISUAL_GAP
+        severity: COSMETIC
+        lifecycle_status: VERIFIED
+        observation: Historical narrative.
+        source_artifacts: []
+        evidence_refs: [EVD-RESOLVED]
+        resolution_references: [planning/evidence/doctor.json]
+      """)
+      status = build_project_status.build_status(self.root)
+      self.assertEqual([item["id"] for item in status["findings"]["items"]], ["FIND-ACTIVE"])
+      self.assertEqual(status["findings"]["open"], 1)
+      self.assertEqual(status["findings"]["resolved"], 1)
+      self.assertEqual(status["findings"]["superseded"], 1)
+      self.assertEqual(len(status["findings"]["history"]), 2)
+      old = next(item for item in status["findings"]["history"] if item["id"] == "FIND-OLD")
+      self.assertEqual(old["superseded_by"], "FIND-NEW")
+      self.assertEqual(old["source_artifact_paths"], ["planning/target-mockups/Board.html"])
+      self.assertNotIn("title", old)
+      self.assertNotIn("observation", old)
+      board_js = (ROOT / ".mxagile/board/board.js").read_text(encoding="utf-8")
+      board_css = (ROOT / ".mxagile/board/styles.css").read_text(encoding="utf-8")
+      self.assertIn('node("details", "finding-history")', board_js)
+      self.assertIn("Terminal history", board_js)
+      self.assertIn(".finding-history summary", board_css)
+
+    def test_findings_markdown_is_not_lifecycle_authority(self) -> None:
+      before = build_project_status.build_status(self.root)
+      write_file(self.root, "FINDINGS.md", "ACTIVE FIND-999\nRESOLVED FIND-001\n" + ("historical narrative\n" * 5000))
+      after = build_project_status.build_status(self.root)
+      self.assertEqual(after["findings"], before["findings"])
+      self.assertEqual(after["source_fingerprint"], before["source_fingerprint"])
+      self.assertNotIn("FIND-999", json.dumps(after))
+
+    def test_same_reference_path_keeps_distinct_authority_identity(self) -> None:
+      shared_path = "planning/target-mockups/Board/_history/REV-002/index.html"
+      write_single_file_page(self.root, "PAGE-LEGACY", shared_path, shared_path)
+      status = build_project_status.build_status(self.root)
+      references = [
+        item for item in status["project"]["active_targets"]["items"]
+        if item["canonical_path"] == shared_path
+      ]
+      self.assertEqual(len(references), 2)
+      self.assertCountEqual(
+        [item["reference_type"] for item in references],
+        ["spa_bundle_entrypoint", "single_file_mockup"],
+      )
+      self.assertEqual(len({item["reference_id"] for item in references}), 2)
+      self.assertEqual(
+        {item["authority_sources"][0]["source_type"] for item in references},
+        {"revision_manifest", "ui_inventory"},
+      )
+      board_js = (ROOT / ".mxagile/board/board.js").read_text(encoding="utf-8")
+      self.assertIn("SPA BUNDLE", board_js)
+      self.assertIn("SINGLE-FILE TARGET", board_js)
+
+    def test_board_exposes_read_only_project_drift_and_loading_shell(self) -> None:
+      index = (ROOT / ".mxagile/board/index.html").read_text(encoding="utf-8")
+      board_js = (ROOT / ".mxagile/board/board.js").read_text(encoding="utf-8")
+      self.assertIn('id="drift-state"', index)
+      self.assertIn('id="drift-facts"', index)
+      self.assertIn("Status wird geladen", index)
+      self.assertIn("LAST RECONCILED", board_js)
+      self.assertIn("CURRENT HEAD", board_js)
+      self.assertIn("UNRECONCILED COMMITS", board_js)
+      self.assertIn("WATERMARK GATE", board_js)
+
+    def test_design_contract_mockup_id_is_not_bundle_mockup_name(self) -> None:
+      relative = "planning/ui-inventory/PAGE-BUNDLE.yaml"
+      legacy = {
+        "page_id": "PAGE-BUNDLE",
+        "source_mockup": "input-resources/ui-ux/bundle/index.html",
+        "mockup_id": "DC-MOCKUP-001",
+        "target_revision": "REV-001",
+      }
+      self.assertIn("required", project_compatibility.schema_errors(relative, legacy))
+      canonical = {**legacy, "mockup_name": "bundle"}
+      self.assertEqual(project_compatibility.schema_errors(relative, canonical), [])
+
     def test_legacy_contract_suffix_requires_schema_and_unique_identity(self) -> None:
       original = self.root / "planning/test-contracts/TC-001.yaml"
       suffix = original.with_name("TC-001-descriptive-name.yaml")

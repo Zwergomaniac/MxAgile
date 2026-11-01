@@ -53,7 +53,7 @@ function stateBadge(value, kind = "") {
   let tone = "unknown";
   if (["done", "VERIFIED", "CONFIRMED", "passed", "available", "ACTIVE_TARGET", "consistent"].includes(normalized)) tone = "good";
   else if (["blocked", "failed", "FAIL", "STALE", "DECISION_REQUIRED", "CRITICAL", "ambiguous", "mismatch", "INVALID", "AMBIGUOUS", "BLOCKED"].includes(normalized)) tone = "bad";
-  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN"].includes(normalized)) tone = "warn";
+  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN", "REASSESS_REQUIRED", "SUPERSEDED", "RETIRED", "FRAMEWORK_FOLLOWUP", "REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED"].includes(normalized)) tone = "warn";
   const badge = node("span", `state ${tone}`, normalized.replaceAll("_", " "));
   if (kind) badge.dataset.kind = kind;
   return badge;
@@ -91,13 +91,17 @@ function navigate(route) {
 function targetCard(target) {
   const card = node("article", "target-card");
   const meta = node("div", "target-meta");
-  const title = target.mockup_name || target.revision_id || "Reference";
+  const title = target.mockup_name || target.revision_id || pathLabel(target.canonical_path) || "Reference";
   meta.append(node("strong", "", title));
-  meta.append(node("div", "target-file", `${target.revision_id || "NO REVISION"} · ${pathLabel(target.canonical_path)}`));
+  const referenceType = target.reference_type === "spa_bundle_entrypoint" ? "SPA BUNDLE" : target.reference_type === "single_file_mockup" ? "SINGLE-FILE TARGET" : "REFERENCE TYPE UNKNOWN";
+  meta.append(node("div", "target-file", `${referenceType} · ${target.revision_id || "NO REVISION"} · ${pathLabel(target.canonical_path)}`));
+  meta.append(node("div", "target-fingerprint", `REFERENCE ID  ${target.reference_id || "UNKNOWN"}`));
   const fingerprint = target.bundle_hash || target.content_hash || target.source_fingerprint;
   meta.append(node("div", "target-fingerprint", fingerprint ? `FINGERPRINT  ${fingerprint.slice(0, 19)}…` : "FINGERPRINT  UNKNOWN"));
   const authority = node("div", "target-fingerprint", `AUTHORITY  ${target.authoritative_state || "UNKNOWN"} · ${target.availability.toUpperCase()}`);
   meta.append(authority);
+  const authoritySources = (target.authority_sources || []).map((source) => `${source.source_type} · ${pathLabel(source.canonical_path)}`);
+  meta.append(node("div", "target-fingerprint", `AUTHORITY SOURCE  ${authoritySources.join(" · ") || "UNKNOWN"}`));
   const drift = target.inventory_drift?.state || "unknown";
   meta.append(stateBadge(drift === "not_applicable" ? "CONSISTENT" : drift.toUpperCase(), "reference-drift"));
   card.append(meta);
@@ -133,6 +137,42 @@ function renderHeader() {
   $("#target-state").textContent = targets.length ? "ACTIVE TARGET AUTHORITY" : "REFERENCE UNKNOWN";
   if (!targets.length) targetList.append(node("div", "target-unknown", "REFERENCE UNKNOWN · No canonical ACTIVE_TARGET reference available"));
   else for (const target of targets) targetList.append(targetCard(target));
+  for (const candidate of status.reconciliation?.external_reference_candidates || []) {
+    const card = node("article", "target-card reference-candidate");
+    const meta = node("div", "target-meta");
+    meta.append(node("strong", "", "NEW EXTERNAL REFERENCE CANDIDATE"));
+    meta.append(node("div", "target-file", candidate.path));
+    meta.append(node("div", "target-fingerprint", "NOT ACTIVE · RECONCILIATION REQUIRED"));
+    card.append(meta, stateBadge(candidate.status));
+    targetList.append(card);
+  }
+  renderProjectDrift();
+}
+
+function renderProjectDrift() {
+  const reconciliation = status.reconciliation;
+  const stateLabel = $("#drift-state");
+  const facts = $("#drift-facts");
+  clear(facts);
+  if (!reconciliation) {
+    stateLabel.textContent = "RECONCILIATION UNKNOWN";
+    facts.append(empty("Project reconciliation state unavailable"));
+    return;
+  }
+  const range = reconciliation.commit_range || {};
+  const watermark = range.from_commit || "BASELINE REQUIRED";
+  const head = range.to_commit || "UNKNOWN";
+  const commits = Array.isArray(range.commits) ? range.commits : [];
+  const externalCommitCount = commits.filter((commit) => ["EXTERNAL_CHANGE", "MIXED", "AMBIGUOUS"].includes(commit.classification)).length;
+  const externalPathCount = commits.reduce((total, commit) => total + (commit.paths || []).filter((path) => ["EXTERNAL_CHANGE", "AMBIGUOUS"].includes(path.classification)).length, 0);
+  stateLabel.textContent = String(range.status || reconciliation.status || "UNKNOWN").replaceAll("_", " ");
+  for (const [label, value] of [
+    ["LAST RECONCILED", watermark],
+    ["CURRENT HEAD", head],
+    ["UNRECONCILED COMMITS", countText(commits.length)],
+    ["EXTERNAL / AMBIGUOUS", `${externalCommitCount} commits · ${externalPathCount} paths`],
+    ["WATERMARK GATE", (reconciliation.watermark_gate?.blockers || []).join(", ") || "EXPLICIT ADVANCE REQUIRED"],
+  ]) facts.append(countItem(label, value, ""));
 }
 
 function renderAttention() {
@@ -146,6 +186,9 @@ function renderAttention() {
     ["STALE EVIDENCE", status.verification.evidence.current_counts.stale],
     ["MODEL FRESHNESS", status.verification.evidence.model_freshness.toUpperCase()],
   ];
+  if (status.reconciliation?.model_semantic_review?.status === "SEMANTIC_REVIEW_REQUIRED") {
+    values.push(["MENDIX MODEL REVIEW", status.reconciliation.model_semantic_review.reason || "SEMANTIC_REVIEW_REQUIRED"]);
+  }
   for (const [label, value] of values) {
     const chip = node("span", "attention-chip");
     chip.append(node("b", "", countText(value)));
@@ -426,21 +469,41 @@ function renderGallery(screenId = null) {
 }
 
 function renderFindings() {
-  root.append(sectionTitle("Findings", `${countText(status.findings.open)} open · ${countText(status.findings.blocking)} blocking`));
+  root.append(sectionTitle("Findings", `${countText(status.findings.open)} open · ${countText(status.findings.blocking)} blocking · ${countText(status.findings.decision_required)} decision required · ${countText(status.findings.framework_followup)} framework followup · ${countText(status.findings.resolved)} resolved · ${countText(status.findings.superseded)} superseded`));
   if (!status.findings.items.length) {
-    root.append(empty(status.findings.availability === "unavailable" ? "Canonical Finding records unavailable" : "No Findings"));
-    return;
+    root.append(empty(status.findings.availability === "unavailable" ? "Canonical Finding records unavailable" : "No active Findings"));
+  } else {
+    const list = node("div", "plain-list");
+    for (const finding of status.findings.items) {
+      const row = node("article", `plain-item ${finding.blocking ? "blocking" : ""}`);
+      const main = node("div", "item-main");
+      main.append(internalLink(`${finding.id} · ${finding.title}`, `finding/${encodeURIComponent(finding.id)}`));
+      main.append(node("small", "", `${finding.gap_type || "UNKNOWN TYPE"} · ${finding.wave_id || "NO WAVE"} · ${finding.workpackage_id || "NO WORKPACKAGE"}`));
+      if (finding.origin === "FRAMEWORK_FOLLOWUP") main.append(stateBadge("FRAMEWORK_FOLLOWUP"));
+      if (finding.reconciliation_outcome === "REASSESS_REQUIRED") main.append(stateBadge("REASSESS_REQUIRED"));
+      row.append(main, stateBadge(finding.lifecycle_status || "UNKNOWN"));
+      list.append(row);
+    }
+    root.append(list);
   }
-  const list = node("div", "plain-list");
-  for (const finding of status.findings.items) {
-    const row = node("article", `plain-item ${finding.blocking ? "blocking" : ""}`);
+  const history = status.findings.history || [];
+  if (history.length) {
+    const details = node("details", "finding-history");
+    const summary = node("summary", "", `Terminal history · ${history.length} · ${countText(status.findings.resolved)} resolved · ${countText(status.findings.superseded)} superseded · ${countText(status.findings.retired)} retired`);
+    details.append(summary);
+    const list = node("div", "plain-list");
+    for (const finding of history) {
+      const row = node("article", "plain-item");
     const main = node("div", "item-main");
-    main.append(internalLink(`${finding.id} · ${finding.title}`, `finding/${encodeURIComponent(finding.id)}`));
-    main.append(node("small", "", `${finding.gap_type || "UNKNOWN TYPE"} · ${finding.wave_id || "NO WAVE"} · ${finding.workpackage_id || "NO WORKPACKAGE"}`));
-    row.append(main, stateBadge(finding.lifecycle_status || "UNKNOWN"));
-    list.append(row);
+      main.append(internalLink(`${finding.id} · ${finding.title || "Historical finding"}`, `finding/${encodeURIComponent(finding.id)}`));
+      main.append(node("small", "", `${finding.gap_type || "UNKNOWN TYPE"} · ${finding.wave_id || "NO WAVE"} · ${finding.workpackage_id || "NO WORKPACKAGE"}`));
+      if (finding.superseded_by) main.append(node("small", "", `Replaced by ${finding.superseded_by}`));
+      row.append(main, stateBadge(finding.lifecycle_status || "UNKNOWN"));
+      list.append(row);
+    }
+    details.append(list);
+    root.append(details);
   }
-  root.append(list);
 }
 
 function renderDecisions() {

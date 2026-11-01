@@ -13,7 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
-from project_compatibility import compatibility_report, identity_matches, load_yaml, projected_for_validation, schema_errors, safe_file
+from project_compatibility import compatibility_report, identity_matches, load_yaml, projected_for_validation, schema_errors, safe_file, schema_validation_scope
 
 PHASES = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
 TASK_STATUSES = ("pending", "in_progress", "done", "failed", "blocked", "deferred")
@@ -27,6 +27,7 @@ BLOCKER_TYPES = (
     "INFRASTRUCTURE_GAP", "LOCATOR_UNSTABLE", "ROLE_SWITCH_BLOCKED",
     "DECISION_REQUIRED", "SCOPE_EXCEEDED", "OTHER",
 )
+FINDING_TERMINAL_STATUSES = frozenset(("VERIFIED", "SUPERSEDED", "RETIRED"))
 SHA256_PATTERN = "sha256:"
 
 
@@ -54,20 +55,28 @@ def read_yaml_file(
     relative_path: str,
     hashes: dict[str, str],
     gaps: list[dict[str, str | None]],
+    parsed_documents: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[Any, str]:
     path = root / relative_path
     if not path.exists():
         hashes[f"!missing:{relative_path}"] = "missing"
+        if parsed_documents is not None:
+            parsed_documents[relative_path] = {"state": "missing", "raw": None, "value": None}
         return None, "missing"
     if not safe_path(root, path) or not path.is_file():
         hashes[f"!invalid:{relative_path}"] = "invalid"
+        if parsed_documents is not None:
+            parsed_documents[relative_path] = {"state": "invalid", "raw": None, "value": None}
         add_gap(gaps, "SOURCE_PATH_INVALID", relative_path, "Canonical source is not a regular file inside the project root.")
         return None, "invalid"
     try:
         raw = path.read_bytes()
-        hashes[relative_path] = hashlib.sha256(raw).hexdigest()
+        digest = hashlib.sha256(raw).hexdigest()
+        hashes[relative_path] = digest
         value = load_yaml(raw.decode("utf-8-sig"))
     except yaml.YAMLError as exc:
+        if parsed_documents is not None:
+            parsed_documents[relative_path] = {"state": "invalid", "raw": raw, "value": None, "digest": digest}
         add_gap(gaps, "SOURCE_PARSE_FAILED", relative_path, "Canonical source could not be read as UTF-8 YAML.")
         causes = {
             "mapping values are not allowed here": "MAPPING_VALUE_NOT_ALLOWED",
@@ -81,11 +90,17 @@ def read_yaml_file(
             gaps[-1].update({"line": mark.line + 1, "column": mark.column + 1})
         return None, "invalid"
     except (OSError, UnicodeError):
+        if parsed_documents is not None:
+            parsed_documents[relative_path] = {"state": "invalid", "raw": None, "value": None}
         add_gap(gaps, "SOURCE_PARSE_FAILED", relative_path, "Canonical source could not be read as UTF-8 YAML.")
         return None, "invalid"
     if not isinstance(value, dict):
+        if parsed_documents is not None:
+            parsed_documents[relative_path] = {"state": "invalid", "raw": raw, "value": None, "digest": digest}
         add_gap(gaps, "SOURCE_SHAPE_INVALID", relative_path, "Canonical source must contain a YAML object.")
         return None, "invalid"
+    if parsed_documents is not None:
+        parsed_documents[relative_path] = {"state": "available", "raw": raw, "value": value, "digest": digest}
     return value, "available"
 
 
@@ -96,6 +111,7 @@ def read_collection(
     id_field: str,
     hashes: dict[str, str],
     gaps: list[dict[str, str | None]],
+    parsed_documents: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[str, list[dict[str, Any]], list[str]]:
     base = root / directory
     if not base.exists():
@@ -116,7 +132,7 @@ def read_collection(
     invalid = 0
     for path in paths:
         relative = path.relative_to(root).as_posix()
-        value, state = read_yaml_file(root, relative, hashes, gaps)
+        value, state = read_yaml_file(root, relative, hashes, gaps, parsed_documents)
         if state != "available" or not isinstance(value, dict):
             invalid += 1
             continue
@@ -306,6 +322,7 @@ def canonical_reference(
     root: Path,
     supplied_path: Any,
     allowed_roots: tuple[str, ...],
+    hashes: dict[str, str] | None = None,
 ) -> tuple[str | None, str | None, str]:
     """Validate a canonical repo-relative path and hash its file if present."""
     if not isinstance(supplied_path, str) or not supplied_path.strip():
@@ -328,6 +345,8 @@ def canonical_reference(
         return None, None, "unknown"
     if not path.exists() or not path.is_file():
         return normalized, None, "unknown"
+    if hashes is not None and hashes.get(normalized):
+        return normalized, f"sha256:{hashes[normalized]}", "available"
     try:
         content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
@@ -342,6 +361,25 @@ def _authority_source(source_type: str, canonical_path: str, hashes: dict[str, s
         "canonical_path": canonical_path,
         "content_hash": f"sha256:{digest}" if digest else None,
     }
+
+
+def _reference_identity(reference: dict[str, Any]) -> str:
+    authority_sources = sorted({
+        (source.get("source_type"), source.get("canonical_path"))
+        for source in reference.get("authority_sources", [])
+        if isinstance(source, dict)
+    })
+    identity = {
+        "reference_type": reference.get("reference_type"),
+        "mockup_name": reference.get("mockup_name"),
+        "target_id": reference.get("target_id"),
+        "revision_id": reference.get("revision_id"),
+        "canonical_path": reference.get("canonical_path"),
+        "bundle_hash": reference.get("bundle_hash"),
+        "authority_sources": authority_sources,
+    }
+    encoded = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "REF-" + hashlib.sha256(encoded).hexdigest()[:20]
 
 
 def build_active_targets(
@@ -429,7 +467,7 @@ def build_active_targets(
         )
         derived_path = (PurePosixPath(revision_path).parent / entry).as_posix() if entry_valid else None
         canonical_path, content_hash, path_state = canonical_reference(
-            root, derived_path, ("planning/target-mockups/",)
+            root, derived_path, ("planning/target-mockups/",), hashes
         )
         reference_root = PurePosixPath(revision_path).parent.as_posix()
         reference_root_path = root.joinpath(*PurePosixPath(reference_root).parts)
@@ -517,6 +555,7 @@ def build_active_targets(
             root,
             target_path,
             ("planning/target-mockups/", "input-resources/ui-ux/"),
+            hashes,
         )
         if canonical_path is None:
             add_gap(gaps, "SINGLE_FILE_TARGET_PATH_INVALID", page_path, "UI inventory target is not a safe canonical project-relative mockup path.")
@@ -564,7 +603,20 @@ def build_active_targets(
         if reference["availability"] != "available":
             add_gap(gaps, "SINGLE_FILE_TARGET_UNAVAILABLE", reference["canonical_path"], "Explicit UI-inventory target path is missing or unavailable.")
 
-    targets.sort(key=lambda item: (item["mockup_name"] or "", item["canonical_path"] or "", item["revision_id"] or ""))
+    deduplicated: dict[str, dict[str, Any]] = {}
+    for reference in targets:
+        reference_id = _reference_identity(reference)
+        reference["reference_id"] = reference_id
+        existing = deduplicated.get(reference_id)
+        if existing is None:
+            deduplicated[reference_id] = reference
+            continue
+        if existing["availability"] != reference["availability"]:
+            existing["availability"] = "ambiguous"
+        existing["screen_ids"] = sorted(set(existing["screen_ids"]) | set(reference["screen_ids"]))
+        existing["section_ids"] = sorted(set(existing["section_ids"]) | set(reference["section_ids"]))
+    targets = list(deduplicated.values())
+    targets.sort(key=lambda item: (item["mockup_name"] or "", item["canonical_path"] or "", item["revision_id"] or "", item["reference_id"]))
     if not targets:
         availability = "unknown"
     elif any(item["availability"] == "ambiguous" for item in targets):
@@ -597,6 +649,7 @@ def build_source_references(
             root,
             path_value,
             ("planning/", "requirements/"),
+            hashes,
         )
         if canonical_path is None:
             add_gap(gaps, "SOURCE_REFERENCE_PATH_INVALID", None, "A declared source reference is not a canonical project-relative path.")
@@ -819,29 +872,30 @@ def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths
     return sorted(runs, key=lambda item: (item['historical'], item['screen_id'], item['entry_id'], item['run_id'], item['manifest_path']))
 
 
-def build_status(project_root: Path) -> dict[str, Any]:
+def _build_status(project_root: Path) -> dict[str, Any]:
     root = project_root.resolve()
     hashes: dict[str, str] = {}
     gaps: list[dict[str, str | None]] = []
+    parsed_documents: dict[str, dict[str, Any]] = {}
 
-    project_config, _ = read_yaml_file(root, "mxagile-project.yaml", hashes, gaps)
-    version_doc, version_state = read_yaml_file(root, ".mxagile/version.yaml", hashes, gaps)
-    process_doc, process_state = read_yaml_file(root, "planning/lifecycle/process-state.yaml", hashes, gaps)
-    mission_doc, mission_state = read_yaml_file(root, "planning/mission/mission-state.yaml", hashes, gaps)
-    context_doc, context_state = read_yaml_file(root, "planning/lifecycle/context-epoch.yaml", hashes, gaps)
+    project_config, _ = read_yaml_file(root, "mxagile-project.yaml", hashes, gaps, parsed_documents)
+    version_doc, version_state = read_yaml_file(root, ".mxagile/version.yaml", hashes, gaps, parsed_documents)
+    process_doc, process_state = read_yaml_file(root, "planning/lifecycle/process-state.yaml", hashes, gaps, parsed_documents)
+    mission_doc, mission_state = read_yaml_file(root, "planning/mission/mission-state.yaml", hashes, gaps, parsed_documents)
+    context_doc, context_state = read_yaml_file(root, "planning/lifecycle/context-epoch.yaml", hashes, gaps, parsed_documents)
 
-    requirement_state, requirements, requirement_paths = read_collection(root, "requirements", "*.yml", "ID", hashes, gaps)
-    task_state, tasks, task_paths = read_collection(root, "planning/tasks", "*.yml", "ID", hashes, gaps)
-    decision_state, decisions, decision_paths = read_collection(root, "planning/decisions", "*.yml", "ID", hashes, gaps)
-    finding_state, finding_records, finding_paths = read_collection(root, "planning/findings", "*.yml", "ID", hashes, gaps)
-    contract_state, contracts, contract_paths = read_collection(root, "planning/test-contracts", "*.yaml", "ID", hashes, gaps)
-    plan_state, plans, plan_paths = read_collection(root, "planning/verification-plans", "*.yaml", "ID", hashes, gaps)
-    page_state, pages, page_paths = read_collection(root, "planning/ui-inventory", "*.yaml", "", hashes, gaps)
+    requirement_state, requirements, requirement_paths = read_collection(root, "requirements", "*.yml", "ID", hashes, gaps, parsed_documents)
+    task_state, tasks, task_paths = read_collection(root, "planning/tasks", "*.yml", "ID", hashes, gaps, parsed_documents)
+    decision_state, decisions, decision_paths = read_collection(root, "planning/decisions", "*.yml", "ID", hashes, gaps, parsed_documents)
+    finding_state, finding_records, finding_paths = read_collection(root, "planning/findings", "*.yml", "ID", hashes, gaps, parsed_documents)
+    contract_state, contracts, contract_paths = read_collection(root, "planning/test-contracts", "*.yaml", "ID", hashes, gaps, parsed_documents)
+    plan_state, plans, plan_paths = read_collection(root, "planning/verification-plans", "*.yaml", "ID", hashes, gaps, parsed_documents)
+    page_state, pages, page_paths = read_collection(root, "planning/ui-inventory", "*.yaml", "", hashes, gaps, parsed_documents)
     evidence_state, manifests, manifest_paths = read_collection(
-        root, "planning/evidence/manifests", "*-evidence-manifest.yaml", "", hashes, gaps
+        root, "planning/evidence/manifests", "*-evidence-manifest.yaml", "", hashes, gaps, parsed_documents
     )
     revision_state, revisions, revision_paths = read_collection(
-        root, "planning/target-mockups", "*/_history/REV-*/revision.yaml", "revision_id", hashes, gaps
+        root, "planning/target-mockups", "*/_history/REV-*/revision.yaml", "revision_id", hashes, gaps, parsed_documents
     )
     checklist_directory = root / "planning/checklists"
     checklist_paths: list[str] = []
@@ -853,7 +907,9 @@ def build_status(project_root: Path) -> dict[str, Any]:
                     continue
                 relative = checklist_path.relative_to(root).as_posix()
                 try:
-                    hashes[relative] = hashlib.sha256(checklist_path.read_bytes()).hexdigest()
+                    raw = checklist_path.read_bytes()
+                    hashes[relative] = hashlib.sha256(raw).hexdigest()
+                    parsed_documents[relative] = {"state": "raw_only", "raw": raw, "value": None, "digest": hashes[relative]}
                 except OSError:
                     add_gap(gaps, "CHECKLIST_UNREADABLE", relative, "A checklist source could not be fingerprinted.")
                     continue
@@ -953,32 +1009,47 @@ def build_status(project_root: Path) -> dict[str, Any]:
     findings_open: int | None = 0 if available(finding_state) else None
     findings_blocking: int | None = 0 if available(finding_state) else None
     findings_closed: int | None = 0 if available(finding_state) else None
+    findings_superseded: int | None = 0 if available(finding_state) else None
+    findings_retired: int | None = 0 if available(finding_state) else None
+    findings_decision_required: int | None = 0 if available(finding_state) else None
+    findings_framework_followup: int | None = 0 if available(finding_state) else None
     findings_unknown: int | None = 0 if available(finding_state) else None
     finding_items: list[dict[str, Any]] = []
+    finding_history: list[dict[str, Any]] = []
     if available(finding_state):
         for finding, path in zip(finding_records, finding_paths):
             lifecycle_status = finding.get("lifecycle_status")
             known_status = lifecycle_status in (
                 "DETECTED", "CLASSIFIED", "REPAIR_PROPOSED", "REPAIR_ACCEPTED",
-                "REPAIRED", "VERIFIED", "REPAIR_REJECTED", "DECISION_REQUIRED",
+                "REPAIRED", "VERIFIED", "REPAIR_REJECTED", "DECISION_REQUIRED", "SUPERSEDED", "RETIRED",
             )
             if not known_status:
                 findings_unknown = int(findings_unknown or 0) + 1
                 add_gap(gaps, "FINDING_STATUS_UNKNOWN", path, "Finding uses an unknown lifecycle status.")
-            elif lifecycle_status == "VERIFIED":
+            elif lifecycle_status in FINDING_TERMINAL_STATUSES:
                 findings_closed = int(findings_closed or 0) + 1
+                if lifecycle_status == "SUPERSEDED":
+                    findings_superseded = int(findings_superseded or 0) + 1
+                elif lifecycle_status == "RETIRED":
+                    findings_retired = int(findings_retired or 0) + 1
             else:
                 findings_open = int(findings_open or 0) + 1
+            origin = finding.get("origin") if finding.get("origin") in ("PROJECT", "FRAMEWORK_FOLLOWUP") else "PROJECT"
+            if known_status and origin == "FRAMEWORK_FOLLOWUP" and lifecycle_status not in FINDING_TERMINAL_STATUSES:
+                findings_framework_followup = int(findings_framework_followup or 0) + 1
+            if known_status and lifecycle_status == "DECISION_REQUIRED":
+                findings_decision_required = int(findings_decision_required or 0) + 1
             severity = finding.get("severity")
             blocking = severity == "CRITICAL" or lifecycle_status == "DECISION_REQUIRED"
-            if blocking and known_status and lifecycle_status != "VERIFIED":
+            if blocking and known_status and lifecycle_status not in FINDING_TERMINAL_STATUSES:
                 findings_blocking = int(findings_blocking or 0) + 1
-            finding_items.append({
+            item = {
                 "id": finding.get("ID"),
                 "title": finding.get("title"),
                 "gap_type": finding.get("gap_type") if isinstance(finding.get("gap_type"), str) else None,
                 "severity": severity if isinstance(severity, str) else None,
                 "lifecycle_status": lifecycle_status if isinstance(lifecycle_status, str) else None,
+                "origin": origin,
                 "wave_id": finding.get("wave_id") if isinstance(finding.get("wave_id"), str) else None,
                 "workpackage_id": finding.get("workpackage_id") if isinstance(finding.get("workpackage_id"), str) else None,
                 "requirement_ids": sorted({
@@ -992,7 +1063,47 @@ def build_status(project_root: Path) -> dict[str, Any]:
                 }) if isinstance(finding.get("evidence_refs", []), list) else [],
                 "blocking": bool(blocking and lifecycle_status != "VERIFIED"),
                 "canonical_path": path,
+            }
+            reconciliation = finding.get("reconciliation") if isinstance(finding.get("reconciliation"), dict) else {}
+            item.update({
+                "source_artifact_paths": sorted({
+                    source["canonical_path"] for source in finding.get("source_artifacts", [])
+                    if isinstance(source, dict) and isinstance(source.get("canonical_path"), str)
+                }) if isinstance(finding.get("source_artifacts", []), list) else [],
+                "source_artifacts": [
+                    {
+                        "source_type": source.get("source_type") if isinstance(source.get("source_type"), str) else "other",
+                        "canonical_path": source.get("canonical_path"),
+                        "artifact_id": source.get("artifact_id") if isinstance(source.get("artifact_id"), str) else None,
+                    }
+                    for source in finding.get("source_artifacts", [])
+                    if isinstance(source, dict) and isinstance(source.get("canonical_path"), str)
+                ] if isinstance(finding.get("source_artifacts", []), list) else [],
+                "reconciliation_delta_fingerprint": reconciliation.get("delta_fingerprint") if isinstance(reconciliation.get("delta_fingerprint"), str) else None,
+                "reconciliation_outcome": reconciliation.get("outcome") if isinstance(reconciliation.get("outcome"), str) else None,
+                "reconciliation_evidence_refs": sorted({
+                    reference for reference in reconciliation.get("evidence_refs", []) if isinstance(reference, str)
+                }) if isinstance(reconciliation.get("evidence_refs", []), list) else [],
+                "resolution_references": sorted({
+                    reference for reference in finding.get("resolution_references", []) if isinstance(reference, str)
+                }) if isinstance(finding.get("resolution_references", []), list) else [],
+                "superseded_by": finding.get("superseded_by") if isinstance(finding.get("superseded_by"), str) else None,
+                "retirement_reason": finding.get("retirement_reason") if isinstance(finding.get("retirement_reason"), str) else None,
+                "framework_commit": finding.get("framework_commit") if isinstance(finding.get("framework_commit"), str) else None,
+                "resolution_commit": finding.get("resolution_commit") if isinstance(finding.get("resolution_commit"), str) else None,
             })
+            if lifecycle_status in FINDING_TERMINAL_STATUSES:
+                finding_history.append({
+                    key: item[key] for key in (
+                        "id", "lifecycle_status", "origin", "gap_type", "severity", "wave_id",
+                        "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs",
+                        "resolution_references", "reconciliation_delta_fingerprint", "reconciliation_outcome",
+                        "reconciliation_evidence_refs", "superseded_by", "retirement_reason",
+                        "framework_commit", "resolution_commit", "source_artifact_paths", "source_artifacts", "canonical_path",
+                    )
+                })
+            else:
+                finding_items.append(item)
 
     proof_counts: dict[str, int | None] = {state: 0 if available(contract_state) else None for state in PROOF_POINT_STATUSES}
     proof_counts["unknown"] = 0 if available(contract_state) else None
@@ -1155,7 +1266,7 @@ def build_status(project_root: Path) -> dict[str, Any]:
         value = task.get("migrated_from")
         if not isinstance(value, str):
             return None
-        return canonical_reference(root, value, ("planning/checklists/",))[0]
+        return canonical_reference(root, value, ("planning/checklists/",), hashes)[0]
 
     result = {
         "schema_version": 2,
@@ -1235,8 +1346,14 @@ def build_status(project_root: Path) -> dict[str, Any]:
             "open": findings_open,
             "blocking": findings_blocking,
             "closed": findings_closed,
+            "resolved": findings_closed - findings_superseded - findings_retired if findings_closed is not None else None,
+            "superseded": findings_superseded,
+            "retired": findings_retired,
+            "decision_required": findings_decision_required,
+            "framework_followup": findings_framework_followup,
             "unknown": findings_unknown,
             "items": finding_items,
+            "history": finding_history,
         },
         "runtime": {
             "readiness_availability": runtime_availability,
@@ -1252,7 +1369,7 @@ def build_status(project_root: Path) -> dict[str, Any]:
     }
     result["verification"]["gallery"] = visual_evidence_projection(root, manifests, manifest_paths, active_targets, hashes, gaps)
     result["gaps"] = sorted(gaps, key=lambda gap: (gap["code"], gap["source"] or "", gap["description"]))
-    result["compatibility"] = compatibility_report(root, result, hashes)
+    result["compatibility"] = compatibility_report(root, result, hashes, parsed_documents=parsed_documents)
     result["decisions"]["historical"] = [
         {"id": Path(item["source_path"]).stem, "source_path": item["source_path"]}
         for item in result["compatibility"]["diagnostics"]
@@ -1261,6 +1378,11 @@ def build_status(project_root: Path) -> dict[str, Any]:
     ]
     result["source_fingerprint"] = result["compatibility"]["source_fingerprint"]
     return result
+
+
+def build_status(project_root: Path) -> dict[str, Any]:
+    with schema_validation_scope():
+        return _build_status(project_root)
 
 
 def main() -> int:

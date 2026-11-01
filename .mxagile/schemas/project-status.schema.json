@@ -82,6 +82,85 @@
       "pattern": "^sha256:[0-9a-f]{64}$",
       "description": "Deterministic hash of the canonical source files read by this projection."
     },
+    "reconciliation": {
+      "type": "object",
+      "required": ["status", "read_only", "commit_range", "watermark_gate", "finding_impacts", "model_semantic_review", "external_reference_candidates", "impact_resolution"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string" },
+        "read_only": { "const": true },
+        "commit_range": {
+          "type": "object",
+          "required": ["status", "commits", "spans"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string" },
+            "from_commit": { "type": ["string", "null"] },
+            "to_commit": { "type": ["string", "null"] },
+            "commits": { "type": "array", "items": { "type": "object" } },
+            "spans": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "watermark_gate": {
+          "type": "object",
+          "required": ["can_advance", "blockers"],
+          "additionalProperties": false,
+          "properties": {
+            "can_advance": { "type": "boolean", "const": false },
+            "blockers": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "finding_impacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["finding_id", "terminal", "status", "changed_paths", "delta_fingerprint", "evidence_references"],
+            "additionalProperties": false,
+            "properties": {
+              "finding_id": { "type": "string" },
+              "terminal": { "type": "boolean" },
+              "status": { "type": "string" },
+              "changed_paths": { "type": "array", "items": { "type": "string" } },
+              "delta_fingerprint": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+              "evidence_references": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "model_semantic_review": {
+          "type": "object",
+          "required": ["status", "model_paths", "capabilities"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "type": "string", "enum": ["NOT_APPLICABLE", "SEMANTIC_REVIEW_REQUIRED"] },
+            "reason": { "type": "string" },
+            "model_paths": { "type": "array", "items": { "type": "string" } },
+            "capabilities": { "type": "array", "items": { "type": "string", "enum": ["inspect", "diff", "compare"] } },
+            "project_mxcli_version": { "type": "string" }
+          }
+        },
+        "external_reference_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string" },
+              "status": { "type": "string", "enum": ["REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED"] }
+            }
+          }
+        },
+        "impact_resolution": {
+          "type": "object",
+          "required": ["status", "candidates"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "type": "string", "enum": ["CURRENT", "INDEX_MISSING", "INDEX_STALE", "INDEX_INVALID", "BASELINE_REQUIRED"] },
+            "candidates": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
     "project": {
       "type": "object",
       "required": ["availability", "id", "name", "core_version", "active_targets", "lifecycle"],
@@ -507,32 +586,79 @@
     },
     "findings": {
       "type": "object",
-      "required": ["availability", "open", "blocking", "closed", "unknown", "items"],
+      "required": ["availability", "open", "blocking", "closed", "resolved", "superseded", "retired", "decision_required", "framework_followup", "unknown", "items", "history"],
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
         "open": { "$ref": "#/definitions/nullable_count" },
         "blocking": { "$ref": "#/definitions/nullable_count" },
         "closed": { "$ref": "#/definitions/nullable_count" },
+        "resolved": { "$ref": "#/definitions/nullable_count" },
+        "superseded": { "$ref": "#/definitions/nullable_count" },
+        "retired": { "$ref": "#/definitions/nullable_count" },
+        "decision_required": { "$ref": "#/definitions/nullable_count" },
+        "framework_followup": { "$ref": "#/definitions/nullable_count" },
         "unknown": { "$ref": "#/definitions/nullable_count" },
         "items": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "title", "gap_type", "severity", "lifecycle_status", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "blocking", "canonical_path"],
+            "required": ["id", "title", "gap_type", "severity", "lifecycle_status", "origin", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "blocking", "canonical_path", "source_artifact_paths", "source_artifacts", "reconciliation_delta_fingerprint", "reconciliation_outcome", "reconciliation_evidence_refs", "resolution_references", "superseded_by", "retirement_reason", "framework_commit", "resolution_commit"],
             "additionalProperties": false,
             "properties": {
               "id": { "type": "string" },
               "title": { "type": "string" },
               "gap_type": { "type": ["string", "null"] },
               "severity": { "type": ["string", "null"] },
-              "lifecycle_status": { "type": ["string", "null"] },
+              "lifecycle_status": { "type": ["string", "null"], "enum": ["DETECTED", "CLASSIFIED", "REPAIR_PROPOSED", "REPAIR_ACCEPTED", "REPAIRED", "VERIFIED", "REPAIR_REJECTED", "DECISION_REQUIRED", "SUPERSEDED", "RETIRED", null] },
+              "origin": { "type": "string", "enum": ["PROJECT", "FRAMEWORK_FOLLOWUP"] },
               "wave_id": { "type": ["string", "null"] },
               "workpackage_id": { "type": ["string", "null"] },
               "requirement_ids": { "type": "array", "items": { "type": "string" } },
               "decision_ids": { "type": "array", "items": { "type": "string" } },
               "evidence_refs": { "type": "array", "items": { "type": "string" } },
               "blocking": { "type": "boolean" },
+              "canonical_path": { "type": "string" },
+              "source_artifact_paths": { "type": "array", "items": { "type": "string" } },
+              "source_artifacts": { "type": "array", "items": { "type": "object", "required": ["source_type", "canonical_path", "artifact_id"], "additionalProperties": false, "properties": { "source_type": { "type": "string" }, "canonical_path": { "type": "string" }, "artifact_id": { "type": ["string", "null"] } } } },
+              "reconciliation_delta_fingerprint": { "type": ["string", "null"], "pattern": "^(sha256:[a-f0-9]{64})?$" },
+              "reconciliation_outcome": { "type": ["string", "null"], "enum": ["STILL_VALID", "RECLASSIFIED", "RESOLVED", "SUPERSEDED", "RETIRED", null] },
+              "reconciliation_evidence_refs": { "type": "array", "items": { "type": "string" } },
+              "resolution_references": { "type": "array", "items": { "type": "string" } },
+              "superseded_by": { "type": ["string", "null"] },
+              "retirement_reason": { "type": ["string", "null"] },
+              "framework_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" },
+              "resolution_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" }
+            }
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "lifecycle_status", "origin", "gap_type", "severity", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "resolution_references", "reconciliation_delta_fingerprint", "reconciliation_outcome", "reconciliation_evidence_refs", "superseded_by", "retirement_reason", "framework_commit", "resolution_commit", "source_artifact_paths", "source_artifacts", "canonical_path"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "lifecycle_status": { "type": "string", "enum": ["VERIFIED", "SUPERSEDED", "RETIRED"] },
+              "origin": { "type": "string", "enum": ["PROJECT", "FRAMEWORK_FOLLOWUP"] },
+              "gap_type": { "type": ["string", "null"] },
+              "severity": { "type": ["string", "null"] },
+              "wave_id": { "type": ["string", "null"] },
+              "workpackage_id": { "type": ["string", "null"] },
+              "requirement_ids": { "type": "array", "items": { "type": "string" } },
+              "decision_ids": { "type": "array", "items": { "type": "string" } },
+              "evidence_refs": { "type": "array", "items": { "type": "string" } },
+              "resolution_references": { "type": "array", "items": { "type": "string" } },
+              "reconciliation_delta_fingerprint": { "type": ["string", "null"], "pattern": "^(sha256:[a-f0-9]{64})?$" },
+              "reconciliation_outcome": { "type": ["string", "null"], "enum": ["STILL_VALID", "RECLASSIFIED", "RESOLVED", "SUPERSEDED", "RETIRED", null] },
+              "reconciliation_evidence_refs": { "type": "array", "items": { "type": "string" } },
+              "superseded_by": { "type": ["string", "null"] },
+              "retirement_reason": { "type": ["string", "null"] },
+              "framework_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" },
+              "resolution_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" },
+              "source_artifact_paths": { "type": "array", "items": { "type": "string" } },
+              "source_artifacts": { "type": "array", "items": { "type": "object", "required": ["source_type", "canonical_path", "artifact_id"], "additionalProperties": false, "properties": { "source_type": { "type": "string" }, "canonical_path": { "type": "string" }, "artifact_id": { "type": ["string", "null"] } } } },
               "canonical_path": { "type": "string" }
             }
           }
@@ -652,9 +778,10 @@
     "active_target_reference": {
       "type": "object",
       "description": "A reference selected only by an accepted active revision or explicit UI-inventory target_mockup. It is not inferred from recency or filenames.",
-      "required": ["availability", "reference_type", "mockup_name", "target_id", "revision_id", "authoritative_state", "canonical_path", "reference_root", "authority_sources", "source_fingerprint", "content_hash", "bundle_hash", "inventory_drift", "screen_ids", "section_ids"],
+      "required": ["reference_id", "availability", "reference_type", "mockup_name", "target_id", "revision_id", "authoritative_state", "canonical_path", "reference_root", "authority_sources", "source_fingerprint", "content_hash", "bundle_hash", "inventory_drift", "screen_ids", "section_ids"],
       "additionalProperties": false,
       "properties": {
+        "reference_id": { "type": "string", "pattern": "^REF-[a-f0-9]{20}$" },
         "availability": { "$ref": "#/definitions/availability" },
         "reference_type": { "type": "string", "enum": ["spa_bundle_entrypoint", "single_file_mockup", "unknown"] },
         "mockup_name": { "type": ["string", "null"] },
