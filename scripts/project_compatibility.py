@@ -34,7 +34,7 @@ CONTRACTS = (
     ('planning/tasks/*.yml', 'task', 'tasks'),
     ('planning/decisions/*.yml', 'decision', 'decisions'),
     ('planning/findings/*.yml', 'finding', 'findings'),
-    ('planning/test-contracts/*.yaml', 'test-contract', 'verification'),
+    ('planning/test-contracts/TC-*.yaml', 'test-contract', 'verification'),
     ('planning/verification-plans/*.yaml', 'verification-plan', 'verification'),
     ('planning/ui-inventory/*.yaml', 'page', 'references'),
     ('planning/evidence/manifests/*-evidence-manifest.yaml', 'evidence-manifest', 'verification'),
@@ -134,7 +134,7 @@ def compatibility_projection(relative: str, value: Any) -> tuple[Any, list[str],
         navigation = projected.get('navigation')
         if isinstance(navigation, list):
             for link in navigation:
-                if not isinstance(link, dict) or 'target' not in link:
+                if not isinstance(link, dict) or 'target' not in link or 'action_id' not in link:
                     continue
                 if 'leads_to_page' in link and link['leads_to_page'] != link['target']:
                     conflicts.append('navigation.target/leads_to_page')
@@ -187,7 +187,16 @@ def digest(raw: bytes) -> str:
 
 
 def contract_for(relative: str) -> tuple[str, str] | None:
+    if is_standalone_interaction_artifact(relative):
+        return None
     return next(((schema, area) for pattern, schema, area in CONTRACTS if PurePosixPath(relative).match(pattern)), None)
+
+
+def is_standalone_interaction_artifact(relative: str) -> bool:
+    return any(PurePosixPath(relative).match(pattern) for pattern in (
+        'planning/ui-inventory/interaction-metadata-*.yaml',
+        'planning/ui-inventory/interaction-states-*.yaml',
+    ))
 
 
 def safe_file(root: Path, relative: str) -> Path | None:
@@ -606,7 +615,7 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
         parent = root / str(PurePosixPath(pattern).parent)
         if '*' not in str(parent) and parent.is_dir() and '*' in pattern:
             allowed = {relative for relative in paths if contract_for(relative)[0] == artifact}
-            for path in sorted(parent.glob('*.md')) + sorted(parent.glob('*.yaml' if pattern.endswith('.yml') else '*.yml')) + sorted(parent.glob('*.json')):
+            for path in sorted(parent.glob('*.md')) + sorted(parent.glob('*.yml' if pattern.endswith('.yml') else '*.yaml')) + sorted(parent.glob('*.json')):
                 relative = path.relative_to(root).as_posix()
                 if path.stem.lower() in ('readme', 'template'):
                     continue
@@ -617,7 +626,7 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
                             severity='INFO', authority='.mxagile/policies/project-compatibility.md')
                         continue
                     add('UNSUPPORTED_VARIANT', relative, area, 'Legacy extension is not consumed by this projection.',
-                        repairability='AGENT_REPAIRABLE', authority='.mxagile/policies/project-compatibility.md')
+                        repairability='UNSUPPORTED', authority='.mxagile/policies/project-compatibility.md')
                     if path.suffix == '.json':
                         try:
                             json.loads(path.read_text(encoding='utf-8-sig'))
@@ -782,12 +791,17 @@ def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None) -> 
             'diagnostic_ids': sorted(item['diagnostic_id'] for item in report['diagnostics'] if item['source_path'] == relative and (item['proposed_repair_type'] == kind or kind == 'AGENT_CANDIDATE' and item['repairability'] == 'AGENT_REPAIRABLE')),
             'preview': preview,
         })
+    targeted_diagnostics = {
+        diagnostic_id for entry in entries for diagnostic_id in entry['diagnostic_ids']
+    }
     contract_fingerprint = digest(b''.join(path.read_bytes() for path in sorted(SCHEMA_ROOT.glob('*.json'))))
     plan = {
         'schema_version': 1, 'source_fingerprint': report['source_fingerprint'],
         'contract_fingerprint': contract_fingerprint,
         'file_scope': [entry['source_path'] for entry in entries], 'repairs': entries,
-        'deferred_diagnostic_ids': sorted(item['diagnostic_id'] for item in report['diagnostics'] if item['repairability'] != 'UNSUPPORTED' and item['source_path'] not in candidates),
+        'deferred_diagnostic_ids': sorted(item['diagnostic_id'] for item in report['diagnostics']
+                          if item['repairability'] != 'UNSUPPORTED'
+                          and item['diagnostic_id'] not in targeted_diagnostics),
     }
     plan['plan_hash'] = digest(json.dumps(plan, sort_keys=True).encode('utf-8'))
     return plan

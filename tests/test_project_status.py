@@ -20,6 +20,7 @@ BUILDER = ROOT / "scripts" / "build_project_status.py"
 SCHEMA = ROOT / ".mxagile" / "schemas" / "project-status.schema.json"
 sys.path.insert(0, str(ROOT / "scripts"))
 import build_project_status
+import build_artifact_index
 import canonicalize_artifacts
 import serve_project_board
 import project_compatibility
@@ -490,6 +491,56 @@ class ProjectStatusTests(unittest.TestCase):
       mixed = {**legacy, "entries": [{"entry_id": "different"}]}
       self.assertEqual(project_compatibility.compatibility_projection(relative, mixed)[2], ["scenarios/entries"])
 
+      missing_wave = {key: value for key, value in legacy.items() if key != "wave_id"}
+      self.assertEqual(project_compatibility.projected_for_validation(relative, missing_wave), missing_wave)
+      self.assertIn("required", project_compatibility.schema_errors(relative, missing_wave))
+      write_file(self.root, relative, project_compatibility.yaml.safe_dump(missing_wave))
+      diagnostics = build_project_status.build_status(self.root)["compatibility"]["diagnostics"]
+      missing_wave_diagnostics = [item for item in diagnostics if item["source_path"] == relative]
+      self.assertTrue(any(item["category"] == "SCHEMA_ERROR" for item in missing_wave_diagnostics))
+      self.assertTrue(any(item["category"] == "WAVE_ASSIGNMENT_MISSING"
+                          and item["repairability"] == "DECISION_REQUIRED" for item in missing_wave_diagnostics))
+      self.assertFalse(any(item["category"] == "LEGACY_VARIANT" for item in missing_wave_diagnostics))
+
+    def test_non_tc_analysis_and_standalone_interactions_are_not_projected_as_artifacts(self) -> None:
+      impact_path = "planning/test-contracts/ANL-014-verification-impact.yaml"
+      interaction_path = "planning/ui-inventory/interaction-states-rev005.yaml"
+      write_file(self.root, impact_path, """
+        analysis_id: IMPACT-014
+        revision_id: REV-014
+        affected_requirements: [REQ-001]
+      """)
+      write_file(self.root, interaction_path, """
+        revision_id: REV-005
+        states: []
+      """)
+
+      status = build_project_status.build_status(self.root)
+      tc_paths = {item["canonical_path"] for item in status["verification"]["test_contracts"]["items"]}
+      self.assertNotIn(impact_path, tc_paths)
+      self.assertFalse(any(item.get("canonical_path") == interaction_path
+                           for item in status["project"]["active_targets"]["items"]))
+      diagnostics = {item["source_path"]: item for item in status["compatibility"]["diagnostics"]
+                     if item["source_path"] in (impact_path, interaction_path)}
+      self.assertEqual(diagnostics[impact_path]["category"], "UNSUPPORTED_VARIANT")
+      self.assertEqual(diagnostics[interaction_path]["category"], "UNSUPPORTED_VARIANT")
+      self.assertEqual(diagnostics[impact_path]["repairability"], "UNSUPPORTED")
+      self.assertEqual(diagnostics[interaction_path]["repairability"], "UNSUPPORTED")
+      self.assertEqual(diagnostics[impact_path]["artifact_type"], "unknown")
+      self.assertEqual(diagnostics[interaction_path]["artifact_type"], "unknown")
+      with redirect_stdout(StringIO()):
+        indexed = build_artifact_index.find_artifacts(self.root)
+      self.assertNotIn("IMPACT-014", indexed["test_contract"])
+      self.assertNotIn("interaction-states-rev005", indexed["page"])
+
+    def test_legacy_story_sources_do_not_duplicate_canonical_requirement_status(self) -> None:
+      write_file(self.root, "planning/stories/REQ-001-legacy.md", "# Historical story\n")
+      status = build_project_status.build_status(self.root)
+      self.assertEqual([item["id"] for item in status["requirements"]["items"]], ["REQ-001"])
+      self.assertEqual(status["compatibility"]["coverage"]["requirement"]["recognized"], 1)
+      self.assertFalse(any(item["source_path"] == "planning/stories/REQ-001-legacy.md"
+                           for item in status["compatibility"]["diagnostics"]))
+
     def test_process_state_rejects_fields_owned_by_other_authorities(self) -> None:
       relative = "planning/lifecycle/process-state.yaml"
       for field in ("runtime_verification", "feature_scope", "terminal_state"):
@@ -522,6 +573,16 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertEqual(projected["navigation"][0]["leads_to_page"], "[Page name or PAGE-NNN]")
       self.assertIn("section_id", legacy["sections"][0])
       self.assertEqual(project_compatibility.compatibility_projection(relative, projected)[1], [])
+
+      unbound_navigation = copy.deepcopy(template)
+      navigation = unbound_navigation["navigation"][0]
+      navigation.pop("action_id", None)
+      navigation["target"] = navigation.pop("leads_to_page")
+      unprojected, rules, conflicts = project_compatibility.compatibility_projection(relative, unbound_navigation)
+      self.assertEqual(conflicts, [])
+      self.assertNotIn("page_navigation_target_v1", rules)
+      self.assertIn("target", unprojected["navigation"][0])
+      self.assertIn("additionalProperties", project_compatibility.schema_errors(relative, unbound_navigation))
 
       unknown = {**template, "unclassified_property": "preserve-and-diagnose"}
       self.assertIn("additionalProperties", project_compatibility.schema_errors(relative, unknown))
@@ -616,6 +677,13 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertTrue(issues)
       self.assertFalse(any(item[1] == "SAFE_DETERMINISTIC" for item in issues))
       issues = project_compatibility.schema_diagnostics("planning/tasks/TASK-001.yml", {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect", "inspect": {"entity": "Module.Entity"}})
+      self.assertTrue(any(item[1] == "DECISION_REQUIRED" for item in issues))
+      canonical = {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect",
+                   "inspect": {"entity": "Module.Entity", "expect": "Entity has an access rule."}}
+      self.assertEqual(project_compatibility.schema_errors("planning/tasks/TASK-001.yml", canonical), [])
+      unsupported = copy.deepcopy(canonical)
+      unsupported["inspect"]["unclassified"] = "preserve"
+      issues = project_compatibility.schema_diagnostics("planning/tasks/TASK-001.yml", unsupported)
       self.assertTrue(any(item[1] == "DECISION_REQUIRED" for item in issues))
 
     def test_legacy_ui_conflicts_are_explicit_and_never_automapped(self) -> None:
@@ -775,6 +843,37 @@ class ProjectStatusTests(unittest.TestCase):
       diagnostic = next(item for item in report["diagnostics"] if item["source_path"] == path.relative_to(self.root).as_posix() and item["category"] == "WAVE_ASSIGNMENT_MISSING")
       self.assertEqual(diagnostic["repairability"], "DECISION_REQUIRED")
       self.assertIsNone(diagnostic["proposed_repair_type"])
+
+    def test_repair_plan_keeps_same_file_reference_diagnostic_deferred(self) -> None:
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\nitems: []\n")
+      task_path = "planning/tasks/TASK-001.yml"
+      write_file(self.root, task_path, """
+        ID: TASK-001
+        spec: SPEC-999
+        action: Reconciled task
+        status: pending
+        migrated_from: planning/checklists/W01-implementation-checklist.yaml
+      """)
+      report = build_project_status.build_status(self.root)["compatibility"]
+      wave_diagnostic = next(item for item in report["diagnostics"]
+                             if item["source_path"] == task_path and item["category"] == "WAVE_ASSIGNMENT_MISSING")
+      reference_diagnostic = next(item for item in report["diagnostics"]
+                                  if item["source_path"] == task_path and item["category"] == "REFERENCE_MISSING")
+      unsupported_diagnostic = {
+        "diagnostic_id": "DX-UNSUPPORTED-COLOCATED",
+        "source_path": task_path,
+        "category": "UNSUPPORTED_VARIANT",
+        "severity": "WARNING",
+        "repairability": "UNSUPPORTED",
+        "proposed_repair_type": None,
+      }
+      report["diagnostics"].append(unsupported_diagnostic)
+      plan = project_compatibility.repair_plan(self.root, report)
+      self.assertEqual(plan["file_scope"], [task_path])
+      self.assertIn(wave_diagnostic["diagnostic_id"], plan["repairs"][0]["diagnostic_ids"])
+      self.assertIn(reference_diagnostic["diagnostic_id"], plan["deferred_diagnostic_ids"])
+      self.assertNotIn(unsupported_diagnostic["diagnostic_id"], plan["repairs"][0]["diagnostic_ids"])
+      self.assertIn(unsupported_diagnostic, report["diagnostics"])
 
     def test_diagnostic_source_endpoint_never_serves_raw_invalid_source(self) -> None:
       import threading

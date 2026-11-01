@@ -13,7 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
-from project_compatibility import compatibility_report, identity_matches, load_yaml, projected_for_validation, schema_errors, safe_file
+from project_compatibility import compatibility_report, identity_matches, is_standalone_interaction_artifact, load_yaml, projected_for_validation, schema_errors, safe_file
 
 PHASES = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
 TASK_STATUSES = ("pending", "in_progress", "done", "failed", "blocked", "deferred")
@@ -834,9 +834,13 @@ def build_status(project_root: Path) -> dict[str, Any]:
     task_state, tasks, task_paths = read_collection(root, "planning/tasks", "*.yml", "ID", hashes, gaps)
     decision_state, decisions, decision_paths = read_collection(root, "planning/decisions", "*.yml", "ID", hashes, gaps)
     finding_state, finding_records, finding_paths = read_collection(root, "planning/findings", "*.yml", "ID", hashes, gaps)
-    contract_state, contracts, contract_paths = read_collection(root, "planning/test-contracts", "*.yaml", "ID", hashes, gaps)
+    contract_state, contracts, contract_paths = read_collection(root, "planning/test-contracts", "TC-*.yaml", "ID", hashes, gaps)
     plan_state, plans, plan_paths = read_collection(root, "planning/verification-plans", "*.yaml", "ID", hashes, gaps)
     page_state, pages, page_paths = read_collection(root, "planning/ui-inventory", "*.yaml", "", hashes, gaps)
+    page_records = [(page, path) for page, path in zip(pages, page_paths)
+                    if not is_standalone_interaction_artifact(path)]
+    pages = [page for page, _ in page_records]
+    page_paths = [path for _, path in page_records]
     evidence_state, manifests, manifest_paths = read_collection(
         root, "planning/evidence/manifests", "*-evidence-manifest.yaml", "", hashes, gaps
     )

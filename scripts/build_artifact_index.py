@@ -7,6 +7,7 @@ import sys
 import collections
 import datetime
 from pathlib import Path
+from project_compatibility import is_standalone_interaction_artifact
 
 # =============================================================================
 # MxAgile Artifact Index Builder
@@ -203,7 +204,7 @@ def find_artifacts(project_root):
         {'type': 'task',              'path': 'planning/tasks',                'filter': '*.yml',  'id_field': 'ID'},
         {'type': 'page',              'path': 'planning/ui-inventory',         'filter': '*.yaml', 'id_field': 'page_id'},
         {'type': 'scenario',          'path': 'planning/scenarios',            'filter': '*.yaml', 'id_field': 'scenario_id'},
-        {'type': 'test_contract',     'path': 'planning/test-contracts',       'filter': '*.yaml', 'id_field': 'ID'},
+        {'type': 'test_contract',     'path': 'planning/test-contracts',       'filter': 'TC-*.yaml', 'id_field': 'ID'},
         {'type': 'verification_plan', 'path': 'planning/verification-plans',   'filter': '*.yaml', 'id_field': 'ID'},
         {'type': 'decision',          'path': 'planning/decisions',            'filter': '*.yml',  'id_field': 'ID'},
     ]
@@ -215,6 +216,9 @@ def find_artifacts(project_root):
             continue
 
         for filepath in sorted(dir_path.glob(loc['filter'])):
+            relative_path = filepath.relative_to(project_root).as_posix()
+            if loc['type'] == 'page' and is_standalone_interaction_artifact(relative_path):
+                continue
             content = _read_yaml(filepath)
             if content is None:
                 continue
