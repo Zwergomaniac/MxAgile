@@ -19,18 +19,29 @@ import serve_project_board
 
 class BoardHttpTests(unittest.TestCase):
     def test_expected_client_disconnect_is_logged_compactly(self) -> None:
-        class BrokenWriter:
-            def write(self, body: bytes) -> None:
-                raise BrokenPipeError("client closed")
+        for error_type in (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            with self.subTest(error=error_type.__name__):
+                handler = object.__new__(serve_project_board.ProjectBoardHandler)
+                handler.wfile = Mock()
+                handler.wfile.write.side_effect = error_type("client closed")
+                handler.send_response = Mock()
+                handler.send_header = Mock()
+                handler.end_headers = Mock()
+                handler.log_message = Mock()
+                handler._send(200, b"payload", "application/json")
+                handler.log_message.assert_called_once_with("CLIENT_DISCONNECT")
 
+    def test_unexpected_response_write_error_is_not_swallowed(self) -> None:
         handler = object.__new__(serve_project_board.ProjectBoardHandler)
-        handler.wfile = BrokenWriter()
+        handler.wfile = Mock()
+        handler.wfile.write.side_effect = OSError("unexpected write failure")
         handler.send_response = Mock()
         handler.send_header = Mock()
         handler.end_headers = Mock()
         handler.log_message = Mock()
-        handler._send(200, b"payload", "application/json")
-        handler.log_message.assert_called_once_with("CLIENT_DISCONNECT")
+        with self.assertRaisesRegex(OSError, "unexpected write failure"):
+            handler._send(200, b"payload", "application/json")
+        handler.log_message.assert_not_called()
 
     def test_builder_failure_remains_visible_as_503(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mxagile-board-http-") as temporary:

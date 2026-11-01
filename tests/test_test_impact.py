@@ -87,6 +87,14 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(plan, impact.select(list(reversed(paths)) + paths))
         self.assertEqual(plan["suites"].count("test_project_status.py"), 1)
 
+    def test_reconciliation_wrapper_does_not_repeat_python_suites(self):
+        plan = impact.select(["tests/test-reconciliation-board.ps1", "scripts/reconcile_external_changes.py",
+                              "scripts/serve_project_board.py", "tests/test_board_performance.py"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertNotIn("test-reconciliation-board.ps1", plan["suites"])
+        for suite in ("test_external_change_reconciliation.py", "test_board_performance.py", "test_board_http.py"):
+            self.assertEqual(plan["suites"].count(suite), 1)
+
     def test_full_runner_uses_supported_host_and_does_not_promote_targeted_runs(self):
         runner = (Path(__file__).parent / "run-all-tests.ps1").read_text(encoding="utf-8-sig")
         self.assertIn("& pwsh -NoProfile -NonInteractive -File $testFile.FullName", runner)
@@ -101,6 +109,7 @@ class ImpactTests(unittest.TestCase):
         self.assertNotIn("powershell -NoProfile -File", runner)
         source = (Path(__file__).parent / "run-impact-tests.py").read_text(encoding="utf-8-sig")
         self.assertIn('["pwsh", "-NoProfile", "-File"', source)
+        self.assertIn('unittest.TextTestRunner(verbosity=2)', source)
 
     def test_skipped_scenario_is_incomplete_not_full_pass(self):
         with tempfile.TemporaryDirectory(prefix='mxagile-runner-') as directory:

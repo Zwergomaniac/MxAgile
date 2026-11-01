@@ -14,6 +14,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = (
+    (("tests/test-reconciliation-board.ps1",), 1,
+     ("test_external_change_reconciliation.py", "test_board_performance.py", "test_board_http.py")),
+    ((".mxagile/policies/lifecycle-resync.md",), 1,
+     ("test-startup-priority.ps1", "test-session-bootstrap.ps1", "test-managed-block.ps1", "test-core-provenance.ps1")),
         (("scripts/reconcile_external_changes.py", "scripts/reconciliation_git.py", "tests/test_external_change_reconciliation.py",
             "scripts/install-core.ps1", "scripts/apply-project-agent-instructions.ps1",
             ".mxagile/schemas/change-set.schema.json", ".mxagile/schemas/project-reconciliation-state.schema.json",
@@ -130,7 +134,7 @@ def main() -> int:
         if name.endswith(".py"):
             python_suite.addTests(unittest.defaultTestLoader.discover(str(ROOT / "tests"), pattern=name))
     started = time.perf_counter()
-    if python_suite.countTestCases() and not unittest.TextTestRunner(verbosity=1).run(python_suite).wasSuccessful():
+    if python_suite.countTestCases() and not unittest.TextTestRunner(verbosity=2).run(python_suite).wasSuccessful():
         return 1
     for name in plan["suites"]:
         if name.endswith(".ps1"):
