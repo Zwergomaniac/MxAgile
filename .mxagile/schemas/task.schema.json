@@ -1,5 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "x-mxagile-contract-version": 2,
   "title": "MxAgile Task",
   "description": "Canonical concrete actionable implementation task. Canonical location: planning/tasks/TASK-NNN.yml. Primary key: ID. Consumed by build_artifact_index.py for IMPLEMENTED_BY edges (spec field).",
   "type": "object",
@@ -82,9 +83,19 @@
     },
     "inspect": {
       "type": "object",
-      "description": "Optional model inspection verification (mxcli-based).",
+      "description": "Optional model inspection verification (mxcli-based). Version 2 supports entity and microflow targets.",
+      "required": ["expect"],
+      "anyOf": [
+        { "required": ["entity"] },
+        { "required": ["microflow"] }
+      ],
       "additionalProperties": false,
       "properties": {
+        "entity": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z_][A-Za-z0-9_]*\\.)?[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Entity to inspect, optionally module-qualified."
+        },
         "microflow": {
           "type": "string",
           "description": "Fully qualified microflow name to inspect."

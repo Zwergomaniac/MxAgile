@@ -308,7 +308,12 @@ Set-Content $taskPath ($taskBase + 'wave_id: W01') -Encoding UTF8
 $compatible = Invoke-FixtureUpdate $proj 'U1'
 Assert-True 'U1 compatible project is reported as COMPATIBLE' ($compatible.doctor.compatibility -eq 'COMPATIBLE' -and ($CompletionOutput -join "`n") -match 'PROJECT_COMPATIBILITY: COMPATIBLE') ($compatible.doctor.report | ConvertTo-Json -Depth 10 -Compress)
 $visibleOutput = ($CompletionOutput | Where-Object { "$_" -notmatch '^\{' }) -join "`n"
-Assert-True 'U8 compatible completion is compact with zero repair counts' ($compatible.doctor.safe_deterministic_count -eq 0 -and $compatible.doctor.agent_repairable_count -eq 0 -and $compatible.doctor.decision_required_count -eq 0 -and $visibleOutput -notmatch 'FRESHNESS_UNKNOWN') 'unnecessary diagnostic dump'
+$freshnessDiagnostics = @($compatible.doctor.report.diagnostics | Where-Object { $_.category -eq 'FRESHNESS_UNKNOWN' })
+$unassignedDiagnostics = @($compatible.doctor.report.diagnostics | Where-Object { $_.category -eq 'UNASSIGNED' })
+Assert-True 'U8 non-blocking freshness remains in structured Doctor report' (@($freshnessDiagnostics).Count -eq 1 -and $freshnessDiagnostics[0].severity -eq 'INFO' -and -not $freshnessDiagnostics[0].blocking) 'freshness diagnostic missing or promoted'
+Assert-True 'U8 optional workpackage absence remains informational' (@($unassignedDiagnostics).Count -eq 1 -and $unassignedDiagnostics[0].severity -eq 'INFO' -and -not $unassignedDiagnostics[0].blocking) 'unassigned workpackage diagnostic missing or promoted'
+$diagnosticRows = @($visibleOutput -split "`r?`n" | Where-Object { $_ -match '^\s{2}[A-Z][A-Z_]*:.*\(blocking=(true|false); (SAFE_DETERMINISTIC|AGENT_REPAIRABLE|DECISION_REQUIRED|UNSUPPORTED)\)$' })
+Assert-True 'U8 compatible completion is compact with zero repair counts' ($compatible.doctor.safe_deterministic_count -eq 0 -and $compatible.doctor.agent_repairable_count -eq 0 -and $compatible.doctor.decision_required_count -eq 0 -and $visibleOutput -match 'PROJECT_COMPATIBILITY_CHECKED: COMPATIBLE' -and $diagnosticRows.Count -eq 0) 'compatible completion included diagnostic detail rows'
 Assert-True 'U8 unsupported count is explicitly reported' ($compatible.doctor.unsupported_count -ge 0 -and $visibleOutput -match 'UNSUPPORTED:') 'unsupported count missing'
 
 $parseErrors = $null; $tokens = $null

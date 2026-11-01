@@ -26,7 +26,7 @@
       Q. capability-discovery.md policy exists
       R. docs/capabilities.md exists
       S. docs/context-optimization.md exists
-      T. version.yaml updated to 1.5
+    T. version.yaml matches the latest CHANGELOG release
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -268,7 +268,10 @@ if (Test-Path $ctxOptFile) {
 Assert-True 'T. version.yaml exists' (Test-Path $versionFile) "Not found: $versionFile"
 if (Test-Path $versionFile) {
     $versionText = (Get-Content $versionFile -Raw)
-    Assert-True 'T. version is current' ($versionText -match 'version:\s*"?1\.(8\.0|9\.0)"?') "Expected version 1.8.0 or 1.9.0, got: $($versionText -split '\n' | Select-Object -First 1)"
+    $versionMatch = [regex]::Match($versionText, '(?m)^version:\s*"?([0-9]+\.[0-9]+\.[0-9]+)"?\s*$')
+    $changelogText = Get-Content (Join-Path $RepoRoot 'CHANGELOG.md') -Raw
+    $latestRelease = [regex]::Match($changelogText, '(?m)^## \[([0-9]+\.[0-9]+\.[0-9]+)\]')
+    Assert-True 'T. version matches latest CHANGELOG release' ($versionMatch.Success -and $latestRelease.Success -and $versionMatch.Groups[1].Value -eq $latestRelease.Groups[1].Value) "version=$($versionMatch.Groups[1].Value), changelog=$($latestRelease.Groups[1].Value)"
 }
 
 # ---------------------------------------------------------------------------
