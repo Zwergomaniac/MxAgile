@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import contextvars
 import datetime
 import hashlib
 import json
@@ -11,6 +12,7 @@ import os
 import re
 import sys
 import tempfile
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -43,6 +45,7 @@ CONTRACTS = (
 )
 SCHEMA_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = SCHEMA_ROOT / 'schemas' if SCHEMA_ROOT.name == '.mxagile' else SCHEMA_ROOT / '.mxagile/schemas'
+_SCHEMA_CONTEXT: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar('mxagile_schema_context', default=None)
 
 
 class CanonicalLoader(yaml.SafeLoader):
@@ -61,8 +64,13 @@ class CanonicalLoader(yaml.SafeLoader):
         return result
 
 
-def load_yaml(raw: str | bytes) -> Any:
+@lru_cache(maxsize=512)
+def _parse_yaml(raw: str | bytes) -> Any:
     return yaml.load(raw, Loader=CanonicalLoader)
+
+
+def load_yaml(raw: str | bytes) -> Any:
+    return copy.deepcopy(_parse_yaml(raw))
 
 
 def compatibility_projection(relative: str, value: Any) -> tuple[Any, list[str], list[str]]:
@@ -186,6 +194,7 @@ def digest(raw: bytes) -> str:
     return 'sha256:' + hashlib.sha256(raw).hexdigest()
 
 
+@lru_cache(maxsize=8192)
 def contract_for(relative: str) -> tuple[str, str] | None:
     return next(((schema, area) for pattern, schema, area in CONTRACTS if PurePosixPath(relative).match(pattern)), None)
 
@@ -218,45 +227,93 @@ def identity_matches(relative: str, identity: Any, expected: str) -> bool:
     )
 
 
-@lru_cache(maxsize=32)
-def load_schema(path: str, modified: int, size: int) -> dict:
+@lru_cache(maxsize=64)
+def load_schema(path: str, modified: int, size: int, changed: int, content_hash: str) -> dict:
     return json.loads(Path(path).read_text(encoding='utf-8-sig'))
 
 
 @lru_cache(maxsize=4)
 def schema_registry(signatures: tuple) -> Any:
     return Registry().with_resources(
-        (Path(path).name, Resource.from_contents(load_schema(path, modified, size)))
-        for path, modified, size in signatures
+        (Path(path).name, Resource.from_contents(load_schema(path, modified, size, changed, content_hash)))
+        for path, modified, size, changed, content_hash in signatures
     )
 
 
+def _schema_signatures(directory: Path) -> tuple[tuple[str, int, int, int, str], ...]:
+    result = []
+    for path in sorted(directory.glob('*.schema.json')):
+        stat = path.stat()
+        content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        result.append((str(path), stat.st_mtime_ns, stat.st_size, stat.st_ctime_ns, content_hash))
+    return tuple(result)
+
+
+@contextmanager
+def schema_validation_scope():
+    context = {"signatures": _schema_signatures(SCHEMA_ROOT), "validators": {}}
+    token = _SCHEMA_CONTEXT.set(context)
+    try:
+        yield
+    finally:
+        _SCHEMA_CONTEXT.reset(token)
+
+
 def schema_validator(path: Path) -> Any:
-    signatures = tuple((str(item), item.stat().st_mtime_ns, item.stat().st_size)
-                       for item in sorted(path.parent.glob('*.schema.json')))
-    stat = path.stat()
-    schema = load_schema(str(path), stat.st_mtime_ns, stat.st_size)
-    return jsonschema.Draft7Validator(schema, registry=schema_registry(signatures))
+    context = _SCHEMA_CONTEXT.get()
+    if context is None:
+        with schema_validation_scope():
+            return schema_validator(path)
+    key = str(path)
+    cached = context["validators"].get(key)
+    if cached is not None:
+        return cached
+    signatures = context["signatures"]
+    signature = next((item for item in signatures if item[0] == key), None)
+    if signature is None:
+        stat = path.stat()
+        content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        signature = (key, stat.st_mtime_ns, stat.st_size, stat.st_ctime_ns, content_hash)
+    schema = load_schema(*signature)
+    validator = jsonschema.Draft7Validator(schema, registry=schema_registry(signatures))
+    context["validators"][key] = validator
+    return validator
 
 
 def schema_errors(relative: str, value: Any) -> list[str]:
     return raw_schema_errors(relative, projected_for_validation(relative, value))
 
 
-def assignment(root: Path, task: dict, waves: set[str]) -> tuple[str, str | None, str | None]:
+def assignment(
+    root: Path,
+    task: dict,
+    waves: set[str],
+    checklist_cache: dict[str, tuple[str, dict | None]] | None = None,
+) -> tuple[str, str | None, str | None]:
     provenance = task.get('migrated_from')
     if not isinstance(provenance, str):
         return ('explicit', task['wave_id'], None) if isinstance(task.get('wave_id'), str) and task['wave_id'] in waves else ('missing', None, None)
     match = re.fullmatch(r'planning/checklists/(W[A-Za-z0-9_-]+)-implementation-checklist\.yaml', provenance)
-    path = safe_file(root, provenance) if match else None
-    if path is None or match is None:
-        return 'ambiguous', None, None
-    try:
-        checklist = load_yaml(path.read_text(encoding='utf-8-sig'))
-    except (OSError, UnicodeError, yaml.YAMLError):
+    if match is None:
         return 'ambiguous', None, provenance
+    cached = checklist_cache.get(provenance) if checklist_cache is not None else None
+    if cached is None:
+        path = safe_file(root, provenance)
+        if path is None:
+            parsed = ('ambiguous', None)
+        else:
+            try:
+                checklist = load_yaml(path.read_text(encoding='utf-8-sig'))
+                parsed = ('available', checklist if isinstance(checklist, dict) else None)
+            except (OSError, UnicodeError, yaml.YAMLError):
+                parsed = ('ambiguous', None)
+        if checklist_cache is not None:
+            checklist_cache[provenance] = parsed
+    else:
+        parsed = cached
     wave = match.group(1)
-    if not isinstance(checklist, dict) or wave not in waves:
+    checklist = parsed[1]
+    if wave not in waves:
         return 'ambiguous', None, provenance
     declared = checklist.get('wave_id', checklist.get('wave'))
     if declared is not None and declared != wave:
@@ -326,10 +383,26 @@ def wave_review_authority(task: dict, documents: dict[str, dict], waves: set[str
     return sorted(next(iter(candidates.values())))[0] if len(candidates) == 1 else None
 
 
-def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> dict:
+def compatibility_report(
+    root: Path,
+    status: dict,
+    hashes: dict[str, str],
+    *,
+    parsed_documents: dict[str, dict[str, Any]] | None = None,
+) -> dict:
     diagnostics: list[dict] = []
     coverage: dict[str, dict[str, int]] = {}
     documents: dict[str, dict] = {}
+    parsed_documents = parsed_documents or {}
+    assignment_cache: dict[str, tuple[str, dict | None]] = {}
+    for relative, snapshot in parsed_documents.items():
+        if not relative.startswith('planning/checklists/') or not isinstance(snapshot.get('raw'), bytes):
+            continue
+        try:
+            parsed_checklist = load_yaml(snapshot['raw'].decode('utf-8-sig'))
+            assignment_cache[relative] = ('available', parsed_checklist if isinstance(parsed_checklist, dict) else None)
+        except (UnicodeError, yaml.YAMLError):
+            assignment_cache[relative] = ('ambiguous', None)
 
     def add(category: str, source: str | None, area: str, message: str, *,
             blocking: bool = False, repairability: str = 'UNSUPPORTED', repair: str | None = None,
@@ -392,15 +465,27 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
         if path is None:
             counts['invalid'] += 1
             continue
-        try:
-            raw = path.read_bytes()
+        snapshot = parsed_documents.get(relative)
+        if snapshot is not None:
+            raw = snapshot.get('raw')
+            value = snapshot.get('value')
+            if snapshot.get('state') != 'available' or not isinstance(raw, bytes) or not isinstance(value, dict):
+                counts['invalid'] += 1
+                continue
             if hashlib.sha256(raw).hexdigest() != hashes[relative]:
                 add('AUTHORITY_CONFLICT', relative, contract[1], 'Source changed during diagnosis; rerun Doctor.', blocking=True)
                 continue
-            value = json.loads(raw.decode('utf-8-sig')) if path.suffix == '.json' else load_yaml(raw.decode('utf-8-sig'))
-        except (OSError, UnicodeError, ValueError, yaml.YAMLError):
-            counts['invalid'] += 1
-            continue
+            value = copy.deepcopy(value)
+        else:
+            try:
+                raw = path.read_bytes()
+                if hashlib.sha256(raw).hexdigest() != hashes[relative]:
+                    add('AUTHORITY_CONFLICT', relative, contract[1], 'Source changed during diagnosis; rerun Doctor.', blocking=True)
+                    continue
+                value = json.loads(raw.decode('utf-8-sig')) if path.suffix == '.json' else load_yaml(raw.decode('utf-8-sig'))
+            except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+                counts['invalid'] += 1
+                continue
         if not isinstance(value, dict):
             counts['invalid'] += 1
             continue
@@ -454,8 +539,19 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
                 add('DUPLICATE_ID', relative, contract_for(relative)[1], 'ID occurs in multiple canonical artifacts.',
                     blocking=True, repairability='DECISION_REQUIRED')
 
+    for relative, value in documents.items():
+        if contract_for(relative)[0] != 'finding' or value.get('lifecycle_status') != 'SUPERSEDED':
+            continue
+        successor = value.get('superseded_by')
+        targets = identities.get(successor, []) if isinstance(successor, str) else []
+        if len(targets) != 1 or targets[0] == relative:
+            category = 'REFERENCE_MISSING' if not targets else 'REFERENCE_AMBIGUOUS'
+            add(category, relative, 'findings', 'Superseded Finding must reference one different canonical Finding ID.',
+                blocking=True, repairability='DECISION_REQUIRED', authority='superseded_by')
+
     waves_doc = documents.get('planning/lifecycle/process-state.yaml', {}).get('waves', {})
     waves = set(waves_doc) if isinstance(waves_doc, dict) else set()
+    assignment_cache: dict[str, tuple[str, dict | None]] = {}
     reference_fields = ('req', 'requirement_ids', 'affected_requirements', 'decision_ids', 'depends_on', 'test_contract_ids')
     for relative, value in documents.items():
         area = contract_for(relative)[1]
@@ -585,7 +681,7 @@ def compatibility_report(root: Path, status: dict, hashes: dict[str, str]) -> di
                     blocking=True, repairability='DECISION_REQUIRED' if category == 'REFERENCE_AMBIGUOUS' else 'AGENT_REPAIRABLE',
                     authority='page_id')
         if area == 'tasks':
-            state, wave, provenance = assignment(root, value, waves)
+            state, wave, provenance = assignment(root, value, waves, assignment_cache)
             if state not in ('explicit',):
                 coverage['task']['unassigned'] += 1
                 review_authority = wave_review_authority(value, documents, waves) if state in ('ambiguous', 'missing') else None
@@ -721,6 +817,7 @@ def protected_values(value: Any, prefix: tuple = ()) -> dict:
 
 def repair_candidates(root: Path, report: dict, candidate_dir: Path | None = None) -> dict[str, tuple[bytes, str]]:
     candidates: dict[str, tuple[bytes, str]] = {}
+    assignment_cache: dict[str, tuple[str, dict | None]] = {}
     waves_path = safe_file(root, 'planning/lifecycle/process-state.yaml')
     try:
         process = load_yaml(waves_path.read_text(encoding='utf-8-sig')) if waves_path else {}
@@ -741,7 +838,7 @@ def repair_candidates(root: Path, report: dict, candidate_dir: Path | None = Non
                 candidates[relative] = replacement, 'QUOTE_TEXT_SCALAR'
         elif diagnostic['proposed_repair_type'] == 'ADD_WAVE_ID':
             value = load_yaml(raw.decode('utf-8-sig'))
-            state, wave, provenance = assignment(root, value, waves)
+            state, wave, provenance = assignment(root, value, waves, assignment_cache)
             if state == 'derived' and not schema_errors(relative, value):
                 newline = '\r\n' if b'\r\n' in raw else '\n'
                 text = raw.decode('utf-8-sig')
