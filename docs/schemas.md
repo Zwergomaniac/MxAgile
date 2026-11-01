@@ -182,7 +182,7 @@ Represents a concrete, actionable implementation task.
 | `status` | enum | Default: `pending`. |
 | `depends_on` | array of `TASK-...` strings | Prerequisite tasks. |
 | `test` | object `{role, steps, expected}` | Acceptance test. |
-| `inspect` | object `{microflow, expect}` | mxcli model verification. |
+| `inspect` | object `{entity, expect}` or `{microflow, expect}` | mxcli model verification; at least one target and `expect` are required. Unknown fields are rejected. |
 | `migrated_from` / `migration_date` | string | Provenance for migrated tasks. |
 
 **Artifact index consumption:**
@@ -344,10 +344,13 @@ When a Design Contract source ID is already occupied canonically by an unrelated
 
 ### Evolved Contract Versions
 
-Requirement, Test Contract, Evidence Manifest, and Page schemas declare
-`x-mxagile-contract-version: 2`. Test Contract artifacts with `schema_version: 1` remain readable;
-new producers write `schema_version: 2`. `proof_points[].traceability.requirement_ids` is optional,
-unique, and validated independently from the parent TC's required `requirement_ids`.
+Requirement, Test Contract, Evidence Manifest, Page, and Task schemas declare
+`x-mxagile-contract-version: 2`. Task v2 accepts the existing Test Generate producer's bounded
+`inspect.entity` target alongside `inspect.microflow`; Task artifacts do not require a separate
+`schema_version` field, so existing records remain readable. Test Contract artifacts with
+`schema_version: 1` remain readable; new producers write `schema_version: 2`.
+`proof_points[].traceability.requirement_ids` is optional, unique, and validated independently
+from the parent TC's required `requirement_ids`.
 
 Requirement `source` is a finite category (`native`, `legacy`, `migrated`, `stakeholder`,
 `security_review`, or `design_contract`); a Design Contract revision belongs in `source_ref`, not

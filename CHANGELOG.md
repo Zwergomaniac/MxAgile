@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.10.0] - 2026-11-01
+
+### Compatibility Closure
+
+- Task Contract v2 accepts the existing bounded `inspect.entity` producer shape
+	alongside `inspect.microflow`; missing expectations and unknown fields remain invalid.
+- Doctor and Artifact Index keep non-TC verification analysis and standalone
+	interaction records out of Test Contract and Page projections while retaining
+	visible unsupported-artifact diagnostics.
+- Evidence aliases remain read-only and require the complete manifest contract,
+	including explicit wave authority. Process State keeps lifecycle authority narrow.
+- Repair plans track diagnostics individually; legacy story Markdown does not
+	duplicate canonical Requirement counts in Project Status or the Board.
+- Fresh installs and existing-project updates consume the current Core schemas,
+	Doctor, Status Builder, and templates without physical migration of these records.
+
 ## [1.9.0] - 2026-10-31
 
 ### Added: Capability-Driven Bounded Delegation
