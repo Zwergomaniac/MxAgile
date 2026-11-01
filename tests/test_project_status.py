@@ -130,7 +130,20 @@ def fixture(root: Path) -> None:
     write_file(root, "mxagile-project.yaml", "name: Board Fixture\n")
     write_file(root, ".mxagile/version.yaml", "version: '1.7.0'\n")
     write_file(root, ".env.mendix", "PASSWORD=do-not-export-this-secret\n")
-    write_file(root, "planning/parity/PAGE-1.yaml", "page_id: PAGE-1\noverall_result: PASS\n")
+    write_file(root, "planning/parity/PAGE-1.yaml", """
+        page_id: PAGE-1
+        verified_at: '2026-10-30'
+        evidence_level: static
+        overall_result: PASS
+        dimensions:
+          visual: {result: PASS}
+          content: {result: PASS}
+          structure: {result: PASS}
+          state: {result: PASS}
+          interaction: {result: PASS}
+          responsive: {result: PASS}
+          role: {result: PASS}
+    """)
     write_file(root, "planning/evidence/screenshots/SCN-1/actual.svg", "<svg xmlns='http://www.w3.org/2000/svg'></svg>\n")
     write_file(root, "planning/lifecycle/context-epoch.yaml", """
       schema_version: '1.0'
