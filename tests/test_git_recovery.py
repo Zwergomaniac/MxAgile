@@ -30,6 +30,9 @@ class RecoveryContractTests(unittest.TestCase):
             self.assertEqual(git_index_integrity.verify_recovery(ROOT, before, 0)['state'], 'RECOVERY_PARTIAL')
             after.update(git_process_active=False, autostash_present=True)
             self.assertEqual(git_index_integrity.verify_recovery(ROOT, before, 0)['state'], 'RECOVERY_PARTIAL')
+            after.update(git_process_active=True, autostash_present=False)
+            index_before = {**before, 'operation': 'index-rebuild'}
+            self.assertEqual(git_index_integrity.verify_recovery(ROOT, index_before, 0)['state'], 'RECOVERY_PARTIAL')
 
     def test_no_current_merge_never_authorizes_abort(self):
         snapshot = {'locks': [], 'git_process_active': False, 'preservation_check_complete': True,
@@ -99,7 +102,8 @@ class RecoveryFixtureTests(unittest.TestCase):
         self.assertEqual(before['state'], 'RECOVERY_READY', before['reason'])
         self.assertTrue((self.root / '.git/MERGE_HEAD').exists())
         self.run_git(*before['command'][1:])
-        after = git_index_integrity.verify_recovery(self.root, before, 0)
+        with patch.object(git_index_integrity, 'git_activity', return_value=False):
+            after = git_index_integrity.verify_recovery(self.root, before, 0)
         self.assertEqual(after['state'], 'RECOVERY_SUCCESS', after)
         self.assertTrue(after['resync_required'])
         self.assertFalse(after['resume_allowed'])
@@ -126,7 +130,12 @@ class RecoveryFixtureTests(unittest.TestCase):
         self.assertEqual(before['state'], 'RECOVERY_READY', before['reason'])
         self.assertEqual((self.root / '.git/index').read_bytes(), index_bytes)
         self.run_git(*before['command'][1:])
-        self.assertEqual(git_index_integrity.verify_recovery(self.root, before, 0)['state'], 'RECOVERY_SUCCESS')
+        with patch.object(git_index_integrity, 'git_activity', return_value=False):
+            after = git_index_integrity.verify_recovery(self.root, before, 0)
+        self.assertEqual(after['state'], 'RECOVERY_SUCCESS', after)
+        self.assertEqual(after['after']['index']['state'], 'GIT_INDEX_PLAUSIBLE')
+        self.assertEqual((self.root / 'conflict.txt').read_text(encoding='utf-8'), 'base\n')
+        self.assertEqual((self.root / 'unrelated.txt').read_text(encoding='utf-8'), 'base\n')
 
     def test_r4_unrelated_staged_changes_block_until_preserved(self):
         self.conflict()
