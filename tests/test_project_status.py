@@ -714,6 +714,13 @@ class ProjectStatusTests(unittest.TestCase):
       template = project_compatibility.load_yaml(
         (ROOT / ".mxagile" / "templates" / "generic" / "ui-inventory" / "template.yaml").read_text(encoding="utf-8"))
       self.assertEqual(project_compatibility.schema_errors(relative, template), [])
+      producer_template = copy.deepcopy(template)
+      producer_template.pop("navigation")
+      write_file(self.root, producer_template["source_mockup"], "<html>Producer fixture</html>\n")
+      write_file(self.root, relative, project_compatibility.yaml.safe_dump(producer_template, sort_keys=False))
+      producer_diagnostics = [item for item in build_project_status.build_status(self.root)["compatibility"]["diagnostics"]
+                              if item["source_path"] == relative and item["blocking"]]
+      self.assertEqual(producer_diagnostics, [])
 
       legacy = copy.deepcopy(template)
       legacy["sections"][0]["section_id"] = legacy["sections"][0].pop("id")
@@ -774,6 +781,95 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertIn(("entries[].screen_id", "REFERENCE_MISSING"), missing_refs)
       self.assertIn(("mockup_name/target_revision", "REFERENCE_MISSING"), missing_refs)
       self.assertIn(("source_mockup", "REFERENCE_MISSING"), missing_refs)
+
+    def test_page_logical_identity_is_independent_of_filename(self) -> None:
+      write_file(self.root, "input-resources/ui-ux/customer.html", "<html>Customer</html>\n")
+      write_file(self.root, "input-resources/ui-ux/overview.html", "<html>Overview</html>\n")
+      write_file(self.root, "planning/ui-inventory/Customer_NewEdit.yaml", """
+        page_id: PAGE-CUSTOMER-EDIT
+        page_name: Customer_NewEdit
+        source_mockup: input-resources/ui-ux/customer.html
+      """)
+      write_file(self.root, "planning/ui-inventory/PAGE-OVERVIEW.yaml", """
+        page_id: PAGE-OVERVIEW
+        page_name: Customer_Overview
+        source_mockup: input-resources/ui-ux/overview.html
+        navigation:
+          - action_id: ACT-CUSTOMER-OPEN
+            leads_to_page: PAGE-CUSTOMER-EDIT
+      """)
+
+      status = build_project_status.build_status(self.root)
+      diagnostics = status["compatibility"]["diagnostics"]
+      self.assertFalse(any(item["category"] == "REFERENCE_MISSING"
+                           and item["authority"] == "navigation[].leads_to_page" for item in diagnostics))
+      self.assertFalse(any(item["category"] == "DUPLICATE_ID" for item in diagnostics))
+      self.assertTrue(any(item["category"] == "LEGACY_VARIANT" and not item["blocking"]
+                          and item["source_path"] == "planning/ui-inventory/Customer_NewEdit.yaml"
+                          for item in diagnostics))
+      target = next(item for item in status["project"]["active_targets"]["items"]
+                    if "PAGE-CUSTOMER-EDIT" in item["screen_ids"])
+      self.assertEqual(target["page_bindings"], [
+          {"page_id": "PAGE-CUSTOMER-EDIT", "mendix_page_name": "Customer_NewEdit"}
+      ])
+      with redirect_stdout(StringIO()):
+        indexed = build_artifact_index.find_artifacts(self.root)
+      self.assertEqual(indexed["page"]["PAGE-CUSTOMER-EDIT"]["path"],
+                       "planning/ui-inventory/Customer_NewEdit.yaml")
+      self.assertEqual(indexed["page"]["PAGE-CUSTOMER-EDIT"]["mendix_page_name"], "Customer_NewEdit")
+
+      requirement_path = self.root / "requirements/REQ-001.yml"
+      requirement = project_compatibility.load_yaml(requirement_path.read_bytes())
+      requirement["screens"] = ["PAGE-CUSTOMER-EDIT"]
+      requirement_path.write_text(project_compatibility.yaml.safe_dump(requirement, sort_keys=False), encoding="utf-8")
+      manifest_path = self.root / "planning/evidence/manifests/W01-evidence-manifest.yaml"
+      manifest = project_compatibility.load_yaml(manifest_path.read_bytes())
+      for entry in manifest["entries"]:
+        entry["screen_id"] = "PAGE-CUSTOMER-EDIT"
+      manifest_path.write_text(project_compatibility.yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+
+      with redirect_stdout(StringIO()):
+        before_graph = build_artifact_index.build_graph(build_artifact_index.find_artifacts(self.root))
+      requirement_edge = {"from": "REQ-001", "to": "PAGE-CUSTOMER-EDIT", "type": "APPLIES_TO",
+                          "provenance": {"type": "DECLARED", "source": "requirement.screens[]"}}
+      self.assertIn(requirement_edge, before_graph["edges"])
+
+      page_path = self.root / "planning/ui-inventory/Customer_NewEdit.yaml"
+      page = project_compatibility.load_yaml(page_path.read_bytes())
+      page["page_name"] = "Customer_Edit"
+      page_path.write_text(project_compatibility.yaml.safe_dump(page, sort_keys=False), encoding="utf-8")
+      renamed_status = build_project_status.build_status(self.root)
+      renamed_diagnostics = renamed_status["compatibility"]["diagnostics"]
+      self.assertFalse(any(item["category"] == "REFERENCE_MISSING"
+                           and item["authority"] == "entries[].screen_id" for item in renamed_diagnostics))
+      renamed_target = next(item for item in renamed_status["project"]["active_targets"]["items"]
+                            if "PAGE-CUSTOMER-EDIT" in item["screen_ids"])
+      self.assertEqual(renamed_target["page_bindings"], [
+          {"page_id": "PAGE-CUSTOMER-EDIT", "mendix_page_name": "Customer_Edit"}
+      ])
+      with redirect_stdout(StringIO()):
+        after_index = build_artifact_index.find_artifacts(self.root)
+        after_graph = build_artifact_index.build_graph(after_index)
+      self.assertEqual(after_index["page"]["PAGE-CUSTOMER-EDIT"]["id"], "PAGE-CUSTOMER-EDIT")
+      self.assertIn(requirement_edge, after_graph["edges"])
+
+    def test_duplicate_page_logical_identity_is_ambiguous(self) -> None:
+      write_file(self.root, "input-resources/ui-ux/page-one.html", "<html>Page One</html>\n")
+      for filename, page_name in (("Customer_NewEdit", "Customer_NewEdit"), ("Customer_Edit", "Customer_Edit")):
+        write_file(self.root, f"planning/ui-inventory/{filename}.yaml", f"""
+          page_id: PAGE-CUSTOMER-EDIT
+          page_name: {page_name}
+          source_mockup: input-resources/ui-ux/page-one.html
+        """)
+
+      diagnostics = build_project_status.build_status(self.root)["compatibility"]["diagnostics"]
+      conflicts = [item for item in diagnostics if item["category"] == "DUPLICATE_ID"
+                   and item["authority"] == "page_id"]
+      self.assertEqual(len(conflicts), 2)
+      self.assertTrue(all(item["blocking"] for item in conflicts))
+      with redirect_stdout(StringIO()):
+        with self.assertRaisesRegex(ValueError, "Duplicate Page logical identity"):
+          build_artifact_index.find_artifacts(self.root)
 
     def test_duplicate_mapping_keys_are_not_silently_accepted(self) -> None:
       for wave in ("W3", "W4A", "W1C"):
