@@ -174,9 +174,13 @@ vorhanden ist. Der Discovery-Agent darf gate-to-refinement nicht passieren ohne 
     *   **`fit_rationale`:** Im Analyze-Modus nicht erforderlich (confidence ist `preliminary`).
         Wird in der Refinement-Phase befuellt.
 5.  **Pro Seite ein Page YAML erzeugen:** Erzeuge fuer jede Seite eine `.yaml`-Datei unter
-    `planning/ui-inventory/`. Das Format MUSS dem `page.schema.json` entsprechen.
+    `planning/ui-inventory/`. Verwende `<page_id>.yaml` als Dateinamen und das Format MUSS
+    dem `page.schema.json` entsprechen. Der Dateiname ist Ablagekonvention, nicht Identity Authority.
     *   **IDs generieren:** Erzeuge stabile, lesbare IDs fuer alle Elemente
-        (z.B. `PAGE-CUSTOMER-EDIT`, `FIELD-CUSTOMER-NAME`, `ACT-CUSTOMER-SAVE`).
+        (z.B. `PAGE-CUSTOMER-EDIT`, `FIELD-CUSTOMER-NAME`, `ACT-CUSTOMER-SAVE`). `page_id`
+        identifiziert die logische Page und bleibt bei Mendix-Renames oder geaenderter technischer
+        Umsetzung stabil. `page_name` enthaelt den aktuellen Mendix-Implementierungsnamen und darf
+        sich unabhaengig aendern. Verwende weder `page_name` noch Dateiname als Page-ID.
     *   **`mockup_name` setzen:** Wenn die Page aus einem SPA-Bundle stammt, trage den
         Bundle-Namen in das Feld `mockup_name` ein (z.B. `mockup_name: demo-application`).
         Bei Single-File-Legacy leer lassen.

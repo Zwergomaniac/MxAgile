@@ -8,9 +8,13 @@
     "properties": {
         "page_id": {
             "type": "string",
-            "pattern": "^PAGE-[A-Z0-9_-]+$"
+            "pattern": "^PAGE-[A-Z0-9_-]+$",
+            "description": "Stable logical MxAgile Page identity. Keep it unchanged when the Mendix implementation is renamed or reshaped."
         },
-        "page_name": { "type": "string" },
+        "page_name": {
+            "type": "string",
+            "description": "Current Mendix implementation page name. This mutable binding is not Page identity or filename authority."
+        },
         "title": { "type": "string" },
         "mockup_id": {
             "type": "string",

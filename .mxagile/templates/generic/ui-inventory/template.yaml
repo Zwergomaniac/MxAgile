@@ -1,13 +1,14 @@
 # MxAgile UI Inventory — Page YAML
 # Schema: .mxagile/schemas/page.schema.json
-# Location: planning/ui-inventory/PAGE-NNN.yaml
+# Canonical location: planning/ui-inventory/<page_id>.yaml
+# Historical descriptive filenames remain readable; page_id is the identity authority.
 # One file per screen/page in the UI inventory.
 #
 # Fill in after UI-Agent Analyze mode. This file is the binding reference
 # for Implementation-Agent (ui_driven=true) and Acceptance-Agent UI-Parity.
 
 page_id: PAGE-001
-page_name: "[Mendix page name, e.g. Customer_Overview]"
+page_name: "[Current Mendix implementation name, e.g. Customer_Overview]"  # Mutable binding, not identity
 title: "[Human-readable page title]"
 mockup_id: MOCKUP-EXAMPLE     # Upstream Design Contract ID, not the bundle directory name
 # SPA bundle pages additionally set mockup_name to the bundle directory identity.

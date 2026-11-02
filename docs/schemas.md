@@ -237,15 +237,19 @@ classifies free text, closes Findings, or proposes/executes repairs.
 
 ---
 
-## Page (`pages/PAGE-NNN.yml`)
+## Page (`planning/ui-inventory/<page_id>.yaml`)
 
 Schema: `.mxagile/schemas/page.schema.json` (existing)
 
-See `page.schema.json` for the full field list. The Page artifact participates in
-traceability as the upstream source of requirements.
+See `page.schema.json` for the full field list. `page_id` is the stable logical
+MxAgile identity; `page_name` is the mutable current Mendix implementation name.
+The filename is a storage convention: historical `<PageName>.yaml` files remain
+readable and do not change Page identity. Requirements, Decisions, Tasks, Test
+Contracts, Evidence and Parity references use `page_id`, not `page_name`. The Page
+artifact participates in traceability as the upstream source of requirements.
 
 **Artifact index consumption:**
-- `page_id` field is read as `ID` (note: page.schema.json uses `page_id`, not `ID`)
+- `page_id` is the Page node ID; the filename stem is not a fallback identity
 - Pages create `DERIVED_FROM` edges when requirements reference them via `derivedFrom`
 
 ---

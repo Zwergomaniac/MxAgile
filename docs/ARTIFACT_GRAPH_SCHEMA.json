@@ -33,7 +33,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Stable artifact identifier matching the canonical ID field or filename stem. Examples: REQ-001, SPEC-002, PAGE-CALENDAR, TC-001, FLOW-ORDER-SUBMIT."
+          "description": "Stable artifact identifier from its canonical identity field. A filename stem is only a storage convention; Page nodes always use page_id. Examples: REQ-001, SPEC-002, PAGE-CALENDAR, TC-001, FLOW-ORDER-SUBMIT."
         },
         "type": {
           "type": "string",

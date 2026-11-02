@@ -86,7 +86,18 @@ authority is mutated by this workflow.
 
 Mendix model changes use only a capability-verified project-local `mxcli`.
 Without reliable semantic evidence, report `SEMANTIC_REVIEW_REQUIRED`; do not
-diff MPR-v2 internals with a new engine or feed raw binary diffs to an LLM.
+diff MPR-v2 internals with a new engine or feed raw binary diffs to an LLM. The
+current Core contract has no verified stable Mendix Page object ID exposed by MPR-v2
+or project-local mxcli, so a model-path/name change alone cannot be matched to a
+logical `page_id`. Do not infer rename versus delete-plus-create from names or file
+similarity; keep the outcome ambiguous and require semantic reconciliation.
+
+When a Page binding is explicitly reconciled, retain its `page_id` and update only
+`page_name` in the UI inventory. The Artifact Index and Board identify the logical
+Page by `page_id` and present `page_name` as its current Mendix binding. Impact is
+bounded through existing stable-ID edges; Evidence and Parity are reassessed against
+the actual implementation/reference change, not invalidated solely because a name
+changed. A changed MPR without a verified binding remains `SEMANTIC_REVIEW_REQUIRED`.
 
 ## Reference Authority
 
