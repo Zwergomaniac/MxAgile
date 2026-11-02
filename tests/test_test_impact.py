@@ -37,6 +37,31 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-agent-delegation.ps1"])
 
+    def test_c0_collector_paths_select_only_the_telemetry_fixture(self):
+        plan = impact.select([
+            "scripts/context_telemetry_model.py",
+            "scripts/context_architecture_telemetry.py",
+            "scripts/claude_jsonl_collector.py",
+            "tests/test_context_architecture_telemetry.py",
+        ])
+        self.assertEqual(plan["tier"], 1)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-context-architecture-telemetry.ps1"])
+
+    def test_operating_mode_policy_maps_to_c2_consumers(self):
+        plan = impact.select([
+            ".mxagile/policies/operating-mode.md",
+            "scripts/Get-MxAgileCapabilities.ps1",
+        ])
+        self.assertEqual(plan["tier"], 1)
+        self.assertEqual(plan["unmapped"], [])
+        for suite in (
+            "test-operating-mode-detection.ps1",
+            "test-capabilities-resolver.ps1",
+            "test-capability-discovery-routing.ps1",
+        ):
+            self.assertIn(suite, plan["suites"])
+
     def test_capability_catalog_and_orchestrator_have_distinct_consumers(self):
         capabilities = impact.select([".mxagile/capabilities.yaml", ".mxagile/config.yaml", ".mxagile/version.yaml"])
         self.assertEqual(capabilities["unmapped"], [])

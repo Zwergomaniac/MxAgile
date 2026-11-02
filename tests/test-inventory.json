@@ -1512,5 +1512,20 @@
     "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,
     "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
     "Reason": "External-change, finding, watermark, reference authority, Board cache, and HTTP fixtures use isolated temporary Git projects and loopback servers."
+  },
+  {
+    "File": "test-context-architecture-telemetry.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Harness-neutral telemetry model and Claude JSONL collector with synthetic Copilot NOT_OBSERVABLE, fork inheritance, model provenance, size accounting, and content-redaction fixtures."
   }
 ]

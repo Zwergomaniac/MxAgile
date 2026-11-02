@@ -64,6 +64,28 @@ unless these operations are present in ContextModeTools.
 .PARAMETER ContextModeHooksRequired
 The current task requires automatic routing hooks, not only direct ctx_* operations.
 
+.PARAMETER ResolveOperatingMode
+Include the current operating mode and tool-authority route in JSON/human output.
+Uses the existing read-only Studio Pro detector; no MCP call is made by this resolver.
+
+.PARAMETER StudioProProjectPath
+Current project's .mpr path for the existing Studio Pro detector. When omitted,
+the resolver uses the sole .mpr file in ProjectRoot, if there is exactly one.
+
+.PARAMETER StudioProMcpProbeStatus
+Current-session result of a successful non-mutating Studio Pro MCP probe:
+NOT_OBSERVED (default), HEALTHY, FAILED, or TIMEOUT.
+
+.PARAMETER StudioProMcpBoundProjectPath
+Project identity returned by the current-session Studio Pro MCP probe.
+
+.PARAMETER ConcordMcpProbeStatus
+Current-session result of a successful non-mutating Concord MCP probe:
+NOT_OBSERVED (default), HEALTHY, FAILED, or TIMEOUT.
+
+.PARAMETER ConcordMcpBoundProjectPath
+Project identity returned by the current-session Concord MCP probe.
+
 .PARAMETER HomeDir
     User home used to read global harness configuration (read-only). Defaults to
     the current user profile. Mainly for tests.
@@ -118,6 +140,20 @@ param(
     [string[]]$ContextModeRequiredTools = @(),
 
     [switch]$ContextModeHooksRequired,
+
+    [switch]$ResolveOperatingMode,
+
+    [string]$StudioProProjectPath = '',
+
+    [ValidateSet('NOT_OBSERVED', 'HEALTHY', 'FAILED', 'TIMEOUT')]
+    [string]$StudioProMcpProbeStatus = 'NOT_OBSERVED',
+
+    [string]$StudioProMcpBoundProjectPath = '',
+
+    [ValidateSet('NOT_OBSERVED', 'HEALTHY', 'FAILED', 'TIMEOUT')]
+    [string]$ConcordMcpProbeStatus = 'NOT_OBSERVED',
+
+    [string]$ConcordMcpBoundProjectPath = '',
 
     [string]$HomeDir = ''
 )
@@ -197,6 +233,7 @@ function Read-CapabilitiesYaml {
                 description = ''
                 category = ''
                 version_introduced = ''
+                config_location = ''
                 default_state = 'off'
                 config_key = ''
                 external_dependencies = @()
@@ -219,6 +256,7 @@ function Read-CapabilitiesYaml {
         elseif ($line -match '^\s+description:\s*"?(.+?)"?\s*$') { $currentCap.description = $Matches[1].Trim('"') }
         elseif ($line -match '^\s+category:\s*(.+)$') { $currentCap.category = $Matches[1].Trim() }
         elseif ($line -match '^\s+version_introduced:\s*"?(.+?)"?\s*$') { $currentCap.version_introduced = $Matches[1].Trim('"') }
+        elseif ($line -match '^\s+config_location:\s*"?(.+?)"?\s*$') { $currentCap.config_location = $Matches[1].Trim('"') }
         elseif ($line -match '^\s+default_state:\s*"?(.+?)"?\s*$') { $currentCap.default_state = $Matches[1].Trim('"') }
         elseif ($line -match '^\s+config_key:\s*"?(.+?)"?\s*$') { $currentCap.config_key = $Matches[1].Trim('"') }
         elseif ($line -match '^\s+risk:\s*(.+)$') { $currentCap.risk = $Matches[1].Trim() }
@@ -1129,6 +1167,223 @@ function Resolve-Capability {
 }
 
 # ---------------------------------------------------------------------------
+# Optional operating-mode/tool-authority resolution
+# ---------------------------------------------------------------------------
+function Get-DeclaredMcpConfiguration {
+    param([string]$CapabilityId)
+
+    $cap = $allCapabilities | Where-Object { $_.id -eq $CapabilityId } | Select-Object -First 1
+    if (-not $cap -or -not $cap.config_location -or -not $cap.config_key) {
+        return [ordered]@{ state = 'NOT_OBSERVED'; configured = $null; source = $null; reason = 'Registry configuration metadata is unavailable.' }
+    }
+
+    $configPath = Join-Path $ProjectRoot $cap.config_location
+    if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
+        return [ordered]@{ state = 'OBSERVED'; configured = $false; source = $cap.config_location; reason = 'Project MCP configuration file is absent.' }
+    }
+
+    try {
+        $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+        $value = $config
+        foreach ($segment in ($cap.config_key -split '\.')) {
+            if ($null -eq $value) { break }
+            $property = $value.PSObject.Properties[$segment]
+            if (-not $property) { $value = $null; break }
+            $value = $property.Value
+        }
+        return [ordered]@{
+            state = 'OBSERVED'
+            configured = ($null -ne $value)
+            source = $cap.config_location
+            reason = if ($null -ne $value) { 'Registry config key is present in project MCP configuration.' } else { 'Registry config key is absent from project MCP configuration.' }
+        }
+    } catch {
+        return [ordered]@{ state = 'UNKNOWN'; configured = $null; source = $cap.config_location; reason = 'Project MCP configuration could not be parsed.' }
+    }
+}
+
+function Invoke-StudioProStatusDetector {
+    param([string]$MprPath)
+
+    $detectorPath = Join-Path $PSScriptRoot 'check-studio-pro-status.ps1'
+    if (-not (Test-Path -LiteralPath $detectorPath -PathType Leaf) -or [string]::IsNullOrWhiteSpace($MprPath)) {
+        return [ordered]@{ state = 'UNKNOWN'; is_open = $null; any_studio_pro_running = $null; project_path = $MprPath; source = $detectorPath; reason = 'Detector or current project path is unavailable.' }
+    }
+
+    $outputPath = Join-Path ([IO.Path]::GetTempPath()) "mxagile-studio-pro-$([guid]::NewGuid().ToString('N')).out"
+    $errorPath = Join-Path ([IO.Path]::GetTempPath()) "mxagile-studio-pro-$([guid]::NewGuid().ToString('N')).err"
+    try {
+        $powershellPath = (Get-Process -Id $PID).Path
+        $arguments = @('-NoProfile', '-File', $detectorPath, '-Json', '-TimeoutSeconds', '10', '-ProjectPath', $MprPath) |
+            ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }
+        $child = Start-Process -FilePath $powershellPath -ArgumentList ($arguments -join ' ') -PassThru -Wait `
+            -RedirectStandardOutput $outputPath -RedirectStandardError $errorPath
+        $parsed = Get-Content -LiteralPath $outputPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $isOpenProperty = $parsed.PSObject.Properties['isOpen']
+        $runningProperty = $parsed.PSObject.Properties['anyStudioProRunning']
+        if ($child.ExitCode -eq 2 -or -not $isOpenProperty -or -not $runningProperty -or $null -eq $parsed.isOpen -or $null -eq $parsed.anyStudioProRunning) {
+            return [ordered]@{ state = 'UNKNOWN'; is_open = $null; any_studio_pro_running = $null; project_path = $MprPath; source = $detectorPath; reason = [string]$parsed.error }
+        }
+        return [ordered]@{
+            state = 'OBSERVED'
+            is_open = [bool]$parsed.isOpen
+            any_studio_pro_running = [bool]$parsed.anyStudioProRunning
+            project_path = [string]$parsed.projectPath
+            source = $detectorPath
+            reason = if ($parsed.isOpen) { 'Studio Pro process identity matches the current project.' } elseif ($parsed.anyStudioProRunning) { 'Studio Pro is running for another project.' } else { 'No Studio Pro process is running.' }
+        }
+    } catch {
+        return [ordered]@{ state = 'UNKNOWN'; is_open = $null; any_studio_pro_running = $null; project_path = $MprPath; source = $detectorPath; reason = 'Studio Pro detection failed or timed out.' }
+    } finally {
+        Remove-Item -LiteralPath $outputPath, $errorPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Resolve-OperatingModeRoute {
+    param(
+        [string]$Mode,
+        [string]$CurrentProjectPath,
+        [System.Collections.IDictionary]$StudioProConfiguration,
+        [string]$StudioProMcpProbeStatus,
+        [string]$StudioProMcpBoundProjectPath,
+        [System.Collections.IDictionary]$ConcordConfiguration,
+        [string]$ConcordMcpProbeStatus,
+        [string]$ConcordMcpBoundProjectPath
+    )
+
+    $normalizePath = {
+        param([string]$Value)
+        if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+        try { return [IO.Path]::GetFullPath($Value).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) }
+        catch { return $null }
+    }
+    $currentPath = & $normalizePath $CurrentProjectPath
+    $studioBoundPath = & $normalizePath $StudioProMcpBoundProjectPath
+    $concordBoundPath = & $normalizePath $ConcordMcpBoundProjectPath
+    $comparison = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+    $studioMatches = ($currentPath -and $studioBoundPath -and $currentPath.Equals($studioBoundPath, $comparison))
+    $concordMatches = ($currentPath -and $concordBoundPath -and $currentPath.Equals($concordBoundPath, $comparison))
+    $studioUsable = ($StudioProMcpProbeStatus -eq 'HEALTHY' -and $studioMatches)
+    $concordUsable = ($ConcordMcpProbeStatus -eq 'HEALTHY' -and $concordMatches)
+
+    $result = [ordered]@{
+        detected_mode = $Mode
+        effective_mode = $Mode
+        status = 'UNRESOLVED'
+        preferred_route = 'none'
+        selected_route = $null
+        reason = ''
+        mxcli_permitted = $false
+        mxcli_availability = 'NOT_RESOLVED_BY_C2'
+        mxcli_fallback_after_mcp_failure = $false
+        configured = [ordered]@{
+            studio_pro_mcp = $StudioProConfiguration
+            concord_mcp = $ConcordConfiguration
+        }
+        runtime_attestation = [ordered]@{
+            studio_pro_mcp = [ordered]@{
+                status = $StudioProMcpProbeStatus
+                bound_project_path = $StudioProMcpBoundProjectPath
+                current_project_match = [bool]$studioMatches
+                usable = [bool]$studioUsable
+                source = 'caller-attested current-session read-only MCP probe'
+            }
+            concord_mcp = [ordered]@{
+                status = $ConcordMcpProbeStatus
+                bound_project_path = $ConcordMcpBoundProjectPath
+                current_project_match = [bool]$concordMatches
+                usable = [bool]$concordUsable
+                source = 'caller-attested current-session read-only MCP probe'
+            }
+        }
+    }
+
+    switch ($Mode) {
+        'LIVE-SP-CURRENT' {
+            $result.preferred_route = 'studio_pro_mcp_then_concord_mcp'
+            if ($StudioProMcpProbeStatus -eq 'HEALTHY' -and $studioBoundPath -and -not $studioMatches) {
+                $result.status = 'CONFLICT'
+                $result.effective_mode = 'AMBIGUOUS-SP-STATE'
+                $result.reason = 'Studio Pro MCP reported a different project identity; no mutation route is selected.'
+            } elseif ($studioUsable) {
+                $result.status = 'RUNTIME_ATTESTED'
+                $result.selected_route = 'studio_pro_mcp'
+                $result.reason = 'Studio Pro MCP completed a successful read-only probe and is bound to the current project.'
+            } elseif ($ConcordMcpProbeStatus -eq 'HEALTHY' -and $concordBoundPath -and -not $concordMatches) {
+                $result.status = 'CONFLICT'
+                $result.effective_mode = 'AMBIGUOUS-SP-STATE'
+                $result.reason = 'Concord MCP reported a different project identity; no mutation route is selected.'
+            } elseif ($concordUsable) {
+                $result.status = 'RUNTIME_ATTESTED_FALLBACK'
+                $result.selected_route = 'concord_mcp'
+                $result.reason = 'Studio Pro MCP is not attested usable; Concord MCP passed a read-only health and current-project binding probe.'
+            } else {
+                $result.status = 'BLOCKED'
+                $result.reason = 'Neither MCP route is attested healthy and bound to the current project. mxcli is prohibited in LIVE-SP-CURRENT.'
+            }
+            $result.mxcli_permitted = $false
+            $result.mxcli_fallback_after_mcp_failure = $false
+        }
+        { $_ -in @('CLOSED-AUTONOM', 'LIVE-SP-OTHER') } {
+            $result.status = 'AUTONOMOUS_ROUTE_ELIGIBLE'
+            $result.preferred_route = 'mxcli'
+            $result.mxcli_permitted = $true
+            $result.reason = 'Autonomous mxcli use is permitted for this mode, subject to the existing project-local mxcli resolver.'
+        }
+        default {
+            $result.status = 'RECHECK_REQUIRED'
+            $result.preferred_route = 'safe_non_model_work_only'
+            $result.reason = 'Operating mode is ambiguous or unobserved; recheck before any model mutation.'
+        }
+    }
+    return $result
+}
+
+function Resolve-OperatingModeAuthority {
+    param()
+
+    $mprPath = $StudioProProjectPath
+    $mprCandidates = @()
+    $mprLookupFailed = $false
+    if ([string]::IsNullOrWhiteSpace($mprPath)) {
+        try {
+            $mprCandidates = @(Get-ChildItem -LiteralPath $ProjectRoot -File -Filter '*.mpr' -ErrorAction Stop)
+        } catch {
+            $mprLookupFailed = $true
+        }
+        if ($mprCandidates.Count -eq 1) { $mprPath = $mprCandidates[0].FullName }
+    }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+        $detection = [ordered]@{ state = 'OBSERVED'; mode = 'CLOSED-AUTONOM'; is_open = $false; any_studio_pro_running = $false; project_path = $null; source = 'platform_headless'; reason = 'Studio Pro is not available on this platform.' }
+    } elseif ($mprLookupFailed) {
+        $mode = 'AMBIGUOUS-SP-STATE'
+        $detection = [ordered]@{ state = 'UNKNOWN'; mode = $mode; is_open = $null; any_studio_pro_running = $null; project_path = $null; source = 'mpr_lookup_failed'; reason = 'Project-root .mpr enumeration failed; absence of a project cannot be established.' }
+    } elseif ([string]::IsNullOrWhiteSpace($mprPath) -and $mprCandidates.Count -eq 0) {
+        $mode = 'CLOSED-AUTONOM'
+        $detection = [ordered]@{ state = 'OBSERVED'; mode = 'CLOSED-AUTONOM'; is_open = $false; any_studio_pro_running = $false; project_path = $null; source = 'no_mpr_in_project_root'; reason = 'No Mendix .mpr project was found; Studio Pro mode is not applicable.' }
+    } elseif ([string]::IsNullOrWhiteSpace($mprPath)) {
+        $mode = 'AMBIGUOUS-SP-STATE'
+        $detection = [ordered]@{ state = 'UNKNOWN'; mode = $mode; is_open = $null; any_studio_pro_running = $null; project_path = $null; source = 'multiple_mpr_candidates'; reason = 'Multiple .mpr files were found; project identity must be resolved before detection.' }
+    } else {
+        $detection = Invoke-StudioProStatusDetector -MprPath $mprPath
+        if ($detection.state -eq 'OBSERVED') {
+            if ($detection.is_open) { $mode = 'LIVE-SP-CURRENT' }
+            elseif ($detection.any_studio_pro_running) { $mode = 'LIVE-SP-OTHER' }
+            else { $mode = 'CLOSED-AUTONOM' }
+        } else { $mode = 'AMBIGUOUS-SP-STATE' }
+        $detection.mode = $mode
+    }
+
+    $studioConfig = Get-DeclaredMcpConfiguration -CapabilityId 'studio_pro_mcp'
+    $concordConfig = Get-DeclaredMcpConfiguration -CapabilityId 'concord_mcp'
+    $route = Resolve-OperatingModeRoute -Mode $mode -CurrentProjectPath $detection.project_path `
+        -StudioProConfiguration $studioConfig -StudioProMcpProbeStatus $StudioProMcpProbeStatus `
+        -StudioProMcpBoundProjectPath $StudioProMcpBoundProjectPath -ConcordConfiguration $concordConfig `
+        -ConcordMcpProbeStatus $ConcordMcpProbeStatus -ConcordMcpBoundProjectPath $ConcordMcpBoundProjectPath
+    return [ordered]@{ mode = $route.effective_mode; detected_mode = $mode; detection = $detection; tool_authority = $route }
+}
+
+# ---------------------------------------------------------------------------
 # Resolve all capabilities
 # ---------------------------------------------------------------------------
 $allResolved = [ordered]@{}
@@ -1136,6 +1391,7 @@ foreach ($cap in $allCapabilities) {
     $r = Resolve-Capability -Cap $cap -AllResolved $allResolved
     $allResolved[$cap.id] = $r
 }
+$operatingModeResult = if ($ResolveOperatingMode) { Resolve-OperatingModeAuthority } else { $null }
 
 # Filter if single capability requested
 if ($Capability) {
@@ -1248,6 +1504,7 @@ if ($Format -eq 'json') {
             notes                    = $r.notes
         }
     }
+    if ($ResolveOperatingMode) { $output.operating_mode = $operatingModeResult }
     $output | ConvertTo-Json -Depth 10
     exit 0
 }
@@ -1309,6 +1566,14 @@ foreach ($key in $targetResolved.Keys) {
         if (-not $i.usable) { Write-Host "    Fallback: native MxAgile (deterministic helpers -> bounded delegation -> targeted direct read)" -ForegroundColor DarkGray }
     }
     Write-Host ""
+}
+
+if ($ResolveOperatingMode) {
+    Write-Host 'Operating Mode' -ForegroundColor Cyan
+    Write-Host "  Mode:  $($operatingModeResult.mode)" -ForegroundColor White
+    Write-Host "  Route: $($operatingModeResult.tool_authority.status) / $($operatingModeResult.tool_authority.preferred_route)" -ForegroundColor DarkGray
+    Write-Host "  Note:  $($operatingModeResult.tool_authority.reason)" -ForegroundColor DarkGray
+    Write-Host ''
 }
 
 # Upgrade awareness summary

@@ -109,6 +109,26 @@ tools are not runtime evidence. If no available MCP operation can establish that
 evidence, do not claim the route is healthy. In `LIVE-SP-CURRENT`, block the
 specific mutation rather than trying mxcli.
 
+When a machine-readable route result is needed, call the existing
+`Get-MxAgileCapabilities.ps1` capability resolver once with
+`-ResolveOperatingMode -Format json` and the current `.mpr`
+path. Supply `-StudioProMcpProbeStatus HEALTHY` / `-StudioProMcpBoundProjectPath`
+or the corresponding Concord parameters only after a successful current-session
+read-only probe establishes that exact project binding. Leave the status at its
+default `NOT_OBSERVED` otherwise. The resolver does not call MCP tools; it keeps
+project configuration separate from caller-attested runtime evidence. Consume
+`operating_mode.tool_authority` rather than reconstructing the route from the
+capability list. A conflicting MCP project identity resolves the effective mode
+to `AMBIGUOUS-SP-STATE`; an unavailable LIVE-SP route is `BLOCKED`, never mxcli.
+For `CLOSED-AUTONOM` / `LIVE-SP-OTHER`, C2 marks mxcli permitted but does not
+resolve its availability or runtime recipe; use the existing project-local
+mxcli resolver for that separate decision.
+
+`-ResolveOperatingMode` invokes the canonical process detector internally. For
+that same startup or mutation-boundary check, it replaces the direct detector
+command below; do not run both. If Startup Re-Sync already produced this
+structured result, reuse it until the required mutation-boundary recheck.
+
 Mode detection must happen before mxcli/Studio-Pro-MCP/Concord-MCP selection.
 Re-use the Startup Re-Sync result and its existing mutation-boundary recheck; do
 not run a second Studio Pro detector or ask the user when the evidence is
@@ -124,6 +144,9 @@ must use the project-local mxcli capability and complete-recipe preflight in
 ## Detection Algorithm
 
 Execute in this exact order. Stop at the first conclusive result.
+
+When using the structured resolver above, its detector invocation is Step 3 for
+this check; do not invoke the detector a second time.
 
 ### Step 1 — Establish project root and .mpr path
 

@@ -63,6 +63,7 @@ function Assert-FileNotContains {
 
 $operatingModePath   = Join-Path $ScriptDir '.mxagile\policies\operating-mode.md'
 $detectorPath        = Join-Path $ScriptDir 'scripts\check-studio-pro-status.ps1'
+$capabilityResolverPath = Join-Path $ScriptDir 'scripts\Get-MxAgileCapabilities.ps1'
 $orchestratorPath    = Join-Path $ScriptDir '.mxagile\orchestrator.md'
 $implAgentPath       = Join-Path $ScriptDir '.mxagile\agents\implementation-agent.md'
 $implControlPath     = Join-Path $ScriptDir '.mxagile\policies\implementation-control.md'
@@ -311,6 +312,109 @@ Assert-FileNotContains 'K3b: detector script: no taskkill command' `
 
 Assert-FileContains 'K4: policy: detection and routing only' `
     $operatingModePath '(?i)detection.*routing.*only'
+
+Write-Host ''
+
+# =========================================================================
+# Section L: Structured C2 operating-mode/tool-authority resolution
+# =========================================================================
+
+Write-Host '--- Section L: Structured C2 route authority ---'
+
+Assert-FileContains 'L1: resolver exposes opt-in operating-mode output' `
+    $capabilityResolverPath 'ResolveOperatingMode|operating_mode'
+
+Assert-FileContains 'L2: resolver invokes the existing Studio Pro detector' `
+    $capabilityResolverPath 'check-studio-pro-status\.ps1'
+
+Assert-FileContains 'L3: resolver accepts current-session MCP health attestations' `
+    $capabilityResolverPath 'StudioProMcpProbeStatus|ConcordMcpProbeStatus'
+
+Assert-FileContains 'L4: LIVE-SP route prohibits mxcli after MCP failure' `
+    $capabilityResolverPath 'mxcli_fallback_after_mcp_failure = \$false'
+
+Assert-FileContains 'L4b: .mpr enumeration failure remains ambiguous' `
+    $capabilityResolverPath 'source = ''mpr_lookup_failed'''
+
+Assert-FileContains 'L5: configured and runtime-attested evidence are separate' `
+    $capabilityResolverPath 'configured = \[ordered\]@\{|runtime_attestation = \[ordered\]@\{'
+
+Assert-FileContains 'L5b: policy consumes the existing structured resolver' `
+    $operatingModePath 'Get-MxAgileCapabilities\.ps1'
+
+Assert-FileContains 'L5b2: policy requests structured operating-mode output' `
+    $operatingModePath '-ResolveOperatingMode -Format json'
+
+Assert-FileContains 'L5c: policy requires current MCP probe and project binding' `
+    $operatingModePath 'successful current-session'
+
+Assert-FileContains 'L5c2: policy requires exact project binding' `
+    $operatingModePath 'exact project binding'
+
+$parseTokens = $null
+$parseErrors = $null
+$resolverAst = [System.Management.Automation.Language.Parser]::ParseFile(
+    $capabilityResolverPath, [ref]$parseTokens, [ref]$parseErrors
+)
+$routeAst = $resolverAst.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Resolve-OperatingModeRoute'
+}, $true)
+Assert-True 'L6: pure route aggregator exists' ($null -ne $routeAst) 'Resolve-OperatingModeRoute not found in resolver AST'
+
+if ($routeAst) {
+    . ([ScriptBlock]::Create($routeAst.Extent.Text))
+    $currentMpr = Join-Path $env:TEMP 'mxagile-c2-fixture\current.mpr'
+    $otherMpr = Join-Path $env:TEMP 'mxagile-c2-fixture\other.mpr'
+    $unconfigured = [ordered]@{ state = 'OBSERVED'; configured = $false; source = '.vscode/mcp.json' }
+    $configured = [ordered]@{ state = 'OBSERVED'; configured = $true; source = '.vscode/mcp.json' }
+
+    $studioRoute = Resolve-OperatingModeRoute -Mode 'LIVE-SP-CURRENT' -CurrentProjectPath $currentMpr `
+        -StudioProConfiguration $unconfigured -StudioProMcpProbeStatus 'HEALTHY' -StudioProMcpBoundProjectPath $currentMpr `
+        -ConcordConfiguration $unconfigured -ConcordMcpProbeStatus 'NOT_OBSERVED' -ConcordMcpBoundProjectPath ''
+    Assert-True 'L7: healthy current-project Studio Pro MCP is primary' `
+        ($studioRoute.selected_route -eq 'studio_pro_mcp' -and $studioRoute.status -eq 'RUNTIME_ATTESTED') `
+        'Studio Pro route was not selected from healthy same-project evidence'
+    Assert-True 'L8: runtime evidence remains separate from configuration' `
+        ($studioRoute.runtime_attestation.studio_pro_mcp.usable -and -not $studioRoute.configured.studio_pro_mcp.configured) `
+        'Runtime attestation was conflated with project configuration'
+
+    $concordRoute = Resolve-OperatingModeRoute -Mode 'LIVE-SP-CURRENT' -CurrentProjectPath $currentMpr `
+        -StudioProConfiguration $unconfigured -StudioProMcpProbeStatus 'FAILED' -StudioProMcpBoundProjectPath '' `
+        -ConcordConfiguration $configured -ConcordMcpProbeStatus 'HEALTHY' -ConcordMcpBoundProjectPath $currentMpr
+    Assert-True 'L9: healthy same-project Concord is explicit fallback' `
+        ($concordRoute.selected_route -eq 'concord_mcp' -and $concordRoute.status -eq 'RUNTIME_ATTESTED_FALLBACK') `
+        'Concord fallback did not require a healthy same-project probe'
+
+    $blockedRoute = Resolve-OperatingModeRoute -Mode 'LIVE-SP-CURRENT' -CurrentProjectPath $currentMpr `
+        -StudioProConfiguration $unconfigured -StudioProMcpProbeStatus 'NOT_OBSERVED' -StudioProMcpBoundProjectPath '' `
+        -ConcordConfiguration $unconfigured -ConcordMcpProbeStatus 'NOT_OBSERVED' -ConcordMcpBoundProjectPath ''
+    Assert-True 'L10: unprobed LIVE-SP is blocked without mxcli' `
+        ($blockedRoute.status -eq 'BLOCKED' -and -not $blockedRoute.mxcli_permitted -and -not $blockedRoute.mxcli_fallback_after_mcp_failure) `
+        'LIVE-SP without attested MCP route was not fail-closed'
+
+    $conflictRoute = Resolve-OperatingModeRoute -Mode 'LIVE-SP-CURRENT' -CurrentProjectPath $currentMpr `
+        -StudioProConfiguration $configured -StudioProMcpProbeStatus 'HEALTHY' -StudioProMcpBoundProjectPath $otherMpr `
+        -ConcordConfiguration $configured -ConcordMcpProbeStatus 'HEALTHY' -ConcordMcpBoundProjectPath $currentMpr
+    Assert-True 'L11: Studio Pro project identity conflict blocks fallback' `
+        ($conflictRoute.status -eq 'CONFLICT' -and -not $conflictRoute.selected_route -and $conflictRoute.effective_mode -eq 'AMBIGUOUS-SP-STATE') `
+        'Conflicting primary MCP identity did not block fallback and promote ambiguity'
+
+    $autonomousRoute = Resolve-OperatingModeRoute -Mode 'CLOSED-AUTONOM' -CurrentProjectPath $currentMpr `
+        -StudioProConfiguration $unconfigured -StudioProMcpProbeStatus 'NOT_OBSERVED' -StudioProMcpBoundProjectPath '' `
+        -ConcordConfiguration $unconfigured -ConcordMcpProbeStatus 'NOT_OBSERVED' -ConcordMcpBoundProjectPath ''
+    Assert-True 'L12: CLOSED-AUTONOM permits existing mxcli resolver route' `
+        ($autonomousRoute.mxcli_permitted -and $autonomousRoute.mxcli_availability -eq 'NOT_RESOLVED_BY_C2') `
+        'Autonomous route did not preserve the existing mxcli availability boundary'
+
+    $ambiguousRoute = Resolve-OperatingModeRoute -Mode 'AMBIGUOUS-SP-STATE' -CurrentProjectPath $currentMpr `
+        -StudioProConfiguration $unconfigured -StudioProMcpProbeStatus 'NOT_OBSERVED' -StudioProMcpBoundProjectPath '' `
+        -ConcordConfiguration $unconfigured -ConcordMcpProbeStatus 'NOT_OBSERVED' -ConcordMcpBoundProjectPath ''
+    Assert-True 'L13: ambiguous mode allows only safe non-model work' `
+        ($ambiguousRoute.preferred_route -eq 'safe_non_model_work_only' -and -not $ambiguousRoute.mxcli_permitted) `
+        'Ambiguous mode exposed a model-mutation route'
+}
 
 Write-Host ''
 
