@@ -128,10 +128,13 @@ Assert-FileContains "B.5 ui-agent verify uses autonomous mode" `
     $uiAgentPath '(?i)autonomen Modus|autonomous mode'
 
 Assert-FileContains "B.6 discovery-agent uses autonomous mode for browser evidence" `
-    $discAgentPath '(?i)autonomen Modus|autonomous mode'
+    $discAgentPath '(?i)autonomen\s+Modus|autonomous mode'
 
-Assert-FileContains "B.7 quality-gate uses autonomous mode for verification" `
-    $qualityGate '(?i)autonomen Verifikationsmodus|autonomous.*verification'
+Assert-FileContains "B.7 central runtime contract selects autonomous mode for Quality Gate" `
+    $policyPath '(?i)Quality Gate runtime check \(Verifying\)\s*\|\s*Autonomous'
+
+Assert-FileContains "B.7b quality-gate consumes mode and resolved recipe" `
+    $qualityGate '(?is)Operating Mode.*Tool Authority.*resolved_runtime_recipe'
 
 Assert-FileContains "B.8 test-workflow uses autonomous mode" `
     $testWorkflow '(?i)autonomen Modus|autonomous'
@@ -159,11 +162,23 @@ Write-Host "--- Section C: DB default preserved ---"
 Assert-FileContains "C.1 Core autonomous default is 'default'" `
     $policyPath '(?i)MXAGILE_CORE_DEFAULT|Core autonomous default.*default'
 
-Assert-FileContains "C.2 effective command includes --db-name default" `
-    $policyPath '(?i)--db-name default'
+Assert-FileContains "C.2 autonomous base command remains separate from DB flags" `
+    $policyPath '(?si)Autonomous Verification base command:\*{0,2}\s*```.*?mxcli run --local -p <project>\.mpr\s*```'
 
-Assert-FileContains "C.3 autonomous effective command includes --db-name" `
-    $policyPath '(?si)Autonomous Verification.*--db-name'
+Assert-FileContains "C.3 effective invocation is the complete resolved recipe" `
+    $policyPath 'The effective invocation is the complete `resolved_runtime_recipe`'
+
+Assert-FileContains "C.4 exact CLI spelling comes from the resolved binary help" `
+    $profilePath '(?s)exact option spelling, values, and\s+placement'
+
+Assert-FileContains "C.4b resolved binary help owns concrete CLI syntax" `
+    $profilePath '(?s)help output from the resolved binary is the authority\s+for concrete CLI syntax'
+
+Assert-FileContains "C.5 recipe argument array is the sole invocation authority" `
+    $profilePath 'recipe''s argument array is the sole invocation authority'
+
+Assert-FileContains "C.5b consumers execute the recipe without rebuilding flags" `
+    $profilePath 'MUST NOT rebuild the command from known flags'
 
 Write-Host ""
 
@@ -360,11 +375,11 @@ Assert-FileContains "L.1 generated acceptance-agent has autonomous mode" `
 Assert-FileContains "L.2 generated ui-agent has autonomous mode" `
     $genUiAgent '(?i)autonomen Modus|autonomous'
 
-Assert-FileContains "L.3 generated discovery-agent has autonomous mode" `
-    $genDiscAgent '(?i)autonomen Modus|autonomous'
+Assert-FileContains "L.3 generated discovery-agent preserves autonomous mode across Markdown breaks" `
+    $genDiscAgent '(?i)autonomen\s+Modus|autonomous'
 
-Assert-FileContains "L.4 generated quality-gate references Runtime Modes" `
-    $genQualGate '(?i)Runtime Modes|autonomen Verifikationsmodus'
+Assert-FileContains "L.4 generated quality-gate consumes mode and resolved recipe" `
+    $genQualGate '(?is)Operating Mode.*Tool Authority.*resolved_runtime_recipe'
 
 Assert-FileContains "L.5 bounded artifact edits use the smallest consistent change" `
     $safetyRulesPath '(?i)kleinste konsistente Aenderung'
@@ -426,8 +441,8 @@ Write-Host ""
 
 Write-Host "--- Section O: DB-default regression ---"
 
-Assert-FileContains "O.1 autonomous effective command still has --db-name default" `
-    $policyPath '(?i)--db-name default'
+Assert-FileContains "O.1 DB flags remain owned by the help-resolved recipe" `
+    $policyPath '(?s)Agents MUST NOT expand the base command themselves or\s+copy individual DB/backend flags from this policy'
 
 Assert-FileContains "O.2 DB_IDENTITY_CONTROL_UNAVAILABLE still defined" `
     $policyPath 'DB_IDENTITY_CONTROL_UNAVAILABLE'
