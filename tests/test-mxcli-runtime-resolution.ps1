@@ -100,6 +100,33 @@ try {
         (Get-Content -LiteralPath $profilePolicy -Raw) -match 'absolute path and exact version' -and
         (Get-Content -LiteralPath $profilePolicy -Raw) -match 'command-specific `--help`'
     )
+    $profileText = Get-Content -LiteralPath $profilePolicy -Raw
+    Assert-True 'Runtime capability discovery, recipe resolution, and invocation are separate stages' (
+        $profileText -match 'Capability discovery' -and
+        $profileText -match 'Recipe resolution' -and
+        $profileText -match 'Invocation'
+    )
+    Assert-True 'CapTrack regression recipe includes local HSQLDB and the default DB identifier' (
+        $profileText -match '(?s)Current regression fixture.*?--local --detach --db-type hsqldb -p <project>\.mpr --dbname default'
+    )
+    Assert-True 'Consumers must execute the complete recipe argument array unchanged' (
+        $profileText -match "recipe's argument array is the sole invocation authority" -and
+        $profileText -match '(?s)execute the\s+resolved executable and arguments exactly'
+    )
+    Assert-True 'Post-launch backend and identifier mismatch invalidates fixture/login diagnosis' (
+        $profileText -match 'RUNTIME_RECIPE_MISMATCH' -and
+        $profileText -match 'invalidate downstream fixture/login diagnosis'
+    )
+    Assert-True 'Runtime failure layers distinguish capability, fixture, identity, and authentication' (
+        $profileText -match 'LOCAL_RUNTIME_CAPABILITY_UNAVAILABLE' -and
+        $profileText -match 'FIXTURE_BLOCKED' -and
+        $profileText -match 'TEST_IDENTITY_BLOCKED' -and
+        $profileText -match 'AUTHENTICATION_BLOCKED'
+    )
+    Assert-True 'PostgreSQL credentials cannot preempt a suitable local route' (
+        $profileText -match 'MUST NOT trigger a credential request' -and
+        $profileText -match '(?s)suitable local routes.*considered'
+    )
     $conflictText = Get-Content -LiteralPath $conflictPolicy -Raw
     Assert-True 'Unsupported syntax blocks instead of switching to a PATH binary' (
         $conflictText -match 'TOOL_CAPABILITY_GAP' -and
@@ -120,6 +147,10 @@ try {
         (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'tool-instruction-conflict\.md' -and
         (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'test-identity-lifecycle\.md'
     )
+    Assert-True 'Generated UI and Acceptance agents consume the central resolved runtime recipe' (
+        (Get-Content -LiteralPath $generatedUiAgent -Raw) -match 'resolved_runtime_recipe' -and
+        (Get-Content -LiteralPath $generatedAcceptanceAgent -Raw) -match 'resolved_runtime_recipe'
+    )
     Assert-True 'Acceptance projection routes through the tool conflict contract' (
         (Get-Content -LiteralPath $generatedAcceptanceAgent -Raw) -match 'tool-instruction-conflict\.md'
     )
@@ -127,9 +158,9 @@ try {
         (Get-Content -LiteralPath $generatedQualityGate -Raw) -match 'tool-instruction-conflict\.md' -and
         (Get-Content -LiteralPath $generatedTestSkill -Raw) -match 'local-runtime-profile\.md'
     )
-    Assert-True 'Quality gate resolves DB type and name before runtime start' (
-        (Get-Content -LiteralPath $generatedQualityGate -Raw) -match 'local_runtime' -and
-        (Get-Content -LiteralPath $generatedQualityGate -Raw) -match 'db_type' -and
+    Assert-True 'Quality gate resolves backend and database identity before runtime start' (
+        (Get-Content -LiteralPath $generatedQualityGate -Raw) -match 'Runtime-/Backend-Pfad' -and
+        (Get-Content -LiteralPath $generatedQualityGate -Raw) -match 'Backend' -and
         (Get-Content -LiteralPath $generatedQualityGate -Raw) -match 'db_name'
     )
     Assert-True 'System-check version probe uses the resolved absolute binary' (

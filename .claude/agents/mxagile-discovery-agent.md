@@ -200,33 +200,29 @@ und der State nicht `empty` oder `loading` ist → als `INTERACTION_GAP` markier
 
 Wenn `development.ui_driven = true`, pruefe folgende Voraussetzungen fuer Full UI Discovery:
 
-### Schritt 1: Credential- und Konfigurations-Discovery
-Vor jedem Versuch den lokalen Runtime zu starten: Tool-/Anweisungskonflikte gemaess
-`policies/tool-instruction-conflict.md` aufloesen, projektgebundene mxcli-Binary per
-`policies/local-runtime-profile.md` selektieren und deren Version pruefen. Danach
-vollstaendige Credential- und Konfigurations-Discovery ausfuehren (Reihenfolge: siehe
-`policies/credential-discovery.md`).
+### Schritt 1: Runtime Capability und Recipe aufloesen
+Vor jedem Runtime-Start Operating Mode/Tool Authority bestimmen, Konflikte gemaess
+`policies/tool-instruction-conflict.md` loesen und die projektgebundene mxcli samt Version
+und lokaler Run-/Backend-Capability gemaess `policies/local-runtime-profile.md` aufloesen.
+`local_runtime`-Profil und DB-Identitaet gemaess `policies/development-runtime.md` lesen.
+Danach das vollstaendige `resolved_runtime_recipe` des koordinierenden Runtime-Owners
+uebernehmen. Nur wenn der Discovery-Agent in diesem Lauf selbst Coordinator/Runtime-Owner
+ist, loest er es einmal auf und gibt dasselbe Recipe an alle Consumer weiter. Fehlt ein
+Recipe, keinen Startbefehl aus Einzelflags rekonstruieren.
 
-Mindestens pruefen:
-- `.env.mendix` existiert und ist vollstaendig befuellt?
-- Datenbank-Zugangsdaten vorhanden (PRESENT/MISSING/EMPTY)?
-- Test-Identitaeten vorhanden (sofern fuer Discovery-Szenarien benoetigt)?
-
-Ergebnis klassifizieren — KEIN Default-Fallback; KEINE Credential-Mutation:
-- Alle benoetigt: CONTINUE
-- Fehlende Keys: Bootstrap-Flow aus `policies/credential-discovery.md` ausfuehren
-
-### Schritt 1b: Local-Runtime-Profil lesen
-Vor dem Runtime-Start: `local_runtime`-Profil aus `mxagile-project.yaml` lesen (falls vorhanden).
-Relevante Felder: `db_name`, `db_type`, `constant_overrides`, `app_port`.
-DB-Identitaet muss bekannt sein bevor der Runtime gestartet wird.
-Vollstaendiger Vertrag: `policies/development-runtime.md` — DB Identity Resolution.
+### Schritt 1b: Route-spezifische Credential-Discovery
+Erst nach Recipe-Auswahl Datenbank-Credentials fuer den ausgewaehlten Backendpfad gemaess
+`policies/credential-discovery.md` pruefen. Ein geeignetes lokales Backend darf nicht wegen
+fehlender PostgreSQL-Credentials blockiert werden. Test-Identitaeten getrennt vor dem Login
+pruefen. Fehlende erforderliche Werte nur nach vollstaendiger Quellenpruefung eskalieren.
+Kein Default-Fallback, keine geratenen Credentials und keine Credential-Mutation.
 
 ### Schritt 2: Runtime-Start
-`mxcli run --local` im autonomen Modus starten (ohne `--watch`) wenn Credentials verfuegbar
-und Profil aufgeloest. Discovery-Browser-Evidenz aendert das Modell nicht — `--watch` ist
-nicht erforderlich. Effektiven Befehl per `policies/development-runtime.md` § Runtime Modes
-konstruieren — nicht den Basis-Befehl direkt ausfuehren.
+Den unveraenderten Executable-/Argument-Array aus `resolved_runtime_recipe` im autonomen
+Modus ausfuehren. Discovery-Browser-Evidenz aendert das Modell nicht. Nach Start Reachability
+und Backend-/DB-Identifier soweit autoritativ verfuegbar gegen das Recipe pruefen; bei
+Abweichung `RUNTIME_RECIPE_MISMATCH` klassifizieren und Fixture-/Login-Diagnose dieses Laufs
+nicht als unabhaengigen Root Cause behandeln.
 Readiness Gate abwarten: APPLICATION_REACHABLE per HTTP-Poll bestaetigen bevor Playwright startet.
 
 Bei Fehler: gemaess Fehlerklassifikation aus `policies/credential-discovery.md` vorgehen.

@@ -95,6 +95,13 @@ Do not attach the repository, conversation history, secrets, full historical rep
 or unrelated authority material. State a read-only scope unless a specific mutation
 is explicitly authorized; lifecycle authority is never delegated.
 
+For delegated runtime/browser/parity work, the coordinating agent resolves the runtime once
+and places the non-secret `resolved_runtime_recipe` in the active mission/verification
+preflight record. Every dependent handoff references that same record through `artifact_paths`.
+Consumers must not generate a second recipe or reconstruct arguments. Secret values are never
+stored in the record; secret arguments are represented only by their authoritative references
+and are resolved at the actual credential-consuming operation.
+
 ## Anti-Amplification
 
 Never dispatch one subagent per file or requirement. The regression fixtures include

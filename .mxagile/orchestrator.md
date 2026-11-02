@@ -218,13 +218,16 @@ befindet. Runtime starten, Seite zeigen, Logs pruefen — alles gueltige Anfrage
 
 ---
 
-## Credential Bootstrap and Prerequisite Discovery
+## Runtime Capability and Credential Bootstrap
 
-Wenn `development.ui_driven = true` oder wenn ein Runtime-relevanter Lifecycle-Schritt
-bevorsteht, MUSS vor dem Versuch den Runtime zu starten die vollstaendige Prerequisite-
-und Credential-Discovery ausgefuehrt werden.
+Wenn `development.ui_driven = true` oder Runtime-/Browser-Evidenz benoetigt wird, muss vor
+jeder Credential-Eskalation zuerst Operating Mode/Tool Authority und ein vollstaendiges
+`resolved_runtime_recipe` gemaess `policies/local-runtime-profile.md` bestimmt werden.
+Runtime-Consumers erhalten und verwenden genau dieses Recipe; sie duerfen keine Teilbefehle
+aus Runtime-Flags rekonstruieren. Credential-Discovery gilt danach nur fuer den ausgewaehlten
+Backendpfad und den spaeteren Test-Login.
 
-Vollstaendiger Contract: `policies/credential-discovery.md`
+Vollstaendiger Credential-Contract: `policies/credential-discovery.md`
 
 Kurzfassung des pflichtmaessigen Ablaufs:
 

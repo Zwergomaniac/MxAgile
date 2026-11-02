@@ -32,10 +32,13 @@ Do NOT ask the developer where the configuration is before performing this disco
 ## Runtime and Browser Preflight
 
 For any planned runtime, login, role, acceptance, or parity verification, credential
-availability is a runtime-preparation prerequisite, not a blocker-recovery step. Determine
-the required credential categories and key names from the project/company declaration and
-the verification scenario. Before starting a runtime when runtime evidence is planned, and
-always before attempting login or declaring a credential blocker:
+availability is evaluated after resolving operating mode, project-local mxcli capabilities,
+and the complete `resolved_runtime_recipe` per `policies/local-runtime-profile.md`. Inspect
+backend credentials before startup only when that recipe requires them; inspect test-login
+credentials before authentication. A suitable local backend must not be blocked by missing
+credentials for an unselected external database. Determine required credential categories and
+key names from the project/company declaration and verification scenario. Before using a
+credential or declaring a credential blocker:
 
 1. Perform the complete discovery order above. A missing file or EMPTY key is not a reason
   to stop; continue to the next permitted source.

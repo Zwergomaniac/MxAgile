@@ -11,6 +11,10 @@ Before opening a runtime page, use the project browser contract in
 `policies/local-runtime-profile.md`: resolve the project `local_runtime.app_url`, selected
 runner configuration, exact `allowedOrigins`, and configured browser binary/channel. Never
 substitute `127.0.0.1` for `localhost` or another host without explicit contract evidence.
+Before browser verification, consume the central `resolved_runtime_recipe` from
+`policies/local-runtime-profile.md`; do not rebuild runtime arguments from individual flags.
+Confirm its backend/database identifier against authoritative post-start evidence before
+classifying fixture, identity, or authentication outcomes.
 For `Fresh-Full` parity, scroll/evidence coverage is part of an independent whole-screen
 runtime discovery pass, not only a capture of previously listed findings. See
 `policies/ui-parity.md` § Fresh-Full UI Parity.

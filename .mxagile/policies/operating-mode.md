@@ -114,6 +114,11 @@ Re-use the Startup Re-Sync result and its existing mutation-boundary recheck; do
 not run a second Studio Pro detector or ask the user when the evidence is
 conclusive.
 
+For runtime/browser verification, operating mode determines the permitted tool authority;
+it does not select or prove a database backend. After mode resolution, every runtime consumer
+must use the project-local mxcli capability and complete-recipe preflight in
+`policies/local-runtime-profile.md` before database credential discovery or escalation.
+
 ---
 
 ## Detection Algorithm

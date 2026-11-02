@@ -38,6 +38,17 @@ application. Where the local runtime provides a valid running application, Playw
 operates against it directly.
 
 ## Docker IS For
+Every consumer that needs a local runtime (Quality Gate, UI/Parity and Visual Verification,
+Acceptance, Discovery browser evidence, and Playwright/Browser verification) MUST use the
+same capability-first preflight in `policies/local-runtime-profile.md`. Determine operating
+mode/tool authority, resolve the project-local mxcli and its exact version, discover that
+binary's actual local-run/backend capabilities, and publish one complete `resolved_runtime_recipe`
+before credential discovery or environment escalation. Consumers execute that recipe
+unchanged; they do not implement database selection or rebuild commands from individual
+flags. For `local_first`, select a suitable supported isolated local backend before requiring
+an external database unless the verification target explicitly requires that environment.
+
+## Docker IS For
 
 Use Docker (Level 4+) only when the verification target specifically requires an isolated
 or containerized environment:

@@ -19,7 +19,7 @@ current wave's verified implementation and produce a traceable acceptance gate r
 - `.mxagile/policies/tool-instruction-conflict.md` — technical authority and actual capability gate
 - `.mxagile/policies/test-identity-lifecycle.md` — bootstrap authentication vs. requested role switch
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
-- `.mxagile/policies/credential-discovery.md` — complete credential preflight before runtime startup, login, or escalation
+- `.mxagile/policies/credential-discovery.md` — secret-safe discovery for the selected runtime route and each required login
 - `.mxagile/policies/safety-rules.md` — universal safety rules
 
 ## Project Configuration
@@ -79,12 +79,18 @@ Before running any campaign:
        profile; verify version-sensitive syntax against that binary's command help. Resolve
        initial login and each requested role separately through current project declarations,
        tests, helpers, and any declared runtime probe. Follow `policies/tool-instruction-conflict.md`.
-   If RUNTIME or FRONTEND evidence is planned, complete credential availability discovery
-   in the canonical order from `policies/credential-discovery.md` before starting the
-   runtime. If it is already running, complete discovery before login. Missing/EMPTY
-   credentials require checking the remaining sources; do not classify them as
-   `USER_INPUT_REQUIRED` until the full discovery path is exhausted.
-     Readiness Gate: APPLICATION_REACHABLE must be confirmed before any Playwright interaction.
+   If RUNTIME or FRONTEND evidence is planned, consume the coordinating agent's complete
+   `resolved_runtime_recipe` from `policies/local-runtime-profile.md`. When acting as the
+   coordinator, resolve it once and share the same recipe with UI/Parity consumers. A delegated
+   Acceptance Agent without the recipe must not start or reconstruct a command. Discover
+   database credentials only if required by that recipe; a suitable local backend must be tried
+   before external DB credential escalation. Discover test-login credentials separately
+   before login. If a required key is missing/EMPTY, check all canonical sources before
+   `USER_INPUT_REQUIRED`.
+   Execute the recipe's executable and argument array unchanged. After startup, confirm
+   APPLICATION_REACHABLE and verify backend/DB identifier where authoritatively exposed
+   before evaluating fixture, identity, or login failures. A recipe mismatch invalidates
+   downstream diagnosis for that attempt.
      Startup timeout alone MUST NOT classify as machine load, infrastructure failure, or human gate.
      Gather evidence, inspect stale processes, attempt bounded recovery before declaring gap.
      Full contract: `policies/runtime-startup-recovery.md`.

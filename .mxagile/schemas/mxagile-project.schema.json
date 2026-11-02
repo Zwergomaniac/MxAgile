@@ -89,7 +89,7 @@
         "db_type": {
           "type": "string",
           "enum": ["hsqldb", "postgresql", "sqlserver"],
-          "description": "Database type for local runtime. Project metadata and provisioning input. Its CLI flag form for mxcli run --local must be verified via mxcli run --local --help — do NOT assume a flag name from this field name. Used for --ensure-db provisioning context."
+          "description": "Database type for local runtime. Project metadata and provisioning input, not by itself a verification backend requirement. Any runtime backend option must be discovered from the selected project-local mxcli version's current run help and included in the complete resolved runtime recipe. Used for provisioning context."
         },
         "db_name": {
           "type": "string",

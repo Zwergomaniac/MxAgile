@@ -229,23 +229,24 @@ For **other parameters** (app_port, constant_overrides, etc.):
 5. MxAgile Core fallback defaults
 ```
 
-## Credential and Configuration Discovery Before Runtime Start
+## Capability and Credential Discovery Before Runtime Start
 
-Before attempting to start the local runtime, automatically discover project credential
-and configuration sources.
+Before any database/environment credential decision, perform the capability-first preflight
+in `policies/local-runtime-profile.md`: establish operating mode and tool authority, resolve
+the project-local mxcli path/version, inspect that exact binary's `run` help, and publish one
+complete `resolved_runtime_recipe`. Read `mxagile-project.yaml` and resolve the local runtime
+profile as part of this preflight.
 
-Required pre-start discovery (in order):
+Then discover only credentials required by the selected recipe, following
+`policies/credential-discovery.md` and the project's authoritative sources. A supported local
+backend that does not require PostgreSQL means PostgreSQL credentials are not a startup
+prerequisite. Missing external-database credentials MUST NOT block trying that suitable local
+route. Test-identity credentials are checked separately before authentication; they do not
+block a runtime start that can proceed without them.
 
-1. **Read `mxagile-project.yaml`** — apply `local_runtime` profile per precedence above
-2. **Inspect `.env.mendix`** — project-local credential file; check required keys
-3. **Inspect other local config** — `.env*`, mxcli configuration, project settings
-4. **Classify each required credential** — PRESENT / MISSING / EMPTY / INVALID
-5. **Use discovered credentials** — do NOT fall back to assumed defaults when a project
-   source exists
-
-If required credentials are MISSING or EMPTY after full discovery:
+If credentials required by the selected route are MISSING or EMPTY after full discovery:
 - Follow the bootstrap flow in `policies/credential-discovery.md`
-- Request only the missing keys from the developer
+- Request only the missing keys, and only after suitable local routes were exhausted
 - Never propose credential mutation (ALTER USER, password reset, etc.)
 - Auto-resume after the developer populates the canonical secret source
 
@@ -282,8 +283,9 @@ If the resolved effective_db_name does not exist or cannot be reached:
 ### Database Type
 
 `db_type` is project metadata and provisioning input. It is NOT an autonomous-runtime flag.
-Do NOT emit `--db-type` for `mxcli run --local` unless its CLI flag form is independently
-verified for the installed mxcli version via `mxcli run --local --help`.
+It is not by itself a requirement to use an external database for verification. A backend
+selection argument may be included only when the selected mxcli's current runtime help
+advertises it; the central resolver places it in the complete `resolved_runtime_recipe`.
 
 Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environments
 (native Windows, devcontainer, CI) have different database availability.
@@ -304,28 +306,13 @@ mxcli run --local -p <project>.mpr --watch
 mxcli run --local -p <project>.mpr
 ```
 
-The *effective command* is the base command expanded with resolved profile flags.
-Agents MUST NOT execute the base command without first completing full profile
-resolution — see `policies/local-runtime-profile.md`.
-
-**Canonical effective command — Interactive Implementation** (when `--db-name` is supported):
-
-```
-mxcli run --local -p <project>.mpr --watch --db-name default
-```
-
-**Canonical effective command — Autonomous Verification** (when `--db-name` is supported):
-
-```
-mxcli run --local -p <project>.mpr --db-name default
-```
-
-where `default` is the resolved db_name (Core default unless overridden — see § DB Identity
-Resolution). Additional constant_overrides and profile flags are appended after DB resolution.
-
-**When `--db-name` is not supported by the installed mxcli:**
-Do NOT start autonomously. Classify: `DB_IDENTITY_CONTROL_UNAVAILABLE`.
-Report the exact capability gap. Do NOT fall back to `.mpr`-derived database name.
+The effective invocation is the complete `resolved_runtime_recipe` from
+`policies/local-runtime-profile.md`. Agents MUST NOT expand the base command themselves or
+copy individual DB/backend flags from this policy. The central recipe resolver maps the
+resolved database identity and runtime profile to the exact syntax advertised by the selected
+mxcli version, then consumers execute its argument array unchanged. If the selected version
+cannot represent a required identity, report `DB_IDENTITY_CONTROL_UNAVAILABLE`; do not start
+with an implicit `.mpr`-derived identity.
 
 ### DB Identity Resolution (Required Before Autonomous Start)
 
@@ -359,17 +346,16 @@ A `.mpr` filename rename MUST NOT silently alter the autonomous MxAgile runtime 
 identity. Before and after any rename, the autonomous effective db_name remains `"default"`
 unless the user explicitly overrides it (source: SESSION_OVERRIDE or PROJECT_DECLARED).
 
-If `--db-name` is not available in the installed mxcli:
-- Classify: `DB_IDENTITY_CONTROL_UNAVAILABLE`
-- Report the exact capability gap
-- Do NOT start autonomously
-- Do NOT fall back to `.mpr`-derived name
+If the selected mxcli help does not expose a supported way to apply the resolved database
+identity, classify `DB_IDENTITY_CONTROL_UNAVAILABLE`; do not start with an implicit
+`.mpr`-derived name. The central recipe resolver determines the exact current option and
+includes it in the complete argument array.
 
-If runtime startup fails with a database error after correct credential discovery:
-This is a diagnostic matter — not authorization for credential mutation.
-Diagnose using mxcli-supported tools. Do NOT switch to a different database to make
-startup succeed. Full contract: `policies/local-runtime-profile.md — Studio Pro Local
-Database Compatibility`.
+If startup fails with a database error, first verify that the complete resolved recipe was
+executed and that the observed backend and database/environment identifier match it. A recipe
+mismatch invalidates downstream fixture/login diagnosis for that attempt. A PostgreSQL failure
+does not authorize credential escalation while a suitable local verification backend remains.
+Credential mutation is never authorized by a startup failure.
 
 ## Runtime Pipeline State Model
 

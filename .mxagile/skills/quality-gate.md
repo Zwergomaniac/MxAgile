@@ -24,15 +24,18 @@ Implementing ist kein Verifikationsnachweis (siehe `policies/development-runtime
   - Vor jedem mxcli-Aufruf Projektbinary und Version gemaess `policies/local-runtime-profile.md`
     aufloesen; widerspruechliche Tool-/Skill-Anweisungen und aktuelle CLI-Capabilities gemaess
     `policies/tool-instruction-conflict.md` pruefen. Kein PATH-Fallback ohne Projektfreigabe.
-   - Vor dem Start `local_runtime` vollstaendig aufloesen: Runtime-Pfad, `db_type`,
-     `db_name`, `app_url`/Port, Constants und Credential-Key-Referenzen. Keine DB-Art
-     erraten oder `--db-type` ohne Help-Nachweis dieser Binary verwenden.
-   - Wenn Runtime-/Browser-Evidenz benoetigt wird: Credential-Verfuegbarkeit vor dem
-     Runtime-Start gemaess `policies/credential-discovery.md` vollstaendig und secret-safe
-     pruefen. Fehlende/EMPTY Keys fuehren erst nach Pruefung aller kanonischen Quellen zur
-     gezielten Eskalation. Keine Credential-Werte in Analyse oder Bericht laden.
-   - Standard: `mxcli run --local` im autonomen Verifikationsmodus (ohne `--watch`)
-     — siehe `policies/development-runtime.md` § Runtime Modes
+  - Operating Mode und Tool Authority bestimmen, danach Capability Discovery aus der Help
+    genau dieser Binary ausfuehren und ein vollstaendiges `resolved_runtime_recipe` erzeugen.
+    Das Rezept muss den aufgeloesten Runtime-/Backend-Pfad, `db_name`, `app_url`/Port,
+    Constants und alle erforderlichen Invocation-Argumente enthalten.
+  - Datenbank-Credentials nur fuer den ausgewaehlten Recipe-Pfad pruefen. Fehlende externe
+    DB-Credentials blockieren keinen geeigneten lokalen Backend-Pfad. Credential-Werte nie
+    in Analyse oder Bericht laden.
+  - Die Runtime ausschliesslich mit Executable und Argument-Array des Recipes starten;
+    keine Teilflags aus Beispielen neu zusammensetzen.
+  - Nach Start Runtime-Erreichbarkeit, Backend/DB-Identifier soweit autoritativ verfuegbar,
+    Fixture und Test Identity getrennt gegen das Recipe pruefen. Bei Recipe-Abweichung die
+    nachgelagerte Fixture-/Login-Diagnose fuer diesen Versuch verwerfen.
    - Readiness Gate: APPLICATION_REACHABLE muss per HTTP-Poll bestaetigt sein bevor
      UI-Agent und Acceptance-Agent starten (keine Playwright-Interaktion vor Readiness)
    - Fallback auf Docker nur wenn Level 3 nicht moeglich oder Container-Paritaet

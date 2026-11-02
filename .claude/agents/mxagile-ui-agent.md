@@ -424,30 +424,34 @@ bereits verfuegbar, bleibt die Credential-Pruefung vor jedem Login verpflichtend
 
 Vor Runtime-Start und vor dem ersten Playwright-/Browser-Login:
 
-1. **Tool-/Profil-Check:** Project-/Company-/Harness-Anweisungen auf den autoritativen
-  mxcli-Pfad und Runtime-Vertrag pruefen. Resolver aus `policies/local-runtime-profile.md`
-  verwenden, absolute Binary und Version erfassen, versionssensitive Flags mit dem Help
-  genau dieser Binary pruefen. Danach `local_runtime` vollstaendig aufloesen
-  (Runtime-Art, `db_type`, `db_name`, `app_url`/Port, Constants und Voraussetzungen).
-  Keine DB-Art oder Binary aus PATH erraten.
+1. **Tool-/Profil- und Recipe-Check:** Operating Mode/Tool Authority und das vom
+  koordinierenden Runtime-Owner bereitgestellte `resolved_runtime_recipe` pruefen. Bei
+  delegierter UI-/Parity-Arbeit muss es dasselbe Recipe wie fuer Acceptance sein. Fehlt es,
+  vor Runtime-Start an den Coordinator zurueckgeben; nicht selbst aus Binary-Capabilities oder
+  bekannten Flags ein neues Recipe zusammensetzen. Das Recipe muss projektgebundene Binary,
+  Version, Backend, DB-Identifier und vollstaendige Argumente ausweisen.
     Browser-Ziel vor Navigation gemaess `policies/local-runtime-profile.md` aufloesen:
     `local_runtime.app_url` ist die Projekt-BaseURL; die konfigurierte Runner-BaseURL und
     `allowedOrigins` exakt pruefen. `localhost` und `127.0.0.1` nicht gleichsetzen. Browser-
     Binary/Channel ausschliesslich aus der verwendeten Playwright-Runner-Konfiguration lesen.
-2. **Credential-Check:** Vollstaendige Credential-Discovery gemaess
-  `policies/credential-discovery.md` in kanonischer Reihenfolge ausfuehren. Erforderliche
-  Keys aus Projekt-/Company-Konfiguration und Szenario ableiten, nicht aus universellen
-  Annahmen. `.env.mendix` lokal auf erforderliche Keys und Status pruefen; Werte weder
-  ausgeben noch in Modellkontext oder Evidence laden. Bei fehlenden/EMPTY Keys alle
-  weiteren Quellen pruefen, bevor eskaliert wird.
+2. **Credential-Check:** Datenbank-Credentials nur fuer den ausgewaehlten Recipe-Backendpfad
+  gemaess `policies/credential-discovery.md` entdecken. Ein geeigneter lokaler Backendpfad
+  darf nicht wegen fehlender PostgreSQL-Credentials blockiert werden. Test-Login-Credentials
+  separat vor dem Login pruefen. Erforderliche Keys aus Projekt-/Company-Konfiguration und
+  Szenario ableiten, niemals raten; Werte weder ausgeben noch in Modellkontext oder Evidence
+  laden. Bei fehlenden/EMPTY, tatsaechlich erforderlichen Keys erst alle Quellen pruefen.
 3. **Initial-Login und Rolle getrennt aufloesen:** Bootstrap-Zugang nur fuer den initialen
   Login verwenden. Danach die angeforderte Rolle und Testidentitaet gemaess
   `policies/test-identity-lifecycle.md` ueber die aktuellen Projekt-/Company-Deklarationen,
   Tests und Helper herstellen; falls vorhanden die deklarierte Runtime-Probe verwenden.
   Historische Ergebnislogs sind keine operative Konfiguration.
-4. **Repraesentative Daten:** Fuer Szenarien die befuellten Zustand erfordern: Seed-Skript
+4. **Recipe-/Runtime-Pruefung:** Den unveraenderten Recipe ausfuehren. Runtime-Reachability
+  bestaetigen und den beobachteten Backend-/DB-Identifier mit dem Recipe vergleichen. Bei
+  Abweichung `RUNTIME_RECIPE_MISMATCH` klassifizieren und Fixture-/Login-Diagnose dieses
+  Laufs verwerfen.
+5. **Repraesentative Daten:** Fuer Szenarien die befuellten Zustand erfordern: Seed-Skript
    pruefen und ausfuehren; fehlende Daten als `MOCK_DATA_UNAVAILABLE` klassifizieren
-5. **Test-Rollen:** Fuer Role-spezifische Szenarien: die aufgeloeste Demo-/Test-Rolle aktivieren
+6. **Test-Rollen:** Fuer Role-spezifische Szenarien: die aufgeloeste Demo-/Test-Rolle aktivieren
 
 ### Navigation und Evidence-Cleanliness
 
