@@ -224,9 +224,17 @@ def find_artifacts(project_root):
                 continue
 
             file_id_from_name = filepath.stem
-            artifact_id = content.get(loc['id_field'], file_id_from_name)
+            if loc['type'] == 'page':
+                artifact_id = content.get('page_id')
+                if not isinstance(artifact_id, str) or not re.fullmatch(r'PAGE-[A-Z0-9_-]+', artifact_id):
+                    print(f'[WARN] Skipping Page without a valid logical page_id: {filepath}')
+                    continue
+                if artifact_id in artifacts['page']:
+                    raise ValueError(f'Duplicate Page logical identity; refusing ambiguous index: {artifact_id}')
+            else:
+                artifact_id = content.get(loc['id_field'], file_id_from_name)
 
-            if artifact_id != file_id_from_name:
+            if loc['type'] != 'page' and artifact_id != file_id_from_name:
                 print(f'[WARN] ID mismatch: file={file_id_from_name}, '
                       f'{loc["id_field"]}={artifact_id} in {filepath}')
 
@@ -242,6 +250,8 @@ def find_artifacts(project_root):
 
             if loc['type'] == 'page' and content.get('mockup_name'):
                 entry['mockup_name'] = content['mockup_name']
+            if loc['type'] == 'page' and isinstance(content.get('page_name'), str):
+                entry['mendix_page_name'] = content['page_name']
 
             artifacts[loc['type']][artifact_id] = entry
             print(f'[DEBUG] Indexed {loc["type"]}: {artifact_id}')

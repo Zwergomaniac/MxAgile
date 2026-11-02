@@ -805,6 +805,19 @@
           }
         },
         "screen_ids": { "type": "array", "items": { "type": "string" } },
+        "page_bindings": {
+          "type": "array",
+          "description": "Logical Page IDs paired with their current mutable Mendix implementation names.",
+          "items": {
+            "type": "object",
+            "required": ["page_id", "mendix_page_name"],
+            "additionalProperties": false,
+            "properties": {
+              "page_id": { "type": "string", "pattern": "^PAGE-[A-Z0-9_-]+$" },
+              "mendix_page_name": { "type": ["string", "null"] }
+            }
+          }
+        },
         "section_ids": { "type": "array", "items": { "type": "string" } }
       }
     },

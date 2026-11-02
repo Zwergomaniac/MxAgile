@@ -102,6 +102,9 @@ function targetCard(target) {
   meta.append(authority);
   const authoritySources = (target.authority_sources || []).map((source) => `${source.source_type} · ${pathLabel(source.canonical_path)}`);
   meta.append(node("div", "target-fingerprint", `AUTHORITY SOURCE  ${authoritySources.join(" · ") || "UNKNOWN"}`));
+  for (const binding of target.page_bindings || []) {
+    meta.append(node("div", "target-file", `${binding.page_id} · Mendix: ${binding.mendix_page_name || "UNBOUND"}`));
+  }
   const drift = target.inventory_drift?.state || "unknown";
   meta.append(stateBadge(drift === "not_applicable" ? "CONSISTENT" : drift.toUpperCase(), "reference-drift"));
   card.append(meta);

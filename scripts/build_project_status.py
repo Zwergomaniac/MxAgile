@@ -139,16 +139,24 @@ def read_collection(
         value = projected_for_validation(relative, value)
         if id_field:
             expected_id = path.parent.name if path.name == "revision.yaml" else path.stem
-            if not identity_matches(relative, value.get(id_field), expected_id):
-                add_gap(gaps, "ARTIFACT_ID_MISMATCH", relative, f"{id_field} does not match the canonical filename or revision directory.")
-                invalid += 1
-                continue
-            if value.get(id_field) != expected_id:
-                if schema_errors(relative, value):
-                    add_gap(gaps, "SOURCE_SHAPE_INVALID", relative, "Legacy-named artifact must satisfy its canonical schema.")
+            if relative.startswith("planning/ui-inventory/"):
+                if not isinstance(value.get(id_field), str) or not re.fullmatch(r"PAGE-[A-Z0-9_-]+", value[id_field]):
+                    add_gap(gaps, "ARTIFACT_ID_MISMATCH", relative, "Page must declare its stable page_id.")
                     invalid += 1
                     continue
-                add_gap(gaps, "LEGACY_FILENAME", relative, "Documented descriptive Test Contract filename accepted.")
+                if value[id_field] != expected_id:
+                    add_gap(gaps, "LEGACY_FILENAME", relative, "Descriptive Page filename is accepted; page_id remains authoritative.")
+            else:
+                if not identity_matches(relative, value.get(id_field), expected_id):
+                    add_gap(gaps, "ARTIFACT_ID_MISMATCH", relative, f"{id_field} does not match the canonical filename or revision directory.")
+                    invalid += 1
+                    continue
+                if value.get(id_field) != expected_id:
+                    if schema_errors(relative, value):
+                        add_gap(gaps, "SOURCE_SHAPE_INVALID", relative, "Legacy-named artifact must satisfy its canonical schema.")
+                        invalid += 1
+                        continue
+                    add_gap(gaps, "LEGACY_FILENAME", relative, "Documented descriptive Test Contract filename accepted.")
         records.append(value)
         relative_paths.append(relative)
 
@@ -486,6 +494,10 @@ def build_active_targets(
             if isinstance(page.get("page_id"), str) and page.get("target_revision") == revision_id
         ]
         screen_ids = sorted({page["page_id"] for page in matched_pages})
+        page_bindings = sorted({
+            (page["page_id"], page.get("page_name") if isinstance(page.get("page_name"), str) else None)
+            for page in matched_pages
+        }, key=lambda binding: binding[0])
         bundle_pages = pages_by_bundle.get(mockup_name, [])
         mismatched_screen_ids: list[str] = []
         unknown_screen_ids: list[str] = []
@@ -533,6 +545,10 @@ def build_active_targets(
                 "unknown_screen_ids": sorted(set(unknown_screen_ids)),
             },
             "screen_ids": screen_ids,
+            "page_bindings": [
+                {"page_id": page_id, "mendix_page_name": mendix_page_name}
+                for page_id, mendix_page_name in page_bindings
+            ],
             "section_ids": section_ids,
         }
         targets.append(reference)
@@ -579,6 +595,7 @@ def build_active_targets(
                 "bundle_hash": None,
                 "inventory_drift": {"state": "consistent", "mismatched_screen_ids": [], "unknown_screen_ids": []},
                 "screen_ids": [],
+                "page_bindings": [],
                 "section_ids": [],
             }
             legacy_by_target[reference_key] = reference
@@ -588,6 +605,13 @@ def build_active_targets(
         if isinstance(page_id, str) and page_id not in reference["screen_ids"]:
             reference["screen_ids"].append(page_id)
             target_by_screen[page_id] = reference
+        if isinstance(page_id, str):
+            binding = {
+                "page_id": page_id,
+                "mendix_page_name": page.get("page_name") if isinstance(page.get("page_name"), str) else None,
+            }
+            if binding not in reference["page_bindings"]:
+                reference["page_bindings"].append(binding)
         for section in page.get("sections", []) if isinstance(page.get("sections"), list) else []:
             if isinstance(section, dict) and isinstance(section.get("id"), str) and section["id"] not in reference["section_ids"]:
                 reference["section_ids"].append(section["id"])
@@ -597,6 +621,7 @@ def build_active_targets(
 
     for reference in legacy_by_target.values():
         reference["screen_ids"].sort()
+        reference["page_bindings"].sort(key=lambda binding: binding["page_id"])
         reference["section_ids"].sort()
         reference["authority_sources"].sort(key=lambda source: source["canonical_path"])
         targets.append(reference)
@@ -614,6 +639,14 @@ def build_active_targets(
         if existing["availability"] != reference["availability"]:
             existing["availability"] = "ambiguous"
         existing["screen_ids"] = sorted(set(existing["screen_ids"]) | set(reference["screen_ids"]))
+        bindings = {
+            (item["page_id"], item["mendix_page_name"])
+            for item in existing["page_bindings"] + reference["page_bindings"]
+        }
+        existing["page_bindings"] = [
+            {"page_id": page_id, "mendix_page_name": mendix_page_name}
+            for page_id, mendix_page_name in sorted(bindings, key=lambda binding: (binding[0], binding[1] or ""))
+        ]
         existing["section_ids"] = sorted(set(existing["section_ids"]) | set(reference["section_ids"]))
     targets = list(deduplicated.values())
     targets.sort(key=lambda item: (item["mockup_name"] or "", item["canonical_path"] or "", item["revision_id"] or "", item["reference_id"]))
@@ -891,7 +924,7 @@ def _build_status(project_root: Path) -> dict[str, Any]:
     finding_state, finding_records, finding_paths = read_collection(root, "planning/findings", "*.yml", "ID", hashes, gaps, parsed_documents)
     contract_state, contracts, contract_paths = read_collection(root, "planning/test-contracts", "TC-*.yaml", "ID", hashes, gaps, parsed_documents)
     plan_state, plans, plan_paths = read_collection(root, "planning/verification-plans", "*.yaml", "ID", hashes, gaps, parsed_documents)
-    page_state, pages, page_paths = read_collection(root, "planning/ui-inventory", "*.yaml", "", hashes, gaps, parsed_documents)
+    page_state, pages, page_paths = read_collection(root, "planning/ui-inventory", "*.yaml", "page_id", hashes, gaps, parsed_documents)
     page_records = [(page, path) for page, path in zip(pages, page_paths)
                     if not is_standalone_interaction_artifact(path)]
     pages = [page for page, _ in page_records]

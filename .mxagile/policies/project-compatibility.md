@@ -46,6 +46,15 @@ remain visible. Duplicated artifact IDs are excluded from authoritative counts.
 
 ## Identity and provenance rules
 
+Page identity is the `page_id` field, independent of both filename and Mendix
+implementation name. New UI-Agent output uses `planning/ui-inventory/<page_id>.yaml`;
+historical descriptive filenames such as `Customer_NewEdit.yaml` remain readable as
+storage-only legacy variants. `page_name` records the current Mendix implementation
+binding and may change without changing `page_id`. Duplicate valid `page_id` values
+are blocking and never resolve by filename or name similarity. Long-lived artifacts
+reference Page IDs; a functional Requirement does not change when its implementation
+binding changes.
+
 New Test Contracts use `planning/test-contracts/TC-NNN.yaml`. For compatibility,
 `TC-NNN-<ASCII descriptive suffix>.yaml` is a documented legacy variant only if
 the internal ID is exactly that numeric prefix and the complete canonical schema

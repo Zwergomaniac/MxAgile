@@ -440,9 +440,11 @@ def compatibility_report(
         if gap['code'] in gap_categories:
             category = gap_categories[gap['code']]
             contract = contract_for(source) if source else None
+            if category == 'DUPLICATE_ID' and contract and contract[0] == 'page':
+                continue
             repairable = 'AGENT_REPAIRABLE' if category in ('SYNTAX_ERROR', 'SCHEMA_ERROR') else 'UNSUPPORTED'
             add(category, source, contract[1] if contract else 'sources',
-                ('Canonical artifact is invalid' + (': ' + gap['parser_cause'] if gap.get('parser_cause') else '') + '.') if category != 'LEGACY_VARIANT' else 'Documented descriptive Test Contract filename accepted.',
+                ('Canonical artifact is invalid' + (': ' + gap['parser_cause'] if gap.get('parser_cause') else '') + '.') if category != 'LEGACY_VARIANT' else 'Descriptive legacy filename accepted; canonical identity remains the artifact ID field.',
                 blocking=category != 'LEGACY_VARIANT', repairability=repairable,
                 line=gap.get('line'), column=gap.get('column'),
                 authority='.mxagile/policies/project-compatibility.md',
@@ -538,10 +540,15 @@ def compatibility_report(
     page_inventory_present = any(contract_for(relative)[0] == 'page' for relative in documents)
     for relative, value in documents.items():
         if (contract_for(relative)[0] == 'page' and isinstance(value.get('page_id'), str)
-                and value['page_id'] == PurePosixPath(relative).stem and not schema_errors(relative, value)):
+                and not schema_errors(relative, value)):
             page_identities.setdefault(value['page_id'], []).append(relative)
             if isinstance(value.get('page_name'), str) and value['page_name']:
                 page_names.setdefault(value['page_name'], []).append(relative)
+    for page_id, paths_for_id in page_identities.items():
+        if len(paths_for_id) > 1:
+            for relative in paths_for_id:
+                add('DUPLICATE_ID', relative, 'references', 'Page logical identity occurs in multiple UI inventory artifacts.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='page_id')
     for paths_for_id in identities.values():
         if len(paths_for_id) > 1:
             for relative in paths_for_id:
