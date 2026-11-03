@@ -20,7 +20,7 @@ current wave's verified implementation and produce a traceable acceptance gate r
 
 ## Policies
 
-- `.mxagile/policies/evidence-levels.md` — evidence layer definitions (STATIC/MODEL/BUILD/RUNTIME/FRONTEND)
+- `.mxagile/policies/evidence-levels.md` — gate maturity and evidence-recording requirements; layer semantics are in `verification-layers.md`
 - `.mxagile/policies/evidence-contract.md` — temporary vs canonical evidence; promotion rules
 - `.mxagile/policies/acceptance-campaign.md` — campaign types (REQUIREMENT/ROLE/RISK_CHANGE_IMPACT)
 - `.mxagile/policies/test-defect-protection.md` — APPLICATION_DEFECT vs TEST_DEFECT vs INFRASTRUCTURE_GAP; bounded escalation rule
@@ -88,8 +88,8 @@ Before running any campaign:
 2. **Infrastructure assessment** — Document which layers are available NOW (post-implementation):
    - MODEL: always (mxcli present)
    - BUILD: semantic build validation capability available in this environment?
-   - RUNTIME: app running via `mxcli run --local` (autonomous mode, no `--watch`)?
-     See `policies/development-runtime.md` § Runtime Modes.
+   - RUNTIME: app running through the coordinator's C1-resolved recipe in autonomous mode?
+       See `policies/development-runtime.md` § Runtime Modes.
        Before startup, resolve the project-pinned mxcli binary/version and full `local_runtime`
        profile; verify version-sensitive syntax against that binary's command help. Resolve
        initial login and each requested role separately through current project declarations,

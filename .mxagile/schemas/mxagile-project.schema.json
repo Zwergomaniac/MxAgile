@@ -28,7 +28,7 @@
           "type": "string",
           "enum": ["local_first", "docker"],
           "default": "local_first",
-          "description": "local_first (default): prefer warm local runtime (mxcli run --local --watch, Level 3) for formal verification; escalate to Docker (Level 4) only when container-parity is required or local runtime cannot provide valid evidence. docker: always use Docker for formal verification (for projects requiring container parity or migrating gradually from legacy behavior). Existing projects without this field receive local_first behavior."
+          "description": "local_first (default): prefer the C1-resolved local runtime for normal implementation and formal verification; escalate to Docker (Level 4) only when container-parity is required or local runtime cannot provide valid evidence. docker: always use Docker for formal verification (for projects requiring container parity or migrating gradually from legacy behavior). Existing projects without this field receive local_first behavior."
         }
       },
       "additionalProperties": false
@@ -114,7 +114,7 @@
         },
         "constant_overrides": {
           "type": "array",
-          "description": "Runtime constant overrides applied for local development and test. Non-secret values inline; sensitive values via env_key reference. Applied via mxcli --constant flags. See policies/local-runtime-profile.md — Local Runtime Constant Overrides.",
+          "description": "Runtime constant overrides for local development and test. Non-secret values inline; sensitive values via env_key reference. The C1 recipe includes them only when the selected binary advertises the required control. See policies/runtime-configuration-reconciliation.md.",
           "items": {
             "type": "object",
             "required": ["name", "purpose"],

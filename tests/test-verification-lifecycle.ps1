@@ -63,6 +63,7 @@ function Assert-FileExists {
 $FixDir      = Join-Path $ScriptDir "tests/fixtures/verification-lifecycle"
 $MatPol      = Join-Path $ScriptDir ".mxagile/policies/verification-materialization.md"
 $StalePol    = Join-Path $ScriptDir ".mxagile/policies/test-staleness.md"
+$ImpRes      = Join-Path $ScriptDir ".mxagile/policies/impact-resolution.md"
 $DefectPol   = Join-Path $ScriptDir ".mxagile/policies/test-defect-protection.md"
 $VplSkill    = Join-Path $ScriptDir ".mxagile/skills/verification-plan.md"
 $TcSchema    = Join-Path $ScriptDir ".mxagile/schemas/test-contract.schema.json"
@@ -103,11 +104,8 @@ Assert-FileContains "gate-to-ready does NOT require VPL" $GateReady "Verificatio
 Write-Host ""
 Write-Host "REVISION IMPACT VOCABULARY" -ForegroundColor Cyan
 
-Assert-FileContains "test-staleness defines PRESERVE" $StalePol "PRESERVE"
-Assert-FileContains "test-staleness defines REASSESS" $StalePol "REASSESS"
-Assert-FileContains "test-staleness defines REMATERIALIZE" $StalePol "REMATERIALIZE"
-Assert-FileContains "test-staleness defines REEXECUTE" $StalePol "REEXECUTE"
-Assert-FileContains "test-staleness defines INVALIDATE" $StalePol "INVALIDATE"
+Assert-FileContains "test-staleness owns TC/PP status vocabulary" $StalePol "CURRENT.*STALE.*IMPACTED"
+Assert-FileContains "test-staleness delegates revision actions to materialization" $StalePol "verification-materialization\.md.*sole action authority"
 Assert-FileContains "materialization policy defines all 5 actions" $MatPol "PRESERVE"
 Assert-FileContains "materialization policy REASSESS section" $MatPol "REASSESS"
 Assert-FileContains "materialization policy REMATERIALIZE section" $MatPol "REMATERIALIZE"
@@ -263,8 +261,8 @@ Assert-True "G.4 fixture-G executable_test_action is reuse" ($fixG -match "execu
 Assert-True "G.5 fixture-G evidence_status_after is STALE_REEXECUTION_REQUIRED" ($fixG -match "STALE_REEXECUTION_REQUIRED")
 Assert-True "G.6 fixture-G DECISION_REQUIRED must NOT be raised" ($fixG -match "DECISION_REQUIRED must NOT")
 Assert-True "G.7 fixture-G reexecution does not rewrite test definition" ($fixG -match "does NOT rewrite the test definition")
-Assert-FileContains "G.8 test-staleness defines REEXECUTE concept" $StalePol "REEXECUTE"
-Assert-FileContains "G.9 test-staleness REEXECUTE: VPL unchanged" $StalePol "VPL.*unchanged"
+Assert-FileContains "G.8 materialization policy owns REEXECUTE" $MatPol "### REEXECUTE"
+Assert-FileContains "G.9 staleness policy preserves VPL when impact remains unassessed" $StalePol "VPL unchanged"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SCENARIO H: CHANGED PROOF POINT
@@ -336,9 +334,9 @@ Assert-True "K.8 fixture-K evidence_action preserves prior" ($fixK -match "evide
 Assert-True "K.9 fixture-K DECISION_REQUIRED must NOT be raised" ($fixK -match "DECISION_REQUIRED: must NOT")
 Assert-True "K.10 fixture-K PP-001 claim must NOT change invariant" ($fixK -match "PP-001 claim must NOT change")
 Assert-FileContains "K.11 materialization policy defines EXTEND" $MatPol "### EXTEND"
-Assert-FileContains "K.12 test-staleness defines EXTEND" $StalePol "EXTEND"
+Assert-FileContains "K.12 test-staleness delegates actions to materialization" $StalePol "verification-materialization\.md.*sole action authority"
 Assert-FileContains "K.13 EXTEND preserves existing PPs per materialization policy" $MatPol "existing PPs unchanged|prior PPs unchanged"
-Assert-FileContains "K.14 EXTEND TC remains active per test-staleness" $StalePol "prior PPs unchanged.*EXTEND|EXTEND.*prior PPs unchanged"
+Assert-FileContains "K.14 EXTEND TC remains active per materialization policy" $MatPol "TC status remains.*active"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GRAPH IMPACT MODEL
@@ -350,7 +348,7 @@ Write-Host "GRAPH IMPACT  - semantic vs execution distinction" -ForegroundColor 
 Assert-FileContains "impact-resolution policy has revision propagation" ".mxagile/policies/impact-resolution.md" "Propagation Algorithm"
 Assert-FileContains "impact-resolution distinguishes AC changed from screen changed" ".mxagile/policies/impact-resolution.md" "IMPACTED.*per.*test-staleness"
 Assert-FileContains "impact-resolution NEEDS_RERUN vs IMPACTED distinction" ".mxagile/policies/impact-resolution.md" "NEEDS_RERUN"
-Assert-FileContains "test-staleness NEEDS_RERUN maps to REEXECUTE" $StalePol "NEEDS_RERUN.*maps to impact action.*REEXECUTE"
+Assert-FileContains "impact-resolution owns NEEDS_RERUN action mapping" $ImpRes "NEEDS_RERUN[\s\S]*maps to impact action REEXECUTE"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AGENT ESCALATION / COST CONTROL
@@ -392,8 +390,6 @@ Assert-FileContains "verification-layers: VISIBILITY requires FRONTEND" ".mxagil
 Assert-FileContains "REEXECUTE does not reuse stale evidence" $StalePol "Do not reuse stale evidence"
 Assert-FileContains "stale evidence not reused  - acceptance agent" $AccAgent "Do not reuse stale evidence"
 
-$ImpRes = Join-Path $ScriptDir ".mxagile/policies/impact-resolution.md"
-
 # ─────────────────────────────────────────────────────────────────────────────
 # IMPACT-RESOLUTION WIRING (execution_binding_stale automatic propagation)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -421,7 +417,7 @@ Assert-FileNotContains "impact-resolution does not set execution_binding_stale f
 # D - non-material/cosmetic change -> REEXECUTE, NOT execution_binding_stale
 Assert-FileContains "impact-resolution Case B -> REEXECUTE" $ImpRes "Case B"
 Assert-FileContains "impact-resolution Case B maps to REEXECUTE" $ImpRes "maps to impact action REEXECUTE"
-Assert-FileContains "test-staleness NEEDS_RERUN is non_material only" $StalePol "NEEDS_RERUN.*applies only.*non-material"
+Assert-FileContains "impact-resolution limits NEEDS_RERUN to non-material changes" $ImpRes "change_classification == non_material[\s\S]*Mark TC-NNN as NEEDS_RERUN"
 
 # Signal cleared correctly
 Assert-FileContains "VPL skill clears execution_binding_stale after REMATERIALIZE" $VplSkill "execution_binding_stale.*null"

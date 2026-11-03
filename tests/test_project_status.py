@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import sys
+import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -14,6 +15,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
+from jsonschema import Draft7Validator
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "scripts" / "build_project_status.py"
@@ -124,6 +126,46 @@ def write_finding(
   if requirement_ids:
     fields.append(f"requirement_ids: [{', '.join(requirement_ids)}]")
   write_file(root, f"planning/findings/{finding_id}.yml", "\n".join(fields) + "\n")
+
+
+def make_authority_disposition(
+  root: Path,
+  classification: str,
+  allowed_action: str,
+  prohibited_actions: list[str],
+  revision: int = 1,
+) -> dict:
+  def basis_ref(source_type: str, canonical_path: str, artifact_id: str | None = None) -> dict:
+    content_hash = "sha256:" + hashlib.sha256((root / canonical_path).read_bytes()).hexdigest()
+    reference = {"source_type": source_type, "canonical_path": canonical_path, "content_hash": content_hash}
+    if artifact_id:
+      reference["artifact_id"] = artifact_id
+    return reference
+
+  authoritative_sources = [basis_ref("requirement", "requirements/REQ-001.yml", "REQ-001")]
+  evidence_refs = [
+    basis_ref("parity_report", "planning/parity/PAGE-1.yaml"),
+    basis_ref("evidence_manifest", "planning/evidence/manifests/W01-evidence-manifest.yaml"),
+  ]
+  basis = sorted(
+    [(item["canonical_path"], item["content_hash"].removeprefix("sha256:"))
+     for item in authoritative_sources + evidence_refs],
+    key=lambda item: item[0],
+  )
+  fingerprint_material = "\n".join(f"{path}:{digest}" for path, digest in basis)
+  unresolved = "Conflicting authoritative sources require a product decision." if classification == "AUTHORITY_CONFLICT" else None
+  return {
+    "status": "RECONCILED",
+    "revision": revision,
+    "classification": classification,
+    "authoritative_sources": authoritative_sources,
+    "evidence_refs": evidence_refs,
+    "allowed_action": allowed_action,
+    "prohibited_actions": prohibited_actions,
+    "unresolved_decision": unresolved,
+    "evidence_fingerprint": "sha256:" + hashlib.sha256(fingerprint_material.encode("utf-8")).hexdigest(),
+    "reconciled_at": "2026-11-03T12:00:00Z",
+  }
 
 
 def fixture(root: Path) -> None:
@@ -412,6 +454,59 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertIn('node("details", "finding-history")', board_js)
       self.assertIn("Terminal history", board_js)
       self.assertIn(".finding-history summary", board_css)
+
+    def test_persisted_authority_disposition_gates_later_implementation(self) -> None:
+      dispositions = (
+        ("FIND-REFERENCE", "REFERENCE_GAP", "REFERENCE_REFINEMENT", ["APP_IMPLEMENTATION"]),
+        ("FIND-CONFLICT", "AUTHORITY_CONFLICT", "DECISION_REQUIRED", ["SEMANTIC_IMPLEMENTATION"]),
+      )
+      for finding_id, classification, action, prohibited in dispositions:
+        record = {
+          "ID": finding_id,
+          "title": finding_id,
+          "gap_type": "VISUAL_GAP",
+          "severity": "MATERIAL",
+          "lifecycle_status": "CLASSIFIED",
+          "observation": "A previously reconciled visual finding.",
+          "source_artifacts": [],
+          "authority_disposition": make_authority_disposition(
+            self.root, classification, action, prohibited,
+          ),
+        }
+        write_file(self.root, f"planning/findings/{finding_id}.yml", json.dumps(record))
+
+      status = build_project_status.build_status(self.root)
+      projected = {item["id"]: item["authority_disposition"] for item in status["findings"]["items"]}
+      reference = projected["FIND-REFERENCE"]
+      self.assertEqual(reference["status"], "RESOLVED")
+      self.assertTrue(reference["consumable"])
+      self.assertEqual(reference["classification"], "REFERENCE_GAP")
+      self.assertEqual(reference["allowed_action"], "REFERENCE_REFINEMENT")
+      self.assertIn("APP_IMPLEMENTATION", reference["prohibited_actions"])
+      conflict = projected["FIND-CONFLICT"]
+      self.assertEqual(conflict["status"], "RESOLVED")
+      self.assertTrue(conflict["consumable"])
+      self.assertEqual(conflict["allowed_action"], "DECISION_REQUIRED")
+      self.assertIn("SEMANTIC_IMPLEMENTATION", conflict["prohibited_actions"])
+
+      reference_record = json.loads((self.root / "planning/findings/FIND-REFERENCE.yml").read_text(encoding="utf-8"))
+      write_file(self.root, "requirements/REQ-001.yml", "ID: REQ-001\ntitle: Changed authority\ndescription: New accepted authority.\nstatus: accepted\n")
+      stale_status = build_project_status.build_status(self.root)
+      stale = next(item["authority_disposition"] for item in stale_status["findings"]["items"] if item["id"] == "FIND-REFERENCE")
+      self.assertEqual(stale["status"], "STALE")
+      self.assertFalse(stale["consumable"])
+      self.assertEqual(stale["allowed_action"], "RECONCILE")
+
+      reference_record["authority_disposition"] = make_authority_disposition(
+        self.root, "CONFIRMED_IMPLEMENTATION_GAP", "PROPOSE_IMPLEMENTATION", [], revision=2,
+      )
+      write_file(self.root, "planning/findings/FIND-REFERENCE.yml", json.dumps(reference_record))
+      reconciled_status = build_project_status.build_status(self.root)
+      reconciled = next(item["authority_disposition"] for item in reconciled_status["findings"]["items"] if item["id"] == "FIND-REFERENCE")
+      self.assertEqual(reconciled["status"], "RESOLVED")
+      self.assertTrue(reconciled["consumable"])
+      self.assertEqual(reconciled["revision"], 2)
+      self.assertEqual(reconciled["classification"], "CONFIRMED_IMPLEMENTATION_GAP")
 
     def test_findings_markdown_is_not_lifecycle_authority(self) -> None:
       before = build_project_status.build_status(self.root)
@@ -1451,6 +1546,551 @@ class ProjectStatusTests(unittest.TestCase):
         import subprocess
 
         subprocess.run([executable, "-NoProfile", "-Command", command], check=True, capture_output=True, text=True)
+
+
+class ParityStatusResolverTests(unittest.TestCase):
+  CONTRACT_SOURCE_PATH = "requirements/REQ-001.yml"
+  CONTRACT_SOURCE_CONTENT = (
+    b"ID: REQ-001\n"
+    b"title: Synthetic canonical requirement\n"
+    b"description: Requirement source used for parity contract evidence.\n"
+    b"status: accepted\n"
+  )
+  CONTRACT_SOURCE_HASH = "sha256:" + hashlib.sha256(CONTRACT_SOURCE_CONTENT).hexdigest()
+
+  @classmethod
+  def validated_source_hashes(cls) -> dict[str, str]:
+    return {cls.CONTRACT_SOURCE_PATH: cls.CONTRACT_SOURCE_HASH.removeprefix("sha256:")}
+
+  @staticmethod
+  def live_report() -> tuple[dict, dict, dict]:
+    identity = {
+      "status": "BOUND",
+      "active_target": "REV-001",
+      "canonical_mockup_path": "planning/target-mockups/mock/REV-001/index.html",
+      "revision": "REV-001",
+      "fingerprint": "sha256:" + "a" * 64,
+      "target_page": "PAGE-001",
+      "roles": ["Admin"],
+      "states": ["default"],
+      "app_revision": "app-build-001",
+      "model_revision": "model-revision-001",
+    }
+
+    def proof(kind: str, **fields) -> dict:
+      return {"type": kind, "description": f"Synthetic {kind} proof", "passed": True, **fields}
+
+    dimensions = {
+      "visual": {"result": "PASS", "required": True, "evidence": [proof("screenshot", path="planning/evidence/screenshots/app.png", capture_id="app-capture")]},
+      "content": {"result": "PASS", "required": True, "evidence": [proof("dom_text", expected="Regions", actual="Regions")]},
+            "structure": {"result": "PASS", "required": True, "evidence": [proof("mxcli_inspect"), proof("dom_selector"), proof("screenshot", path="planning/evidence/screenshots/structure.png")]},
+            "state": {"result": "PASS", "required": True, "evidence": [proof("interaction_test"), proof("screenshot", path="planning/evidence/screenshots/state.png")]},
+            "interaction": {"result": "PASS", "required": True, "evidence": [proof("interaction_test"), proof("navigation_flow")]},
+            "responsive": {"result": "PASS", "required": True, "evidence": [proof("viewport_test"), proof("screenshot", path="planning/evidence/screenshots/responsive.png")]},
+            "role": {"result": "PASS", "required": True, "evidence": [proof("role_test"), proof("dom_selector")]},
+    }
+    matrix = {
+      "contract_parity": {
+        "status": "PASS",
+        "note": "Contract references verified",
+        "capture_ids": ["app-capture"],
+        "evidence": [proof("contract_reference", path=ParityStatusResolverTests.CONTRACT_SOURCE_PATH, passed=True)],
+        "source_artifacts": [{
+          "source_type": "requirement",
+          "canonical_path": ParityStatusResolverTests.CONTRACT_SOURCE_PATH,
+          "artifact_id": "REQ-001",
+          "content_hash": ParityStatusResolverTests.CONTRACT_SOURCE_HASH,
+        }],
+      },
+      "model_parity": {"status": "PASS", "note": "Model checked", "capture_ids": ["app-capture"], "evidence": [proof("mxcli_inspect", path="planning/evidence/model-inspection.json")]},
+      "structural_dom_parity": {"status": "PASS", "note": "DOM checked", "capture_ids": ["app-capture"], "evidence": [proof("dom_selector", selector="main")]},
+      "behavioral_parity": {"status": "PASS", "note": "Behavior checked", "capture_ids": ["app-capture"], "evidence": [proof("interaction_test", description="Transition was exercised"), proof("navigation_flow", description="Navigation was verified")]},
+      "role_parity": {"status": "PASS", "note": "Role checked", "capture_ids": ["app-capture"], "evidence": [proof("role_test", description="Admin session verified")]},
+      "visual_whole_screen_parity": {"status": "PASS", "capture_ids": ["reference-capture", "app-capture"], "evidence": [
+        proof("screenshot", path="planning/evidence/screenshots/reference.png", capture_id="reference-capture"),
+        proof("screenshot", path="planning/evidence/screenshots/app.png", capture_id="app-capture"),
+      ]},
+    }
+    report = {
+      "page_id": "PAGE-001",
+      "schema_version": 3,
+      "evidence_class": "LIVE_PARITY",
+      "evidence_level": "browser",
+      "verified_at": "2026-11-02",
+      "comparison_identity": identity,
+      "evidence_matrix": matrix,
+      "dimensions": dimensions,
+      "whole_screen_review": {
+        "status": "complete",
+        "scope_note": "Synthetic in-scope review",
+        "comparison_result": "PASS",
+        "comparison_summary": "Reference and runtime captures compared; no in-scope visual gaps found.",
+        "reference_capture_ids": ["reference-capture"],
+        "runtime_capture_ids": ["app-capture"],
+        "visually_reviewed_capture_ids": ["reference-capture", "app-capture"],
+      },
+      "overall_result": "PASS",
+    }
+    capture_sides = {"reference-capture": "mockup", "app-capture": "application"}
+    return report, identity, capture_sides
+
+  def test_complete_live_parity_resolves_pass_from_structured_evidence(self):
+    report, identity, capture_sides = self.live_report()
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "RESOLVED")
+    self.assertEqual(result["computed_overall_result"], "PASS")
+    self.assertTrue(result["promotion_allowed"])
+    self.assertEqual(
+      result["evidence_provenance"]["validated_contract_sources"][0]["content_hash"],
+      self.CONTRACT_SOURCE_HASH,
+    )
+
+  def test_whole_screen_screenshots_without_comparison_result_do_not_verify_visual_parity(self):
+    report, identity, capture_sides = self.live_report()
+    report["whole_screen_review"].pop("comparison_result", None)
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "BLOCKED")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertEqual(result["evidence_matrix_results"]["visual_whole_screen_parity"], "NOT_VERIFIED")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_whole_screen_comparison_gap_is_preserved_as_fail_or_partial(self):
+    for comparison_result, expected_aggregate in (("FAIL", "FAIL"), ("PARTIAL", "PARTIAL")):
+      with self.subTest(comparison_result=comparison_result):
+        report, identity, capture_sides = self.live_report()
+        report["whole_screen_review"]["comparison_result"] = comparison_result
+        report["whole_screen_review"]["comparison_summary"] = "Actual comparison found a visual gap."
+        report["evidence_matrix"]["visual_whole_screen_parity"]["status"] = comparison_result
+
+        result = build_project_status.resolve_parity_status(
+          report,
+          expected_identity=identity,
+          target_freshness="CURRENT",
+          validated_capture_sides=capture_sides,
+          validated_source_hashes=self.validated_source_hashes(),
+        )
+
+        self.assertEqual(result["status"], "RESOLVED")
+        self.assertEqual(result["computed_overall_result"], expected_aggregate)
+        self.assertFalse(result["promotion_allowed"])
+
+  def test_contract_parity_pass_requires_validated_requirement_or_decision_hash(self):
+    report, identity, capture_sides = self.live_report()
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes={},
+    )
+
+    self.assertEqual(result["status"], "BLOCKED")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertIn("CONTRACT_SOURCE_EVIDENCE_INSUFFICIENT", [item["code"] for item in result["blockers"]])
+
+  def test_regions_style_smoke_never_promotes_missing_parity_dimensions(self):
+    report, identity, capture_sides = self.live_report()
+    report["evidence_class"] = "SMOKE"
+    report["dimensions"]["interaction"]["result"] = "NOT_VERIFIED"
+    report["dimensions"]["role"]["result"] = "NOT_VERIFIED"
+    report["dimensions"]["visual"]["result"] = "NOT_VERIFIED"
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "BLOCKED")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_reference_model_analysis_is_not_live_parity(self):
+    report, identity, capture_sides = self.live_report()
+    report["evidence_class"] = "REFERENCE_VS_MODEL"
+    report["evidence_level"] = "model"
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_missing_evidence_class_remains_not_observable(self):
+    report, identity, capture_sides = self.live_report()
+    report.pop("evidence_class")
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "NOT_OBSERVABLE")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_unknown_dimension_status_remains_unknown(self):
+    report, identity, capture_sides = self.live_report()
+    report["dimensions"]["role"]["result"] = "UNASSESSED_BY_FUTURE_VERSION"
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "UNKNOWN")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_pass_claim_without_dimension_evidence_is_blocked(self):
+    report, identity, capture_sides = self.live_report()
+    report["dimensions"]["role"]["evidence"] = []
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "BLOCKED")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+
+  def test_evidenced_required_fail_precedes_another_unverified_dimension(self):
+    report, identity, capture_sides = self.live_report()
+    report["dimensions"]["content"]["result"] = "FAIL"
+    report["dimensions"]["content"]["evidence"][0]["passed"] = False
+    report["dimensions"]["content"]["deviations"] = [{"concern": "content_mismatch", "description": "Mismatch", "severity": "material"}]
+    report["dimensions"]["role"]["result"] = "NOT_VERIFIED"
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "RESOLVED")
+    self.assertEqual(result["computed_overall_result"], "FAIL")
+
+  def test_changed_comparison_identity_is_stale(self):
+    report, identity, capture_sides = self.live_report()
+    expected = copy.deepcopy(identity)
+    expected["revision"] = "REV-002"
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=expected,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "STALE")
+    self.assertEqual(result["computed_overall_result"], "STALE")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_unresolved_stale_and_not_verified_precedence_is_ambiguous(self):
+    report, identity, capture_sides = self.live_report()
+    report["dimensions"]["visual"]["result"] = "STALE"
+    report["dimensions"]["interaction"]["result"] = "NOT_VERIFIED"
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "AMBIGUOUS")
+    self.assertIsNone(result["computed_overall_result"])
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_required_matrix_not_applicable_without_note_is_not_pass(self):
+    report, identity, capture_sides = self.live_report()
+    report["evidence_matrix"]["role_parity"] = {"status": "NOT_APPLICABLE", "required": True}
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "BLOCKED")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_matrix_does_not_borrow_proof_from_a_ui_dimension(self):
+    report, identity, capture_sides = self.live_report()
+    report["evidence_matrix"]["model_parity"]["evidence"] = []
+
+    result = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+
+    self.assertEqual(result["status"], "BLOCKED")
+    self.assertEqual(result["computed_overall_result"], "NOT_VERIFIED")
+    self.assertFalse(result["promotion_allowed"])
+
+  def test_single_report_cli_resolves_without_project_scan(self):
+    report, identity, capture_sides = self.live_report()
+    with tempfile.TemporaryDirectory(prefix="mxagile-parity-request-") as temp_dir:
+      source_path = Path(temp_dir) / self.CONTRACT_SOURCE_PATH
+      source_path.parent.mkdir(parents=True, exist_ok=True)
+      source_path.write_bytes(self.CONTRACT_SOURCE_CONTENT)
+      request_path = Path(temp_dir) / "request.json"
+      request_path.write_text(json.dumps({
+        "report": report,
+        "expected_identity": identity,
+        "target_freshness": "CURRENT",
+        "validated_capture_sides": capture_sides,
+        "project_root": temp_dir,
+      }), encoding="utf-8")
+      result = subprocess.run(
+        [sys.executable, str(BUILDER), "--resolve-parity-request", str(request_path)],
+        capture_output=True, text=True, check=False,
+      )
+
+    self.assertEqual(result.returncode, 0, result.stderr)
+    resolution = json.loads(result.stdout)
+    self.assertEqual(resolution["status"], "RESOLVED")
+    self.assertEqual(resolution["computed_overall_result"], "PASS")
+    self.assertTrue(resolution["promotion_allowed"])
+
+  def test_parity_schema_rejects_smoke_promotion_and_accepts_resolved_live_pass(self):
+    schema = json.loads((ROOT / ".mxagile/schemas/parity-verification.schema.json").read_text(encoding="utf-8"))
+    validator = Draft7Validator(schema)
+    report, identity, capture_sides = self.live_report()
+    resolution = build_project_status.resolve_parity_status(
+      report,
+      expected_identity=identity,
+      target_freshness="CURRENT",
+      validated_capture_sides=capture_sides,
+      validated_source_hashes=self.validated_source_hashes(),
+    )
+    report["aggregate_resolution"] = resolution
+    self.assertEqual(resolution["computed_overall_result"], "PASS")
+    self.assertEqual(list(validator.iter_errors(report)), [])
+
+    for evidence_class in ("SMOKE", "REFERENCE_VS_MODEL"):
+      non_live_claim = copy.deepcopy(report)
+      non_live_claim["evidence_class"] = evidence_class
+      self.assertTrue(list(validator.iter_errors(non_live_claim)), evidence_class)
+
+  def test_gallery_projection_downgrades_unclassified_reported_pass(self):
+    report, identity, _ = self.live_report()
+    report["schema_version"] = 2
+    report.pop("evidence_class")
+    report.pop("aggregate_resolution", None)
+    reference_path = "planning/target-mockups/mock/REV-001/index.html"
+    report["comparison_identity"]["canonical_mockup_path"] = reference_path
+    identity["canonical_mockup_path"] = reference_path
+
+    with tempfile.TemporaryDirectory(prefix="mxagile-parity-gallery-resolver-") as temp_dir:
+      root = Path(temp_dir)
+      write_file(root, reference_path, "<html>target</html>\n")
+      screenshot_paths = {
+        "reference-capture": "planning/evidence/screenshots/target/reference.png",
+        "app-capture": "planning/evidence/screenshots/actual/application.png",
+      }
+      for relative in screenshot_paths.values():
+        image = root / relative
+        image.parent.mkdir(parents=True, exist_ok=True)
+        image.write_bytes(b"\x89PNG\r\n\x1a\nsynthetic-image")
+      group_inputs = (
+        ("reference-capture", "mockup", "target"),
+        ("app-capture", "application", "actual"),
+      )
+      capture_groups = []
+      for capture_id, side, snapshot_name in group_inputs:
+        snapshot_path = f"planning/evidence/snapshots/{snapshot_name}.html"
+        write_file(root, snapshot_path, "<html>snapshot</html>\n")
+        capture_groups.append({
+          "capture_id": capture_id,
+          "capture_source": side,
+          "captured_at": "2026-11-02T12:00:00Z",
+          "comparison_identity": identity,
+          "runtime_url": "http://localhost:8080/",
+          "role": "Admin",
+          "target_screen": "PAGE-001",
+          "session_id": f"session-{side}",
+          "run_id": "run-001",
+          "screenshot_path": screenshot_paths[capture_id],
+          "snapshots": [{"path": snapshot_path, "type": "dom"}],
+          "cleanliness_state": "clean",
+        })
+      entry = {
+        "entry_id": "EVID-PAGE-001",
+        "scenario_id": "SCN-PAGE-001",
+        "screen_id": "PAGE-001",
+        "role": "Admin",
+        "data_state": "default",
+        "parity_result": "PASS",
+        "target_mockup": reference_path,
+        "comparison_identity": identity,
+        "parity_report_path": "planning/parity/PAGE-001.yaml",
+        "target_evidence": [{
+          "artifact_id": "TARGET-SCREENSHOT",
+          "type": "screenshot",
+          "path": screenshot_paths["reference-capture"],
+          "source": "mockup",
+          "capture_id": "reference-capture",
+          "dimension": "visual",
+          "description": "Synthetic reference capture",
+          "lifecycle_stage": "promoted",
+        }],
+        "actual_evidence": [{
+          "artifact_id": "APP-SCREENSHOT",
+          "type": "screenshot",
+          "path": screenshot_paths["app-capture"],
+          "source": "application",
+          "capture_id": "app-capture",
+          "dimension": "visual",
+          "description": "Synthetic application capture",
+          "lifecycle_stage": "promoted",
+        }],
+        "capture_groups": capture_groups,
+      }
+      manifest = {"manifest_id": "MFT-W01", "wave_id": "W01", "entries": [entry]}
+      manifest_path = "planning/evidence/manifests/W01-evidence-manifest.yaml"
+      parity_path = "planning/parity/PAGE-001.yaml"
+      write_file(root, manifest_path, json.dumps(manifest))
+      write_file(root, parity_path, json.dumps(report))
+      target = {
+        "availability": "available",
+        "screen_ids": ["PAGE-001"],
+        "canonical_path": reference_path,
+        "revision_id": "REV-001",
+        "bundle_hash": identity["fingerprint"],
+        "content_hash": identity["fingerprint"],
+      }
+
+      with project_compatibility.schema_validation_scope():
+        runs = build_project_status.visual_evidence_projection(
+          root,
+          [manifest],
+          [manifest_path],
+          [target],
+          {},
+          [],
+        )
+      self.assertEqual(len(runs), 1)
+      self.assertEqual(runs[0]["reported_parity_result"], "PASS")
+      self.assertEqual(runs[0]["parity_result"], "NOT_VERIFIED")
+      self.assertEqual(runs[0]["parity_resolution"]["status"], "NOT_OBSERVABLE")
+      self.assertFalse(runs[0]["parity_resolution"]["promotion_allowed"])
+
+      entry.pop("capture_groups")
+      write_file(root, manifest_path, json.dumps(manifest))
+      no_capture_gaps: list[dict[str, str | None]] = []
+      with project_compatibility.schema_validation_scope():
+        no_capture_runs = build_project_status.visual_evidence_projection(
+          root,
+          [manifest],
+          [manifest_path],
+          [target],
+          {},
+          no_capture_gaps,
+        )
+
+      live_report, live_identity, capture_sides = self.live_report()
+      live_identity["canonical_mockup_path"] = reference_path
+      live_report["comparison_identity"] = live_identity
+      contract_content = self.CONTRACT_SOURCE_CONTENT
+      contract_path = self.CONTRACT_SOURCE_PATH
+      contract_file = root / contract_path
+      contract_file.parent.mkdir(parents=True, exist_ok=True)
+      contract_file.write_bytes(contract_content)
+      contract_digest = hashlib.sha256(contract_content).hexdigest()
+      live_report["evidence_matrix"]["contract_parity"]["source_artifacts"][0]["content_hash"] = "sha256:" + contract_digest
+      live_resolution = build_project_status.resolve_parity_status(
+        live_report,
+        expected_identity=live_identity,
+        target_freshness="CURRENT",
+        validated_capture_sides=capture_sides,
+        validated_source_hashes={contract_path: contract_digest},
+      )
+      live_report["aggregate_resolution"] = live_resolution
+      entry["comparison_identity"] = live_identity
+      entry["capture_groups"] = capture_groups
+      write_file(root, manifest_path, json.dumps(manifest))
+      write_file(root, parity_path, json.dumps(live_report))
+      live_gaps: list[dict[str, str | None]] = []
+      with project_compatibility.schema_validation_scope():
+        live_runs = build_project_status.visual_evidence_projection(
+          root,
+          [manifest],
+          [manifest_path],
+          [target],
+          {contract_path: contract_digest},
+          live_gaps,
+        )
+      entry["comparison_identity"] = {**live_identity, "status": "INCOMPLETE"}
+      write_file(root, manifest_path, json.dumps(manifest))
+      identity_gaps: list[dict[str, str | None]] = []
+      with project_compatibility.schema_validation_scope():
+        identity_runs = build_project_status.visual_evidence_projection(
+          root,
+          [manifest],
+          [manifest_path],
+          [target],
+          {contract_path: contract_digest},
+          identity_gaps,
+        )
+
+    self.assertEqual(len(no_capture_runs), 1)
+    self.assertEqual(no_capture_runs[0]["run_id"], "UNOBSERVED")
+    self.assertEqual(no_capture_runs[0]["parity_result"], "NOT_VERIFIED")
+    self.assertIn("PARITY_EVIDENCE_UNOBSERVED", [gap["code"] for gap in no_capture_gaps])
+    self.assertEqual(len(live_runs), 1)
+    self.assertEqual(live_runs[0]["reported_parity_result"], "PASS")
+    self.assertEqual(live_runs[0]["parity_result"], "PASS")
+    self.assertEqual(live_runs[0]["parity_resolution"]["status"], "RESOLVED")
+    self.assertTrue(live_runs[0]["parity_resolution"]["promotion_allowed"])
+    self.assertEqual(len(identity_runs), 1)
+    self.assertEqual(identity_runs[0]["run_id"], "UNOBSERVED")
+    self.assertEqual(identity_runs[0]["parity_resolution"]["status"], "BLOCKED")
+    self.assertFalse(identity_runs[0]["parity_resolution"]["promotion_allowed"])
+    self.assertIn("PARITY_IDENTITY_UNBOUND", [gap["code"] for gap in identity_gaps])
 
 
 if __name__ == "__main__":

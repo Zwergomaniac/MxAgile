@@ -228,6 +228,22 @@ The local Copilot session index found no benchmark commit reference, no `mxcli r
 
 These are examples, not comparable cost baselines. `session_files` counts file events/path records, not bytes or unique policy-body tokens.
 
+### Additional Reality Failure Paths (2026-11-03)
+
+The user supplied three further workflow failure paths from the same Regions parity campaign.
+They extend the failure analysis below; they do not revise the provider totals or the
+commit-bounded transcript measurements above.
+
+| Failure path | Reality evidence | Observable count / benchmark treatment |
+|---|---|---|
+| Smoke promoted to parity | Text, reachability, navigation, and an edit control were present; this was incorrectly reported as `overall_result: PASS`. | Occurrence reported; exact count, turns, reads, calls, and output bytes `NOT_OBSERVABLE`. |
+| Screenshot promoted to visual PASS | A Runtime screenshot existed before Reference-vs-Runtime rendering and comparison; after both images were opened and compared, the correct result was `visual_whole_screen = FAIL`. | One described sequence; exact turns, reads, calls, and output bytes `NOT_OBSERVABLE`. |
+| Disposition lost between waves | At least one reconciled `REFERENCE_GAP` was later treated as implementation scope, causing Requirements/Decision re-reconciliation. | At least one repeated reconciliation is reported; exact count, turns, policy reads, calls, and output bytes `NOT_OBSERVABLE`. |
+
+These are user-supplied observations, not transcript-derived counters. Do not add estimated
+tokens, cost, wall time, or policy-read totals. The resolver and persisted-disposition
+reconciliation are recorded in Section 16.
+
 ## 5. Policy Inventory and Primary Recommendation
 
 Sizes are source-file bytes at the current repository baseline. “Consumers” are static direct references, not proof of actual loading. Generated platform copies are excluded from the canonical policy inventory; policies are not individually generated as harness authorities. Size alone does not determine the recommendation.
@@ -256,7 +272,7 @@ Sizes are source-file bytes at the current repository baseline. “Consumers” 
 | `intake-completeness.md` | Intake readiness check | 1,489 | Discovery | Intake-only | ON_DEMAND |
 | `legacy-completion-reconciliation.md` | Historical wave/requirement completion classification | 21,517 | Orchestrator | Overlaps completion/release narrative; no single executable classifier | RESOLVERIZE |
 | `lifecycle-resync.md` | Startup/resume state reconstruction | 26,858 | Startup router | State/schema sources exist; no deterministic end-to-end lifecycle resolver | RESOLVERIZE |
-| `local-runtime-profile.md` | Project mxcli/runtime profile and browser target | 51,181 | Acceptance, Discovery, Implementation, UI, Orchestrator, Q, System, Test, Visual | Binary resolver returns path/source only; no capability/recipe output | RESOLVERIZE |
+| `local-runtime-profile.md` | Project mxcli/runtime profile and browser target | 51,181 | Acceptance, Discovery, Implementation, UI, Orchestrator, Q, System, Test, Visual | Opt-in `Resolve-MxAgileMxcli.ps1 -ResolveRecipe` plus `mxcli_runtime_recipe.py` consume explicit C2 and selected-binary help. No Company Layer runtime schema/source exists, so layers are not scanned or inferred. | C1 IMPLEMENTED |
 | `migration-dfc-to-mxagile.md` | DFC-AI migration procedure | 34,371 | Migration flow | Installer/bootstrap helpers; narrow consumer | ON_DEMAND |
 | `mission-completion.md` | Completion hierarchy and phase continuation | 29,041 | Implementation, Orchestrator | Duplicates `lifecycle.yaml` and release checkpoint semantics | RESOLVERIZE |
 | `mockup-analysis.md` | Mockup analysis procedure | 7,793 | UI, Discovery | Specific to Analyze mode | ON_DEMAND |
@@ -441,7 +457,7 @@ Policy-source sizes are exact current working-tree bytes. Static consumer refere
 | `intake-completeness.md` | 1,489 | Intake readiness; D | Intake-only | ON_DEMAND |
 | `legacy-completion-reconciliation.md` | 21,517 | Historical lifecycle scope; Orchestrator | No single deterministic classification resolver | RESOLVERIZE |
 | `lifecycle-resync.md` | 26,858 | Startup/resume reconstruction; STARTUP/O | Schemas/store helpers exist, but no full lifecycle resolver | RESOLVERIZE |
-| `local-runtime-profile.md` | 51,181 | mxcli/runtime/browser profile; A/D/I/UI/O/Q/Visual | Binary resolver is path-only; no capabilities/recipe result | RESOLVERIZE |
+| `local-runtime-profile.md` | 51,181 | mxcli/runtime/browser profile; A/D/I/UI/O/Q/Visual | Existing resolver now composes an opt-in complete recipe from C2, selected binary version/help, and project `local_runtime`; Company Layer runtime defaults remain unsupported until a canonical schema/source exists. | C1 IMPLEMENTED |
 | `migration-dfc-to-mxagile.md` | 34,371 | DFC migration procedure | Migration-only helpers; legitimate long reference | ON_DEMAND |
 | `mission-completion.md` | 29,041 | Completion hierarchy/continuation; I/O | Duplicates lifecycle and release-checkpoint semantics | RESOLVERIZE |
 | `mockup-analysis.md` | 7,793 | Mockup Analyze procedure; UI/D | Analyze-only | ON_DEMAND |
@@ -493,9 +509,9 @@ Use existing structured owners first:
 
 1. `Get-MxAgileCapabilities.ps1` remains the current-session capability entrypoint; distinguish configured/declarative values from attested runtime facts in its existing output.
 2. Resolve a structured `operating_mode/tool_authority` once from `check-studio-pro-status.ps1` evidence plus `operating-mode.md`; consumers consume it. Do not infer a healthy MCP route from adapter presence.
-3. Extend the existing project-local mxcli resolver boundary: capability evidence (absolute path/version/help), complete resolved recipe, route/status, expected DB identity. The policy remains normative; no competing runtime authority.
+3. C1 extends the existing project-local mxcli resolver boundary: capability evidence (absolute path/version/help), complete resolved recipe, route/status, expected DB identity, and required checks. It consumes one explicit C2 result and does not probe Studio Pro again. The policy remains normative; no competing runtime authority. Company Layer runtime defaults remain unsupported because the repository defines no structured layer source/schema.
 4. Reuse lifecycle schemas/helpers for phase/mission/epoch; provide a deterministic transition/completion result rather than reimplementing state machines in agents.
-5. Reuse verification schemas and `resolve_impact.py` facts; centralize gap/action/layer/fixture/identity decisions into one resolver result only after mapping the existing schemas. Keep product/finding authorization policy normative.
+5. C4 reuses verification schemas and `resolve_impact.py` facts. The existing read-only project-status builder now owns `resolve_parity_status` over seven UI dimensions and the six evidence-matrix dimensions, with evidence sufficiency, validated contract hashes, identity/freshness, capture provenance, and explicit AMBIGUOUS precedence. Keep product/finding authorization policy normative.
 6. Reuse `project_compatibility.py`, `reconcile_external_changes.py`, `reconciliation_git.py`, and `run-impact-tests.py`; do not recreate their algorithms.
 7. Add runtime attestation as an evidence field/provenance in existing delegation/capability output. `configured: supported` and `runtime_attested: observed` must never be conflated. Main model control provenance must allow `USER_CONTROLLED`; child requested/inherited model and actual model are separate.
 
@@ -517,16 +533,15 @@ Move examples, historical reality narratives, tool-specific troubleshooting, and
 
 ## 12. Wave Plan, Risks, and Regression Selection
 
-The evidence confirms C0 first, but adjusts C1/C2 dependency: Runtime Recipe needs an already resolved tool authority. Build a minimal machine-readable authority result before the recipe consumer, then implement the runtime recipe as the first high-reality consumer.
+The original plan placed C0 first and C2 as a precondition for C1. The repository has since completed C1 and C4; this table records their implementation outcomes while preserving C3/C5/C6 as future work.
 
 | Wave | Priority and causal overhead in this benchmark | Existing regression candidates (not run) |
 |---|---|---|
 | **C0 Instrumentation** | First. Persist source/projection/load events, exact bytes, file-read hashes/counts, Context Mode output sizes, handoff/result sizes, compaction IDs/tokens, requested-vs-actual model and manual override provenance. This session could be measured only because local Claude logs happened to exist. | `test-injection-contract.ps1`, `test-managed-block.ps1`, `test-platform-portability.ps1`, `test-agent-delegation.ps1`; add focused telemetry fixtures only after approval. |
 | **C2 minimal Operating Mode authority** | Precondition to C1: consumers currently interpret process detection and tool routing from prose; ensure `LIVE-SP-CURRENT` cannot fall back to mxcli after MCP failure. | `test-operating-mode-detection.ps1`, `test-capability-discovery-routing.ps1`, `test-agent-delegation.ps1`. |
-| **C1 Runtime Recipe** | Highest direct reality: two HSQLDB starts omit the default DB identifier; capability discovery, recipe handoff, invocation and state check must be separate. | `test-mxcli-runtime-resolution.ps1`, `test-local-runtime-profile.ps1`, `test-runtime-orchestration.ps1`, `test-runtime-strategy.ps1`, `test-runtime-startup-recovery.ps1`. |
+| **C1 Runtime Recipe** | IMPLEMENTED: opt-in composer consumes explicit C2, selected binary version/help, project profile, runtime purpose, and required checks; emits complete args and explicit blockers. CLI spellings remain help-dependent. No automatic startup probing or layer scan. Company Layer runtime defaults have no supported structured source and are not inferred. | Focused `test-mxcli-runtime-resolution.ps1` / `test_runtime_recipe.py`; runtime orchestration semantics remain separately owned by its contracts. |
 | **C3 Lifecycle/Mission** | After C0/C2: startup block and long prose describe phase/mission completion alongside lifecycle, mission and context schemas; reduce repeated Re-Sync/continuation logic. | `test-startup-priority.ps1`, `test-session-bootstrap.ps1`, `test-context-epoch-schema.ps1`, `test-context-lifecycle-operational.ps1`, `test-context-transition-coordinator.ps1`, `test-legacy-completion-reconciliation.ps1`. |
-| **C4 Verification decisions** | Centralize the observed multi-file policy mapping for gaps/actions/layers/fixture/identity; schema shape alone does not compute resolution. | `test-verification-gap-taxonomy.ps1`, `test-verification-lifecycle.ps1`, `test-verification-scenarios.ps1`, `test-ui-parity.ps1`, `test-scope-aware-verification.ps1`, `test-agent-delegation-results.ps1`. |
-| **C4 Verification decisions** | Centralize the observed multi-file policy mapping for gaps/actions/layers/fixture/identity; add deterministic aggregate authority so smoke or Reference-vs-Model evidence cannot be promoted to full live parity without required dimensions, sufficiency, freshness, and comparison identity. | Existing candidates: `test-verification-gap-taxonomy.ps1`, `test-verification-lifecycle.ps1`, `test-verification-scenarios.ps1`, `test-ui-parity.ps1`, `test-scope-aware-verification.ps1`, `test-agent-delegation-results.ps1`; add the Regions smoke-only and no-live-runtime regression cases. |
+| **C4 Verification decisions** | IMPLEMENTED: schema v3 and `build_project_status.resolve_parity_status` distinguish SMOKE / REFERENCE_VS_MODEL / LIVE_PARITY; compute from required dimensions, per-matrix typed evidence, verified contract-source hashes, freshness and identity; expose provenance/blockers; unresolved precedence is AMBIGUOUS. Board and UI-Agent consume the same authority. | Focused `test_project_status.py` resolver/Board fixtures and `test-ui-parity.ps1`, including Regions smoke-only and no-live-runtime coverage. |
 | **C5 Source authority / Finding / Impact** | Reduce per-agent reconstruction of source-priority and repeated observe/classify/reconcile stages; retain authorization boundaries. | `test-impact-resolver.ps1`, `test-project-knowledge.ps1`, `test-legacy-completion-reconciliation.ps1`, `test-reconciliation-board.ps1`, `test_external_change_reconciliation.py`. |
 | **C6 Policy deduplication / compaction** | Last, after resolvers establish authority and behavioral fixtures; shorten startup kernel, preserve procedures on demand, reconcile duplicate context docs and evidence-layer vocabulary. | `test-injection-contract.ps1`, `test-managed-block.ps1`, `test-platform-portability.ps1`, `test-context-lifecycle-golden-scenarios.ps1`, `test-verification-economics-regression.ps1`. |
 
@@ -556,3 +571,516 @@ CONTEXT_ARCHITECTURE_BASELINE_COMPLETE = JA
 IMPLEMENTATION_APPROVAL_REQUIRED = JA
 STOP_FOR_APPROVAL = JA
 ```
+
+## 15. Post-Phase-1 Implementation Status (2026-11-02)
+
+This addendum records implementation after the Phase-1 snapshot above; it does not rewrite the measured baseline or its original approval boundary.
+
+**C1 Runtime Recipe: IMPLEMENTED.** The existing `Resolve-MxAgileMxcli.ps1` entry point retains path/source resolution and adds opt-in `-ResolveRecipe`. It consumes explicit C2 authority, selected-binary version/help evidence, project `local_runtime`, purpose, and required checks; the Python composer emits exact supported arguments or explicit blockers. CLI spelling remains help/version-dependent. The repository has no machine-readable Company Layer runtime-default source, so the resolver does not scan or infer layer values; current inputs are project profile or explicit session overrides.
+
+**C4 Parity Aggregate: IMPLEMENTED.** The existing read-only `build_project_status.py` owns `resolve_parity_status` and an on-demand single-report CLI. New UI parity reports use schema v3 while v1/v2 remain available as legacy inputs. `SMOKE` and `REFERENCE_VS_MODEL` cannot produce full live parity PASS. The resolver preserves the existing seven UI dimensions and six evidence-matrix dimensions, requires per-dimension/per-matrix typed evidence, validates Requirement/Decision source hashes for Contract PASS, checks bound comparison identity and target freshness, and requires `whole_screen_review.comparison_result` plus a non-empty summary to agree with the Visual matrix. Reference/runtime capture sides and reviewed IDs must match the current identity and role/state scope. It returns explicit `BLOCKED`, `STALE`, `NOT_OBSERVABLE`, `UNKNOWN`, or `AMBIGUOUS` states with provenance. The existing Board gallery consumes the same result and retains the producer claim separately. The existing canonical Finding store also carries revisioned, hash-bound authority dispositions consumed through Project Status.
+
+**C4 Reality coverage:** synthetic tests exercise smoke suppression, model-only suppression, typed-evidence sufficiency, validated Contract source hashes, identity/freshness mismatch, unresolved precedence, no-capture and unbound-identity Board paths, screenshots without a comparison result, explicit comparison-result mismatch, actual visual FAIL/PARTIAL results, and an eligible LIVE_PARITY Board PASS. Finding fixtures verify V4–V6: `REFERENCE_GAP` prohibits app implementation, `AUTHORITY_CONFLICT` blocks semantic implementation, and changed source fingerprints require a newer persisted reconciliation revision. These tests use no external Mendix runtime or CapTrack artifacts.
+
+**Context boundary:** no C0 telemetry was made automatic; no broad startup reads, repository scans, persistent telemetry store, second operating-mode detector, or separate parity resolver were added. The on-demand parity CLI resolves only the supplied report request. C2 remains the sole tool-authority aggregator; C1 consumes its explicit result.
+
+The Phase-1 baseline contains user-supplied mxcli skill-authority Reality evidence. Exact skill-load events and per-run read counts remain `NOT_OBSERVABLE` until supported by transcript-bound harness evidence; no separate workaround was implemented.
+
+### Historical Pre-Consolidation Verification Status
+
+- Final impact plan: Tier 3, 19 suites, no unmapped paths. Impact Regression: **PASS** (1088.01 s).
+- Focused post-gate checks: credential discovery 66/66, local runtime profile 122/122, UI-driven contract 72/72, projection mapping 1/1. Earlier C1 runtime resolution passed 30/30; UI parity passed 127/127.
+- The single Full Release Gate run returned **FAIL**: Tier 0 had failures in `test-credential-discovery.ps1`, `test-local-runtime-profile.ps1`, and `test-ui-driven-contract.ps1`; Tier 1 and Tier 2 passed. The assertions were aligned with the resolved-recipe and semantic-fidelity contracts, then each affected suite passed in focused runs. The Full Release Gate was not repeated, so full-release status remains **NOT PASSED**.
+- No checkpoint commit was amended and no push was performed.
+
+## 16. Supplemental CapTrack Reality and C4 Reconciliation (2026-11-03)
+
+**Evidence class:** user-supplied CapTrack campaign observations. Raw campaign transcripts and
+provider logs were not supplied in this turn, so only facts stated in the Reality Evidence are
+recorded; turns, read counts, tool-call counts, output volume, tokens, and cost are not inferred.
+
+### A. Evidence Promotion Failure
+
+The campaign reports two failures: minimum navigation/text/edit-control smoke was promoted to
+whole-parity `PASS`; later, a runtime screenshot was reported as whole-screen `PASS` before the
+active reference had been rendered, opened, and actually compared. After the user's correction,
+both sides were opened and compared and the result was `FAIL` due to visual gaps.
+
+Reconciliation against the current C4 contract:
+
+- **Already covered:** `SMOKE` cannot establish live parity; `REFERENCE_VS_MODEL` cannot imply
+  runtime evidence; screenshots prove capture, not comparison; current comparison identity,
+  freshness, role/state scope, paired reference/runtime captures, and visually reviewed capture
+  IDs are required.
+- **Added in C4:** schema v3 and `resolve_parity_status` require an explicit
+  `whole_screen_review.comparison_result` and non-empty `comparison_summary`, require the result
+  to agree with `evidence_matrix.visual_whole_screen_parity.status`, and block a missing result.
+  A contradictory result remains `AMBIGUOUS`; an actual `FAIL` or `PARTIAL` is preserved.
+- **Regression result:** V1 smoke PASS plus missing visual evidence → aggregate is not PASS;
+  V2 captures without a comparison result → visual status is not VERIFIED/PASS; V3 an actual
+  comparison gap → visual and aggregate results remain FAIL/PARTIAL as submitted and resolved.
+
+These are synthetic resolver tests, not a new CapTrack or Regionen-specific implementation.
+
+### B. Authority-Disposition Persistence
+
+The campaign reports at least one previously classified `REFERENCE_GAP` being reinterpreted as
+application implementation scope in a later wave, requiring Requirements/Decision re-reconciliation.
+The exact number of repeated tool calls, policy reads, and agent turns is `NOT_OBSERVABLE` from the
+supplied evidence.
+
+Reconciliation against the current C4/Project Status contract:
+
+- **Already persisted:** canonical Findings under `planning/findings/FIND-*.yml` now carry a
+  revisioned `authority_disposition` with classification, authoritative source hashes, allowed
+  and prohibited actions, unresolved decision, evidence references/fingerprint, and reconciliation
+  timestamp. This uses the existing Finding store, not a new state store.
+- **Already consumed:** the read-only Project Status projection verifies current source/evidence
+  hashes. Later implementation consumes an action only when `status: RESOLVED` and
+  `consumable: true`; stale, missing, unobservable, or ambiguous dispositions route to
+  `RECONCILE` and do not fall back to an old implementation action.
+- **Regression result:** V4 `REFERENCE_GAP` forbids app implementation solely to match an
+  unresolved reference; V5 `AUTHORITY_CONFLICT` blocks semantic implementation; V6 changed
+  authority/fingerprint makes the disposition stale until a new explicit reconciliation and
+  revision are persisted.
+
+V1–V6 are covered by existing `test_project_status.py` resolver/projection fixtures and
+`test-ui-parity.ps1`; no parallel C4 resolver or Regionen-specific test architecture was added.
+
+Executable regression owners in `tests/test_project_status.py` are:
+
+- V1: `ParityStatusResolverTests.test_regions_style_smoke_never_promotes_missing_parity_dimensions`.
+- V2: `ParityStatusResolverTests.test_whole_screen_screenshots_without_comparison_result_do_not_verify_visual_parity`.
+- V3: `ParityStatusResolverTests.test_whole_screen_comparison_gap_is_preserved_as_fail_or_partial`.
+- V4–V6: `ProjectStatusTests.test_persisted_authority_disposition_gates_later_implementation`.
+
+These invoke the parity resolver or Project Status projection and assert resolved/blocked/stale
+behavior, rather than relying on policy-string presence.
+
+### 17. Bounded Policy Consolidation Pass
+
+#### Measured Baseline
+
+Counts are canonical `.mxagile/policies/*.md` source files, measured as UTF-8 file bytes and
+Unicode code points. Line counts split on LF. Policy bodies are not counted from generated copies.
+
+| Measure | Before | After | Change |
+|---|---:|---:|---:|
+| Canonical policy files | 59 | 61 | +2 |
+| Policy lines | 17,490 | 16,679 | -811 (-4.64%) |
+| Policy characters | 792,013 | 758,180 | -33,833 (-4.27%) |
+| UTF-8 bytes | 795,331 | 761,324 | -34,007 (-4.28%) |
+
+The two additional files are on-demand specializations extracted from the broadly referenced C1
+profile: `runtime-dependency-recovery.md` (112 lines / 6,101 bytes) for Gradle stalls and
+`runtime-configuration-reconciliation.md` (109 lines / 5,934 bytes) for project-constant/Studio-Pro
+configuration discrepancies. Neither is read for an ordinary C1 recipe resolution.
+
+#### Basal and Startup Footprint
+
+The repository injector places the managed startup router into AGENTS/Copilot instructions and
+the Claude managed block; the project instruction body is inline for AGENTS/Copilot and imported
+for Claude. It does **not** inline any `.mxagile/policies/*.md` body. Policy links are routing
+contracts, not proof of body loading. Actual per-session policy reads remain `NOT_OBSERVABLE`
+without transcript-bound load evidence.
+
+| Startup footprint | Before | Current |
+|---|---:|---:|
+| Managed startup router | 92 lines / 6,702 UTF-8 B | 42 lines / 3,138 UTF-8 B |
+| Policy bodies automatically inlined by injector | 0 | 0 |
+
+The original router reduction was already in the active worktree and is not attributed as authored
+by this consolidation pass. Regression exposed that its 37-line intermediate form had dropped
+explicit optional-capability and same-session update-completion details; those five lines are now
+restored in the 42-line final router. It remains 50 lines / 3,564 bytes smaller than the measured
+92-line baseline and 62 bytes under the 3,200-byte startup budget. Routing covers safety/Re-Sync,
+tool conflict, C2's structured operating-mode
+result, external changes, delegation, optional capability discovery, update completion, and
+current Finding dispositions. Capability resolution remains on-demand only; install/update
+re-sync is conditional on an update. A routed read is not an automatically loaded body.
+
+#### Final Classification
+
+Each of the 61 canonical policies has exactly one class. `KEEP/BASAL` means the contract must be
+available at the general startup/command boundary; it does not mean the file body is inlined.
+
+**KEEP/BASAL (3)** — cross-cutting safety and session/tool boundary:
+`lifecycle-resync.md`, `safety-rules.md`, `tool-instruction-conflict.md`.
+
+**KEEP/ON-DEMAND (46)** — distinct capability/task boundaries with no duplicate authority removed:
+`acceptance-campaign.md`, `agent-delegation.md`, `autonomous-remediation.md`,
+`backlog-sync.md`, `capability-discovery.md`, `commit-authority.md`, `context-lifecycle.md`,
+`context-transition.md`, `credential-discovery.md`, `design-contract-intake.md`,
+`execution-intent.md`, `external-change-reconciliation.md`, `impact-resolution.md`,
+`implementation-control.md`, `intake-completeness.md`, `legacy-completion-reconciliation.md`,
+`migration-dfc-to-mxagile.md`, `mission-completion.md`, `mockup-analysis.md`,
+`mockup-lifecycle.md`, `mockup-materialization.md`, `observe-before-mutate.md`,
+`ownership-guard.md`, `platform-portability.md`, `project-compatibility.md`,
+`project-knowledge.md`, `project-release-checkpoint.md`, `reconciliation.md`,
+`representative-fixture-contract.md`, `runtime-configuration-reconciliation.md`,
+`runtime-dependency-recovery.md`,
+`runtime-startup-recovery.md`, `scss-engineering.md`, `source-priority.md`,
+`spa-mockup-bundle.md`, `test-contract-derivation.md`, `test-defect-protection.md`,
+`test-harness-cleanup.md`, `test-identity-lifecycle.md`, `test-workflow.md`,
+`ui-element-selection.md`, `update-contract.md`, `user-orientation.md`,
+`verification-layers.md`, `verification-materialization.md`, `verification-scenario.md`.
+
+**SHRINK (12)** — policy remains; repeated semantics are delegated to its existing authority:
+`consistency-check.md`, `development-runtime.md`, `evidence-contract.md`,
+`evidence-levels.md`, `gap-verification-repair.md`, `local-runtime-profile.md`,
+`operating-mode.md`, `parity-finding-reconciliation.md`, `runtime-strategy.md`,
+`test-staleness.md`, `ui-parity.md`, `verification-gap-taxonomy.md`.
+
+**MERGE (0):** none. These boundaries still carry distinct procedures or authorization semantics;
+no giant replacement policy was created.
+
+**DELETE (0):** none. No policy was wholly redundant after tracing its consumers.
+
+#### Consolidations Made
+
+- **C1:** `local-runtime-profile.md`, `development-runtime.md`, `runtime-strategy.md`,
+  workflow/agent/orchestrator/lifecycle/schema consumers now route runtime argv, backend and DB
+  identity through the C1 recipe. Concrete CLI examples and the contradictory Company Layer
+  precedence ladder were removed from policy consumers. Exact syntax remains selected-binary-help
+  owned.
+- **Failure-only runtime recovery:** the Gradle stall/lock procedure is extracted from
+  `local-runtime-profile.md` into the on-demand `runtime-dependency-recovery.md`; schemas, recovery
+  policies, tests, and impact mapping reference that owner.
+- **C2:** `operating-mode.md` delegates detector/state classification and route output to
+  `Get-MxAgileCapabilities.ps1 -ResolveOperatingMode`; `orchestrator.md` and CE0066 handling
+  consume that structured result instead of running a second detector or rebuilding routes.
+- **C4:** `ui-parity.md` and `evidence-contract.md` no longer duplicate aggregate/promotion logic;
+  `build_project_status.resolve_parity_status` owns sufficiency, comparison result, statuses,
+  identity, freshness, and promotion. `gap-verification-repair.md` and
+  `parity-finding-reconciliation.md` refer to the revisioned Finding disposition instead of
+  carrying duplicate classification/action matrices.
+- **Verification vocabulary:** `verification-layers.md` owns five layer semantics and security
+  dimensions; `evidence-levels.md` retains only gate maturity, legacy tag mapping, and recording.
+  `verification-materialization.md` owns revision actions; `test-staleness.md` owns status
+  transitions; `verification-gap-taxonomy.md` owns gap classification only.
+- **Runtime strategy:** Local First/Docker-by-verification-need now has one decision table; concrete
+  mxcli flags and runtime argv are not repeated in consumers.
+
+`KEEP/BASAL` policies intentionally retain only general safety, Re-Sync, and command-authority
+boundaries. Detailed runtime recovery, parity, migration, fixtures, and workflow procedures remain
+task-triggered.
+
+No C0 telemetry, startup scan, automatic probing, external-layer scan, or Regionen-specific rule
+was introduced. UNKNOWN / NOT_OBSERVABLE / BLOCKED / AMBIGUOUS behavior was retained.
+
+#### Final C1/C2/C4 Policy Boundary Review
+
+The review explicitly challenged the prior `MERGE (0)` / `DELETE (0)` result against policies
+whose decision algorithms moved to C1, C2, or C4. The table records the independent contract
+that remains for every current policy; a resolver owning one algorithm does not automatically
+replace a policy's distinct authorization, lifecycle, evidence, or recovery contract.
+
+**KEEP/BASAL (3)**
+
+| Policy | Independent contract boundary |
+|---|---|
+| `lifecycle-resync.md` | Reconstruct and preserve current lifecycle state at startup/resume. |
+| `safety-rules.md` | Cross-cutting safety and mutation prohibitions. |
+| `tool-instruction-conflict.md` | Resolve instruction-source precedence before tool use. |
+
+**KEEP/ON-DEMAND (46)**
+
+| Policy | Independent contract boundary |
+|---|---|
+| `acceptance-campaign.md` | Acceptance campaign scope, gates, evidence, and outcomes. |
+| `agent-delegation.md` | Bounded semantic work packages, handoffs, and result authority. |
+| `autonomous-remediation.md` | Eligibility and approval to apply a confirmed repair. |
+| `backlog-sync.md` | External Board synchronization without granting scope authority. |
+| `capability-discovery.md` | When optional capabilities may be queried and how results are used. |
+| `commit-authority.md` | Authorization and preconditions for Git commits. |
+| `context-lifecycle.md` | Context epoch, pressure, resume, and checkpoint lifecycle. |
+| `context-transition.md` | Compaction/epoch transition steps and context preservation. |
+| `credential-discovery.md` | Route-specific credential discovery and secret handling. |
+| `design-contract-intake.md` | Identity and mapping of an incoming Design Contract. |
+| `execution-intent.md` | Classify request intent before choosing a lifecycle route. |
+| `external-change-reconciliation.md` | Git delta, Finding impact, and watermark reconciliation. |
+| `impact-resolution.md` | Resolve candidate Requirement/Task links without authorizing mutation. |
+| `implementation-control.md` | Ordered implementation controls and required approvals. |
+| `intake-completeness.md` | Required intake evidence before Discovery readiness. |
+| `legacy-completion-reconciliation.md` | Reconcile historical completion claims to current artifacts. |
+| `migration-dfc-to-mxagile.md` | Preserve knowledge and map artifacts during DFC migration. |
+| `mission-completion.md` | Mission completion, continuation, and scope boundaries. |
+| `mockup-analysis.md` | Extract structured semantics from a mockup. |
+| `mockup-lifecycle.md` | Active target revision identity and lifecycle. |
+| `mockup-materialization.md` | Materialize/render the exact accepted target artifact. |
+| `observe-before-mutate.md` | Enforce observation and reconciliation before mutation. |
+| `ownership-guard.md` | Distinguish Core-owned from project-owned artifacts. |
+| `platform-portability.md` | Cross-platform constraints for install and engineering commands. |
+| `project-compatibility.md` | Doctor diagnostics and compatibility reporting after Core updates. |
+| `project-knowledge.md` | Canonical project artifact map and legacy knowledge boundaries. |
+| `project-release-checkpoint.md` | Release checkpoint, scope freeze, and completion evidence. |
+| `reconciliation.md` | Core update, Discovery/Refinement, and legacy-artifact reconciliation. |
+| `representative-fixture-contract.md` | Representativeness and readiness of verification fixtures. |
+| `runtime-configuration-reconciliation.md` | Rare project-constant/Studio-Pro discrepancy disposition with secret safeguards. |
+| `runtime-dependency-recovery.md` | Failure-only Gradle stall and lock-owner recovery. |
+| `runtime-startup-recovery.md` | Staged runtime startup diagnosis and bounded recovery. |
+| `scss-engineering.md` | SCSS implementation and design-system constraints. |
+| `source-priority.md` | Concern-specific source authority and conflict resolution. |
+| `spa-mockup-bundle.md` | SPA mockup bundle and revision handling. |
+| `test-contract-derivation.md` | Derive canonical Test Contracts from accepted requirements. |
+| `test-defect-protection.md` | Separate application defects from test/infrastructure failures. |
+| `test-harness-cleanup.md` | Cleanup boundaries for test-created workspaces and identities. |
+| `test-identity-lifecycle.md` | Separate bootstrap identity from requested verification roles. |
+| `test-workflow.md` | Choose and execute the applicable test workflow. |
+| `ui-element-selection.md` | Select Atlas/UI elements from established interaction patterns. |
+| `update-contract.md` | Same-session re-sync and structured update completion. |
+| `user-orientation.md` | Orient only when no current project state is established. |
+| `verification-layers.md` | Verification-layer and security-dimension semantics. |
+| `verification-materialization.md` | Decide which proof artifacts/actions become stale after change. |
+| `verification-scenario.md` | Construct role/state/viewport verification scenarios. |
+
+**SHRINK (12)**
+
+| Policy | Independent contract retained after authority delegation |
+|---|---|
+| `consistency-check.md` | Consistency workflow consumes C2-selected tools; it does not redetect operating mode. |
+| `development-runtime.md` | Runtime lifecycle/readiness remains; C1 owns the executable recipe. |
+| `evidence-contract.md` | Capture identity, storage, and retention remain; C4 owns aggregation/promotion. |
+| `evidence-levels.md` | Gate maturity and recording remain; `verification-layers.md` owns layer vocabulary. |
+| `gap-verification-repair.md` | GAP type/severity and repair acceptance remain; Finding owns action disposition. |
+| `local-runtime-profile.md` | Runtime profile inputs/overrides remain; C1 owns argv/backend/database resolution. |
+| `operating-mode.md` | User questions, mutation re-checks, and failure semantics remain; C2 owns detection/routes. |
+| `parity-finding-reconciliation.md` | Observation/authority reconciliation remains; Finding/Project Status own action currentness. |
+| `runtime-strategy.md` | Local-first versus Docker-by-verification-need remains; C1 owns invocation details. |
+| `test-staleness.md` | Test-state transitions remain; materialization owns revision-action mapping. |
+| `ui-parity.md` | UI dimensions, proof types, and comparison procedure remain; C4 owns sufficiency/aggregate promotion. |
+| `verification-gap-taxonomy.md` | Gap/fixture classifications remain; materialization owns remediation actions. |
+
+#### Merge/Delete Challenge
+
+| Candidate | Decision | Reason |
+|---|---|---|
+| `development-runtime.md` + `runtime-strategy.md` | Keep separate; both remain `SHRINK`. | One owns runtime lifecycle/readiness; the other selects verification hosting and escalation. Merging would combine distinct triggers and enlarge a frequently referenced procedure. |
+| `gap-verification-repair.md` + `parity-finding-reconciliation.md` | Keep separate; both remain `SHRINK`/on-demand. | GAP kind/severity/repair acceptance and observation-to-authority reconciliation are orthogonal; C4 removed the duplicated action mapping. |
+| `evidence-levels.md` + `verification-layers.md` | Keep separate; both remain `SHRINK`/on-demand. | Evidence maturity and verification/security dimension describe different axes; the duplicated vocabulary was removed. |
+| `ui-parity.md` + `evidence-contract.md` | Keep separate; both remain `SHRINK`. | UI-specific proof procedure differs from evidence identity/retention; only aggregate sufficiency and promotion moved to C4. |
+| `local-runtime-profile.md` + `runtime-configuration-reconciliation.md` | Keep separate. | C1 profile/recipe inputs are normal runtime authority; discrepancy diagnosis is a rare, confirmation-bound reconciliation path and the old duplicate block is gone. |
+| `local-runtime-profile.md` + `runtime-dependency-recovery.md` | Keep separate. | General runtime profile and Gradle lock/stall recovery have different trigger frequency and action boundaries. |
+
+No current policy is fully replaced by C1/C2/C4: each resolver replaced a decision algorithm, while
+the retained policies above own independent input, authorization, lifecycle, evidence, or recovery
+contracts. Thus `MERGE (0)` / `DELETE (0)` remains a defensible result, not a file-count target; the
+prior duplication was removed through delegation and shrinkage without creating a collection
+policy. The 61-policy count includes two justified, failure-only Runtime extensions.
+
+### Failed-Suite Contract Reconciliation (2026-11-03)
+
+The single authorized post-consolidation Full Release Gate exited with code 1:
+Fast Gate PASS, Tier 0 FAIL (11 suites), Tier 1 FAIL (3 suites), Tier 2 PASS,
+Full Regression FAIL (14 suites). This result remains historical FAIL; focused repairs
+do not retroactively turn it into PASS. No new Full Release Gate, commit, or push was performed.
+
+Only the failed test contracts were changed in this reconciliation. Production behavior and
+canonical policy sources were not changed. Assertions now check the consumer's route and the
+retained requirement at its canonical owner rather than require duplicate prose or retired
+metadata/CLI spellings. EXTEND preservation, credential safety, BUILD proof strength, C4
+comparison/identity requirements, and bounded Git recovery remain covered.
+
+RF-004 was checked against the current C2 implementation, not merely relabeled: isolated tests
+execute the real detector adapter and mode/route resolver functions with synthetic process
+output. Timeout retains UNKNOWN, null observations, detector source and TIMEOUT reason; on
+Windows it yields AMBIGUOUS-SP-STATE with no mutation route. An MPR lock alone cannot establish
+LIVE-SP or execution intent. The existing positive headless-platform exemption is retained.
+No missing production semantics were demonstrated. Validation ran on Windows; the headless
+branch was not executed on a non-Windows host.
+
+| Previously failed suite | Focused post-repair evidence |
+|---|---|
+| `test-credential-discovery.ps1` | PASS: 66 checks |
+| `test-execution-intent.ps1` | PASS: 36 checks |
+| `test-extend-semantics.ps1` | PASS: 36 checks |
+| `test-hardening-rf004-sp-detector.ps1` | PASS: 12 checks |
+| `test-lifecycle-resync.ps1` | PASS: 115 checks |
+| `test-orientation.ps1` | PASS: 47 checks |
+| `test-mockup-materialization.ps1` | PASS: 78 checks |
+| `test-project-knowledge.ps1` | PASS: 42 checks |
+| `test-verification-economics-regression.ps1` | PASS: 39 checks |
+| `test-verification-scenarios.ps1` | PASS: 133 checks |
+| `test-wp2-lifecycle-extensions.ps1` | PASS: 224 checks |
+| `test-git-index-integrity.ps1` | Its one failed Python contract method: PASS; green Git fixtures not rerun |
+| `test-git-recovery.ps1` | Its one failed Python contract method: PASS; green Recovery fixtures not rerun |
+| `test-mxcli-runtime-resolution.ps1` | Contract-only PASS: 29 checks; green recipe behavior suite explicitly skipped |
+
+The HSQLDB/default-database recipe remains covered by
+`test_runtime_recipe.py::RuntimeRecipeTests.test_composes_default_db_recipe_from_c2_profile_and_help`.
+Removing the obsolete fixed argv example from the generic-policy assertion does not remove
+that behavior requirement. Default full-suite execution still runs the recipe behavior suite;
+`-ContractOnly` permits this focused rerun without repeating its prior green evidence.
+
+All original failing assertions have successful focused follow-up evidence. No remaining blocker
+from those failures is known. A new Fast Gate, Impact Regression, and Full Regression were not
+run in this repair step; the existing interrupted Impact stays INCOMPLETE and the previous Full
+Regression stays FAIL. New release evidence requires separate authorization.
+
+### Parked SessionStart Provisioning Follow-Up
+
+Classification: **REAL ISSUE / FOLLOW-UP**, excluded from the current changeset completion.
+The reported first-run session downloaded Mendix Runtime 11.16.0, synchronized 22 Java
+dependencies, and attempted PostgreSQL provisioning, failing because `initdb` was unavailable.
+The reported installation's exact mxcli version and hook contents were not supplied.
+
+Read-only inspection of upstream mxcli at commit
+`6094f471fc01535ea51886aeaf03f1b530c9445b` established the generated Claude SessionStart route:
+`.claude/settings.json` -> `.claude/bootstrap-mxcli.sh` ->
+`run --local --setup --ensure-db`. The current template invokes this inside a shell block
+using `"$MXCLI"`, with output piped to `tee`. The existing Core installer fixup only removes
+the old `exec ./mxcli run --local ...` form, so it does not neutralize this newer form.
+Concord as the session origin does not establish a separate Concord-owned hook.
+
+This hook can bypass the C1 on-demand recipe and backend selection: setup still provisions
+runtime/dependencies/DB, and `--ensure-db` selects PostgreSQL provisioning rather than HSQLDB.
+Runtime downloads are normally per version and preserved user cache; missing Java JARs and
+unavailable PostgreSQL can trigger work again in later sessions. A cached runtime does not
+establish a running app, usable DB, or verified fixture.
+
+Follow-up scope: robust handling of current framework-installed mxcli hook forms, preservation
+of legitimate tooling bootstrap, and targeted regression for on-demand runtime/DB provisioning.
+No installer/hook fix, new policy, or test for this finding was added here. The original
+14-suite failure baseline and the focused repair evidence above remain separate.
+
+### Authorized Full Release Attempt After Repairs (2026-11-03)
+
+Status: **INCOMPLETE**, not PASS and not a demonstrated test-suite FAIL.
+Exactly one new canonical invocation (`python tests/run-impact-tests.py --tier release`)
+was started at 14:41:12 +01:00 after explicit user authorization. Tier 2 was not disabled.
+Fast Gate completed with PASS (2.25 seconds). The saved log proceeds through Tier 0 and
+part of Tier 1, but ends at `EXECUTING [Tier 1]: test-git-index-integrity.ps1`; its last
+write is 14:49:56. There is no final Tier 0/1/2 summary or Full Regression result.
+
+The terminal reports exit code 1, but the wrapper's post-run result marker was never
+written. A subsequent read-only process observation found no matching gate/runner/Git-index
+test processes. Therefore this attempt did not complete normally; the interruption cause
+is UNPROVEN. Do not classify the unfinished Git-index suite as a functional failure or
+infer a successful gate from the already completed output.
+
+Evidence prefix in the local Temp directory: `mxagile-context-release-20261103-144039`.
+The `.log`, `.before.json`, and `.planner.log` files are retained outside the repository.
+After observing the incomplete execution, a fresh read-only comparison against the saved
+baseline found HEAD unchanged at `c767ca4150d9bd7c812fba6f581c168dc9be86d6`, zero file-hash
+differences, and zero Git-status differences. No gate-induced changes were detected.
+Only this report was subsequently updated to record the outcome.
+
+No automatic retry, fix, commit, or push was performed. The prior Full Regression remains
+historical FAIL; the focused repairs remain PASS; this new Full Regression attempt remains
+INCOMPLETE. The SessionStart provisioning follow-up remains parked and unimplemented.
+Further execution or code changes require renewed user authorization.
+
+### Eigener Gesamtbericht: Zusammengesetzte Verifikation (2026-11-03)
+
+**Ergebnis:** Vollstaendige Inventarabdeckung mit erfolgreicher Einzeltest-Evidenz.
+**Kein kanonischer Full-Gate-PASS:** Die beiden abgebrochenen Full-Gate-Versuche bleiben
+INCOMPLETE. Dieser ausdruecklich beauftragte Bericht kombiniert vorhandene Log-Evidenz
+mit einem separaten manuellen Restlauf; er ersetzt keine finale Runner-Aggregation.
+
+#### Evidenz und Abgrenzung
+
+- Ausgangslauf: `mxagile-context-release-retry-20261103-151104.log` im lokalen Temp-Verzeichnis.
+  Fast Gate PASS (2.84 Sekunden); 93 abgeschlossene Suite-Ausgabeabschnitte vor dem
+  unterbrochenen Layer-Update-Test. Line-by-line-Pruefung fand keine fehlgeschlagenen
+  Assertions oder Python-Fehlerzusammenfassungen. Die Fortsetzung zum jeweils naechsten
+  Suite-Header belegt die Rueckkehr der vorherigen Suite; individuelle Exitcodes wurden
+  dort nicht dauerhaft gespeichert. Deshalb bleibt dies Log-Evidenz, kein nachtraeglich
+  rekonstruierter kanonischer Gate-PASS.
+- Manueller Restlauf: `mxagile-manual-remainder-20261103-191639.results.json` sowie separate
+  stdout/stderr-Logs pro Suite im Temp-Verzeichnis. 26/26 Suiten PASS, alle Exitcode 0,
+  keine Skips, Timeouts oder Ausfuehrungsfehler. Ausfuehrung seriell von 19:16:58 bis
+  19:51:05 +01:00, rund 34 Minuten. Nur der unterbrochene Layer-Update-Test und die
+  25 noch nicht gestarteten Suiten wurden ausgefuehrt; keine abgeschlossene Suite des
+  Ausgangslaufs wurde erneut gestartet.
+- Sicherheitsgrenze des manuellen Laufs: 30 Minuten pro eigenem Testprozess. Keine Suite
+  erreichte diese Grenze; keine Timeout-bedingte Prozessbeendigung war erforderlich.
+- Gegen das aktuelle Inventar geprueft: 119 eindeutige Suiten abgedeckt, keine fehlenden
+  oder doppelt angerechneten Suiten. Die 26 neuen Ergebnisse wurden den vorhandenen
+  93 Abschnitten nur fuer diesen eigenstaendigen Bericht zugeordnet.
+
+| Tier | Vorhandene abgeschlossene Log-Abschnitte | Neuer manueller Restlauf | Inventarabdeckung |
+|---|---:|---:|---:|
+| Tier 0 | 72 | 0 | 72/72 |
+| Tier 1 | 21 | 18 PASS | 39/39 |
+| Tier 2 | 0 | 8 PASS | 8/8 |
+| Gesamt | 93 | 26 PASS | 119/119 |
+
+#### Manueller Restlauf
+
+Alle folgenden Suiten wurden vollstaendig, ohne `-ContractOnly` oder Teiltestauswahl,
+ausgefuehrt. PASS wird hier durch den gespeicherten Exitcode 0 und fehlende Skip-Marker
+belegt; verschachtelte Verhaltenstests der jeweiligen Suite wurden mit ausgefuehrt.
+
+| Suite | Tier | Ergebnis | Dauer (Sekunden) |
+|---|---:|---|---:|
+| `test-layer-update.ps1` | 1 | PASS | 359.20 |
+| `test-managed-block.ps1` | 1 | PASS | 22.90 |
+| `test-materialization-contract.ps1` | 1 | PASS | 19.22 |
+| `test-migration-crash-safety.ps1` | 1 | PASS | 36.91 |
+| `test-migration-provenance.ps1` | 1 | PASS | 44.12 |
+| `test-mxagile-dev-cli.ps1` | 1 | PASS | 109.07 |
+| `test-mxcli-binary-cache.ps1` | 1 | PASS | 14.64 |
+| `test-mxcli-runtime-resolution.ps1` | 1 | PASS | 14.45 |
+| `test-parity-gallery.ps1` | 1 | PASS | 56.63 |
+| `test-project-status.ps1` | 1 | PASS | 42.80 |
+| `test-reconciliation-board.ps1` | 1 | PASS | 566.48 |
+| `test-session-bootstrap.ps1` | 1 | PASS | 15.95 |
+| `test-spa-bundle-revision.ps1` | 1 | PASS | 15.37 |
+| `test-startup-priority.ps1` | 1 | PASS | 15.51 |
+| `test-transformation-behavioral.ps1` | 1 | PASS | 39.70 |
+| `test-utf8-idempotency.ps1` | 1 | PASS | 33.40 |
+| `test-workcopy-hygiene.ps1` | 1 | PASS | 70.38 |
+| `test-wp10-artifact-schemas.ps1` | 1 | PASS | 29.26 |
+| `test-bootstrap-generic.ps1` | 2 | PASS | 67.15 |
+| `test-capability-discovery-routing.ps1` | 2 | PASS | 97.59 |
+| `test-core-installer.ps1` | 2 | PASS | 79.33 |
+| `test-init-idempotency.ps1` | 2 | PASS | 34.56 |
+| `test-install-bootstrap-regression.ps1` | 2 | PASS | 48.59 |
+| `test-local-updater.ps1` | 2 | PASS | 19.52 |
+| `test-ps51-compatibility.ps1` | 2 | PASS | 14.90 |
+| `test-setup-detection.ps1` | 2 | PASS | 178.38 |
+
+Relevante neue Detailnachweise: Project Status 80 Python-Tests PASS; Parity Gallery
+13 Python-Tests PASS; C1 Runtime Resolution 30 Vertragspruefungen und 12 Recipe-
+Verhaltenstests PASS. Layer-Update, Board-Reconciliation und saemtliche Tier-2-Suiten
+sind nicht mehr offen. Erwartete Fehler-/Rollback-Szenarien innerhalb dieser Suiten
+sind keine fehlgeschlagenen Tests, wenn ihre Assertions und der Suite-Exit erfolgreich sind.
+
+#### Repository und verbleibende Grenzen
+
+Die Vorher-Fingerprints des Ausgangslaufs und des manuellen Restlaufs sind identisch.
+Nach Ende des Restlaufs: HEAD weiterhin `c767ca4150d9bd7c812fba6f581c168dc9be86d6`,
+null Dateihash-Abweichungen und null Git-Status-Abweichungen gegen dessen Vorher-Basis.
+Der bestehende Dirty State wurde erhalten; die Tests erzeugten keine unerwartete
+versionierte oder nicht ignorierte Repository-Aenderung. Erst danach wurde dieser
+Gesamtbericht ergaenzt.
+
+Keine bekannten fehlenden Suiten oder beobachteten Testfehler in der zusammengesetzten
+Inventarabdeckung. Fast Gate bleibt separat PASS aus dem Ausgangslauf; ein separater
+neuer Impact Regression wurde nicht ausgefuehrt. Kanonischer Full Regression bleibt
+INCOMPLETE, nicht PASS. Keine Produktionslogik, Runner-/Resume-/Performance-Optimierung
+oder SessionStart-Follow-up-Behebung wurde umgesetzt; kein Commit und kein Push.
+
+Die rein lesende Fortschrittsabfrage liegt ausserhalb des Repositories unter
+`%TEMP%/Get-MxAgileManualProgress.ps1`; sie aendert weder Tests noch Gate-Semantik.
+Die Log-/JSON-Belege bleiben lokal im Temp-Verzeichnis und sind nicht Git-versioniert.
+
+### Akzeptierter Entwicklungs-Checkpoint (2026-11-03)
+
+Der Maintainer hat die zusammengesetzte Verifikation mit 119/119 abgedeckten Suiten
+und keinem bekannten verbleibenden Testfehler ausdruecklich als ausreichend belastbar
+fuer diesen Entwicklungs-/Reality-Test-Zyklus akzeptiert. Der urspruengliche Context-/
+Policy-/C4-Hardening-Auftrag wird auf dieser Basis als lokaler Git-Checkpoint abgeschlossen.
+
+Die fehlende kanonische Full-Gate-PASS-Evidenz bleibt **akzeptierte technische
+Verifikationsschuld**. Kanonischer Full Release Gate: **INCOMPLETE**, niemals nachtraeglich
+PASS. Diese auf den aktuellen Zyklus begrenzte Maintainer-Entscheidung aendert keine
+allgemeine Framework-Gate-Semantik und ist keine Produktions-/Release-Freigabe.
+Weitere Gate-/Host-Diagnose und Framework-Optimierungen werden vor dem naechsten
+Reality-Test nicht begonnen. Der naechste Arbeitsstrang ist der Reality-Test im realen
+Projekt und wird durch diesen Checkpoint nicht automatisch gestartet.
+
+Der mxcli-SessionStart-/Provisioning-Fund bleibt separat **REAL ISSUE / FOLLOW-UP**,
+geparkt und unimplementiert. Der Maintainer hat einen reproduzierbaren lokalen
+Checkpoint-Commit autorisiert, keinen Push. Die vorherigen Checkpoints bleiben
+unveraendert; kein Amend, History Rewrite oder Gate-Ergebnis-Rewrite.

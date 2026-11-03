@@ -97,4 +97,7 @@ class IndexIntegrityTests(unittest.TestCase):
         installer = (root / "scripts/install-core.ps1").read_text(encoding="utf-8")
         self.assertLess(installer.index("$guardOutput ="), installer.index("Running project type detection"))
         self.assertIn('".mxagile/tools/git_index_integrity.py"', installer)
-        self.assertIn("git_index_integrity.py", (root / "scripts/apply-project-agent-instructions.ps1").read_text(encoding="utf-8"))
+        routing = (root / "scripts/apply-project-agent-instructions.ps1").read_text(encoding="utf-8")
+        self.assertRegex(routing, r"Read `\.mxagile/policies/safety-rules\.md` and run the read-only Git\s+index guard before Git-derived drift analysis or mutations")
+        self.assertIn("python .mxagile/tools/git_index_integrity.py --project-root .", safety)
+        self.assertIn("jeder andere Exit blockiert normale Mutationen", safety)

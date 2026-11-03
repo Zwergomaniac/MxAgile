@@ -74,6 +74,8 @@ $CredPol    = Join-Path $ScriptDir ".mxagile/policies/credential-discovery.md"
 $RuntimeStr = Join-Path $ScriptDir ".mxagile/policies/runtime-strategy.md"
 $ToolConflict = Join-Path $ScriptDir ".mxagile/policies/tool-instruction-conflict.md"
 $RuntimeRecovery = Join-Path $ScriptDir ".mxagile/policies/runtime-startup-recovery.md"
+$DependencyRecovery = Join-Path $ScriptDir ".mxagile/policies/runtime-dependency-recovery.md"
+$ConfigReconciliation = Join-Path $ScriptDir ".mxagile/policies/runtime-configuration-reconciliation.md"
 $UiAgent = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 $VisualSkill = Join-Path $ScriptDir ".mxagile/skills/visual-verification.md"
 $BrowserCliConfig = Join-Path $ScriptDir ".playwright/cli.config.json"
@@ -85,8 +87,8 @@ Write-Host "TEST A: Project-declared db_name overrides .mpr-derived default" -Fo
 
 Assert-FileContains "A.1 schema has db_name field" $Schema '"db_name"'
 Assert-FileContains "A.2 schema db_name description mentions .mpr override" $Schema '\.mpr'
-Assert-FileContains "A.3 local-runtime-profile.md defines autonomous db_name precedence (Core default 'default')" $LocalProf '(?i)Core autonomous default.*default|autonomous default.*default'
-Assert-FileContains "A.4 development-runtime.md states project declaration wins over Core default" $DevRuntime '(?i)project-declared override|PROJECT_DECLARED'
+Assert-FileContains "A.3 C1 composer resolves the Core autonomous db_name default" (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
+Assert-FileContains "A.4 C1 composer resolves project db_name as declared" (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)PROJECT_DECLARED'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -97,20 +99,16 @@ Assert-FileContains "B.1 schema has db_type field" $Schema '"db_type"'
 Assert-FileContains "B.2 schema db_type has hsqldb option" $Schema 'hsqldb'
 Assert-FileContains "B.3 schema db_type has postgresql option" $Schema 'postgresql'
 Assert-FileContains "B.4 local-runtime-profile.md covers db_type in precedence" $LocalProf 'db_type'
-Assert-FileContains "B.5 development-runtime.md references db_type in database section" $DevRuntime 'db_type'
+Assert-FileContains "B.5 local-runtime-profile.md references db_type in configuration" $LocalProf 'db_type'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "TEST C: Company Layer runtime defaults are lower precedence than project overrides" -ForegroundColor Cyan
+Write-Host "TEST C: Company Layer runtime defaults have no implicit source" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
-Assert-FileContains "C.1 local-runtime-profile.md defines 5-level precedence" $LocalProf 'Company Layer'
-Assert-FileContains "C.2 precedence places project above Company Layer" $LocalProf 'mxagile-project.yaml'
-# Verify that Company Layer is at level 3, below project at level 2
-$LPContent = Get-Content -LiteralPath $LocalProf -Raw -ErrorAction SilentlyContinue
-$projLine  = ($LPContent -split "`n") | Select-String '2\.' | Where-Object { $_ -match 'mxagile-project' } | Select-Object -First 1
-$layerLine = ($LPContent -split "`n") | Select-String '3\.' | Where-Object { $_ -match 'Company Layer' } | Select-Object -First 1
-Assert-True "C.3 project declared (level 2) appears before Company Layer (level 3) in precedence list" ($null -ne $projLine -and $null -ne $layerLine) "Could not find numbered precedence entries in local-runtime-profile.md"
+Assert-FileContains "C.1 Company Layer runtime defaults have no canonical schema or source" $LocalProf 'does not define a machine-readable runtime-default schema'
+Assert-FileContains "C.2 resolver does not scan or infer Company Layer runtime values" $LocalProf 'MUST NOT scan.*\.mxagile/layers|MUST NOT scan'
+Assert-FileContains "C.3 project profile is an explicit runtime input" $LocalProf '(?is)Runtime values must be present in the project-declared.*local_runtime'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -119,8 +117,9 @@ Write-Host "TEST D: Runtime constant overrides supplied through mxcli --constant
 
 Assert-FileContains "D.1 schema has constant_overrides array" $Schema '"constant_overrides"'
 Assert-FileContains "D.2 schema constant has name and purpose fields" $Schema '"purpose"'
-Assert-FileContains "D.3 local-runtime-profile.md specifies --constant flag mechanism" $LocalProf '\-\-constant'
-Assert-FileContains "D.4 policy prohibits config.json as authoritative constant mechanism" $LocalProf 'config\.json'
+Assert-FileContains "D.3 C1 composer includes the advertised constant-control capability" `
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '--constant'
+Assert-FileContains "D.4 policy prohibits config.json as authoritative constant mechanism" $ConfigReconciliation 'config\.json'
 Assert-FileNotContains "D.5 Core does not hard-code UserCommons.DisableMxAdmin" $DevRuntime 'UserCommons\.DisableMxAdmin'
 Assert-FileNotContains "D.6 schema does not hard-code UserCommons.DisableMxAdmin" $Schema 'UserCommons\.DisableMxAdmin'
 
@@ -132,8 +131,8 @@ Write-Host "TEST E: Secret values remain in .env.mendix and are not copied to tr
 Assert-FileContains "E.1 schema uses env_key reference pattern for db password" $Schema 'db_password_env_key'
 Assert-FileContains "E.2 schema uses env_key reference pattern for admin password" $Schema 'admin_password_env_key'
 Assert-FileContains "E.3 schema description for env_key says never the value" $Schema 'never the value'
-Assert-FileContains "E.4 local-runtime-profile.md distinguishes non-secret config from secret references" $LocalProf 'Secret reference'
-Assert-FileNotContains "E.5 local-runtime-profile.md does not say to store secrets in mxagile-project.yaml" $LocalProf 'store.*secret.*mxagile-project'
+Assert-FileContains "E.4 runtime configuration policy keeps secret values in env files" $ConfigReconciliation '(?is)env_key.*value stays in.*\.env\.mendix'
+Assert-FileNotContains "E.5 runtime configuration policy does not store secrets in mxagile-project.yaml" $ConfigReconciliation 'store.*secret.*mxagile-project'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -192,24 +191,23 @@ Write-Host "TEST K: Watch-loop starts only after valid initial readiness" -Foreg
 
 Assert-FileContains "K.1 local-runtime-profile.md describes cold-start then watch loop" $LocalProf 'cold start'
 Assert-FileContains "K.2 local-runtime-profile.md states Playwright must not start before BROWSER_RENDERED" $LocalProf 'BROWSER_RENDERED.*confirmed'
-Assert-FileContains "K.3 development-runtime.md references Watch-Mode Startup Semantics" $DevRuntime 'Watch-Mode'
+Assert-FileContains "K.3 development-runtime.md references C1 runtime lifecycle semantics" $DevRuntime 'C1 recipe selects an interactive or autonomous runtime lifecycle'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "TEST L: Gradle-lock stall classified precisely" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
-Assert-FileContains "L.1 local-runtime-profile.md covers Gradle lock handling" $LocalProf 'Gradle'
-Assert-FileContains "L.2 policy says classify precisely" $LocalProf 'classify'
-Assert-FileContains "L.3 development-runtime.md references Gradle lock section" $DevRuntime 'Gradle'
+Assert-FileContains "L.1 normal runtime profile routes stalls to failure-only recovery" $LocalProf 'runtime-dependency-recovery\.md'
+Assert-FileContains "L.2 dependency recovery policy is explicitly failure-only" $DependencyRecovery 'Failure-only contract'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "TEST M: Arbitrary process killing is not the default remediation" -ForegroundColor Cyan
+Write-Host "TEST M: Failure-only recovery prohibits arbitrary process killing" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
-Assert-FileContains "M.1 local-runtime-profile.md prohibits arbitrary process kill" $LocalProf 'MUST NOT automatically kill'
-Assert-FileContains "M.2 policy recommends gradle --stop as safe alternative" $LocalProf 'gradle --stop'
+Assert-FileContains "M.1 recovery policy prohibits automatic Java/Gradle process killing" $DependencyRecovery 'MUST NOT automatically kill arbitrary Java/Gradle processes'
+Assert-FileContains "M.2 gradle --stop is a bounded recovery option" $DependencyRecovery 'gradle --stop'
 Assert-FileNotContains "M.3 development-runtime.md does not recommend wmic process kill" $DevRuntime 'wmic.*kill'
 
 # ---------------------------------------------------------------------------
@@ -228,7 +226,7 @@ Write-Host "TEST O: Local First runtime-strategy regressions remain green" -Fore
 # ---------------------------------------------------------------------------
 
 Assert-FileContains "O.1 runtime-strategy.md still contains LOCAL FIRST principle" $RuntimeStr 'LOCAL FIRST'
-Assert-FileContains "O.2 development-runtime.md still references local warm loop" $DevRuntime 'mxcli run --local'
+Assert-FileContains "O.2 development-runtime.md routes local loop through C1" $DevRuntime 'C1-resolved interactive recipe'
 Assert-FileContains "O.3 local-runtime-profile.md does not replace Local First principle" $LocalProf 'local'
 Assert-FileNotContains "O.4 development-runtime.md does not default to Docker" $DevRuntime '^docker.*default'
 
@@ -243,31 +241,31 @@ Write-Host "TEST P: DB identity safety, base vs effective command, and unverifie
 #   - No unverified mxcli flag is stated as canonical in policy
 
 Assert-FileContains "P.1 policy defines base command concept" `
-    $DevRuntime '(?i)base command'
+    $LocalProf '(?i)base command|resolved_runtime_recipe'
 
 Assert-FileContains "P.2 policy defines effective command concept" `
-    $DevRuntime '(?i)effective command'
+    $LocalProf '(?i)effective invocation|resolved_runtime_recipe'
 
 Assert-FileContains "P.3 policy prohibits executing base command without profile resolution" `
-    $DevRuntime '(?i)MUST NOT execute the base command'
+    $LocalProf '(?i)recipe.s argument array is the sole invocation authority|Do not start the runtime unless the status is RESOLVED'
 
 Assert-FileContains "P.4 policy defines MxAgile Core autonomous DB default (MXAGILE_CORE_DEFAULT)" `
-    $DevRuntime '(?i)MXAGILE_CORE_DEFAULT'
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
 
 Assert-FileContains "P.5 policy documents .mpr-rename safety (MUST NOT silently alter autonomous DB)" `
-    $DevRuntime '(?i)\.mpr.*rename MUST NOT|MUST NOT silently alter'
+    $LocalProf '(?is)\.mpr filename.*not an autonomous fallback|\.mpr.*not an autonomous fallback'
 
 Assert-FileContains "P.6 policy requires mxcli --help flag verification before use" `
-    $DevRuntime '(?i)mxcli run --local --help'
+    $LocalProf '(?i)command-specific --help|help run'
 
 Assert-FileContains "P.7 policy prohibits emitting --db-type as autonomous runtime flag" `
-    $DevRuntime '(?i)do NOT emit.*--db-type|NOT.*--db-type.*autonomous'
+    $LocalProf '(?is)declared `db_type` is\s+provisioning metadata, not by itself a requirement'
 
-Assert-FileContains "P.8 policy uses verified --db-name flag (framework decision)" `
-    $DevRuntime '(?i)--db-name.*default|--db-name.*verified|verified.*--db-name'
+Assert-FileContains "P.8 selected binary help owns database option spelling" `
+    $LocalProf '(?i)database identifier with its source|exact option spelling.*needed to select one'
 
 Assert-FileContains "P.9 local-runtime-profile step 4 defines canonical effective command" `
-    $LocalProf '(?i)canonical autonomous effective command|DB_IDENTITY_CONTROL_UNAVAILABLE'
+    $LocalProf '(?i)resolved_runtime_recipe|DB_IDENTITY_CONTROL_UNAVAILABLE'
 
 Assert-FileContains "P.10 schema db_type field is preserved (legitimate project metadata)" `
     $Schema '"db_type"'
@@ -281,34 +279,34 @@ Write-Host "TEST Q: Framework autonomous DB default is 'default'" -ForegroundCol
 
 # Q.A: autonomous runtime with no user override resolves db_name to "default"
 Assert-FileContains "Q.A policy states Core autonomous default is 'default'" `
-    $DevRuntime '(?i)Core autonomous default.*default|MXAGILE_CORE_DEFAULT'
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
 
 # Q.B: effective command contains verified --db-name and value "default"
 Assert-FileContains "Q.B policy defines canonical effective command with --db-name default" `
-    $DevRuntime '(?i)--db-name default'
+    $LocalProf '(?is)resolved_runtime_recipe.*database identifier with its source'
 
 # Q.C: bare base command is never a complete autonomous command
 Assert-FileContains "Q.C policy prohibits executing base command without profile resolution" `
-    $DevRuntime '(?i)MUST NOT execute the base command'
+    $LocalProf '(?i)recipe.s argument array is the sole invocation authority|Do not start the runtime unless the status is RESOLVED'
 
 # Q.D: .mpr rename does not change effective DB identity
 Assert-FileContains "Q.D policy states .mpr rename MUST NOT alter autonomous DB identity" `
-    $DevRuntime '(?i)\.mpr.*rename MUST NOT|rename.*MUST NOT.*database'
+    $LocalProf '(?is)\.mpr filename.*not an autonomous fallback|\.mpr.*not an autonomous fallback'
 
 # Q.E: explicit user/session override takes precedence and is reported
 Assert-FileContains "Q.E policy defines SESSION_OVERRIDE source classification" `
-    $DevRuntime '(?i)SESSION_OVERRIDE'
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)SESSION_OVERRIDE'
 
 Assert-FileContains "Q.E2 policy requires reporting source before startup" `
-    $DevRuntime '(?i)source.*SESSION_OVERRIDE|SESSION_OVERRIDE.*PROJECT_DECLARED'
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?is)db_name_source'
 
 # Q.F: project/folder/display names do not silently override "default"
 Assert-FileContains "Q.F policy prohibits project folder/display name as DB identity source" `
-    $DevRuntime '(?i)folder name|display name|naming convention.*NOT'
+    $LocalProf '(?s)Project display names[\s\S]*never database identity inputs'
 
 # Q.G: no unsupported --db-type option is emitted
 Assert-FileContains "Q.G policy prohibits emitting --db-type as autonomous runtime flag" `
-    $DevRuntime '(?i)do NOT emit.*--db-type|NOT.*--db-type.*autonomous'
+    $LocalProf '(?is)declared `db_type` is\s+provisioning metadata, not by itself a requirement'
 
 # Q.H: no hsqldb assumption in autonomous runtime
 Assert-FileNotContains "Q.H policy does not assume hsqldb for autonomous execution" `
@@ -316,28 +314,28 @@ Assert-FileNotContains "Q.H policy does not assume hsqldb for autonomous executi
 
 # Q.I: mxcli version without --db-name → DB_IDENTITY_CONTROL_UNAVAILABLE, no autonomous start
 Assert-FileContains "Q.I policy defines DB_IDENTITY_CONTROL_UNAVAILABLE state" `
-    $DevRuntime '(?i)DB_IDENTITY_CONTROL_UNAVAILABLE'
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") 'DB_IDENTITY_CONTROL_UNAVAILABLE'
 
 Assert-FileContains "Q.I2 policy prohibits autonomous start when --db-name unavailable" `
-    $DevRuntime '(?i)DB_IDENTITY_CONTROL_UNAVAILABLE.*do NOT start|do NOT start.*DB_IDENTITY_CONTROL_UNAVAILABLE'
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?is)DB_IDENTITY_CONTROL_UNAVAILABLE'
 
 # Q.J: generated agents and skills carry or reference the corrected contract
 Assert-FileContains "Q.J implementation-agent references canonical DB identity policy" `
     (Join-Path $ScriptDir ".mxagile/agents/implementation-agent.md") '(?i)development-runtime'
 
 Assert-FileContains "Q.J2 discovery-agent references DB identity resolution" `
-    (Join-Path $ScriptDir ".mxagile/agents/discovery-agent.md") '(?i)development-runtime.*DB Identity|DB Identity Resolution'
+    (Join-Path $ScriptDir ".mxagile/agents/discovery-agent.md") '(?is)autonome Runtime- oder Browser-Evidenz.*resolved_runtime_recipe'
 
 # Q.K: Local First / Docker by Need remains intact
 Assert-FileContains "Q.K runtime-strategy still contains LOCAL FIRST principle" `
     (Join-Path $ScriptDir ".mxagile/policies/runtime-strategy.md") '(?i)LOCAL FIRST'
 
 Assert-FileContains "Q.K2 development-runtime still references local warm loop" `
-    $DevRuntime '(?i)mxcli run --local.*--watch'
+    $DevRuntime '(?i)Interactive implementation.*Warm|Warm, iterative runtime feedback'
 
 # Q.L: no destructive DB provisioning introduced automatically
 Assert-FileContains "Q.L policy prohibits automatically creating another database" `
-    $DevRuntime '(?i)NOT.*automatically.*create.*database|do NOT.*create.*database|NOT.*silently.*create'
+    $LocalProf '(?i)NOT.*automatically.*create.*database|do NOT.*create.*database|NOT.*silently.*create'
 
 Assert-FileNotContains "Q.L2 policy does not automatically add --ensure-db" `
     $DevRuntime '(?i)automatically.*--ensure-db|--ensure-db.*automatically'
@@ -352,34 +350,34 @@ Write-Host "TEST R: Module constant default vs. project local intent" -Foregroun
 # The permanent fix is a project-level constant_overrides declaration, not a CLI override.
 
 # R.1: policy defines RUNTIME_CONFIGURATION_DISCREPANCY classification
-Assert-FileContains "R.1 policy defines RUNTIME_CONFIGURATION_DISCREPANCY" $LocalProf 'RUNTIME_CONFIGURATION_DISCREPANCY'
+Assert-FileContains "R.1 policy defines RUNTIME_CONFIGURATION_DISCREPANCY" $ConfigReconciliation 'RUNTIME_CONFIGURATION_DISCREPANCY'
 
 # R.2: policy prohibits test-identity creation to mask a configuration mismatch
-Assert-FileContains "R.2 policy prohibits test-identity workaround for config mismatch" $LocalProf '(?i)MUST NOT.*test.identity|test.identity.*mask|create.*demo user|workaround'
+Assert-FileContains "R.2 policy prohibits test-identity workaround for config mismatch" $ConfigReconciliation '(?i)MUST NOT.*test identit|test identit.*mask|create.*demo user|workaround'
 
 # R.3: policy defines Studio Pro parity check before classifying discrepancy
-Assert-FileContains "R.3 policy defines Studio Pro parity check" $LocalProf '(?i)Studio Pro parity|parity check'
+Assert-FileContains "R.3 policy defines Studio Pro parity check" $ConfigReconciliation '(?i)Studio Pro Parity Evidence'
 
 # R.4: policy distinguishes module constant default from project local override
-Assert-FileContains "R.4 policy distinguishes module constant default from project local override" $LocalProf '(?i)module.*constant.*default|module default.*differ'
+Assert-FileContains "R.4 policy distinguishes module constant default from project local override" $ConfigReconciliation '(?i)module constant default.*production|module/model constant defaults'
 
 # R.5: policy defines temporary diagnostic override as session-only (must be made permanent)
-Assert-FileContains "R.5 policy defines temporary diagnostic override vs permanent project declaration" $LocalProf '(?i)temporary diagnostic|diagnostic.*override|diagnostic.*CLI'
+Assert-FileContains "R.5 policy defines temporary diagnostic override vs permanent project declaration" $ConfigReconciliation '(?i)diagnostic override.*project declaration'
 
 # R.6: policy explicitly prohibits globally forcing any specific constant value (no universal rule)
-Assert-FileContains "R.6 policy explicitly prohibits globally forcing any constant value" $LocalProf '(?i)Do NOT globally force|must not globally force|no universal'
+Assert-FileContains "R.6 policy explicitly prohibits globally forcing any constant value" $ConfigReconciliation '(?i)Do NOT globally force|must not globally force|no universal'
 
 # R.7: development-runtime.md does NOT hard-code any constant name
 Assert-FileNotContains "R.7 development-runtime.md does not hard-code module constant names" $DevRuntime '(?i)UserCommons\.|DisableMxAdmin'
 
 # R.8: policy defines validation boundary between framework and downstream runtime acceptance
-Assert-FileContains "R.8 policy defines FRAMEWORK_VALIDATION vs DOWNSTREAM_RUNTIME_ACCEPTANCE boundary" $LocalProf '(?i)FRAMEWORK_VALIDATION|DOWNSTREAM_RUNTIME_ACCEPTANCE'
+Assert-FileContains "R.8 policy defines FRAMEWORK_VALIDATION vs DOWNSTREAM_RUNTIME_ACCEPTANCE boundary" $ConfigReconciliation '(?i)FRAMEWORK_VALIDATION|DOWNSTREAM_RUNTIME_ACCEPTANCE'
 
 # R.9: policy requires downstream runtime acceptance before marking finding fully accepted
-Assert-FileContains "R.9 policy requires downstream acceptance before VERIFIED status" $LocalProf '(?i)downstream.*acceptance.*required|not yet complete|fully accepted'
+Assert-FileContains "R.9 policy requires downstream acceptance before VERIFIED status" $ConfigReconciliation '(?i)Downstream.*acceptance.*required|mark.*VERIFIED'
 
 # R.10: ownership table distinguishes four override categories
-Assert-FileContains "R.10 policy defines four override ownership categories" $LocalProf '(?i)temporary diagnostic|Temporary diagnostic'
+Assert-FileContains "R.10 policy defines four override ownership categories" $ConfigReconciliation '(?i)Override Ownership|Temporary diagnostic override'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -417,7 +415,7 @@ Assert-FileContains "S.8.1 unsupported command does not change requested semanti
     $ToolConflict 'change the requested semantics'
 
 Assert-FileContains "S.9 development runtime requires resolver before mxcli commands" `
-    $DevRuntime 'Resolve-MxAgileMxcli\.ps1'
+    $LocalProf 'Resolve-MxAgileMxcli\.ps1'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

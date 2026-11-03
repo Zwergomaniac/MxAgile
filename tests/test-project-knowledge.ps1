@@ -134,7 +134,9 @@ Assert-FileContains "L.1 evidence manifest schema defines capture groups" $EvSch
 Assert-FileContains "L.2 promoted evidence artifacts can bind to a capture_id" $EvSchema 'capture_id'
 Assert-FileContains "L.3 evidence entries carry the immutable comparison identity" $EvSchema 'comparison_identity'
 Assert-FileContains "L.4 capture groups require a clean state" $EvSchema 'cleanliness_state'
-Assert-FileContains "L.5 promotion requires bound identity and visual inspection" $EvPol 'comparison_identity.status.*BOUND|visually.*inspected'
+Assert-FileContains "L.5 capture retention requires bound identity and provenance" $EvPol '(?s)Before retaining a capture, validate its active-target revision/fingerprint, bound identity,.*?capture-group provenance, and cleanliness'
+Assert-FileContains "L.5a parity promotion delegates actual comparison to C4" $EvPol '(?s)canonical `build_project_status.resolve_parity_status`.*?comparison was actually performed'
+Assert-FileContains "L.5b C4 requires current bound identity and reviewed capture sides" $ParityPol '(?s)whole_screen_review.comparison_result.*?comparison_summary.*?current bound comparison identity/freshness.*?validated Reference and Runtime capture sides.*?same reviewed capture IDs'
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

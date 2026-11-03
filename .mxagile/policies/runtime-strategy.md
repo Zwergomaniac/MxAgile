@@ -20,9 +20,9 @@ explicitly targets a higher-level environment.
 
 | Level | Mechanism | When to Use |
 |---|---|---|
-| **1** | Static / model validation | Syntax, references, lint, consistency (`mxcli check`, `mxcli lint`, `mxcli docker check`) |
-| **2** | Warm local runtime | `mxcli run --local --watch` — interactive iterative development feedback, UI iteration |
-| **3** | Browser / Playwright against local runtime | Visual inspection, UI verification, acceptance tests — autonomous mode (`mxcli run --local` without `--watch`) for unattended verification |
+| **1** | Static / model validation | Use the selected project tool's verified syntax, reference, lint, and consistency capabilities |
+| **2** | Warm local runtime | C1-resolved interactive local runtime for iterative feedback and UI iteration |
+| **3** | Browser / Playwright against local runtime | C1-resolved runtime plus browser evidence against a reachable app |
 | **4** | Isolated Docker / container verification | Container-environment parity, deployable-build validation, CI without local runtime |
 | **5** | Deployment / environment-specific verification | PAD, container deployment, environment-specific configuration |
 
@@ -37,16 +37,11 @@ unless one of the Docker-required conditions below applies.
 application. Where the local runtime provides a valid running application, Playwright
 operates against it directly.
 
-## Docker IS For
-Every consumer that needs a local runtime (Quality Gate, UI/Parity and Visual Verification,
-Acceptance, Discovery browser evidence, and Playwright/Browser verification) MUST use the
-same capability-first preflight in `policies/local-runtime-profile.md`. Determine operating
-mode/tool authority, resolve the project-local mxcli and its exact version, discover that
-binary's actual local-run/backend capabilities, and publish one complete `resolved_runtime_recipe`
-before credential discovery or environment escalation. Consumers execute that recipe
-unchanged; they do not implement database selection or rebuild commands from individual
-flags. For `local_first`, select a suitable supported isolated local backend before requiring
-an external database unless the verification target explicitly requires that environment.
+## Runtime Recipe Authority
+
+For executable selection, backend choice, DB identity, and invocation syntax, consume the C2
+authority and C1 `resolved_runtime_recipe` from `policies/local-runtime-profile.md`. This policy
+decides only which verification environment is justified; consumers must not reconstruct a route.
 
 ## Docker IS For
 
@@ -54,7 +49,7 @@ Use Docker (Level 4+) only when the verification target specifically requires an
 or containerized environment:
 
 - Container-environment parity testing
-- Deployable-build validation (`mxcli docker build`)
+- Deployable container-build validation for an explicitly required target
 - PAD / container deployment validation
 - Container-specific configuration verification
 - CI environments where local runtime is unavailable or inappropriate
@@ -63,26 +58,6 @@ or containerized environment:
 - `runtime.verification: docker` configured in `mxagile-project.yaml`
 
 Do NOT use Docker merely as a generic synonym for "run the Mendix application."
-
-## Docker is NOT Required For
-
-| Change type | Required mechanism | NOT required |
-|---|---|---|
-| Page changed | Level 2–3 | Level 4 (Docker) |
-| Microflow changed | Level 2–3 | Level 4 (Docker) |
-| Nanoflow changed | Level 2–3 | Level 4 (Docker) |
-| Styling changed | Level 2–3 | Level 4 (Docker) |
-| Entity changed | Level 2–3 | Level 4 (Docker) |
-| Association changed | Level 2–3 | Level 4 (Docker) |
-| Playwright used | Level 3 against local runtime | Level 4 (Docker) |
-| Browser verification required | Level 3 against local runtime | Level 4 (Docker) |
-| UI-driven iteration | Level 2–3 | Level 4 (Docker) |
-| Structural entity/association change | mxcli auto-reconcile; Level 2–3 | Level 4 (Docker rebuild) |
-
-Structural model changes (entities, associations) may require a runtime restart.
-The warm local runtime (`mxcli run --local --watch`) handles this automatically.
-MxAgile does not maintain a separate "Docker rebuild required" flag for structural changes.
-Trust the canonical mxcli runtime mechanism to determine the required apply level.
 
 ## Justified Escalation
 
@@ -149,16 +124,20 @@ Existing projects without a `runtime` section receive `local_first` behavior aut
 
 | Need | Preferred mechanism | May use Docker when |
 |---|---|---|
-| Model validation | `mxcli check`, `mxcli lint` | n/a |
-| Consistency check | `mxcli docker check` (no build) | n/a |
-| Fast implementation loop | `mxcli run --local --watch` (interactive mode) | n/a |
-| UI iteration | `mxcli run --local --watch` (interactive mode) | n/a |
-| Autonomous verification | `mxcli run --local` (autonomous mode, no `--watch`) | local runtime fails |
+| Model validation | Verified project-tool model-validation capabilities | n/a |
+| Consistency check | Verified project-tool consistency capability | n/a |
+| Fast implementation loop | C1-resolved interactive local-runtime recipe | n/a |
+| Page change | Level 2–3 local runtime | Container parity or explicit environment target |
+| Microflow or nanoflow change | Level 2–3 local runtime | Container parity or explicit environment target |
+| Styling change | Level 2–3 local runtime | Container parity or explicit environment target |
+| Entity or association change | Level 2–3 local runtime; restart only if required by mxcli | Container parity or explicit environment target |
+| UI iteration | C1-resolved interactive local-runtime recipe | n/a |
+| Autonomous verification | C1-resolved autonomous runtime recipe | local runtime fails |
 | Browser inspection | local runtime | local runtime fails |
 | Mockup comparison | local runtime + browser | local runtime fails |
 | Role verification | local runtime where valid | container-specific role config |
 | Playwright UI verification | local runtime (Level 3) | container parity required |
-| Structural model change | local runtime / auto-restart | n/a |
+| Structural model change | C1-resolved local runtime; restart only as required by the selected tool | n/a |
 | Container parity | Docker | always |
 | Deployable container build | Docker | always |
 | Container-specific failure | Docker | always |

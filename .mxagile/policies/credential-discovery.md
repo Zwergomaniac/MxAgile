@@ -267,7 +267,7 @@ required_credentials:
       - key: MENDIX_DB_PASSWORD
         purpose: PostgreSQL password for runtime database
         secret: true        # value must never be shown
-    validation: mxcli run --local --db-validate
+    validation: "recipe-bound database readiness check, only when this route is required"
     phases: [implementing, verifying]
 
   - category: test_identity

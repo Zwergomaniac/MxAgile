@@ -52,50 +52,49 @@ Each dimension is evaluated independently and recorded separately.
 | `LEGACY_EVIDENCE` | Migrated from a pre-dimensional parity record; provenance preserved, not re-verified |
 | `STALE` | Was PASS but the active target mockup or requirement has changed since `verified_at` — re-verification required before claiming PASS |
 
+## Evidence Class and Aggregate Authority
+
+Every new parity report declares one `evidence_class`:
+
+| Class | Meaning | Can establish complete parity PASS? |
+|---|---|---|
+| `SMOKE` | Text/navigation/edit-control or other minimum runtime smoke only | No |
+| `REFERENCE_VS_MODEL` | Static/reference-to-model analysis without live runtime evidence | No |
+| `LIVE_PARITY` | Contract/model and required runtime/browser evidence for the bound comparison | Only through the resolver below |
+
+Neither `SMOKE` nor `REFERENCE_VS_MODEL` can establish complete live parity; only the
+resolver-confirmed `LIVE_PARITY` class is eligible for a full parity PASS.
+
+Missing or unrecognized evidence class is `NOT_OBSERVABLE`; do not infer `LIVE_PARITY` from a report's `evidence_level`, screenshots, navigation, or a producer-authored `overall_result`.
+
+`scripts/build_project_status.py` owns `resolve_parity_status` and is the sole aggregate authority. For one report, call it on demand with `--resolve-parity-request <request.json>`. The request binds the report to the current expected `comparison_identity`, explicit target freshness, project root, and capture-side identities already validated by the caller. For Contract PASS the helper safely reads only the explicitly referenced canonical Requirement/Decision paths, verifies schema, artifact ID, and SHA-256, and never scans the collections. A narrative note alone is insufficient. The normal project-status projection uses the same function after its existing report, target, manifest, source, and capture validation.
+
+The resolver preserves the seven canonical UI dimensions and the six separate `evidence_matrix` dimensions. Each matrix PASS carries its own typed `evidence` items; proof from another matrix or UI dimension cannot be borrowed. Contract PASS additionally requires hash-validated Requirement/Decision `source_artifacts`. A required PASS needs sufficient passing evidence for that dimension. A screenshot's existence proves capture only, not comparison. Whole-screen `PASS`, `FAIL`, `PARTIAL`, or `CONFLICT` requires a matching `whole_screen_review.comparison_result`, non-empty `comparison_summary`, current bound comparison identity/freshness, validated Reference and Runtime capture sides, and the same reviewed capture IDs in the review, Visual matrix, and screenshot evidence. The review scope is the roles/states in the bound identity. Missing/insufficient evidence is `BLOCKED` with computed `NOT_VERIFIED`; a contradictory comparison result is `AMBIGUOUS`; malformed or unknown statuses remain `UNKNOWN`; unobserved evidence/identity/freshness remains `NOT_OBSERVABLE`; reference drift or stale target is `STALE`.
+
+Only `resolve_parity_status` owns aggregate ordering and promotion. Preserve its existing
+fail-closed outcomes: required `FAIL` wins; missing required proof remains `BLOCKED` /
+`NOT_VERIFIED`; malformed or unknown statuses remain `UNKNOWN`; absent evidence, identity, or
+freshness remains `NOT_OBSERVABLE`; stale targets remain `STALE`; unresolved blocker precedence
+remains `AMBIGUOUS`. Do not copy this decision tree into consumers or choose a local fallback.
+
+The resolver records the producer claim, computed result, dimensions, matrix/capture provenance,
+validated contract hashes, identity/freshness, blockers, and promotion decision in
+`aggregate_resolution`. Producers mirror the computed value only when status is `RESOLVED`;
+otherwise keep `overall_result: NOT_VERIFIED`.
+
+A full `PASS` requires resolver-confirmed `LIVE_PARITY`, current bound identity/freshness,
+sufficient whole-screen comparison evidence, and every required dimension and evidence-matrix
+layer to pass or be validly not applicable. Required `FAIL` remains a failed aggregate; the
+regression fixtures are the executable precedence contract.
+
 ---
 
 ## Aggregation Rules
 
-```
-overall_result = PASS
-    when ALL required dimensions have result = PASS
-
-overall_result = FAIL
-    when ANY required dimension has result = FAIL
-
-overall_result = PARTIAL
-    when NO required dimension is FAIL, NOT_VERIFIED, STALE, or FIXTURE_BLOCKED
-    AND at least one required dimension is PARTIAL or CONFLICT
-
-overall_result = NOT_VERIFIED
-    when any required dimension is NOT_VERIFIED and no required dimension is FAIL, STALE,
-    or FIXTURE_BLOCKED
-    OR when no browser verification has been performed and all required dimensions are
-       NOT_VERIFIED or LEGACY_EVIDENCE
-```
-
-A required dimension that is `FAIL`, `PARTIAL`, `NOT_VERIFIED`, `CONFLICT`, `STALE`, or
-`FIXTURE_BLOCKED`
-**MUST prevent overall PASS**.
-
-`NOT_VERIFIED` is not a failure. When no required dimension is `FAIL`, any required
-`NOT_VERIFIED` keeps the aggregate `NOT_VERIFIED` rather than promoting mixed partial evidence
-to `PARTIAL`.
-
-`LEGACY_EVIDENCE` dimensions do not prevent overall PASS if the remaining required dimensions
-all PASS — but the overall result must note the partial evidence coverage.
-
-`NOT_APPLICABLE` requires a non-empty `not_applicable_rationale` in the dimension record. The
-schema rejects a missing or empty rationale; legacy records that bypass schema validation are
-treated as `NOT_VERIFIED`.
-
-### Unresolved Multi-Blocker Precedence
-
-Existing rules and fixtures resolve `FAIL` over other results and `NOT_VERIFIED` over `PARTIAL`
-when both occur. They do not define the aggregate when multiple other blockers coexist, such as
-`STALE` with `NOT_VERIFIED` or `FIXTURE_BLOCKED` with `PARTIAL`. Do not invent a precedence or
-finalize an overall result for these combinations. Preserve each dimension result and surface the
-specific aggregation decision point; overall PASS remains prohibited.
+This policy does not define a second aggregate algorithm. Required dimensions, matrix evidence,
+status precedence, and legacy compatibility are evaluated by `resolve_parity_status` and its
+schema-backed regression fixtures. Consumers provide observations and mirror its result; they
+do not calculate or promote `overall_result` themselves.
 
 ---
 

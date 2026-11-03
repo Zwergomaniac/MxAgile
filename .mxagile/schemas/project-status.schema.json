@@ -603,7 +603,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "title", "gap_type", "severity", "lifecycle_status", "origin", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "blocking", "canonical_path", "source_artifact_paths", "source_artifacts", "reconciliation_delta_fingerprint", "reconciliation_outcome", "reconciliation_evidence_refs", "resolution_references", "superseded_by", "retirement_reason", "framework_commit", "resolution_commit"],
+            "required": ["id", "title", "gap_type", "severity", "lifecycle_status", "origin", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "blocking", "canonical_path", "source_artifact_paths", "source_artifacts", "reconciliation_delta_fingerprint", "reconciliation_outcome", "reconciliation_evidence_refs", "resolution_references", "superseded_by", "retirement_reason", "framework_commit", "resolution_commit", "authority_disposition"],
             "additionalProperties": false,
             "properties": {
               "id": { "type": "string" },
@@ -628,7 +628,8 @@
               "superseded_by": { "type": ["string", "null"] },
               "retirement_reason": { "type": ["string", "null"] },
               "framework_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" },
-              "resolution_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" }
+              "resolution_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" },
+              "authority_disposition": { "$ref": "#/definitions/authority_disposition_projection" }
             }
           }
         },
@@ -636,7 +637,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "lifecycle_status", "origin", "gap_type", "severity", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "resolution_references", "reconciliation_delta_fingerprint", "reconciliation_outcome", "reconciliation_evidence_refs", "superseded_by", "retirement_reason", "framework_commit", "resolution_commit", "source_artifact_paths", "source_artifacts", "canonical_path"],
+            "required": ["id", "lifecycle_status", "origin", "gap_type", "severity", "wave_id", "workpackage_id", "requirement_ids", "decision_ids", "evidence_refs", "resolution_references", "reconciliation_delta_fingerprint", "reconciliation_outcome", "reconciliation_evidence_refs", "superseded_by", "retirement_reason", "framework_commit", "resolution_commit", "source_artifact_paths", "source_artifacts", "canonical_path", "authority_disposition"],
             "additionalProperties": false,
             "properties": {
               "id": { "type": "string" },
@@ -659,7 +660,8 @@
               "resolution_commit": { "type": ["string", "null"], "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})?$" },
               "source_artifact_paths": { "type": "array", "items": { "type": "string" } },
               "source_artifacts": { "type": "array", "items": { "type": "object", "required": ["source_type", "canonical_path", "artifact_id"], "additionalProperties": false, "properties": { "source_type": { "type": "string" }, "canonical_path": { "type": "string" }, "artifact_id": { "type": ["string", "null"] } } } },
-              "canonical_path": { "type": "string" }
+              "canonical_path": { "type": "string" },
+              "authority_disposition": { "$ref": "#/definitions/authority_disposition_projection" }
             }
           }
         }
@@ -751,14 +753,56 @@
     "gallery_run": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["entry_id", "run_id", "screen_id", "manifest_path", "reference_path", "reference_fingerprint", "revision", "historical", "parity_result", "dimensions", "captures"],
+      "required": ["entry_id", "run_id", "screen_id", "manifest_path", "reference_path", "reference_fingerprint", "revision", "historical", "parity_result", "reported_parity_result", "parity_resolution", "dimensions", "captures"],
       "properties": {
         "entry_id": {"type": "string"}, "run_id": {"type": "string"}, "screen_id": {"type": "string"},
         "manifest_path": {"type": "string"}, "reference_path": {"type": "string"},
         "reference_fingerprint": {"type": "string"}, "revision": {"type": "string"},
-        "historical": {"type": "boolean"}, "parity_result": {"type": "string"},
+        "historical": {"type": "boolean"}, "parity_result": {"type": "string", "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED"]},
+        "reported_parity_result": {"type": ["string", "null"], "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED", null]},
+        "parity_resolution": {"$ref": "#/definitions/gallery_parity_resolution"},
         "dimensions": {"type": "object", "additionalProperties": {"type": "string"}},
         "captures": {"type": "array", "items": {"$ref": "#/definitions/gallery_capture"}}
+      }
+    },
+    "gallery_parity_resolution": {
+      "type": "object",
+      "required": ["resolver", "status", "evidence_class", "reported_overall_result", "computed_overall_result", "claim_matches", "promotion_allowed", "comparison_identity_status", "target_freshness", "dimension_results", "evidence_matrix_results", "evidence_provenance", "blockers"],
+      "additionalProperties": false,
+      "properties": {
+        "resolver": { "const": "build_project_status.resolve_parity_status/v1" },
+        "status": { "enum": ["RESOLVED", "BLOCKED", "STALE", "NOT_OBSERVABLE", "UNKNOWN", "AMBIGUOUS"] },
+        "evidence_class": { "enum": ["SMOKE", "REFERENCE_VS_MODEL", "LIVE_PARITY", "NOT_OBSERVABLE"] },
+        "reported_overall_result": { "type": ["string", "null"], "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED", null] },
+        "computed_overall_result": { "type": ["string", "null"], "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED", null] },
+        "claim_matches": { "type": "boolean" },
+        "promotion_allowed": { "type": "boolean" },
+        "comparison_identity_status": { "enum": ["BOUND", "REFERENCE_DRIFT", "INCOMPLETE", "NOT_OBSERVABLE"] },
+        "target_freshness": { "enum": ["CURRENT", "STALE", "NOT_OBSERVABLE"] },
+        "dimension_results": { "type": "object", "additionalProperties": { "type": "string" } },
+        "evidence_matrix_results": { "type": "object", "additionalProperties": { "type": "string" } },
+        "evidence_provenance": {
+          "type": "object",
+          "required": ["dimension_evidence", "matrix_evidence", "matrix_source_artifacts", "matrix_capture_ids", "validated_contract_sources", "contract_source_validation"],
+          "additionalProperties": false,
+          "properties": {
+            "dimension_evidence": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object" } } },
+            "matrix_evidence": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object" } } },
+            "matrix_source_artifacts": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object" } } },
+            "matrix_capture_ids": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+            "validated_contract_sources": { "type": "array", "items": { "type": "object" } },
+            "contract_source_validation": { "enum": ["VALIDATED", "NOT_OBSERVABLE"] }
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "reason"],
+            "additionalProperties": false,
+            "properties": { "code": { "type": "string" }, "reason": { "type": "string" } }
+          }
+        }
       }
     },
     "gallery_capture": {
@@ -846,6 +890,45 @@
         "anchor": { "type": ["string", "null"] },
         "availability": { "$ref": "#/definitions/availability" },
         "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
+      }
+    },
+    "authority_disposition_projection": {
+      "type": "object",
+      "required": ["status", "consumable", "revision", "classification", "allowed_action", "prohibited_actions", "unresolved_decision", "evidence_fingerprint", "reconciled_at", "authoritative_sources", "evidence_refs"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["RESOLVED", "STALE", "NOT_OBSERVABLE", "AMBIGUOUS"] },
+        "consumable": { "type": "boolean" },
+        "revision": { "type": ["integer", "null"], "minimum": 1 },
+        "classification": { "type": ["string", "null"], "enum": ["CONFIRMED_IMPLEMENTATION_GAP", "REFERENCE_GAP", "AUTHORITY_CONFLICT", "VERIFICATION_OUTSTANDING", "INFORMATIONAL_COVERAGE_GAP", null] },
+        "allowed_action": { "enum": ["PROPOSE_IMPLEMENTATION", "REFERENCE_REFINEMENT", "DECISION_REQUIRED", "VERIFY", "NONE", "RECONCILE"] },
+        "prohibited_actions": { "type": "array", "items": { "enum": ["APP_IMPLEMENTATION", "REFERENCE_CHANGE", "SEMANTIC_IMPLEMENTATION"] } },
+        "unresolved_decision": { "type": ["string", "null"] },
+        "evidence_fingerprint": { "type": ["string", "null"], "pattern": "^(sha256:[a-f0-9]{64})?$" },
+        "reconciled_at": { "type": ["string", "null"], "format": "date-time" },
+        "authoritative_sources": { "type": "array", "items": { "$ref": "#/definitions/finding_authority_source" } },
+        "evidence_refs": { "type": "array", "items": { "$ref": "#/definitions/finding_evidence_reference" } }
+      }
+    },
+    "finding_authority_source": {
+      "type": "object",
+      "required": ["source_type", "canonical_path", "artifact_id", "content_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": { "enum": ["requirement", "decision", "active_target"] },
+        "canonical_path": { "type": "string" },
+        "artifact_id": { "type": "string" },
+        "content_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    },
+    "finding_evidence_reference": {
+      "type": "object",
+      "required": ["source_type", "canonical_path", "content_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": { "enum": ["parity_report", "evidence_manifest"] },
+        "canonical_path": { "type": "string" },
+        "content_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
       }
     },
     "nullable_count": {

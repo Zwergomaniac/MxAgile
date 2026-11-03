@@ -521,8 +521,8 @@ A TODO list becoming empty is a re-sync trigger, not a mission-complete signal.
 
 ## Runtime-Zustand ist Transient
 
-Die lokale Runtime (`mxcli run --local`, im interaktiven Modus mit `--watch` oder
-im autonomen Modus ohne `--watch`) ist session-lokal und transient.
+Der ueber C1 aufgeloeste lokale Runtime-Zustand (interaktiver oder autonomer Lifecycle)
+ist session-lokal und transient.
 
 `runtime_running: true` NICHT als Lifecycle-Wahrheit persistieren.
 
@@ -565,7 +565,7 @@ Diese Invarianten gelten unabhaengig vom Runtime-Zustand waehrend Implementing:
 - Erfolgreicher App-Start ≠ Verifikation gestartet
 - Runtime-Inspektion waehrend Implementing ≠ UI-Agent Verify
 - Visuelles Pruefen waehrend Implementing ≠ Akzeptanz bestanden
-- `mxcli run --local` erfolgreich ≠ Wave verifiziert
+- Ein erfolgreicher lokaler Runtime-Start ≠ Wave verifiziert
 
 ---
 

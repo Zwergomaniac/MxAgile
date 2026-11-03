@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import sys
+from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -23,12 +24,478 @@ CONTRACT_STATUSES = ("draft", "active", "stale", "impacted", "superseded")
 PROOF_POINT_STATUSES = ("active", "stale", "impacted", "deferred", "not_applicable")
 PLAN_STATUSES = ("draft", "active", "superseded")
 EVIDENCE_STATUSES = ("PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "LEGACY_EVIDENCE")
+PARITY_DIMENSIONS = ("visual", "content", "structure", "state", "interaction", "responsive", "role")
+PARITY_EVIDENCE_MATRIX = (
+    "contract_parity", "model_parity", "structural_dom_parity",
+    "behavioral_parity", "role_parity", "visual_whole_screen_parity",
+)
+MATRIX_PROOF_GROUPS = {
+    "contract_parity": ({"contract_reference"},),
+    "model_parity": ({"mxcli_inspect"},),
+    "structural_dom_parity": ({"dom_text", "dom_selector", "accessibility_check"},),
+    "behavioral_parity": ({"interaction_test"}, {"navigation_flow"}),
+    "role_parity": ({"role_test"},),
+    "visual_whole_screen_parity": ({"screenshot"},),
+}
+DIMENSION_PROOF_GROUPS = {
+    "visual": ({"screenshot"},),
+    "content": ({"dom_text"},),
+    "structure": ({"dom_selector"}, {"screenshot"}),
+    "state": ({"interaction_test"}, {"screenshot"}),
+    "interaction": ({"interaction_test", "navigation_flow"},),
+    "responsive": ({"viewport_test"}, {"screenshot"}),
+    "role": ({"role_test"}, {"dom_selector"}),
+}
 BLOCKER_TYPES = (
     "INFRASTRUCTURE_GAP", "LOCATOR_UNSTABLE", "ROLE_SWITCH_BLOCKED",
     "DECISION_REQUIRED", "SCOPE_EXCEEDED", "OTHER",
 )
 FINDING_TERMINAL_STATUSES = frozenset(("VERIFIED", "SUPERSEDED", "RETIRED"))
+DISPOSITION_ACTIONS = {
+    "CONFIRMED_IMPLEMENTATION_GAP": "PROPOSE_IMPLEMENTATION",
+    "REFERENCE_GAP": "REFERENCE_REFINEMENT",
+    "AUTHORITY_CONFLICT": "DECISION_REQUIRED",
+    "VERIFICATION_OUTSTANDING": "VERIFY",
+    "INFORMATIONAL_COVERAGE_GAP": "NONE",
+}
+DISPOSITION_PROHIBITIONS = {
+    "REFERENCE_GAP": "APP_IMPLEMENTATION",
+    "AUTHORITY_CONFLICT": "SEMANTIC_IMPLEMENTATION",
+    "VERIFICATION_OUTSTANDING": "APP_IMPLEMENTATION",
+    "INFORMATIONAL_COVERAGE_GAP": "APP_IMPLEMENTATION",
+}
 SHA256_PATTERN = "sha256:"
+
+
+def _parity_date(value: Any) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _parity_evidence_items(report: dict[str, Any], names: tuple[str, ...]) -> list[dict[str, Any]]:
+    dimensions = report.get("dimensions")
+    if not isinstance(dimensions, dict):
+        return []
+    items: list[dict[str, Any]] = []
+    for name in names:
+        dimension = dimensions.get(name)
+        if not isinstance(dimension, dict) or not isinstance(dimension.get("evidence"), list):
+            continue
+        items.extend(item for item in dimension["evidence"] if isinstance(item, dict))
+    return items
+
+
+def _has_proof(items: list[dict[str, Any]], expected_types: set[str] | None = None,
+               passed: bool | None = True) -> bool:
+    for item in items:
+        if expected_types is not None and item.get("type") not in expected_types:
+            continue
+        if passed is not None and item.get("passed") is not passed:
+            continue
+        if any(isinstance(item.get(key), str) and item[key].strip()
+               for key in ("description", "path", "capture_id", "selector", "expected", "actual")):
+            return True
+    return False
+
+
+def _has_proof_groups(items: list[dict[str, Any]], groups: tuple[set[str], ...],
+                      passed: bool | None = True) -> bool:
+    return all(_has_proof(items, group, passed) for group in groups)
+
+
+def _whole_screen_comparison_state(
+    report: dict[str, Any],
+    entry: dict[str, Any],
+    validated_capture_sides: dict[str, str] | None,
+    expected_result: str,
+) -> str:
+    review = report.get("whole_screen_review") if isinstance(report.get("whole_screen_review"), dict) else {}
+    comparison_result = review.get("comparison_result")
+    allowed_results = {"PASS", "FAIL", "PARTIAL", "CONFLICT"}
+    if comparison_result in allowed_results and comparison_result != expected_result:
+        return "CONFLICT"
+    if comparison_result not in allowed_results:
+        return "UNKNOWN" if comparison_result is not None else "MISSING"
+    if review.get("status") != "complete" or comparison_result != expected_result:
+        return "MISSING"
+    summary = review.get("comparison_summary")
+    if not isinstance(summary, str) or not summary.strip():
+        return "MISSING"
+
+    reference_ids = review.get("reference_capture_ids")
+    runtime_ids = review.get("runtime_capture_ids")
+    reviewed_ids = review.get("visually_reviewed_capture_ids")
+    matrix_capture_ids = entry.get("capture_ids")
+    evidence = entry.get("evidence") if isinstance(entry.get("evidence"), list) else []
+    if not all(isinstance(value, list) and value and all(isinstance(item, str) for item in value)
+               for value in (reference_ids, runtime_ids)):
+        return "MISSING"
+    if not isinstance(reviewed_ids, list) or not all(isinstance(item, str) for item in reviewed_ids):
+        return "MISSING"
+    if not isinstance(matrix_capture_ids, list) or not all(isinstance(item, str) for item in matrix_capture_ids):
+        return "MISSING"
+
+    sides = validated_capture_sides if isinstance(validated_capture_sides, dict) else {}
+    expected_capture_ids = set(reference_ids + runtime_ids)
+    screenshot_capture_ids = {
+        item.get("capture_id") for item in evidence
+        if isinstance(item, dict) and item.get("type") == "screenshot"
+        and item.get("passed") is True and isinstance(item.get("capture_id"), str)
+    }
+    if (
+        not expected_capture_ids
+        or not expected_capture_ids.issubset(set(reviewed_ids))
+        or not expected_capture_ids.issubset(set(matrix_capture_ids))
+        or not expected_capture_ids.issubset(screenshot_capture_ids)
+        or not all(sides.get(capture_id) == "mockup" for capture_id in reference_ids)
+        or not all(sides.get(capture_id) == "application" for capture_id in runtime_ids)
+    ):
+        return "MISSING"
+    return "VALID"
+
+
+def validated_contract_source_hashes(project_root: Path, report: dict[str, Any]) -> dict[str, str]:
+    """Hash only explicitly referenced canonical requirements/decisions; never scan collections."""
+    root = project_root.resolve()
+    matrix = report.get("evidence_matrix") if isinstance(report, dict) else None
+    contract = matrix.get("contract_parity") if isinstance(matrix, dict) else None
+    sources = contract.get("source_artifacts") if isinstance(contract, dict) else None
+    if not isinstance(sources, list):
+        return {}
+    result: dict[str, str] = {}
+    expected_roots = {"requirement": "requirements/", "decision": "planning/decisions/"}
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        source_type = source.get("source_type")
+        relative = source.get("canonical_path")
+        artifact_id = source.get("artifact_id")
+        expected_hash = source.get("content_hash")
+        if source_type not in expected_roots or not isinstance(relative, str) or not relative.startswith(expected_roots[source_type]):
+            continue
+        path = safe_file(root, relative)
+        if path is None or not isinstance(artifact_id, str) or not isinstance(expected_hash, str):
+            continue
+        try:
+            raw = path.read_bytes()
+            value = load_yaml(raw.decode("utf-8-sig"))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            continue
+        if not isinstance(value, dict) or value.get("ID") != artifact_id or schema_errors(relative, value):
+            continue
+        digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+        normalized_expected = expected_hash if expected_hash.startswith("sha256:") else "sha256:" + expected_hash
+        if digest == normalized_expected:
+            result[relative] = digest.removeprefix("sha256:")
+    return result
+
+
+def resolve_parity_status(
+    report: dict[str, Any],
+    *,
+    expected_identity: dict[str, Any] | None = None,
+    target_freshness: str = "NOT_OBSERVABLE",
+    validated_capture_sides: dict[str, str] | None = None,
+    validated_source_hashes: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Resolve one parity record without scanning or mutating the project."""
+    blockers: list[dict[str, str]] = []
+    dimensions: dict[str, str] = {}
+    matrix: dict[str, str] = {}
+    validated_contract_sources: list[dict[str, str]] = []
+    reported = report.get("overall_result") if isinstance(report, dict) else None
+    evidence_class = report.get("evidence_class") if isinstance(report, dict) else None
+    identity = report.get("comparison_identity") if isinstance(report, dict) else None
+    valid_aggregates = {"PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED"}
+    normalized_evidence_class = evidence_class if evidence_class in {"SMOKE", "REFERENCE_VS_MODEL", "LIVE_PARITY"} else "NOT_OBSERVABLE"
+
+    def finish(state: str, result: str | None, code: str | None = None, reason: str | None = None) -> dict[str, Any]:
+        final_blockers = list(blockers)
+        if code:
+            final_blockers.append({"code": code, "reason": reason or code})
+        comparison_identity_status = identity.get("status") if isinstance(identity, dict) else None
+        dimension_evidence = {}
+        matrix_evidence = {}
+        matrix_sources = {}
+        matrix_capture_ids = {}
+        if isinstance(report, dict):
+            raw_dimensions = report.get("dimensions") if isinstance(report.get("dimensions"), dict) else {}
+            for name in PARITY_DIMENSIONS:
+                dimension = raw_dimensions.get(name) if isinstance(raw_dimensions.get(name), dict) else {}
+                items = dimension.get("evidence") if isinstance(dimension.get("evidence"), list) else []
+                dimension_evidence[name] = [
+                    {key: item[key] for key in ("type", "passed", "capture_id") if key in item}
+                    for item in items if isinstance(item, dict)
+                ]
+            raw_matrix = report.get("evidence_matrix") if isinstance(report.get("evidence_matrix"), dict) else {}
+            for name in PARITY_EVIDENCE_MATRIX:
+                entry = raw_matrix.get(name) if isinstance(raw_matrix.get(name), dict) else {}
+                raw_evidence = entry.get("evidence", []) if isinstance(entry.get("evidence"), list) else []
+                matrix_evidence[name] = [
+                    {key: item[key] for key in ("type", "passed", "path", "capture_id", "description") if key in item}
+                    for item in raw_evidence if isinstance(item, dict)
+                ]
+                raw_sources = entry.get("source_artifacts", []) if isinstance(entry.get("source_artifacts"), list) else []
+                matrix_sources[name] = [
+                    {key: source[key] for key in ("source_type", "canonical_path", "artifact_id", "content_hash") if isinstance(source.get(key), str)}
+                    for source in raw_sources if isinstance(source, dict)
+                ]
+                raw_capture_ids = entry.get("capture_ids", []) if isinstance(entry.get("capture_ids"), list) else []
+                matrix_capture_ids[name] = [capture_id for capture_id in raw_capture_ids if isinstance(capture_id, str)]
+        return {
+            "resolver": "build_project_status.resolve_parity_status/v1",
+            "status": state,
+            "evidence_class": normalized_evidence_class,
+            "reported_overall_result": reported if reported in valid_aggregates else None,
+            "computed_overall_result": result,
+            "claim_matches": reported == result if result is not None and reported in valid_aggregates else False,
+            "promotion_allowed": state == "RESOLVED" and result == "PASS",
+            "comparison_identity_status": comparison_identity_status if comparison_identity_status in {"BOUND", "REFERENCE_DRIFT", "INCOMPLETE"} else "NOT_OBSERVABLE",
+            "target_freshness": target_freshness if target_freshness in {"CURRENT", "STALE"} else "NOT_OBSERVABLE",
+            "dimension_results": dimensions,
+            "evidence_matrix_results": matrix,
+            "evidence_provenance": {
+                "dimension_evidence": dimension_evidence,
+                "matrix_evidence": matrix_evidence,
+                "matrix_source_artifacts": matrix_sources,
+                "matrix_capture_ids": matrix_capture_ids,
+                "validated_contract_sources": validated_contract_sources,
+                "contract_source_validation": "VALIDATED" if validated_contract_sources else "NOT_OBSERVABLE",
+            },
+            "blockers": final_blockers,
+        }
+
+    if not isinstance(report, dict):
+        return finish("UNKNOWN", "NOT_VERIFIED", "PARITY_RECORD_INVALID", "Parity record is not an object.")
+    if evidence_class not in {"SMOKE", "REFERENCE_VS_MODEL", "LIVE_PARITY"}:
+        return finish("NOT_OBSERVABLE", "NOT_VERIFIED", "EVIDENCE_CLASS_NOT_OBSERVED", "A recognized evidence_class is required.")
+    if evidence_class != "LIVE_PARITY":
+        return finish("BLOCKED", "NOT_VERIFIED", "EVIDENCE_CLASS_NOT_LIVE_PARITY",
+                      f"{evidence_class} evidence cannot establish complete live parity.")
+    if report.get("evidence_level") != "browser":
+        return finish("BLOCKED", "NOT_VERIFIED", "LIVE_BROWSER_EVIDENCE_REQUIRED",
+                      "LIVE_PARITY requires browser-level runtime evidence.")
+
+    if not isinstance(identity, dict):
+        return finish("NOT_OBSERVABLE", "NOT_VERIFIED", "COMPARISON_IDENTITY_NOT_OBSERVED",
+                      "Comparison identity is missing.")
+    if identity.get("status") == "REFERENCE_DRIFT":
+        return finish("STALE", "STALE", "REFERENCE_DRIFT", "Evidence is bound to a different target identity.")
+    if identity.get("status") != "BOUND":
+        return finish("BLOCKED", "NOT_VERIFIED", "COMPARISON_IDENTITY_INCOMPLETE",
+                      "Comparison identity is not BOUND.")
+    if not isinstance(expected_identity, dict):
+        return finish("NOT_OBSERVABLE", "NOT_VERIFIED", "CURRENT_IDENTITY_NOT_OBSERVED",
+                      "The current active-target identity was not supplied to the resolver.")
+    if identity != expected_identity:
+        return finish("STALE", "STALE", "COMPARISON_IDENTITY_MISMATCH",
+                      "The report identity differs from the current active-target identity.")
+    if target_freshness == "STALE":
+        return finish("STALE", "STALE", "TARGET_EVIDENCE_STALE", "The active target changed after verification.")
+    if target_freshness != "CURRENT":
+        return finish("NOT_OBSERVABLE", "NOT_VERIFIED", "TARGET_FRESHNESS_NOT_OBSERVED",
+                      "Current-target freshness was not established.")
+
+    verified_at = _parity_date(report.get("verified_at"))
+    target_changed_at = _parity_date(report.get("target_changed_at"))
+    if verified_at is None:
+        return finish("NOT_OBSERVABLE", "NOT_VERIFIED", "VERIFICATION_DATE_NOT_OBSERVED",
+                      "A valid verified_at date is required.")
+    if target_changed_at and target_changed_at > verified_at:
+        return finish("STALE", "STALE", "TARGET_CHANGED_AFTER_VERIFICATION",
+                      "The target changed after this verification was recorded.")
+
+    raw_dimensions = report.get("dimensions")
+    if not isinstance(raw_dimensions, dict):
+        return finish("BLOCKED", "NOT_VERIFIED", "DIMENSIONS_MISSING", "Canonical parity dimensions are missing.")
+    effective_results: list[str] = []
+    insufficient_evidence = False
+    unknown_status = False
+    visual_comparison_conflict = False
+    for name in PARITY_DIMENSIONS:
+        dimension = raw_dimensions.get(name)
+        if not isinstance(dimension, dict):
+            dimensions[name] = "NOT_VERIFIED"
+            effective_results.append("NOT_VERIFIED")
+            blockers.append({"code": "DIMENSION_MISSING", "reason": f"Required dimension {name} is missing."})
+            insufficient_evidence = True
+            continue
+        required = dimension.get("required", True)
+        if not isinstance(required, bool):
+            dimensions[name] = "UNKNOWN"
+            unknown_status = True
+            blockers.append({"code": "DIMENSION_REQUIRED_UNKNOWN", "reason": f"Requiredness for {name} is not boolean."})
+            continue
+        status = dimension.get("result")
+        allowed = {"PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE", "LEGACY_EVIDENCE", "STALE", "FIXTURE_BLOCKED"}
+        if status not in allowed:
+            status = "UNKNOWN"
+            unknown_status = True
+            blockers.append({"code": "DIMENSION_STATUS_UNKNOWN", "reason": f"Status for {name} is missing or unrecognized."})
+        evidence = dimension.get("evidence") if isinstance(dimension.get("evidence"), list) else []
+        if required and status in {"PASS", "FAIL", "PARTIAL", "CONFLICT"}:
+            evidence_items = [item for item in evidence if isinstance(item, dict)]
+            proof_passed = _has_proof_groups(evidence_items, DIMENSION_PROOF_GROUPS[name])
+            proof_failed = _has_proof_groups(evidence_items, DIMENSION_PROOF_GROUPS[name], False)
+            if status == "PASS" and not proof_passed:
+                status = "NOT_VERIFIED"
+                insufficient_evidence = True
+                blockers.append({"code": "DIMENSION_EVIDENCE_INSUFFICIENT", "reason": f"Dimension {name} claims PASS without the evidence types required by ui-parity.md."})
+            elif status == "FAIL" and not proof_failed and not dimension.get("deviations"):
+                status = "NOT_VERIFIED"
+                insufficient_evidence = True
+                blockers.append({"code": "FAIL_EVIDENCE_INSUFFICIENT", "reason": f"Dimension {name} claims FAIL without a failed evidence item or deviation."})
+            elif status == "PARTIAL" and (not proof_passed or (not proof_failed and not dimension.get("deviations"))):
+                status = "NOT_VERIFIED"
+                insufficient_evidence = True
+                blockers.append({"code": "PARTIAL_EVIDENCE_INSUFFICIENT", "reason": f"Dimension {name} PARTIAL requires both passing and failing evidence or a deviation."})
+            elif status == "CONFLICT" and not proof_failed and not dimension.get("deviations"):
+                status = "NOT_VERIFIED"
+                insufficient_evidence = True
+                blockers.append({"code": "PARTIAL_EVIDENCE_INSUFFICIENT", "reason": f"Dimension {name} lacks evidence or deviations."})
+        if status == "NOT_APPLICABLE" and not (isinstance(dimension.get("not_applicable_rationale"), str) and dimension["not_applicable_rationale"].strip()):
+            status = "NOT_VERIFIED"
+            insufficient_evidence = True
+            blockers.append({"code": "NOT_APPLICABLE_RATIONALE_MISSING", "reason": f"Dimension {name} lacks a NOT_APPLICABLE rationale."})
+        if status == "LEGACY_EVIDENCE" and not (isinstance(dimension.get("legacy_provenance"), str) and dimension["legacy_provenance"].strip()):
+            status = "NOT_VERIFIED"
+            insufficient_evidence = True
+            blockers.append({"code": "LEGACY_PROVENANCE_MISSING", "reason": f"Dimension {name} lacks legacy provenance."})
+        dimensions[name] = status
+        if required:
+            effective_results.append(status)
+
+    raw_matrix = report.get("evidence_matrix")
+    if not isinstance(raw_matrix, dict):
+        for name in PARITY_EVIDENCE_MATRIX:
+            matrix[name] = "NOT_VERIFIED"
+            effective_results.append("NOT_VERIFIED")
+        insufficient_evidence = True
+        blockers.append({"code": "EVIDENCE_MATRIX_MISSING", "reason": "The six-dimension evidence matrix is required."})
+    else:
+        for name in PARITY_EVIDENCE_MATRIX:
+            entry = raw_matrix.get(name)
+            if not isinstance(entry, dict):
+                matrix[name] = "NOT_VERIFIED"
+                effective_results.append("NOT_VERIFIED")
+                insufficient_evidence = True
+                blockers.append({"code": "EVIDENCE_MATRIX_DIMENSION_MISSING", "reason": f"Evidence matrix dimension {name} is missing."})
+                continue
+            required = entry.get("required", True)
+            status = entry.get("status")
+            if not isinstance(required, bool) or status not in {"PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "CONFLICT", "NOT_APPLICABLE"}:
+                matrix[name] = "UNKNOWN"
+                unknown_status = True
+                blockers.append({"code": "EVIDENCE_MATRIX_STATUS_UNKNOWN", "reason": f"Evidence matrix status/requiredness for {name} is invalid."})
+                continue
+            if status == "NOT_APPLICABLE":
+                note = entry.get("note")
+                if required or not isinstance(note, str) or not note.strip():
+                    matrix[name] = "NOT_VERIFIED"
+                    effective_results.append("NOT_VERIFIED")
+                    insufficient_evidence = True
+                    blockers.append({"code": "EVIDENCE_MATRIX_NA_UNJUSTIFIED", "reason": f"Evidence matrix dimension {name} is required or lacks a not-applicable rationale."})
+                else:
+                    matrix[name] = "NOT_APPLICABLE"
+                continue
+            if name == "visual_whole_screen_parity" and required and status in {"PASS", "FAIL", "PARTIAL", "CONFLICT"}:
+                comparison_state = _whole_screen_comparison_state(
+                    report, entry,
+                    validated_capture_sides if isinstance(validated_capture_sides, dict) else {},
+                    status,
+                )
+                if comparison_state == "CONFLICT":
+                    status = "CONFLICT"
+                    visual_comparison_conflict = True
+                    blockers.append({
+                        "code": "VISUAL_COMPARISON_RESULT_MISMATCH",
+                        "reason": "Whole-screen comparison result conflicts with visual_whole_screen_parity status.",
+                    })
+                elif comparison_state == "UNKNOWN":
+                    status = "UNKNOWN"
+                    unknown_status = True
+                    blockers.append({
+                        "code": "VISUAL_COMPARISON_RESULT_UNKNOWN",
+                        "reason": "Whole-screen comparison result is unrecognized.",
+                    })
+                elif comparison_state != "VALID":
+                    status = "NOT_VERIFIED"
+                    insufficient_evidence = True
+                    blockers.append({
+                        "code": "WHOLE_SCREEN_COMPARISON_NOT_OBSERVED",
+                        "reason": "Whole-screen status requires a matching comparison result, summary, and validated reviewed captures from both sides.",
+                    })
+            if name == "contract_parity" and required and status == "PASS":
+                source_artifacts = entry.get("source_artifacts")
+                source_hashes = validated_source_hashes if isinstance(validated_source_hashes, dict) else {}
+                validated_contract_sources = []
+                if isinstance(source_artifacts, list):
+                    for source in source_artifacts:
+                        if not isinstance(source, dict) or source.get("source_type") not in {"requirement", "decision"}:
+                            continue
+                        path = source.get("canonical_path")
+                        artifact_id = source.get("artifact_id")
+                        declared_hash = source.get("content_hash")
+                        actual_hash = source_hashes.get(path) if isinstance(path, str) else None
+                        if not all(isinstance(value, str) and value.strip() for value in (path, artifact_id, declared_hash, actual_hash)):
+                            continue
+                        normalized_declared = declared_hash if declared_hash.startswith("sha256:") else "sha256:" + declared_hash
+                        normalized_actual = actual_hash if actual_hash.startswith("sha256:") else "sha256:" + actual_hash
+                        if normalized_declared == normalized_actual and re.fullmatch(r"sha256:[a-f0-9]{64}", normalized_declared):
+                            validated_contract_sources.append({
+                                "source_type": source["source_type"],
+                                "canonical_path": path,
+                                "artifact_id": artifact_id,
+                                "content_hash": normalized_declared,
+                            })
+                if not validated_contract_sources:
+                    status = "NOT_VERIFIED"
+                    insufficient_evidence = True
+                    blockers.append({"code": "CONTRACT_SOURCE_EVIDENCE_INSUFFICIENT", "reason": "Contract parity PASS requires at least one requirement/decision reference whose content hash was validated for this resolver run."})
+            if required and status == "PASS":
+                matrix_evidence = entry.get("evidence") if isinstance(entry.get("evidence"), list) else []
+                proof = [item for item in matrix_evidence if isinstance(item, dict)]
+                sufficient = _has_proof_groups(proof, MATRIX_PROOF_GROUPS[name], True)
+                if not sufficient:
+                    status = "NOT_VERIFIED"
+                    insufficient_evidence = True
+                    blockers.append({"code": "MATRIX_EVIDENCE_INSUFFICIENT", "reason": f"Evidence matrix dimension {name} lacks sufficient linked evidence."})
+            matrix[name] = status
+            if required:
+                effective_results.append(status)
+
+    if "FAIL" in effective_results:
+        return finish("RESOLVED", "FAIL")
+    if visual_comparison_conflict:
+        return finish("AMBIGUOUS", None, "VISUAL_COMPARISON_RESULT_MISMATCH",
+                      "Whole-screen comparison evidence and its matrix status disagree.")
+    if unknown_status:
+        return finish("UNKNOWN", "NOT_VERIFIED")
+    if insufficient_evidence:
+        return finish("BLOCKED", "NOT_VERIFIED")
+
+    result_set = set(effective_results)
+    if "FAIL" in result_set:
+        return finish("RESOLVED", "FAIL")
+    unresolved = result_set & {"STALE", "FIXTURE_BLOCKED"}
+    if unresolved and len(result_set - {"PASS", "NOT_APPLICABLE", "LEGACY_EVIDENCE"}) > 1:
+        return finish("AMBIGUOUS", None, "AGGREGATE_PRECEDENCE_UNRESOLVED",
+                      "Existing policy does not define precedence for this combination of blockers.")
+    if unresolved:
+        return finish("RESOLVED", next(iter(unresolved)))
+    if "NOT_VERIFIED" in result_set:
+        return finish("RESOLVED", "NOT_VERIFIED")
+    if result_set & {"PARTIAL", "CONFLICT"}:
+        return finish("RESOLVED", "PARTIAL")
+    return finish("RESOLVED", "PASS")
 
 
 def add_gap(gaps: list[dict[str, str | None]], code: str, source: str | None, description: str) -> None:
@@ -360,6 +827,139 @@ def canonical_reference(
     except OSError:
         return normalized, None, "unknown"
     return normalized, f"sha256:{content_hash}", "available"
+
+
+def _finding_authority_disposition(
+    root: Path,
+    disposition: Any,
+    hashes: dict[str, str],
+    parsed_documents: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Project a persisted disposition; never infer or replace its classification."""
+    projected: dict[str, Any] = {
+        "status": "NOT_OBSERVABLE",
+        "consumable": False,
+        "revision": None,
+        "classification": None,
+        "allowed_action": "RECONCILE",
+        "prohibited_actions": [],
+        "unresolved_decision": None,
+        "evidence_fingerprint": None,
+        "reconciled_at": None,
+        "authoritative_sources": [],
+        "evidence_refs": [],
+    }
+    if not isinstance(disposition, dict):
+        return projected
+
+    classification = disposition.get("classification")
+    action = disposition.get("allowed_action")
+    prohibited = disposition.get("prohibited_actions")
+    sources = disposition.get("authoritative_sources")
+    evidence_refs = disposition.get("evidence_refs")
+    unresolved = disposition.get("unresolved_decision")
+    projected.update({
+        "revision": disposition.get("revision") if isinstance(disposition.get("revision"), int) else None,
+        "classification": classification if classification in DISPOSITION_ACTIONS else None,
+        "unresolved_decision": unresolved if isinstance(unresolved, str) else None,
+        "evidence_fingerprint": disposition.get("evidence_fingerprint") if isinstance(disposition.get("evidence_fingerprint"), str) else None,
+        "reconciled_at": disposition.get("reconciled_at") if isinstance(disposition.get("reconciled_at"), str) else None,
+    })
+
+    if (
+        disposition.get("status") != "RECONCILED"
+        or classification not in DISPOSITION_ACTIONS
+        or action != DISPOSITION_ACTIONS.get(classification)
+        or not isinstance(prohibited, list)
+        or (classification in DISPOSITION_PROHIBITIONS and DISPOSITION_PROHIBITIONS[classification] not in prohibited)
+        or (classification == "AUTHORITY_CONFLICT" and not (isinstance(unresolved, str) and unresolved.strip()))
+        or not isinstance(sources, list) or not sources
+        or not isinstance(evidence_refs, list) or not evidence_refs
+    ):
+        projected["status"] = "AMBIGUOUS"
+        return projected
+
+    roots_by_type = {
+        "requirement": ("requirements/",),
+        "decision": ("planning/decisions/",),
+        "active_target": ("planning/target-mockups/",),
+        "parity_report": ("planning/parity/",),
+        "evidence_manifest": ("planning/evidence/manifests/",),
+    }
+    basis: dict[str, str] = {}
+    projected_sources: list[dict[str, str]] = []
+    projected_evidence: list[dict[str, str]] = []
+
+    def validate_basis(items: list[Any], *, authoritative: bool) -> str:
+        for item in items:
+            if not isinstance(item, dict):
+                return "AMBIGUOUS"
+            source_type = item.get("source_type")
+            supplied_path = item.get("canonical_path")
+            if source_type not in roots_by_type or not isinstance(supplied_path, str):
+                return "AMBIGUOUS"
+            canonical_path_value, current_hash, path_state = canonical_reference(
+                root, supplied_path, roots_by_type[source_type], hashes,
+            )
+            if path_state != "available" or canonical_path_value is None or current_hash is None:
+                return "NOT_OBSERVABLE"
+            declared_hash = item.get("content_hash")
+            if not isinstance(declared_hash, str) or not re.fullmatch(r"sha256:[a-f0-9]{64}", declared_hash):
+                return "AMBIGUOUS"
+            if declared_hash != current_hash:
+                return "STALE"
+            if authoritative:
+                artifact_id = item.get("artifact_id")
+                document = parsed_documents.get(canonical_path_value)
+                document_value = document.get("value") if isinstance(document, dict) else None
+                id_field = "revision_id" if source_type == "active_target" else "ID"
+                if (
+                    not isinstance(artifact_id, str)
+                    or not isinstance(document_value, dict)
+                    or document_value.get(id_field) != artifact_id
+                ):
+                    return "STALE"
+                projected_sources.append({
+                    "source_type": source_type,
+                    "canonical_path": canonical_path_value,
+                    "artifact_id": artifact_id,
+                    "content_hash": declared_hash,
+                })
+            else:
+                projected_evidence.append({
+                    "source_type": source_type,
+                    "canonical_path": canonical_path_value,
+                    "content_hash": declared_hash,
+                })
+            digest = current_hash.removeprefix(SHA256_PATTERN)
+            prior_digest = basis.get(canonical_path_value)
+            if prior_digest is not None and prior_digest != digest:
+                return "AMBIGUOUS"
+            basis[canonical_path_value] = digest
+        return "RESOLVED"
+
+    state = validate_basis(sources, authoritative=True)
+    if state == "RESOLVED":
+        state = validate_basis(evidence_refs, authoritative=False)
+    projected["authoritative_sources"] = projected_sources
+    projected["evidence_refs"] = projected_evidence
+    if state != "RESOLVED":
+        projected["status"] = state
+        return projected
+
+    manifest = "\n".join(f"{path}:{digest}" for path, digest in sorted(basis.items()))
+    current_fingerprint = SHA256_PATTERN + hashlib.sha256(manifest.encode("utf-8")).hexdigest()
+    if current_fingerprint != disposition.get("evidence_fingerprint"):
+        projected["status"] = "AMBIGUOUS"
+        return projected
+
+    projected.update({
+        "status": "RESOLVED",
+        "consumable": True,
+        "allowed_action": action,
+        "prohibited_actions": sorted(set(prohibited)),
+    })
+    return projected
 
 
 def _authority_source(source_type: str, canonical_path: str, hashes: dict[str, str]) -> dict[str, Any]:
@@ -820,7 +1420,43 @@ def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths
     for manifest, source in valid:
         for entry in manifest['entries']:
             identity = entry.get('comparison_identity', {})
-            if identity.get('status') != 'BOUND' or identity.get('target_page') != entry['screen_id']:
+            screen_id = entry.get('screen_id') if isinstance(entry.get('screen_id'), str) else "UNKNOWN"
+            report_path = entry.get('parity_report_path')
+            if not isinstance(report_path, str) or not report_path.startswith('planning/parity/'):
+                continue
+            parity, state = read_yaml_file(root, report_path, hashes, gaps)
+            parity_errors = schema_errors(report_path, parity) if state == 'available' and isinstance(parity, dict) else ["report unavailable"]
+            if state != 'available' or not isinstance(parity, dict) or parity_errors:
+                add_gap(gaps, 'PARITY_REPORT_INVALID', report_path, 'Linked parity report is unavailable or fails its canonical schema.')
+                continue
+            identity_is_bound = isinstance(identity, dict) and identity.get('status') == 'BOUND'
+            identity_page_matches = identity_is_bound and identity.get('target_page') == screen_id
+            if not identity_page_matches or parity.get('comparison_identity') != identity:
+                resolver_report = dict(parity)
+                resolver_identity = identity if isinstance(identity, dict) else {"status": "INCOMPLETE"}
+                if identity_is_bound and not identity_page_matches:
+                    resolver_identity = {**identity, "status": "INCOMPLETE"}
+                if not identity_is_bound or not identity_page_matches:
+                    resolver_report["comparison_identity"] = resolver_identity
+                    expected_identity = None
+                else:
+                    expected_identity = identity
+                resolution = resolve_parity_status(
+                    resolver_report,
+                    expected_identity=expected_identity,
+                    target_freshness="NOT_OBSERVABLE",
+                    validated_source_hashes=hashes,
+                )
+                add_gap(gaps, 'PARITY_IDENTITY_UNBOUND', report_path, 'Parity report has missing, conflicting, or unbound comparison identity; promotion is blocked.')
+                runs.append({
+                    'entry_id': entry.get('entry_id', 'UNKNOWN'), 'run_id': 'UNOBSERVED', 'screen_id': screen_id,
+                    'manifest_path': source, 'reference_path': 'NOT_OBSERVABLE',
+                    'reference_fingerprint': 'NOT_OBSERVABLE', 'revision': 'NOT_OBSERVABLE', 'historical': True,
+                    'parity_result': resolution['computed_overall_result'] or 'NOT_VERIFIED',
+                    'reported_parity_result': parity.get('overall_result'), 'parity_resolution': resolution,
+                    'dimensions': {name: value.get('status', 'UNKNOWN') for name, value in parity.get('evidence_matrix', {}).items() if isinstance(value, dict)},
+                    'captures': [],
+                })
                 continue
             reference = identity.get('canonical_mockup_path')
             if not isinstance(reference, str) or not reference.startswith(('planning/target-mockups/', 'input-resources/ui-ux/')) or Path(reference).suffix.lower() not in ('.html', '.htm') or not safe_file(root, reference):
@@ -840,12 +1476,6 @@ def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths
                                  and revision.get('revision_id') == identity['revision'] and revision.get('bundle_hash') == identity['fingerprint'])
                 if not bound:
                     continue
-            report_path = entry.get('parity_report_path')
-            if not isinstance(report_path, str) or not report_path.startswith('planning/parity/'):
-                continue
-            parity, state = read_yaml_file(root, report_path, hashes, gaps)
-            if state != 'available' or schema_errors(report_path, parity) or parity.get('comparison_identity') != identity:
-                continue
             artifacts = [(side, artifact) for side, field in (('mockup', 'target_evidence'), ('application', 'actual_evidence'))
                          for artifact in entry.get(field, [])]
             captures = []
@@ -891,14 +1521,33 @@ def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths
                     'freshness': 'CURRENT_TARGET' if current else 'HISTORICAL_TARGET',
                     'evidence_status': artifact.get('lifecycle_stage', 'promoted'),
                 })
-            for run_id in sorted({item['run_id'] for item in captures}):
+            freshness = "NOT_OBSERVABLE" if target is None or target.get("availability") != "available" else ("CURRENT" if current else "STALE")
+            capture_sides = {
+                item["capture_id"]: item["side"]
+                for item in captures
+                if item["evidence_status"] == "promoted"
+            }
+            parity_resolution = resolve_parity_status(
+                parity,
+                expected_identity=identity,
+                target_freshness=freshness,
+                validated_capture_sides=capture_sides,
+                validated_source_hashes=hashes,
+            )
+            run_ids = sorted({item['run_id'] for item in captures}) or ["UNOBSERVED"]
+            if not captures:
+                add_gap(gaps, "PARITY_EVIDENCE_UNOBSERVED", report_path,
+                        "A linked parity report has no validated capture groups; aggregate remains NOT_VERIFIED.")
+            for run_id in run_ids:
                 run_captures = [item for item in captures if item['run_id'] == run_id]
-                historical = not current or any(item['evidence_status'] != 'promoted' for item in run_captures)
+                historical = not current or not run_captures or any(item['evidence_status'] != 'promoted' for item in run_captures)
                 runs.append({
                     'entry_id': entry['entry_id'], 'run_id': run_id, 'screen_id': entry['screen_id'], 'manifest_path': source,
                     'reference_path': reference, 'reference_fingerprint': identity['fingerprint'],
                     'revision': identity['revision'], 'historical': historical,
-                    'parity_result': parity['overall_result'],
+                    'parity_result': parity_resolution['computed_overall_result'] or 'NOT_VERIFIED',
+                    'reported_parity_result': parity.get('overall_result'),
+                    'parity_resolution': parity_resolution,
                     'dimensions': {name: value['status'] for name, value in parity.get('evidence_matrix', {}).items()},
                     'captures': sorted(run_captures, key=lambda item: (0 if item['side'] == 'mockup' else 1, item['role'], item['capture_id'])),
                 })
@@ -1102,6 +1751,9 @@ def _build_status(project_root: Path) -> dict[str, Any]:
                 }) if isinstance(finding.get("evidence_refs", []), list) else [],
                 "blocking": bool(blocking and lifecycle_status != "VERIFIED"),
                 "canonical_path": path,
+                "authority_disposition": _finding_authority_disposition(
+                    root, finding.get("authority_disposition"), hashes, parsed_documents,
+                ),
             }
             reconciliation = finding.get("reconciliation") if isinstance(finding.get("reconciliation"), dict) else {}
             item.update({
@@ -1139,6 +1791,7 @@ def _build_status(project_root: Path) -> dict[str, Any]:
                         "resolution_references", "reconciliation_delta_fingerprint", "reconciliation_outcome",
                         "reconciliation_evidence_refs", "superseded_by", "retirement_reason",
                         "framework_commit", "resolution_commit", "source_artifact_paths", "source_artifacts", "canonical_path",
+                        "authority_disposition",
                     )
                 })
             else:
@@ -1427,7 +2080,40 @@ def build_status(project_root: Path) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Emit deterministic MxAgile project-status JSON.")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="Project root (default: current directory).")
+    parser.add_argument("--resolve-parity-request", type=Path,
+                        help="Resolve one parity record from a JSON request; does not scan the project.")
     args = parser.parse_args()
+    if args.resolve_parity_request:
+        try:
+            request = json.loads(args.resolve_parity_request.read_text(encoding="utf-8-sig"))
+            if not isinstance(request, dict):
+                raise ValueError("request root must be an object")
+            report = request.get("report")
+            project_root = Path(request.get("project_root", args.project_root)).resolve()
+            resolution = resolve_parity_status(
+                report,
+                expected_identity=request.get("expected_identity"),
+                target_freshness=request.get("target_freshness", "NOT_OBSERVABLE"),
+                validated_capture_sides=request.get("validated_capture_sides"),
+                validated_source_hashes=validated_contract_source_hashes(project_root, report) if isinstance(report, dict) else {},
+            )
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            resolution = {
+                "resolver": "build_project_status.resolve_parity_status/v1",
+                "status": "UNKNOWN",
+                "evidence_class": "NOT_OBSERVABLE",
+                "reported_overall_result": None,
+                "computed_overall_result": "NOT_VERIFIED",
+                "claim_matches": False,
+                "promotion_allowed": False,
+                "comparison_identity_status": "NOT_OBSERVABLE",
+                "target_freshness": "NOT_OBSERVABLE",
+                "dimension_results": {},
+                "evidence_matrix_results": {},
+                "blockers": [{"code": "PARITY_REQUEST_INVALID", "reason": type(exc).__name__}],
+            }
+        print(json.dumps(resolution, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
     try:
         status = build_status(args.project_root)
     except (OSError, ValueError) as exc:

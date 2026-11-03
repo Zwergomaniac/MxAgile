@@ -44,6 +44,7 @@ $AnaPol    = Join-Path $ScriptDir ".mxagile/policies/mockup-analysis.md"
 $PageSchema= Join-Path $ScriptDir ".mxagile/schemas/page.schema.json"
 $EvSchema  = Join-Path $ScriptDir ".mxagile/schemas/evidence-manifest.schema.json"
 $ParitySchema = Join-Path $ScriptDir ".mxagile/schemas/parity-verification.schema.json"
+$ParityPolicy = Join-Path $ScriptDir ".mxagile/policies/ui-parity.md"
 $EvidenceContract = Join-Path $ScriptDir ".mxagile/policies/evidence-contract.md"
 $UiAgent   = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 $FixDir    = Join-Path $ScriptDir "tests/fixtures/ui-parity"
@@ -179,8 +180,8 @@ Assert-FileContains "14.6.3 capture group records cleanliness state" $EvSchema '
 Assert-FileContains "14.7 promoted capture cleanliness is schema constrained" $EvSchema 'const.*clean'
 Assert-FileContains "14.8 evidence contract rejects filename/timestamp pairing" $EvidenceContract 'Similar filenames, nearby timestamps'
 Assert-FileContains "14.8.1 evidence contract requires explicit capture identity" $EvidenceContract 'do NOT establish capture identity'
-Assert-FileContains "14.9 visual promotion requires opened reference and actual screenshots" $EvidenceContract 'reference and actual screenshots were opened'
-Assert-FileContains "14.9.1 visual promotion requires actual visual inspection" $EvidenceContract 'visually\s+inspected'
+Assert-FileContains "14.9 visual promotion delegates comparison sufficiency to C4" $EvidenceContract '(?s)canonical `build_project_status.resolve_parity_status`.*?comparison was actually performed'
+Assert-FileContains "14.9.1 visual comparison requires reviewed Reference and Runtime captures" $ParityPolicy '(?s)matching `whole_screen_review.comparison_result`, non-empty `comparison_summary`.*?validated Reference and Runtime capture sides.*?same reviewed capture IDs'
 Assert-FileContains "14.10 visual target must be rendered in a browser" $MatPol 'active target must be rendered in a browser'
 Assert-FileContains "14.10.1 visual target binds the accepted revision" $MatPol 'accepted revision, role'
 Assert-FileExists "14.11 REV-17/REV-9 reference-drift fixture exists" (Join-Path $FixDir "fixture-AO-rev17-selected-rev9-reference-drift.yaml")
@@ -191,7 +192,7 @@ Assert-True "14.14 drifted forensic run has no promotion or implementation scope
 Assert-FileContains "14.15 evidence artifacts bind to capture_id" $EvSchema 'capture_id'
 Assert-FileContains "14.16 capture group repeats the immutable comparison identity" $EvSchema 'capture_group.*comparison_identity|comparison_identity.*runtime_url'
 Assert-FileContains "14.17 separate capture groups are linked from evidence entries" $EvSchema 'capture_groups'
-Assert-FileContains "14.18 legacy whole-screen PASS without paired inspected evidence is not current" $EvidenceContract 'not current evidence'
+Assert-FileContains "14.18 paired captures alone cannot establish whole-screen PASS" $EvidenceContract '(?s)set of paired captures alone MUST NOT be described as visual or whole-screen PASS'
 $manifestSchemaObject = Get-Content -LiteralPath $EvSchema -Raw | ConvertFrom-Json
 $entryConditions = @($manifestSchemaObject.definitions.evidence_entry.allOf)
 $captureCondition = $entryConditions | Where-Object {

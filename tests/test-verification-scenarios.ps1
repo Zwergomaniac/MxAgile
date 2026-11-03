@@ -64,8 +64,8 @@ $FixDir   = Join-Path $ScriptDir "tests/fixtures/ui-parity"
 # A: Visual PASS + Content FAIL => Overall FAIL
 Write-Host ""
 Write-Host "TEST A: Visual PASS + Content FAIL => Overall FAIL" -ForegroundColor Cyan
-Assert-FileContains "A.1 policy states FAIL aggregation rule" $ParityPol 'overall_result = FAIL'
-Assert-FileContains "A.2 FAIL blocks PASS" $ParityPol 'ANY required dimension'
+Assert-FileContains "A.1 policy preserves required FAIL precedence" $ParityPol 'required `FAIL` wins'
+Assert-FileContains "A.2 required FAIL remains a failed aggregate" $ParityPol 'Required `FAIL` remains a failed aggregate'
 Assert-FileExists "A.3 fixture A exists" (Join-Path $FixDir "fixture-A-sidebar-visual-pass-content-fail.yaml")
 $fixA = Get-Content -LiteralPath (Join-Path $FixDir "fixture-A-sidebar-visual-pass-content-fail.yaml") -Raw
 Assert-True "A.4 fixture-A visual is PASS" ($fixA -match 'visual:.*\n\s+result: PASS')
@@ -120,7 +120,7 @@ Assert-FileContains "F.5 state dimension present" $ParSchema '"state"'
 Write-Host ""
 Write-Host "TEST G: NOT_APPLICABLE requires rationale" -ForegroundColor Cyan
 Assert-FileContains "G.1 parity schema has not_applicable_rationale field" $ParSchema 'not_applicable_rationale'
-Assert-FileContains "G.2 policy states NOT_APPLICABLE requires rationale" $ParityPol 'NOT_APPLICABLE.*requires.*rationale'
+Assert-FileContains "G.2 policy delegates applicability and aggregation to schema-backed C4" $ParityPol '(?s)Required dimensions, matrix evidence,\s+status precedence, and legacy compatibility are evaluated by `resolve_parity_status` and its\s+schema-backed regression fixtures'
 Assert-FileContains "G.2a schema requires a non-empty NOT_APPLICABLE rationale" $ParSchema '(?s)"const":\s*"NOT_APPLICABLE".*?"required":\s*\[\s*"not_applicable_rationale"\s*\].*?"minLength":\s*1'
 $fixC2 = Get-Content -LiteralPath (Join-Path $FixDir "fixture-C-desktop-pass-mobile-fail.yaml") -Raw
 Assert-True "G.3 fixture-A NOT_APPLICABLE has rationale (desktop-only)" ($fixA -match 'not_applicable_rationale')
@@ -293,7 +293,8 @@ Write-Host "TEST AA: Stale evidence requires re-verification" -ForegroundColor C
 Assert-FileContains "AA.1 parity schema has STALE result status" $ParSchema '"STALE"'
 Assert-FileContains "AA.2 parity schema has target_changed_at for staleness detection" $ParSchema 'target_changed_at'
 Assert-FileContains "AA.3 ui-parity.md defines when record becomes STALE" $ParityPol 'STALE.*when'
-Assert-FileContains "AA.4 stale required evidence cannot yield overall PASS" $ParityPol '(?s)STALE.*FIXTURE_BLOCKED.*MUST prevent overall PASS'
+Assert-FileContains "AA.4 schema preserves stale and fixture-blocked dimensions preventing PASS" $ParSchema 'Required FAIL, PARTIAL, NOT_VERIFIED, CONFLICT, STALE, or FIXTURE_BLOCKED dimensions prevent overall PASS'
+Assert-FileContains "AA.4a policy forbids consumer-local aggregation" $ParityPol '(?s)Consumers provide observations and mirror its result; they\s+do not calculate or promote `overall_result` themselves'
 
 # AB: Requirements/Specs/Tasks retain stable identifiers
 Write-Host ""

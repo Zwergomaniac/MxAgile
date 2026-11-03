@@ -53,17 +53,18 @@ Write-Host '=== LIVE-SP Routing Regression Tests ==='
 # R1: Same-project LIVE-SP plus healthy MCPs routes without a mode prompt.
 Write-Host '--- R1: Concord terminal + same-project LIVE-SP ---'
 Assert-Contains 'R1.1 mode is detected before tool selection' $orchestrator '(?i)Betriebsmodus.*ermitteln.*PFLICHT|Mode detection must happen before'
-Assert-Contains 'R1.2 LIVE-SP route prefers Studio Pro MCP' $modePolicy 'LIVE-SP-CURRENT.*Studio-Pro-MCP first'
-Assert-Contains 'R1.3 Concord fallback requires a successful probe' $modePolicy 'successful read-only probe confirms it is healthy'
-Assert-Contains 'R1.3 Concord fallback requires project binding' $modePolicy 'bound to this project'
-Assert-Contains 'R1.4 no prompt when evidence is conclusive' $orchestrator 'Keine.*Nutzerfrage bei eindeutigem Ergebnis'
+Assert-Contains 'R1.2 LIVE-SP route prefers Studio Pro MCP' $routePolicy 'LIVE-SP-CURRENT.*Studio-Pro-MCP first'
+Assert-Contains 'R1.3 Concord fallback requires a successful probe' $routePolicy '(?s)Concord MCP is the existing fallback\s+only after a successful read-only call'
+Assert-Contains 'R1.3 Concord fallback requires project binding' $modePolicy 'exact binding to the current project'
+Assert-Contains 'R1.4 no prompt when evidence is conclusive' $routePolicy '(?s)known mode and a healthy tool route must be used without asking'
 Assert-Contains 'R1.5 mxcli model mutations are forbidden in LIVE-SP' $implementationAgent 'mxcli-Modellmutationen sind in LIVE-SP-CURRENT verboten'
 Assert-NotContains 'R1.6 old strong-signal prompt is removed' $routePolicy 'MUST ask exactly once when the strong signal'
 
 # R2: A positively absent process is CLOSED-AUTONOM, not a failed-probe guess.
 Write-Host '--- R2: Studio Pro closed ---'
-Assert-Contains 'R2.1 no running process means CLOSED-AUTONOM' $modePolicy 'anyStudioProRunning = false.*CLOSED-AUTONOM'
-Assert-Contains 'R2.2 timeout remains ambiguous' $modePolicy 'timeout.*UNKNOWN|timeout.*AMBIGUOUS-SP-STATE'
+Assert-Contains 'R2.1 no running process means CLOSED-AUTONOM' $modePolicy '(?s)### CLOSED-AUTONOM.*?anyStudioProRunning = false.*?operating_mode: CLOSED-AUTONOM'
+Assert-Contains 'R2.2 detector timeout remains ambiguous' $detector 'timed out.*UNKNOWN.*AMBIGUOUS-SP-STATE.*NOT CLOSED-AUTONOM'
+Assert-Contains 'R2.3 operating mode delegates timeout mapping to C2' $modePolicy '(?s)detector timeout, exit-state mapping,.*?resolved by C2'
 
 # R3: Project identity is the normalized full path, not a similar substring.
 Write-Host '--- R3: Different project identity ---'
@@ -73,7 +74,7 @@ Assert-Contains 'R3.2 detector matches the bounded path pattern' $detector '\[re
 Assert-NotContains 'R3.3 substring Contains matching removed' $detector '\.Contains\(\$projectArgument\)'
 Assert-Contains 'R3.4 other project is not LIVE-SP-CURRENT' $modePolicy 'LIVE-SP-OTHER'
 Assert-Contains 'R3.5 conflicting Studio Pro MCP identity is detected' $modePolicy 'Studio-Pro-MCP identity probe reports a different project'
-Assert-Contains 'R3.5 conflicting identity uses existing ambiguous mode' $modePolicy 'use the existing\s+`AMBIGUOUS-SP-STATE` for that conflict'
+Assert-Contains 'R3.5 conflicting identity uses existing ambiguous mode' $modePolicy '(?s)If a probe\s+conflicts with the current `\.mpr`, C2 returns `AMBIGUOUS-SP-STATE`'
 
 # R4: Configured/offered is not healthy or project-correct.
 Write-Host '--- R4: MCP configured but unhealthy ---'
@@ -84,11 +85,11 @@ Assert-Contains 'R4.3 capability registry does not infer health' $capabilities '
 # R5: Concord alone does not establish LIVE-SP; retain existing fallback order.
 Write-Host '--- R5: Concord present, Studio Pro MCP absent ---'
 Assert-Contains 'R5.1 Concord alone does not set LIVE-SP' $routePolicy 'Concord availability alone does not make the project LIVE-SP'
-Assert-Contains 'R5.2 Concord is fallback, not primary' $modePolicy 'Studio-Pro-MCP first.*Concord MCP is the existing fallback'
+Assert-Contains 'R5.2 Concord is fallback, not primary' $routePolicy 'Studio-Pro-MCP first\. Concord MCP is the existing fallback'
 
 # R6: mxcli installation never overrides a LIVE-SP prohibition.
 Write-Host '--- R6: mxcli installed while LIVE-SP is definite ---'
-Assert-Contains 'R6.1 operating-mode policy forbids mxcli mutations' $modePolicy 'Never use mxcli for model mutations'
+Assert-Contains 'R6.1 operating-mode policy forbids mxcli mutations' $modePolicy 'In `LIVE-SP-CURRENT`, no mxcli model mutation is allowed'
 Assert-Contains 'R6.2 implementation route has explicit mxcli prohibition' $implementationAgent 'mxcli-Modellmutationen sind in LIVE-SP-CURRENT verboten'
 Assert-Contains 'R6.3 no mxcli fallback after MCP failure' $routePolicy 'never fall\s+back to mxcli after MCP failure'
 Assert-Contains 'R6.4 orchestrator recheck is at first model mutation' $orchestrator 'ERSTEN Mendix-Modell-Mutation einer Session'

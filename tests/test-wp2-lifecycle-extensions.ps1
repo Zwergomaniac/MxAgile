@@ -254,11 +254,12 @@ Assert ($tdp -match 'canonical.*expectation|canonical.*claim|canonical.*Test Con
 Write-Host "`n[10] evidence-levels.md: BUILD layer present and correctly defined"
 $el = FileContent (Join-Path $RepoRoot '.mxagile/policies/evidence-levels.md')
 Assert ($el -match 'BUILD') 'BUILD level defined'
-Assert ($el -match 'LEVEL 2\.5') 'BUILD is Level 2.5'
+Assert ($el -match '\| `build` \| BUILD \|') 'build evidence maps to the canonical BUILD layer'
 Assert ($el -match 'testability.gate|testability gate') 'testability gate row in evidence table'
 Assert ($el -match 'acceptance.gate') 'acceptance gate row in evidence table'
 Assert ($el -notmatch 'mxcli build-validation') 'does not reference hypothetical mxcli build-validation'
-Assert ($el -match 'NOT equivalent to BUILD|not.*BUILD|mxcli check.*NOT') 'states mxcli check alone is not BUILD'
+Assert ($el -match 'verification-layers\.md.*owns layer' -and
+    $vl -match '(?s)`mxcli check`.*?satisfy MODEL evidence.*?NOT BUILD unless.*?semantic consistency') 'delegates layer semantics and prevents MODEL checks being promoted to BUILD'
 
 # ──────────────────────────────────────────────────────────────
 # [11] gate-to-ready.md: Testability Gate (TC only, no VPL requirement)
@@ -313,7 +314,7 @@ Assert ($da -match 'design-contract-intake') 'references design-contract-intake 
 Assert ($da -match 'mocketeer-spec') 'references mocketeer-spec detection'
 Assert ($da -match 'cannot\[\]') 'handles cannot[] from Design Contract'
 Assert ($da -match 'test_contract_signal') 'emits test_contract_signal for Refinement'
-Assert ($da -match 'BUILD') 'references BUILD evidence level'
+Assert ($da -match 'evidence-levels\.md.*Gate-Evidenzreife.*verification-layers\.md') 'routes evidence maturity and layer semantics to their canonical owners'
 
 $mockupAnalysis = FileContent (Join-Path $RepoRoot '.mxagile/policies/mockup-analysis.md')
 Assert ($mockupAnalysis -match 'Reference Preflight and Evidence Reuse') 'requires reference preflight for UI tasks'

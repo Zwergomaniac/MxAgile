@@ -120,8 +120,8 @@ Write-Host ""
 
 Write-Host "--- A: Normal implementation selects local-first ---"
 
-Assert-FileContains "development-runtime: mxcli run --local preferred" `
-    $devRuntimePath 'mxcli run --local'
+Assert-FileContains "development-runtime: local iteration uses the C1 interactive recipe" `
+    $devRuntimePath 'C1-resolved interactive recipe'
 
 Assert-FileContains "development-runtime: references runtime-strategy escalation" `
     $devRuntimePath '(?i)runtime.strategy|escalat'
@@ -196,7 +196,7 @@ Write-Host ""
 Write-Host "--- D: Styling changes do NOT imply Docker ---"
 
 Assert-FileContains "runtime-strategy: styling/page change listed as NOT requiring Docker" `
-    $runtimeStratPath '(?i)styling.*changed|page.*changed|seite.*gea'
+    $runtimeStratPath '(?i)styling.*change|page.*change|seite.*gea'
 
 Assert-FileNotContains "runtime-strategy: styling changes NOT hardcoded to Docker" `
     $runtimeStratPath '(?i)styling.*changed.*docker.*required|styling.*immer.*docker'
@@ -210,10 +210,10 @@ Write-Host ""
 Write-Host "--- E: Page/microflow/nanoflow changes do NOT imply Docker ---"
 
 Assert-FileContains "runtime-strategy: microflow change listed as NOT requiring Docker" `
-    $runtimeStratPath '(?i)microflow.*changed|microflow.*gea'
+    $runtimeStratPath '(?i)microflow.*change|microflow.*gea'
 
 Assert-FileContains "runtime-strategy: page change listed as NOT requiring Docker" `
-    $runtimeStratPath '(?i)page.*changed|seite.*gea'
+    $runtimeStratPath '(?i)page.*change|seite.*gea'
 
 Assert-FileNotContains "runtime-strategy: microflow change NOT hardcoded to Docker" `
     $runtimeStratPath '(?i)microflow.*changed.*docker.*required|microflow.*immer.*docker'
@@ -264,7 +264,7 @@ Write-Host ""
 Write-Host "--- H: Deployable/container-build may select Docker ---"
 
 Assert-FileContains "runtime-strategy: deployable-build justifies Docker" `
-    $runtimeStratPath '(?i)deployable.build|container.*deploy|mxcli docker build'
+    $runtimeStratPath '(?i)deployable.build|container.*deploy|container.build'
 
 Assert-FileContains "runtime-strategy: Docker IS for section present" `
     $runtimeStratPath '(?i)docker is for|docker.*ist fuer|what docker is for'

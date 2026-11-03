@@ -416,6 +416,16 @@ function renderGallery(screenId = null) {
     container.append(heading);
     container.append(node("p", "gallery-provenance", `REFERENCE ${run.reference_fingerprint}`));
     container.append(node("p", "gallery-provenance", `${run.manifest_path} · ${run.entry_id} · ${run.run_id}`));
+    const resolution = run.parity_resolution || {};
+    const resolutionDetails = node("details", "gallery-resolution");
+    resolutionDetails.append(node("summary", "", "Aggregate resolution"));
+    resolutionDetails.append(node("p", "gallery-provenance", `CLASS ${resolution.evidence_class || "NOT_OBSERVABLE"} · STATUS ${resolution.status || "NOT_OBSERVABLE"}`));
+    resolutionDetails.append(node("p", "gallery-provenance", `REPORTED ${run.reported_parity_result || "NOT_OBSERVABLE"} · COMPUTED ${resolution.computed_overall_result || "NOT_VERIFIED"}`));
+    resolutionDetails.append(node("p", "gallery-provenance", `IDENTITY ${resolution.comparison_identity_status || "NOT_OBSERVABLE"} · FRESHNESS ${resolution.target_freshness || "NOT_OBSERVABLE"}`));
+    for (const blocker of resolution.blockers || []) {
+      resolutionDetails.append(node("p", "gallery-provenance", `${blocker.code}: ${blocker.reason}`));
+    }
+    container.append(resolutionDetails);
     const dimensions = node("dl", "gallery-dimensions");
     for (const [key, label] of [
       ["contract_parity", "CONTRACT"], ["model_parity", "MODEL"], ["structural_dom_parity", "STRUCTURAL_DOM"],

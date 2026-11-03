@@ -4,6 +4,9 @@ Policy defining the five evidence layers for MxAgile verification, their semanti
 security verification dimensions. Consumed by `skills/verification-plan.md` and
 `schemas/verification-plan.schema.json`.
 
+`evidence-levels.md` owns gate maturity and evidence recording, and maps its legacy `evidence:`
+tags to these canonical layers; it does not define a second layer vocabulary.
+
 ## The Five Layers
 
 ### STATIC
@@ -60,7 +63,7 @@ semantics, navigation reachability). Do not silently treat a passing MODEL check
 
 ### RUNTIME
 
-Source: Running application state via `mxcli run --local` (autonomous mode for verification, interactive with `--watch` for development).
+Source: Running application state established by the resolved C1 runtime recipe.
 
 Use for:
 - Application startup without errors

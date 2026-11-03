@@ -48,6 +48,110 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-context-architecture-telemetry.ps1"])
 
+    def test_c1_recipe_paths_select_only_the_runtime_resolver_suite(self):
+        plan = impact.select([
+            "scripts/Resolve-MxAgileMxcli.ps1",
+            "scripts/mxcli_runtime_recipe.py",
+            "tests/test_runtime_recipe.py",
+            ".mxagile/policies/local-runtime-profile.md",
+            ".mxagile/policies/development-runtime.md",
+        ])
+        self.assertEqual(plan["tier"], 1)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-mxcli-runtime-resolution.ps1"])
+
+    def test_dependency_recovery_policy_selects_its_failure_suite(self):
+        plan = impact.select([".mxagile/policies/runtime-dependency-recovery.md"])
+        self.assertEqual(plan["tier"], 1)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-gradle-stall-diagnosis.ps1"])
+
+    def test_runtime_configuration_policy_selects_its_behavior_suites(self):
+        plan = impact.select([".mxagile/policies/runtime-configuration-reconciliation.md"])
+        self.assertEqual(plan["tier"], 2)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], [
+            "test-local-runtime-profile.ps1",
+            "test-scope-aware-verification.ps1",
+        ])
+
+    def test_consolidated_policy_consumers_have_behavior_owners(self):
+        plan = impact.select([
+            ".claude/agents/mxagile-acceptance-agent.md",
+            ".claude/agents/mxagile-implementation-agent.md",
+            ".mxagile/GLOSSARY.yaml",
+            ".mxagile/lifecycle.yaml",
+            ".mxagile/policies/consistency-check.md",
+            ".mxagile/policies/credential-discovery.md",
+            ".mxagile/policies/runtime-startup-recovery.md",
+            ".mxagile/policies/test-identity-lifecycle.md",
+            ".mxagile/policies/test-staleness.md",
+            ".mxagile/policies/test-workflow.md",
+            ".mxagile/policies/verification-gap-taxonomy.md",
+            "tests/fixtures/scope-aware-verification/fixture-H-runtime-config-discrepancy-diagnosed-before-identity-mutation.yaml",
+        ])
+        self.assertEqual(plan["tier"], 2)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], [
+            "test-capabilities-resolver.ps1",
+            "test-capability-discovery-routing.ps1",
+            "test-credential-discovery.ps1",
+            "test-documentation-consistency.ps1",
+            "test-injection-contract.ps1",
+            "test-managed-block.ps1",
+            "test-mxcli-runtime-resolution.ps1",
+            "test-platform-portability.ps1",
+            "test-runtime-startup-recovery.ps1",
+            "test-scope-aware-verification.ps1",
+            "test-session-bootstrap.ps1",
+            "test-verification-gap-taxonomy.ps1",
+            "test-verification-lifecycle.ps1",
+        ])
+
+    def test_canonical_mxagile_readme_selects_documentation_consistency(self):
+        plan = impact.select([".mxagile/README.md"])
+        self.assertEqual(plan["tier"], 1)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-documentation-consistency.ps1"])
+
+    def test_consolidated_policy_authorities_select_their_behavior_owners(self):
+        plan = impact.select([
+            ".mxagile/policies/runtime-strategy.md",
+            ".mxagile/policies/verification-layers.md",
+            ".mxagile/policies/gap-verification-repair.md",
+        ])
+        self.assertEqual(plan["tier"], 2)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], [
+            "test-board-authority.ps1",
+            "test-runtime-strategy.ps1",
+            "test-ui-parity.ps1",
+            "test-verification-lifecycle.ps1",
+            "test_board_performance.py",
+            "test_parity_gallery.py",
+            "test_project_status.py",
+        ])
+
+    def test_generated_agent_projection_selects_projection_consumers(self):
+        plan = impact.select([
+            ".claude/agents/mxagile-ui-agent.md",
+            ".claude/agents/mxagile-discovery-agent.md",
+        ])
+        self.assertEqual(plan["tier"], 2)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], [
+            "test-capability-discovery-routing.ps1",
+            "test-injection-contract.ps1",
+            "test-managed-block.ps1",
+            "test-platform-portability.ps1",
+        ])
+
+    def test_startup_injector_selects_its_routing_e2e_suite(self):
+        plan = impact.select(["scripts/apply-project-agent-instructions.ps1"])
+        self.assertEqual(plan["tier"], 3)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertIn("test-capability-discovery-routing.ps1", plan["suites"])
+
     def test_operating_mode_policy_maps_to_c2_consumers(self):
         plan = impact.select([
             ".mxagile/policies/operating-mode.md",

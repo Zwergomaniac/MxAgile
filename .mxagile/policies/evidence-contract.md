@@ -98,29 +98,16 @@ When browser tooling produces temporary screenshots or output:
 
 ### Promotion Gate
 
-Before promoting current parity evidence, confirm:
+Before retaining a capture, validate its active-target revision/fingerprint, bound identity,
+requested scope, capture-group provenance, and cleanliness. Do not infer pairing from filenames
+or timestamps. Keep invalid, contaminated, or unbound artifacts temporary.
 
-1. Active-target authority and canonical revision were checked; the recorded fingerprint
-   matches the rendered reference.
-2. `comparison_identity.status` is `BOUND`, with the requested page/role/state and current
-   app/model revision recorded. No `REFERENCE_DRIFT` occurred after binding.
-3. Runtime page and role are confirmed and the capture is clean.
-4. Screenshot and snapshots share a `capture_id` and complete capture-group provenance.
-   Do not infer this relation from filenames or timestamps.
-5. The required parity dimension was actually performed. A DOM/HTML comparison alone cannot
-   be promoted as visual parity.
-6. For visual parity, the reference and actual screenshots were opened and visually
-   inspected. Generated-but-unopened screenshots are not visual review evidence.
-
-If any gate is missing, keep the artifacts temporary and mark the affected matrix status
-`NOT_VERIFIED`; do not promote them as current parity evidence.
-
-Previously reported `visual_whole_screen_parity: PASS` or equivalent whole-screen PASS claims
-without an immutable comparison identity, rendered active-target screenshot, opened/inspected
-runtime screenshot, and paired capture provenance are not current evidence. Preserve the old
-report for audit, but classify its visual whole-screen status as `NOT_VERIFIED` (or
-`LEGACY_EVIDENCE` only when its original provenance is retained). Do not use such a claim to
-derive implementation scope or acceptance.
+Evidence retention is not a parity verdict. The canonical `build_project_status.resolve_parity_status`
+resolver in `policies/ui-parity.md` decides whether typed evidence is sufficient, whether a
+comparison was actually performed, and which aggregate status may be promoted. A screenshot
+or a set of paired captures alone MUST NOT be described as visual or whole-screen PASS. When
+the resolver does not allow promotion, preserve the producer claim separately and retain the
+resolver's `NOT_VERIFIED`, `BLOCKED`, `STALE`, `NOT_OBSERVABLE`, `UNKNOWN`, or `AMBIGUOUS` result.
 
 ### Semantic Naming
 

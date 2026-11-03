@@ -62,7 +62,7 @@ Assert ($orch -match 'ORIENTATION Check.*\r?\n.*\r?\n.*FRAMEWORK_CHANGE|ORIENTAT
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[C] Managed block: orientation reference"
 Assert ($apply -match 'user-orientation\.md') 'C1: managed block startup references user-orientation.md'
-Assert ($apply -match 'user-orientation.*never blocks|user-orientation.*orientation.*brief|Brief.*never blocks') 'C2: managed block notes orientation is brief and non-blocking'
+Assert ($apply -match 'user-orientation\.md`; orientation never\s+blocks') 'C2: managed block states orientation never blocks the substantive request'
 
 # ──────────────────────────────────────────────────────────────
 # D  NO-GATE guarantee

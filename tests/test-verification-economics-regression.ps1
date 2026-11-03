@@ -91,7 +91,8 @@ Assert-True "S1: fixture confirms evidence_collected: false" ($fixNoTcRaw -match
 Write-Host ""
 Write-Host "SCENARIO 2: Existing TC + new scope -> EXTEND candidate -> existing PPs preserved" -ForegroundColor Cyan
 
-Assert-FileContains "S2: VERIFICATION_COVERAGE_GAP maps to EXTEND" $TaxPolicy "VERIFICATION_COVERAGE_GAP.*EXTEND"
+Assert-FileContains "S2: coverage gap delegates action selection to materialization" $TaxPolicy '(?s)### VERIFICATION_COVERAGE_GAP.*?resolve the action through `policies/verification-materialization\.md`'
+Assert-FileContains "S2: accepted additive scope maps to EXTEND" $MatPolicy '(?s)### EXTEND.*?expanded scope.*?existing TC/PP/VPL/evidence for prior scope remains fully valid'
 Assert-FileContains "S2: EXTEND preserves existing PPs" $MatPolicy "prior.*PP.*unchanged|existing.*PP.*unchanged"
 Assert-FileContains "S2: EXTEND does NOT invalidate prior evidence" $MatPolicy "EXTEND must NOT"
 $fixCovGap = Get-Content -LiteralPath $FixCovGap -Raw -ErrorAction SilentlyContinue
@@ -108,7 +109,7 @@ Assert-True "S2: EXTEND fixture confirms TC status remains active" ($fixExtend -
 Write-Host ""
 Write-Host "SCENARIO 3: Changed locator -> TEST_BINDING_GAP -> REMATERIALIZE -> TC remains active" -ForegroundColor Cyan
 
-Assert-FileContains "S3: TEST_BINDING_GAP maps to REMATERIALIZE" $TaxPolicy "TEST_BINDING_GAP.*REMATERIALIZE"
+Assert-FileContains "S3: binding gap delegates action selection to materialization" $TaxPolicy '(?s)### TEST_BINDING_GAP.*?revision action is owned by\s+`policies/verification-materialization\.md`'
 Assert-FileContains "S3: REMATERIALIZE does not change TC status" $MatPolicy "TC: \*\*no change\*\* — claim is valid"
 Assert-FileContains "S3: Locator change -> REMATERIALIZE in decision table" $MatPolicy "Locator change.*rematerialize"
 Assert-FileContains "S3: execution_binding_stale signals REMATERIALIZE" $MatPolicy "execution_binding_stale.*REMATERIALIZE"
@@ -119,7 +120,7 @@ Assert-FileContains "S3: execution_binding_stale signals REMATERIALIZE" $MatPoli
 Write-Host ""
 Write-Host "SCENARIO 4: Implementation changed -> REEXECUTE -> preserve definition" -ForegroundColor Cyan
 
-Assert-FileContains "S4: EVIDENCE_STALE maps to REEXECUTE" $TaxPolicy "EVIDENCE_STALE.*REEXECUTE"
+Assert-FileContains "S4: stale evidence delegates action selection to materialization" $TaxPolicy '(?s)### EVIDENCE_STALE.*?Next action:.*?policies/verification-materialization\.md'
 Assert-FileContains "S4: REEXECUTE does not rewrite test definition" $MatPolicy "REEXECUTE.*reuse|reuse.*minor refresh"
 Assert-FileContains "S4: REEXECUTE TC unchanged" $MatPolicy "TC: no change"
 Assert-FileContains "S4: REEXECUTE VPL unchanged" $MatPolicy "VPL: no change"

@@ -55,8 +55,10 @@ Plattform-Kopien mit dem jeweils passenden Frontmatter.
 │   ├── implementation-control.md
 │   ├── development-runtime.md
 │   ├── runtime-strategy.md        <- Local First, Docker By Verification Need
+│   ├── runtime-dependency-recovery.md <- Failure-only Gradle dependency-sync recovery
+    │   ├── runtime-configuration-reconciliation.md <- Project constant and Studio Pro discrepancy recovery
 │   ├── credential-discovery.md    <- Credential Bootstrap: Discover before blocking
-│   ├── evidence-levels.md         <- STATIC/MODEL/RUNTIME/BROWSER evidence classification
+│   ├── evidence-levels.md         <- Gate evidence maturity; layer vocabulary in verification-layers.md
 │   ├── test-workflow.md
 │   ├── consistency-check.md
 │   ├── mockup-analysis.md

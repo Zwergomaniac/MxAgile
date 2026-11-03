@@ -592,6 +592,13 @@ try {
     Copy-Item -LiteralPath $mxcliResolverSource -Destination (Join-Path $destToolsDir "Resolve-MxAgileMxcli.ps1") -Force
     Write-Host "[OK] Distributed .mxagile/tools/Resolve-MxAgileMxcli.ps1."
 
+    $runtimeRecipeSource = Join-Path $PSScriptRoot 'mxcli_runtime_recipe.py'
+    if (-not (Test-Path -LiteralPath $runtimeRecipeSource -PathType Leaf)) {
+        throw "mxcli_runtime_recipe.py not found in script directory: $runtimeRecipeSource"
+    }
+    Copy-Item -LiteralPath $runtimeRecipeSource -Destination (Join-Path $destToolsDir 'mxcli_runtime_recipe.py') -Force
+    Write-Host '[OK] Distributed .mxagile/tools/mxcli_runtime_recipe.py.'
+
     $studioProDetectorSource = Join-Path $PSScriptRoot "check-studio-pro-status.ps1"
     if (-not (Test-Path -LiteralPath $studioProDetectorSource -PathType Leaf)) {
         throw "check-studio-pro-status.ps1 not found in script directory: $studioProDetectorSource"
@@ -713,6 +720,7 @@ try {
                 ".mxagile/tools/Get-MxAgileDelegationResult.ps1",
                 ".mxagile/tools/Save-MxAgileRoutingDecision.ps1",
                 ".mxagile/tools/Resolve-MxAgileMxcli.ps1",
+                ".mxagile/tools/mxcli_runtime_recipe.py",
                 ".mxagile/tools/check-studio-pro-status.ps1",
                 ".mxagile/tools/build_project_status.py",
                 ".mxagile/tools/reconcile_external_changes.py",

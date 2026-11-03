@@ -122,7 +122,7 @@ terms:
         INTENDED_PROJECT_LOCAL_CONFIG → HEADLESS_RUNTIME_CONFIG → CONFIGURATION_PARITY_CHECK
         → AUTHENTICATION_ATTEMPT → only then diagnose identity/credential infrastructure.
         Resolution: permanent project constant_overrides declaration in mxagile-project.yaml.
-        Full policy: policies/local-runtime-profile.md § RUNTIME_CONFIGURATION_DISCREPANCY.
+        Full policy: policies/runtime-configuration-reconciliation.md.
     FIXTURE_GAP:
       category: Verification prerequisite gap
       description: >

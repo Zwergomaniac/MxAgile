@@ -104,7 +104,12 @@ class GalleryTests(unittest.TestCase):
 
     def test_missing_captures_never_uses_unbound_images(self):
         self.manifest['entries'][0].pop('capture_groups')
-        self.assertEqual(self.project(), [])
+        gallery = self.project()
+        self.assertEqual(len(gallery), 1)
+        self.assertEqual(gallery[0]['run_id'], 'UNOBSERVED')
+        self.assertEqual(gallery[0]['parity_resolution']['status'], 'NOT_OBSERVABLE')
+        self.assertFalse(gallery[0]['parity_resolution']['promotion_allowed'])
+        self.assertEqual(gallery[0]['captures'], [])
 
     def test_drifted_identity_and_unsafe_images_are_not_authorized(self):
         self.manifest['entries'][0]['capture_groups'][0]['comparison_identity'] = {**self.manifest['entries'][0]['comparison_identity'], 'revision': 'REV-999'}
@@ -137,7 +142,13 @@ class GalleryTests(unittest.TestCase):
     def test_unbound_historical_reference_is_rejected(self):
         self.target['revision_id'] = 'REV-002'
         self.manifest['entries'][0]['comparison_identity']['fingerprint'] = 'sha256:' + 'f' * 64
-        self.assertEqual(self.project(), [])
+        gallery = self.project()
+        self.assertEqual(len(gallery), 1)
+        self.assertEqual(gallery[0]['reference_path'], 'NOT_OBSERVABLE')
+        self.assertEqual(gallery[0]['run_id'], 'UNOBSERVED')
+        self.assertEqual(gallery[0]['parity_resolution']['status'], 'NOT_OBSERVABLE')
+        self.assertFalse(gallery[0]['parity_resolution']['promotion_allowed'])
+        self.assertEqual(gallery[0]['captures'], [])
 
     def test_current_and_previous_groups_remain_separate(self):
         self.manifest['entries'].append(historical_entry(self.manifest['entries'][0]))
@@ -151,7 +162,9 @@ class GalleryTests(unittest.TestCase):
         self.manifest['entries'].append(other)
         gaps = []
         gallery = build_project_status.visual_evidence_projection(self.root, [self.manifest], ['planning/evidence/manifests/W01-evidence-manifest.yaml'], [self.target], {}, gaps)
-        self.assertEqual(gallery, [])
+        self.assertTrue(all(not run['captures'] for run in gallery))
+        self.assertTrue(all(run['run_id'] == 'UNOBSERVED' for run in gallery))
+        self.assertTrue(all(run['parity_resolution']['status'] == 'NOT_OBSERVABLE' for run in gallery))
         self.assertTrue(any(gap['code'] == 'CAPTURE_ID_CONFLICT' for gap in gaps))
         report = project_compatibility.compatibility_report(self.root, {'gaps': gaps, 'project': {'active_targets': {'items': []}}}, {})
         self.assertTrue(any(item['category'] == 'AUTHORITY_CONFLICT' and item['authority'] == 'capture_id' and item['repairability'] == 'DECISION_REQUIRED' for item in report['diagnostics']))

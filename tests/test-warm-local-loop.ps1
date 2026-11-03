@@ -79,23 +79,23 @@ Assert-True "development-runtime.md exists" `
     (Test-Path -LiteralPath $policyPath) `
     "Canonical policy not found: $policyPath"
 
-Assert-FileContains "policy: knows mxcli run --local" `
-    $policyPath 'mxcli run --local'
+Assert-FileContains "policy: local development runtime is recipe-resolved" `
+    $policyPath 'resolved_runtime_recipe'
 
-Assert-FileContains "policy: knows --watch flag" `
-    $policyPath '--watch'
+Assert-FileContains "policy: interactive watch behavior is help-dependent" `
+    $policyPath 'selected binary advertises the required syntax'
 
-Assert-FileContains "policy: preferred command includes --watch" `
-    $policyPath 'mxcli run --local.*--watch'
+Assert-FileContains "policy: runtime argv is not reconstructed from prose" `
+    $policyPath 'MUST NOT reconstruct mxcli commands'
 
 Assert-FileContains "implementation-agent: references development-runtime policy" `
     $implAgentPath 'development-runtime'
 
-Assert-FileContains "implementation-agent: knows mxcli run --local" `
-    $implAgentPath 'mxcli run --local'
+Assert-FileContains "implementation-agent: consumes resolved runtime recipe" `
+    $implAgentPath 'resolved_runtime_recipe'
 
-Assert-FileContains "implementation-agent: knows --watch" `
-    $implAgentPath '--watch'
+Assert-FileContains "implementation-agent: does not reconstruct runtime flags" `
+    $implAgentPath '(?is)Keine mxcli Runtime-Flags.*rekonstruieren'
 
 Write-Host ""
 
@@ -177,8 +177,8 @@ Write-Host "--- Section E: Local runtime != Verification ---"
 Assert-FileContains "policy: app start != verification" `
     $policyPath '(?i)starts.*successfully.*verification|start.*not.*verification'
 
-Assert-FileContains "policy: mxcli run --local succeeds != wave verified" `
-    $policyPath '(?i)mxcli run --local.*wave verified'
+Assert-FileContains "policy: runtime success does not equal wave verification" `
+    $policyPath '(?i)Successful development-runtime start.*Wave verified'
 
 Assert-FileContains "quality-gate: local runtime does not replace quality gate" `
     $qualityGatePath '(?i)development.*runtime|mxcli run --local'
@@ -228,8 +228,8 @@ Write-Host ""
 
 Write-Host "--- Section G: Database guidance not hardcoded ---"
 
-Assert-FileContains "policy: database section exists" `
-    $policyPath '(?i)## database'
+Assert-FileContains "policy: database identity delegates to the canonical C1 profile" `
+    $policyPath '(?is)local-runtime-profile\.md.*database identity'
 
 Assert-FileNotContains "policy: no hardcoded hsqldb default" `
     $policyPath '(?i)default.*hsqldb|always.*use.*hsqldb|universell.*hsqldb'
@@ -237,11 +237,11 @@ Assert-FileNotContains "policy: no hardcoded hsqldb default" `
 Assert-FileNotContains "policy: no hardcoded postgresql default" `
     $policyPath '(?i)default.*postgresql|always.*use.*postgres|universell.*postgres'
 
-Assert-FileContains "policy: preference order for database" `
-    $policyPath '(?i)preference.*order|projekt.*konfiguration|project.*configuration'
+Assert-FileContains "profile: database precedence is defined by the canonical runtime profile" `
+    (Join-Path $ScriptDir ".mxagile/policies/local-runtime-profile.md") '(?i)Configuration Precedence|db_name.*precedence'
 
-Assert-FileContains "policy: defines MxAgile autonomous DB default (not hardcoded type)" `
-    $policyPath '(?i)MXAGILE_CORE_DEFAULT|Core autonomous default'
+Assert-FileContains "profile: defines MxAgile autonomous DB default (not hardcoded type)" `
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
 
 Write-Host ""
 

@@ -289,8 +289,8 @@ Assert-FileContains "lifecycle-resync.md: runtime inspection != UI-Agent Verify"
 Assert-FileContains "orchestrator.md: verification invariants section present" `
     $orchestratorMd 'Verification-Invarianten|Verifikation.*nicht.*ersetzbar'
 
-Assert-FileContains "orchestrator.md: mxcli run succeeded != wave verified" `
-    $orchestratorMd 'mxcli run.*verifiziert|run.*local.*verifiziert'
+Assert-FileContains "orchestrator.md: successful local runtime start != wave verified" `
+    $orchestratorMd 'erfolgreicher lokaler Runtime-Start.*Wave verifiziert'
 
 Write-Host ""
 
@@ -378,11 +378,11 @@ Assert-FileContains "lifecycle-resync.md: runtime state != lifecycle state" `
 Assert-FileContains "lifecycle-resync.md: runtime changes do not trigger phase transition" `
     $resyncPolicyPath 'Runtime-Zustandsaenderungen.*KEINEN Phasenwechsel|keine.*Phasenwechsel'
 
-Assert-FileContains "development-runtime.md: warm loop guidance preserved" `
-    $devRuntimePath 'mxcli run.*local.*watch|--watch'
+Assert-FileContains "development-runtime.md: warm recipe and help-derived watch behavior preserved" `
+    $devRuntimePath '(?s)### Interactive Implementation Mode.*?watch behavior only when the selected binary advertises.*?Hot-apply model changes, avoid full restarts'
 
-Assert-FileContains "implementation-agent.md: warm loop section preserved" `
-    $implAgentPath 'mxcli run.*local.*watch|--watch'
+Assert-FileContains "implementation-agent.md: warm loop consumes the complete C1 recipe" `
+    $implAgentPath '(?s)### 3a\. Development Runtime \(Warm Local Loop\).*?development-runtime\.md.*?C1-`resolved_runtime_recipe`'
 
 Assert-FileContains "orchestrator.md: warm local loop section preserved" `
     $orchestratorMd 'Warm Local Loop|Development Runtime.*Warm'

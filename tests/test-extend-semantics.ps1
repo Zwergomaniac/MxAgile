@@ -79,14 +79,12 @@ Assert-FileContains "EXTEND in impact action decision table" $MatPolicy "extend.
 # TEST-STALENESS: EXTEND in revision impact table
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Host ""
-Write-Host "TEST-STALENESS: EXTEND in revision impact vocabulary" -ForegroundColor Cyan
+Write-Host "TEST-STALENESS: status ownership and action delegation" -ForegroundColor Cyan
 
-Assert-FileContains "test-staleness defines EXTEND" $StalePol "EXTEND"
-Assert-FileContains "test-staleness EXTEND: TC remains active" $StalePol "EXTEND.*active|unchanged.*active.*EXTEND"
-Assert-FileContains "test-staleness EXTEND: prior PPs unchanged" $StalePol "prior PPs unchanged|existing PPs unchanged"
-Assert-FileContains "test-staleness EXTEND differs from REASSESS" $StalePol "EXTEND.*REASSESS"
-Assert-FileContains "test-staleness EXTEND: prior evidence preserved" $StalePol "prior evidence.*valid|evidence.*preserved.*EXTEND"
-Assert-FileContains "test-staleness EXTEND does NOT require DECISION_REQUIRED" $StalePol "EXTEND.*NOT.*DECISION_REQUIRED"
+Assert-FileContains "test-staleness delegates actions to materialization" $StalePol 'verification-materialization\.md` is the sole action authority'
+Assert-FileContains "test-staleness does not choose revision actions" $StalePol 'does not choose a revision action'
+Assert-FileContains "test-staleness retains TC/PP status transitions" $StalePol 'owns TC/PP status transitions'
+Assert-FileContains "test-staleness prevents stale acceptance reuse" $StalePol 'stale contract or proof point MUST NOT be used'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FIXTURE K: EXTEND scenario
@@ -122,12 +120,10 @@ Assert-FileContains "materialization policy has REMATERIALIZE" $MatPolicy "### R
 Assert-FileContains "materialization policy has REEXECUTE" $MatPolicy "### REEXECUTE"
 Assert-FileContains "materialization policy has INVALIDATE" $MatPolicy "### INVALIDATE"
 
-Assert-FileContains "test-staleness has PRESERVE" $StalePol "PRESERVE"
-Assert-FileContains "test-staleness has EXTEND" $StalePol "EXTEND"
-Assert-FileContains "test-staleness has REASSESS" $StalePol "REASSESS"
-Assert-FileContains "test-staleness has REMATERIALIZE" $StalePol "REMATERIALIZE"
-Assert-FileContains "test-staleness has REEXECUTE" $StalePol "REEXECUTE"
-Assert-FileContains "test-staleness has INVALIDATE" $StalePol "INVALIDATE"
+Assert-FileContains "test-staleness has CURRENT" $StalePol "### CURRENT"
+Assert-FileContains "test-staleness has STALE" $StalePol "### STALE"
+Assert-FileContains "test-staleness has IMPACTED" $StalePol "### IMPACTED"
+Assert-FileContains "test-staleness preserves non-deletion rule" $StalePol "## Non-Deletion Rule"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SUMMARY

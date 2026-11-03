@@ -209,7 +209,7 @@ try {
 
 # --- E2E: existing-project update + idempotence ---------------------------------------------
 Write-Host "--- Existing project update ---" -ForegroundColor Yellow
-$oldSessionInstructions = $block -replace '(?s)8\. \*\*MxAgile install/update.*?(?=9\. \*\*Git index)', "8. MxAgile update: compare installed commit with upstream.`n`n"
+$oldSessionInstructions = $block -replace '(?s)8\. \*\*Install/update.*?(?=\r?\n9\. \*\*Finding-linked work)', "8. MxAgile update: compare installed commit with upstream.`n`n"
 Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content $statusBuilder '# tampered' -Encoding UTF8

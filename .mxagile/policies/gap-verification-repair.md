@@ -112,24 +112,14 @@ explicit compaction. Do not run a Finding migration or reconciliation after
 every agent turn. New sessions load active structured Findings and only relevant
 terminal references, not the complete historical `FINDINGS.md`.
 
-## GAP Record Format
+## Canonical GAP Record
 
-Each identified GAP is recorded as an entry in the parity report or a standalone GAP record:
-
-```yaml
-gap_id: GAP-001-SECTION-EXPAND
-gap_type: INTERACTION_GAP
-severity: MATERIAL
-page_id: PAGE-OVERVIEW
-description: "Expandable sections do not respond to click — expand effect missing."
-target_state_ref: "STATE-SECTION-EXPANDED"
-target_effect_ref: "EFF-SECTION-EXPAND"
-implementation_actual: "Sections are rendered as static panels without expand control."
-lifecycle_status: REPAIR_PROPOSED
-repair_description: "Add expand/collapse toggle to section header."
-decision_required: false
-decision_ref: null
-```
+`planning/findings/FIND-*.yml` is the canonical durable GAP record per
+`.mxagile/schemas/finding.schema.json`. A parity report is evidence, not a second lifecycle
+store. Before a later implementation, consume the Finding's persisted `authority_disposition`
+through the current Project Status projection; a `CLASSIFIED` lifecycle status alone does not
+authorize an app change. See `policies/parity-finding-reconciliation.md` for currentness and
+the action boundary.
 
 ## Platform Boundary GAPs
 
@@ -153,11 +143,14 @@ When a fachliche role defined in the Design Contract or role model cannot be rep
 
 ## Agent Authority Limits for GAP Repair
 
+The classification and allowed action for later implementation are not reconstructed from this
+workflow. Consume the current `authority_disposition` from the canonical Finding through Project
+Status; act only when `status: RESOLVED` and `consumable: true`. Classification-to-action mapping,
+fingerprint currentness, and `REFERENCE_GAP` / `AUTHORITY_CONFLICT` prohibitions are owned by
+`policies/parity-finding-reconciliation.md`, the Finding schema, and its resolver projection.
+
 | Action | Agent Authority |
 |---|---|
-| Detect and classify a GAP | Autonomous |
-| Record a GAP in the parity report | Autonomous |
-| Propose a repair | Autonomous (REPAIR_PROPOSED) |
 | Apply a COSMETIC repair | With developer awareness |
 | Apply a MATERIAL or CRITICAL repair | Requires developer REPAIR_ACCEPTED |
 | Change the fachliches Soll (target mockup) | FORBIDDEN without full Mockup Refinement + DEC-NNN |
@@ -192,20 +185,13 @@ notes: "Cosmetic gap GAP-003 deferred per PO request. All MATERIAL gaps repaired
 - Design Contract laden (`mocketeer-spec` aus aktivem Target-HTML).
 - Alle relevanten Requirements, Decisions, Interaction States, Roles, Platform Boundaries laden.
 
-### Step 2 — Feedback klassifizieren
+### Step 2 — GAP-Typ und Authority-Disposition
 
-Jedes Feedback einer primären Klassifikation zuordnen (Sekundärklassifikationen zulässig):
-
-| Klassifikation | Bedeutung |
-|---|---|
-| `IMPLEMENTATION_GAP` | Bestätigtes Verhalten bekannt, Mendix-Implementierung verhält sich anders |
-| `UI_PARITY_GAP` | Layout, Komponente, Sichtbarkeit oder Struktur weicht vom aktiven Target ab |
-| `INTERACTION_GAP` | Trigger, Zustand, Feedback, Expand/Collapse, Modal, Fokus oder Tastatur weicht ab |
-| `ROLE_COVERAGE_GAP` | Bestätigte Rolle nicht testbar oder nicht korrekt umgesetzt |
-| `PLATFORM_BOUNDARY_VIOLATION` | Plattformfunktion fälschlich als App-Funktion implementiert |
-| `REQUIREMENT_CHANGE` | Stakeholder ändert das fachliche Soll → in Refinement, nicht Repair |
-| `DECISION_REQUIRED` | Soll unklar oder widersprüchlich → betroffenen Scope blockieren |
-| `NOT_REPRODUCIBLE` | Zustand mit dokumentierter Umgebung und Rolle nicht reproduzierbar |
+`gap_type` und `severity` beschreiben die Abweichung. Die separate, persistierte
+`authority_disposition.classification` steuert den Folgeweg. Verwende ausschließlich die
+Klassifikation und Aktion aus `policies/parity-finding-reconciliation.md`; keine zweite
+Feedback-Klassifikation aus Report-Prosa ableiten. Ohne aktuelle, konsumierbare Disposition
+keine Modell-/App-Änderung beginnen.
 
 ### Step 3 — Soll und Ist dokumentieren
 

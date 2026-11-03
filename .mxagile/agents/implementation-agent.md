@@ -17,6 +17,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
 - `.mxagile/policies/mission-completion.md` — Completion Levels, Terminal-State Guard, Phase-Boundary Continuation
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
+- `.mxagile/policies/parity-finding-reconciliation.md` — persisted authority disposition for Finding-linked implementation
 
 Before any mxcli invocation, resolve and use the exact project-declared/project-local binary
 per `policies/local-runtime-profile.md`. Record its absolute path and version; validate
@@ -150,6 +151,18 @@ Erster Schritt vor jeder Ausfuehrung: Feld-Inventar in konkrete Mendix-Artefakte
 
 ### 3. Implementierung
 
+Vor einer Finding-/GAP-bezogenen Modell- oder App-Aenderung den bestehenden
+`.mxagile/tools/build_project_status.py`-Read-only-Output konsumieren und das Finding ueber
+`findings.items[].id` aufloesen. Die persistierte `authority_disposition` ist nur bei
+`status: RESOLVED` und `consumable: true` gueltig; danach `allowed_action` und
+`prohibited_actions` unveraendert befolgen. `REFERENCE_GAP` erlaubt keine App-Aenderung,
+`AUTHORITY_CONFLICT` keine semantische Implementierung. Fehlt die Disposition oder ist sie
+`STALE`, `NOT_OBSERVABLE` oder `AMBIGUOUS`, Arbeit am Finding stoppen und die bestehende
+Parity-Finding-Reconciliation wiederholen. Geaenderte Requirement-/Decision-/Evidence-Basis
+erfordert eine neue Disposition-Revision mit neuem Fingerprint; nie die alte Klassifikation
+still umdeuten. Die Disposition erteilt keine Checklisten-, Ownership- oder Repair-Freigabe,
+sondern wird mit deren bestehenden Gates kombiniert.
+
 Pro Checklisten-Item:
 
 1. MDL-Script erstellen (unter `mdlsource/`)
@@ -163,7 +176,7 @@ Pro Checklisten-Item:
    Concord MCP nur als bestaetigten Fallback verwenden. `mxcli exec` und andere
    mxcli-Modellmutationen sind in LIVE-SP-CURRENT verboten. In CLOSED-AUTONOM/
    LIVE-SP-OTHER: `mxcli exec <script>.mdl -p <project>.mpr`.
-5. Wenn Development Runtime laeuft (`--watch`): Warten bis Runtime die Aenderung uebernimmt
+5. Wenn ein interaktives C1-Runtime-Recipe laeuft: Warten bis die Runtime die Aenderung uebernimmt
 6. Bei runtime-relevantem Item: Runtime-Ergebnis als Entwicklungs-Feedback pruefen
 7. Item als `done` markieren
 
@@ -178,12 +191,10 @@ Siehe `.mxagile/policies/development-runtime.md` fuer vollstaendige Regeln.
 Microflow-Verhalten, Validierungen, UI-Iteration). Nicht pauschal zu Beginn
 jeder Implementing-Phase.
 
-**Basis-Befehl** (Profil-Aufloesung vor Ausfuehrung erforderlich — vollstaendige Regeln:
-`policies/development-runtime.md` § DB Identity Resolution und § Base Command vs. Effective Command):
-
-```
-mxcli run --local -p <project>.mpr --watch
-```
+**Runtime-Aufruf:** Vor dem Start ein C1-`resolved_runtime_recipe` konsumieren und dessen
+Executable sowie Argument-Array unveraendert ausfuehren. Keine mxcli Runtime-Flags aus
+Policy-Beispielen rekonstruieren oder ergaenzen; die ausgewaehlte Binary-Hilfe ist die
+Syntax-Autoritaet.
 
 **Ablauf mit warmem Runtime:**
 
@@ -195,7 +206,7 @@ gelten die MCP-Routen und das mxcli-Modellmutationsverbot aus
 MDL-Aenderung
     -> Validieren (mxcli check)
     -> Ausfuehren (mxcli exec)
-    -> Runtime uebernimmt Aenderung (--watch)
+   -> Runtime uebernimmt Aenderung gemaess dem aufgeloesten interaktiven Recipe
     -> Bei Bedarf: Runtime-Ergebnis inspizieren
     -> Naechste Aenderung
 ```

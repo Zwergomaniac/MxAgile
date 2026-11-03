@@ -26,7 +26,7 @@ beginnt.
 - `.mxagile/policies/local-runtime-profile.md` — project profile and pinned mxcli selection
 - `.mxagile/policies/tool-instruction-conflict.md` — resolve project/Core/harness/skill conflicts before tool use
 - `.mxagile/policies/test-identity-lifecycle.md` — initial login and requested role are separate
-- `.mxagile/policies/evidence-levels.md` — Evidenz-Level-Klassifikation (STATIC/MODEL/BUILD/RUNTIME/FRONTEND)
+- `.mxagile/policies/evidence-levels.md` — Gate-Evidenzreife und Recording; Layer-Semantik steht in `verification-layers.md`
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/design-contract-intake.md` — Mocketeer Design Contract v1 intake (WP2)
 - `.mxagile/policies/verification-gap-taxonomy.md` — Verification gap classification (NO_TC_YET / VERIFICATION_COVERAGE_GAP / TEST_BINDING_GAP / EVIDENCE_STALE)
@@ -75,6 +75,10 @@ Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle 
    Board-Stories die beim Lesen sichtbar werden, die aber nicht zum autorisierten
    Scope gehoeren, werden NICHT als neuer Scope importiert oder als Mission-Erweiterung behandelt
 9. Fuehre die Discovery-Phase durch
+   Wenn autonome Runtime- oder Browser-Evidenz erforderlich ist, konsumiere das zentrale
+   `resolved_runtime_recipe` aus `policies/local-runtime-profile.md`. Backend, DB-Identitaet
+   und mxcli-Argumente nicht selbst ableiten oder rekonstruieren; ohne aufgeloestes Rezept
+   keine Runtime starten.
 10. Wenn `development.ui_driven = true`: **UI-Driven Runtime Readiness Gate** pruefen (siehe unten)
 11. Pruefe am Ende die Vorbedingungen aus `.mxagile/skills/gate-to-refinement.md`
 

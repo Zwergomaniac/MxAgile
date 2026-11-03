@@ -49,8 +49,11 @@ class RecoveryContractTests(unittest.TestCase):
             self.assertIn(marker, policy)
         self.assertIn('Allgemeine\nCommit-/Autonomie-Autoritaet reicht nicht', policy)
         routing = (ROOT / 'scripts/apply-project-agent-instructions.ps1').read_text(encoding='utf-8-sig')
-        self.assertIn('CONTROLLED_RECOVERY preflight, bounded operation and post-check', routing)
-        self.assertIn('do not reject authorized recovery solely because normal Git writes are restricted', routing)
+        self.assertIn('Read `.mxagile/policies/safety-rules.md`', routing)
+        self.assertRegex(policy, r'Safety darf eine ausdruecklich beauftragte, begrenzte Recovery nicht pauschal\s+verhindern')
+        self.assertIn('Read-only Preflight: `python .mxagile/tools/git_index_integrity.py --project-root .', policy)
+        self.assertIn('--recovery merge-abort --user-authorized --scope-reviewed', policy)
+        self.assertIn('--verify-before <externe-baseline.json> --command-exit <code>', policy)
 
     def test_lock_failures_and_resume_remain_fail_closed(self):
         policy = (ROOT / '.mxagile/policies/safety-rules.md').read_text(encoding='utf-8')

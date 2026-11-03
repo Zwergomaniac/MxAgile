@@ -311,7 +311,7 @@ Assert-FileContains "recovery policy: no speculative credential mutation" `
     $recoveryPolicyPath '(?i)no.*speculative.*credential|not.*mutate.*credential'
 
 Assert-FileContains "development-runtime: credential mutation never permitted on auth failure" `
-    $devRuntimePath '(?i)credential.*mutation|ALTER USER|speculative.*credential'
+    $credDiscoveryPath '(?i)credential.*mutation|ALTER USER|speculative.*credential'
 
 Write-Host ""
 

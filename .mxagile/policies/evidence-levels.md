@@ -1,6 +1,7 @@
 # Evidence Levels
 
-Canonical classification for the maturity of verification evidence in the MxAgile lifecycle.
+Gate-level evidence maturity and recording requirements. `verification-layers.md` owns layer
+semantics, proof strengths, and the canonical FRONTEND/BROWSER mapping.
 
 ## The Problem
 
@@ -15,105 +16,22 @@ same things as one backed by BROWSER evidence.
 
 This policy defines the four levels, their meaning, and which gates require which level.
 
-## Evidence Level Definitions
+## Canonical Layer Mapping
 
-### LEVEL 1 — STATIC
+Do not define a second layer taxonomy here. Use `verification-layers.md` for STATIC, MODEL,
+BUILD, RUNTIME, and FRONTEND semantics. Existing `evidence:` tags map as follows:
 
-Source: document/artifact analysis without executing anything
+| Recorded tag | Canonical layer |
+|---|---|
+| `static` | STATIC |
+| `model` | MODEL |
+| `build` | BUILD |
+| `runtime` | RUNTIME |
+| `browser` | FRONTEND |
 
-Examples:
-- Requirements document analysis
-- Mockup HTML/CSS analysis (without running a browser)
-- Story specification review
-- UI-inventory YAML inspection
-
-Properties:
-- Does NOT require a running application
-- Does NOT require a running database
-- Can be performed purely from file system artifacts
-- Fastest to produce; weakest verification
-
-Tag in reports: `evidence: static`
-
-### LEVEL 2 — MODEL
-
-Source: Mendix model inspection via mxcli
-
-Examples:
-- `mxcli DESCRIBE MICROFLOW` output
-- `mxcli SHOW ENTITIES` output
-- `mxcli check` and `mxcli lint` results
-- `mxcli docker check` consistency results
-
-Properties:
-- Requires mxcli access to the `.mpr` file
-- Does NOT require a running application
-- Can detect model defects before any deployment
-- Faster than runtime; stronger than static
-
-Tag in reports: `evidence: model`
-
-### LEVEL 2.5 — BUILD
-
-Source: The strongest available Mendix semantic/build-time validation — consistency checks that go
-beyond model structure into behavior under Mendix's semantic rules.
-
-Examples (semantically):
-- XPath constraint in entity access rule is syntactically and semantically valid
-- Microflow referenced from navigation is reachable from at least one role
-- Container/model parity (e.g. `mxcli docker check` where supported)
-- Security expression consistency: entity access rule and page access rule agree for the same entity + role
-
-Properties:
-- Requires mxcli access to the `.mpr` file
-- Does NOT require a running application
-- Stronger than MODEL: validates model consistency under semantic rules, not just structure
-- Weaker than RUNTIME: does not prove runtime behavior, only build-time correctness
-- Optional layer: when no semantic build capability is available, `exclusion_reason: INFRASTRUCTURE_UNAVAILABLE`
-- `mxcli check` (syntax) and `mxcli DESCRIBE` (structure) are NOT equivalent to BUILD
-  unless they also verify semantic properties (XPath validity, security expression semantics)
-
-Tag in reports: `evidence: build`
-
-### LEVEL 3 — RUNTIME
-
-Source: Running application state — local warm runtime
-
-Examples:
-- Application starts and reaches a healthy state
-- Pages can be reached by URL
-- Database is accessible and seeded with representative data
-- mxcli runtime logs without critical errors
-
-Properties:
-- Requires `mxcli run --local` (interactive with `--watch` or autonomous without) to be running
-- Requires credentials/database to be configured and accessible
-- Requires mock/seed data for non-empty scenarios
-- Does NOT require a browser session — verifies runtime viability
-
-Tag in reports: `evidence: runtime`
-
-### LEVEL 4 — BROWSER
-
-Source: Browser-rendered application with role + data + viewport
-
-Examples:
-- Page rendered in browser with representative data
-- UI element visible and interactable per `.mx-name-*` selectors
-- Navigation flow completed
-- Role-specific data scope verified via browser session
-- Interaction state triggered and screenshot captured
-- Mockup-to-application comparison performed
-
-Properties:
-- Requires RUNTIME (Level 3) as prerequisite
-- Requires browser-accessible application
-- Requires applicable role session (logged in as correct demo/test user)
-- Requires representative data state (not empty unless empty IS the scenario)
-- Requires defined viewport
-- Strongest verification; most complete
-
-Tag in reports: `evidence: browser`
+The `browser` tag is a compatibility/output label, not a sixth layer. A higher layer does not
+silently promote an incomplete or failed lower-level claim; gates use the explicit evidence
+requirements below and structured proof-point contracts.
 
 ## Required Evidence by Gate
 

@@ -4,7 +4,7 @@ Governs the authorized creation, use, and cleanup of test identities in MxAgile 
 
 Complements:
 - `policies/credential-discovery.md` — credential discovery order; mutation prohibition
-- `policies/local-runtime-profile.md` — prohibition on test identity creation to mask configuration mismatch
+- `policies/runtime-configuration-reconciliation.md` — prohibition on test identity creation to mask configuration mismatch
 - `policies/representative-fixture-contract.md` — scope-aware fixture completeness
 
 ---
@@ -35,7 +35,7 @@ Test identity creation is authorized ONLY when ALL of the following hold:
    (Docker-isolated container, test-specific database, or transaction-scoped test fixture).
 2. **Purpose is verification, not workaround**: the identity is created to provide representative
    role/scope coverage for a test contract proof point — NOT to mask a runtime configuration
-   discrepancy (see `policies/local-runtime-profile.md` § Agent Prohibition).
+  discrepancy (see `policies/runtime-configuration-reconciliation.md`).
 3. **Cleanup mechanism exists**: a cleanup path is defined before creation begins
    (see Lifecycle Phases below).
 4. **Identity does not duplicate an existing canonical identity**: if a project already
@@ -229,7 +229,7 @@ with `fixture_isolation: NONE` rather than as a standard isolated test.
 ## Integration Points
 
 - `policies/credential-discovery.md` § test_identity — credential category definition
-- `policies/local-runtime-profile.md` § Agent Prohibition — no identity creation to mask config mismatch
+- `policies/runtime-configuration-reconciliation.md` — no identity creation to mask config mismatch
 - `policies/representative-fixture-contract.md` — when a test identity is also a representative scope fixture
 - `schemas/process-state.schema.json` — `test_identity_lifecycle.open_scopes` tracking
 - `tests/verify-demo-login.test.sh` — example of properly scoped test identity use

@@ -96,45 +96,25 @@ fortgesetzt wird. Vollstaendiger Algorithmus: `policies/lifecycle-resync.md`.
 
 ### Schritt 1 — Betriebsmodus ermitteln (PFLICHT, vor Lifecycle-Arbeit)
 
-Der Betriebsmodus MUSS deterministisch erkannt werden, BEVOR nach ihm gefragt wird.
-Vollstaendiger Erkennungsalgorithmus: `policies/operating-mode.md`.
+Der Betriebsmodus MUSS vor Toolauswahl oder einer Rueckfrage ueber den bestehenden C2-Resolver
+ermittelt werden:
 
-```
-1. Projektroot und .mpr-Pfad bestimmen (lifecycle-resync.md § Projektroot)
-2. Plattform pruefen — Linux/headless → CLOSED-AUTONOM sofort
-3. & ./.mxagile/tools/check-studio-pro-status.ps1 -ProjectPath <mpr> -Json ausfuehren
-4. Ergebnis klassifizieren:
-     isOpen = true                     → LIVE-SP-CURRENT
-     isOpen = false, anyStudioProRunning = false → CLOSED-AUTONOM
-     isOpen = false, anyStudioProRunning = true  → LIVE-SP-OTHER
-     exit 2 / anyStudioProRunning = null         → AMBIGUOUS-SP-STATE
-5. Modus in .concord/scratch/process-state.yaml festhalten
-6. Bei CLOSED-AUTONOM oder LIVE-SP-OTHER: autonom fortfahren — KEINE Rueckfrage
-7. Bei LIVE-SP-CURRENT: sicherer Koexistenz-Modus (policies/consistency-check.md)
-8. Bei AMBIGUOUS-SP-STATE: sichere Arbeit fortsetzen;
-   Frage nur wenn Ambiguitaet eine Mendix-Modell-Mutation blockiert
+```powershell
+& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -ResolveOperatingMode -Format json -StudioProProjectPath <mpr>
 ```
 
-**Verboten:** Den Benutzer nach dem Betriebsmodus fragen, bevor Schritt 3 ausgefuehrt wurde.
-Vollstaendige Regeln fuer erlaubte Rueckfragen: `policies/operating-mode.md § User Question Policy`.
+Das Ergebnis `operating_mode` und `tool_authority` ist verbindlich. Keine zweite Detector-
+Ausfuehrung und keine agentenseitige Rekonstruktion aus Prozessfeldern. Bei `AMBIGUOUS-SP-STATE`
+safe non-model work fortsetzen; gezielt erst dann fragen, wenn eine konkrete Modellmutation
+am Mutation Boundary blockiert ist. Bei eindeutigen C2-Ergebnissen: KEINE Rueckfrage.
+Vollvertrag: `policies/operating-mode.md`.
 
 ### Schritt 1b — Toolroute fuer Mendix-Operationen
 
-Keine zweite Mode-Ermittlung und keine Nutzerfrage bei eindeutigem Ergebnis.
-Vor einer modellbezogenen Toolauswahl den in Schritt 1 bestimmten Modus und den
-Routevertrag aus `policies/operating-mode.md` verwenden.
-
-- `LIVE-SP-CURRENT`: Studio-Pro-MCP direkt zuerst. Concord MCP nur als
-  vorhandener Fallback, wenn ein erfolgreicher read-only Aufruf Gesundheit und
-  aktuellen Projektkontext bestaetigt. mxcli-Modellmutationen sind verboten.
-- `CLOSED-AUTONOM` oder `LIVE-SP-OTHER`: autonome Route fuer das aktuelle Projekt.
-- `AMBIGUOUS-SP-STATE`: sichere Arbeit fortsetzen, vor der ersten Modellmutation
-  erneut pruefen und nur bei verbleibender Ambiguitaet eine gezielte Frage stellen.
-
-Tool-Namenspraesenz oder MCP-Konfiguration allein beweist weder Health noch
-Projektidentitaet. Ist eine Route nicht belegbar, die konkrete Mutation blockieren;
-in LIVE-SP-CURRENT nicht auf mxcli ausweichen. Details:
-`policies/execution-intent.md`.
+Keine zweite Mode-Ermittlung. Vor einer Modelloperation den aktuellen `tool_authority`-Block
+aus C2 konsumieren. C2 sperrt LIVE-SP-CURRENT bei fehlender MCP-Probe/Projektbindung, markiert
+MCP-Identitaetskonflikte als `AMBIGUOUS-SP-STATE`, und erlaubt mxcli bei CLOSED-AUTONOM nur als
+Kandidat. C1 loest danach separat die Runtime-Binary/Recipe auf.
 
 ### Schritt 2 — Lifecycle-Zustand rekonstruieren
 
@@ -315,7 +295,7 @@ Zwischenzustaende dokumentiert werden:
 
 **FULL_UI_DISCOVERY_PASS darf NICHT deklariert werden ohne Browser-Evidenz.**
 
-Vollstaendige Evidenz-Level-Definitionen: `policies/evidence-levels.md`
+Gate-Evidenzreife und Recording: `policies/evidence-levels.md`; Layer-Semantik: `policies/verification-layers.md`.
 
 ---
 
@@ -412,14 +392,13 @@ Fuer runtime-relevante iterative Implementierung (Pages, Navigation, Microflow-V
 Validierungen, UI-Iteration) bevorzugt der Implementation-Agent den warmen lokalen
 Entwicklungsloop.
 
-Basis-Befehl (Profil-Aufloesung per `policies/development-runtime.md` vor Ausfuehrung — DB-Identitaet muss bekannt sein):
-
-```
-mxcli run --local -p <project>.mpr --watch
-```
+Vor dem Start ein C1-`resolved_runtime_recipe` konsumieren und dessen Executable sowie
+Argument-Array unveraendert ausfuehren. Der Recipe-Contract besitzt DB-Identitaet und
+version-/help-abhaengige Runtime-Argumente.
 
 Die Runtime wird gestartet wenn Runtime-Feedback nuetzlich wird — nicht pauschal zu Beginn.
-`--watch` erkennt Modellaenderungen und wendet sie automatisch an, ohne volle Neustarts.
+Das interaktive C1-Recipe bestimmt, ob der ausgewaehlte Toolpfad Modellaenderungen ohne
+vollstaendigen Neustart uebernimmt.
 
 Vollstaendige Regeln: `.mxagile/policies/development-runtime.md`.
 
@@ -451,8 +430,8 @@ Technische Pruefung — muss bestehen bevor UI/Acceptance starten:
 - `mxcli check --references` ohne Fehler
 - `mxcli lint` ohne kritische Findings
 - `mxcli docker check` ohne CE-Fehler (Konsistenzpruefung, kein Docker-Build)
-- Applikation laeuft und ist erreichbar — bevorzugt `mxcli run --local` im autonomen Modus
-  (ohne `--watch`, Level 3); `--watch` wird im Verifying nicht benoetigt
+- Applikation laeuft und ist erreichbar — bevorzugt das C1-aufgeloeste lokale Recipe im
+  autonomen Modus (Level 3); Lifecycle und Argumente werden nicht in diesem Orchestrator rekonstruiert
   (vollstaendige Modi: `policies/development-runtime.md` § Runtime Modes;
   Eskalationsregeln: `policies/runtime-strategy.md`)
 - Readiness Gate: APPLICATION_REACHABLE per HTTP-Poll bestaetigt bevor
@@ -641,7 +620,7 @@ Folgende Invarianten gelten unabhaengig vom Runtime-Zustand waehrend Implementin
 - Erfolgreicher App-Start ≠ Verifikation gestartet
 - Runtime-Inspektion waehrend Implementing ≠ UI-Agent Verify
 - Visuelles Pruefen waehrend Implementing ≠ Akzeptanz bestanden
-- `mxcli run --local` erfolgreich ≠ Wave verifiziert
+- Ein erfolgreicher lokaler Runtime-Start ≠ Wave verifiziert
 
 Ein Agent darf Runtime-Ergebnisse waehrend Implementing dem Entwickler als
 Entwicklungs-Feedback praesentieren, NICHT als Verifikationsnachweis.

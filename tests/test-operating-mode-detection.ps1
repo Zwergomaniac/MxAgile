@@ -125,7 +125,7 @@ Assert-FileContains 'B2: policy: LIVE-SP-CURRENT applies coexistence contract' `
     $operatingModePath '(?i)coexistence|consistency-check|Koexistenz'
 
 Assert-FileContains 'B3: policy: isOpen true -> LIVE-SP-CURRENT' `
-    $operatingModePath 'isOpen.*true.*LIVE-SP-CURRENT'
+    $capabilityResolverPath '\$detection\.is_open\).*\$mode = ''LIVE-SP-CURRENT'''
 
 Assert-FileContains 'B4: orchestrator: mutation recheck for LIVE-SP-CURRENT' `
     $orchestratorPath 'LIVE-SP-CURRENT'
@@ -145,7 +145,7 @@ Assert-FileContains 'C2: policy: LIVE-SP-OTHER -> current project acts as CLOSED
     $operatingModePath 'LIVE-SP-OTHER.*CLOSED-AUTONOM|Treat.*current.*CLOSED-AUTONOM'
 
 Assert-FileContains 'C3: policy: anyStudioProRunning true + isOpen false -> LIVE-SP-OTHER' `
-    $operatingModePath 'anyStudioProRunning.*true.*LIVE-SP-OTHER'
+    $capabilityResolverPath '\$detection\.any_studio_pro_running\).*\$mode = ''LIVE-SP-OTHER'''
 
 Assert-FileContains 'C4: policy: foreign Studio Pro process must not be touched' `
     $operatingModePath '(?i)NOT touch|Do NOT touch'
@@ -211,7 +211,7 @@ Assert-FileContains 'F3: policy: platform_headless detection_source defined' `
     $operatingModePath 'platform_headless'
 
 Assert-FileContains 'F4: policy: IsLinux or IsMacOS check documented' `
-    $operatingModePath 'IsLinux'
+    $capabilityResolverPath 'source = ''platform_headless'''
 
 Write-Host ''
 
@@ -259,10 +259,10 @@ Assert-FileContains 'I1: implementation-agent: references operating-mode policy'
     $implAgentPath 'operating-mode'
 
 Assert-FileContains 'I2: orchestrator: calls check-studio-pro-status.ps1' `
-    $orchestratorPath 'check-studio-pro-status'
+    $orchestratorPath 'Get-MxAgileCapabilities\.ps1 -ResolveOperatingMode -Format json'
 
 Assert-FileContains 'I3: consistency-check: calls check-studio-pro-status.ps1 (CE0066)' `
-    $consistencyPath 'check-studio-pro-status'
+    $consistencyPath 'operating_mode\.tool_authority.*C2|C2.*operating_mode\.tool_authority'
 
 Assert-FileContains 'I4: operating-mode policy: lists detector as integration point' `
     $operatingModePath 'check-studio-pro-status'
@@ -349,7 +349,7 @@ Assert-FileContains 'L5c: policy requires current MCP probe and project binding'
     $operatingModePath 'successful current-session'
 
 Assert-FileContains 'L5c2: policy requires exact project binding' `
-    $operatingModePath 'exact project binding'
+    $operatingModePath 'exact binding to the current project'
 
 $parseTokens = $null
 $parseErrors = $null

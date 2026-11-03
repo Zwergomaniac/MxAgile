@@ -73,7 +73,7 @@
             "runtime_mode": {
               "type": "string",
               "enum": ["interactive", "autonomous", "none"],
-              "description": "Active runtime mode. interactive=warm development loop with --watch (Implementing). autonomous=unattended verification without --watch (Verifying, Discovery browser evidence). none=no runtime started. See policies/development-runtime.md — Runtime Modes."
+              "description": "Active runtime mode. interactive=warm development loop selected by the C1 recipe (Implementing). autonomous=unattended verification lifecycle selected by C1 (Verifying, Discovery browser evidence). none=no runtime started. See policies/development-runtime.md — Runtime Modes."
             },
             "runtime_ownership": {
               "type": "string",
@@ -112,7 +112,7 @@
                 "failed",
                 "unknown"
               ],
-              "description": "Sub-state of the DEPENDENCY_SYNC pipeline stage. active=forward progress observed. long_running=slower than normal but still progressing. stalled=no forward progress beyond stall_threshold. lock_contended=stalled AND lock file identified with owner process. completed=dependency sync finished successfully. Does NOT replace runtime_pipeline_stage. See policies/local-runtime-profile.md — Gradle Dependency-Sync Stall Diagnosis."
+              "description": "Sub-state of the DEPENDENCY_SYNC pipeline stage. active=forward progress observed. long_running=slower than normal but still progressing. stalled=no forward progress beyond stall_threshold. lock_contended=stalled AND lock file identified with owner process. completed=dependency sync finished successfully. Does NOT replace runtime_pipeline_stage. See policies/runtime-dependency-recovery.md."
             },
             "dependency_sync_owner_classification": {
               "type": "string",
@@ -123,7 +123,7 @@
                 "unidentified",
                 "own_lifecycle"
               ],
-              "description": "Lock-owner classification when dependency_sync_state=lock_contended. stale_leftover=daemon from previous completed/interrupted lifecycle, no active build work; may be eligible for safe recovery. active_build=do NOT terminate. unidentified=do NOT terminate, escalate to developer. See policies/local-runtime-profile.md — Lock-Owner Classification."
+              "description": "Lock-owner classification when dependency_sync_state=lock_contended. stale_leftover=daemon from previous completed/interrupted lifecycle, no active build work; may be eligible for safe recovery. active_build=do NOT terminate. unidentified=do NOT terminate, escalate to developer. See policies/runtime-dependency-recovery.md — Lock-Owner Classification."
             },
             "database": {
               "type": "string",

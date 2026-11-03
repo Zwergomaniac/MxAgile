@@ -98,17 +98,17 @@ Write-Host ""
 Write-Host "TEST B: Aggregation requires all required dimensions to PASS for overall PASS" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
-Assert-FileContains "B.1 schema description states PASS requires all required dimensions pass" $ParitySchema 'all REQUIRED dimensions'
-Assert-FileContains "B.2 policy defines PASS aggregation rule" $ParityPol 'overall_result = PASS'
-Assert-FileContains "B.3 policy states required dimension rules" $ParityPol 'required.*dimensions'
+Assert-FileContains "B.1 schema description delegates aggregate authority to the resolver" $ParitySchema 'authoritative value for new reports is computed by scripts/build_project_status.py'
+Assert-FileContains "B.2 policy identifies the sole aggregate authority" $ParityPol 'sole aggregate authority'
+Assert-FileContains "B.3 PASS requires every required dimension and matrix layer" $ParityPol 'every required dimension and evidence-matrix'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "TEST C: Single FAIL dimension causes overall FAIL" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
-Assert-FileContains "C.1 policy states FAIL aggregation rule" $ParityPol 'overall_result = FAIL'
-Assert-FileContains "C.2 policy states ANY required FAIL causes overall FAIL" $ParityPol 'ANY required dimension has result = FAIL'
+Assert-FileContains "C.1 resolver behavior fixture preserves required FAIL as aggregate FAIL" (Join-Path $TestsDir "test_project_status.py") 'test_evidenced_required_fail_precedes_another_unverified_dimension'
+Assert-FileContains "C.2 resolver behavior fixture keeps required FAIL above NOT_VERIFIED" (Join-Path $TestsDir "test_project_status.py") 'test_evidenced_required_fail_precedes_another_unverified_dimension'
 Assert-FileNotContains "C.4 policy does not use FAILED as a status" $ParityPol 'result\s*=\s*FAILED'
 Assert-FileContains "C.3 schema has FAIL status in overall_result enum" $ParitySchema '"FAIL"'
 
@@ -183,8 +183,8 @@ Write-Host "TEST J: NOT_VERIFIED required dimension blocks overall PASS" -Foregr
 
 Assert-FileContains "J.1 schema overall_result description states NOT_VERIFIED blocks PASS" $ParitySchema 'NOT_VERIFIED'
 Assert-FileContains "J.2 policy states NOT_VERIFIED required dimension must prevent PASS" $ParityPol 'NOT_VERIFIED.*prevent|prevent.*PASS'
-Assert-FileContains "J.3 policy keeps unverified required dimensions NOT_VERIFIED, not FAIL" $ParityPol 'keeps the aggregate\s+`NOT_VERIFIED`'
-Assert-FileContains "J.4 unresolved non-FAIL blocker precedence is explicit" $ParityPol 'Unresolved Multi-Blocker Precedence'
+Assert-FileContains "J.3 resolver fixture keeps missing evidence NOT_VERIFIED, not FAIL" (Join-Path $TestsDir "test_project_status.py") 'test_pass_claim_without_dimension_evidence_is_blocked'
+Assert-FileContains "J.4 resolver fixture keeps unresolved blocker precedence AMBIGUOUS" (Join-Path $TestsDir "test_project_status.py") 'test_unresolved_stale_and_not_verified_precedence_is_ambiguous'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -338,8 +338,8 @@ Assert-FileContains "S.11 fresh_full PASS requires completed whole-screen review
 Assert-FileContains "S.12 UI Agent requires independent fresh-full runtime pass" `
     $UiAgent 'Fresh-Full-Abgleich'
 
-Assert-FileContains "S.12.2 new UI parity reports use schema version 2" `
-    $UiAgent 'schema_version: 2'
+Assert-FileContains "S.12.2 new UI parity reports use schema version 3 with aggregate authority" `
+    $UiAgent '(?s)schema_version: 3.*aggregate_resolution'
 
 Assert-FileContains "S.12.3 report output includes comparison identity and evidence matrix" `
     $UiAgent '(?is)comparison_identity.*evidence_matrix'
@@ -388,7 +388,7 @@ Assert-True "S.15 schema gates fresh_full PASS on completed review" `
 Assert-True "S.16 schema prohibits PASS when fresh_full review is blocked" `
     $schemaBlocksPassWhenFreshFullReviewBlocked "Blocked fresh-full review can still report overall PASS"
 
-Assert-FileContains "S.17 schema-v2 parity records carry immutable identity" `
+Assert-FileContains "S.17 schema-v2/v3 parity records carry immutable identity" `
     $ParitySchema 'comparison_identity'
 
 Assert-FileContains "S.18 evidence matrix keeps six evidence layers separate" `
@@ -416,7 +416,64 @@ Assert-FileContains "S.25 evidence matrix capture IDs are unique" `
     $ParitySchema 'capture_ids.*uniqueItems.*true'
 
 Assert-FileContains "S.26 new parity reports never copy the v1 dimensions-only example" `
-    $UiAgent '(?is)Neue Reports.*schema_version: 2.*comparison_identity.*evidence_matrix'
+    $UiAgent '(?is)Neue Reports.*schema_version: 3.*comparison_identity.*evidence_matrix'
+
+Assert-FileContains "S.27 whole-screen PASS requires an explicit comparison result, not screenshots alone" `
+    $UiAgent '(?is)vorhandener Screenshot ist kein Vergleichsergebnis.*comparison_result.*comparison_summary'
+
+Assert-FileContains "S.28 whole-screen comparison result must agree with the Visual matrix" `
+    $UiAgent '(?is)comparison_result.*Status von.*visual_whole_screen_parity.*entsprechen'
+
+Write-Host "TEST T: Deterministic evidence-class and aggregate authority" -ForegroundColor Cyan
+$StatusBuilder = Join-Path $ScriptDir "scripts/build_project_status.py"
+$ProjectStatusSchema = Join-Path $ScriptDir ".mxagile/schemas/project-status.schema.json"
+$ProjectStatusTests = Join-Path $TestsDir "test_project_status.py"
+$BoardScript = Join-Path $ScriptDir ".mxagile/board/board.js"
+
+Assert-FileContains "T.1 parity schema distinguishes SMOKE, REFERENCE_VS_MODEL, and LIVE_PARITY" `
+    $ParitySchema 'SMOKE.*REFERENCE_VS_MODEL.*LIVE_PARITY'
+
+Assert-FileContains "T.2 policy prohibits full PASS from smoke/reference-model evidence" `
+    $ParityPol 'Neither `SMOKE` nor `REFERENCE_VS_MODEL` can establish complete live parity'
+
+Assert-FileContains "T.3 policy makes build_project_status the sole aggregate authority" `
+    $ParityPol 'build_project_status\.py.*sole aggregate authority'
+
+Assert-FileContains "T.4 UI-Agent invokes the single-report resolver" `
+    $UiAgent 'build_project_status\.py --resolve-parity-request'
+
+Assert-FileContains "T.5 UI-Agent never promotes a producer-authored aggregate" `
+    $UiAgent 'overall_result.*nicht selbst aus Text|never promote the producer''s claim'
+
+Assert-FileContains "T.6 Board projection stores computed and reported parity separately" `
+    $StatusBuilder '(?s)reported_parity_result.*parity_resolution|parity_resolution.*computed_overall_result'
+
+Assert-FileContains "T.7 project-status schema exposes parity resolver provenance" `
+    $ProjectStatusSchema 'reported_parity_result.*parity_resolution'
+
+Assert-FileContains "T.8 behavior fixtures cover smoke suppression and resolver claims" `
+    $ProjectStatusTests 'test_regions_style_smoke_never_promotes_missing_parity_dimensions'
+
+Assert-FileContains "T.9 ambiguous multi-blocker precedence does not promote" `
+    $ProjectStatusTests 'test_unresolved_stale_and_not_verified_precedence_is_ambiguous'
+
+Assert-FileContains "T.10 Board gallery displays aggregate resolution provenance and blockers" `
+    $BoardScript '(?s)Aggregate resolution.*reported_parity_result.*computed_overall_result.*comparison_identity_status.*blocker'
+
+Assert-FileContains "T.11 each evidence-matrix PASS has its own typed proof items" `
+    $ParitySchema '(?s)evidence_matrix_status.*?#/definitions/evidence_item'
+
+Assert-FileContains "T.12 Contract PASS requires hashed Requirement/Decision references" `
+    $ParityPol 'Requirement/Decision paths, verifies schema, artifact ID, and SHA-256'
+
+Assert-FileContains "T.13 UI-Agent supplies the project root for bounded source validation" `
+    $UiAgent '(?s)Resolver-Request.*project_root.*validated_capture_sides'
+
+Assert-FileContains "T.14 resolver fixtures reject screenshots without comparison results" `
+    $ProjectStatusTests 'test_whole_screen_screenshots_without_comparison_result_do_not_verify_visual_parity'
+
+Assert-FileContains "T.15 resolver fixtures preserve actual whole-screen FAIL/PARTIAL results" `
+    $ProjectStatusTests 'test_whole_screen_comparison_gap_is_preserved_as_fail_or_partial'
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

@@ -52,8 +52,8 @@ Applicable when:
   existing PP claim in the domain TC
 - The existing TC covers related but not identical functionality
 
-This gap signals an EXTEND candidate — the existing TC may be extended with new PPs
-rather than creating an entirely new TC from scratch.
+This gap records incomplete coverage, not an action decision. When the requirement is accepted,
+resolve the action through `policies/verification-materialization.md`.
 
 **Distinction from NO_TC_YET:**
 - NO_TC_YET: no TC for this domain exists at all
@@ -66,8 +66,8 @@ rather than creating an entirely new TC from scratch.
 - Collecting Evidence for the gap
 
 **Next action:** Record the gap as `verification_gap: VERIFICATION_COVERAGE_GAP` with
-`related_tc_id` pointing to the existing TC. Evaluate using EXTEND action
-(see `policies/verification-materialization.md`) when the Requirement is accepted.
+`related_tc_id` pointing to the existing TC. Resolve materialization only when the Requirement
+is accepted.
 
 ---
 
@@ -85,11 +85,11 @@ Applicable when:
 This gap is NOT about missing intent — the what-to-prove is known. The gap is in the
 HOW-to-execute.
 
-This gap is the appropriate classification for the REMATERIALIZE action:
-the PP claim is unchanged, but the technical execution binding must be refreshed.
+This gap identifies an execution-binding problem. Its revision action is owned by
+`policies/verification-materialization.md`.
 
-**Next action:** Classify as REMATERIALIZE in `policies/verification-materialization.md`.
-Generate or refresh VPL entries. Do NOT reassess the PP claim unless the claim itself changed.
+**Next action:** Refer to `policies/verification-materialization.md` for the action and refresh
+VPL entries only when implementation is sufficiently stable.
 
 ---
 
@@ -108,8 +108,8 @@ Applicable when:
 - TEST_BINDING_GAP: the executable binding is stale or missing
 - EVIDENCE_STALE: the binding is valid but evidence is outdated
 
-**Next action:** Classify as REEXECUTE in `policies/verification-materialization.md`.
-Rerun the existing executable tests without rewriting them. Do NOT change TC/PP/VPL.
+**Next action:** Refer to `policies/verification-materialization.md` for the action. The TC/PP/VPL
+definition remains valid unless its own upstream contract changed.
 
 ---
 
@@ -173,12 +173,12 @@ Full fixture contract: `policies/representative-fixture-contract.md`.
 | New Requirement, no TC in this domain | `NO_TC_YET` |
 | New Requirement, existing TC for related domain | `VERIFICATION_COVERAGE_GAP` |
 | Existing TC/PP, no VPL, implementation stable | `TEST_BINDING_GAP` |
-| Existing TC/PP, VPL active, locators stale | `TEST_BINDING_GAP` → REMATERIALIZE |
-| Existing TC/PP/VPL/evidence, implementation changed | `EVIDENCE_STALE` → REEXECUTE |
-| Requirement scope expanded, existing TC partially covers | `VERIFICATION_COVERAGE_GAP` → EXTEND |
-| Requirement AC changed, TC claim affected | Not a gap classification — trigger REASSESS |
+| Existing TC/PP, VPL active, locators stale | `TEST_BINDING_GAP` |
+| Existing TC/PP/VPL/evidence, implementation changed | `EVIDENCE_STALE` |
+| Requirement scope expanded, existing TC partially covers | `VERIFICATION_COVERAGE_GAP` |
+| Requirement AC changed, TC claim affected | Not a gap classification — trigger source reconciliation |
 | Scoped role, `representative_scope_present: false` | `FIXTURE_GAP` |
-| Scoped role, scope context exists but no representative data | `FIXTURE_GAP` (REPRESENTATIVE_STATE_ABSENT) |
+| Scoped role, scope context exists but no representative data | `FIXTURE_GAP` (`REPRESENTATIVE_STATE_ABSENT`) |
 | Login/routing evidence used for scope-dependent proof | Not a gap — reclassify evidence as `VALID_FOR_ROLE_ONLY_NOT_SCOPE` |
 
 ---

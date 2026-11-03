@@ -9,7 +9,7 @@ werden vom UI-Agent und Acceptance-Agent separat geprueft.
 Nach Abschluss der Implementing-Phase, bevor UI-Agent und Acceptance-Agent starten.
 Quality-Gate MUSS bestehen bevor die anderen Agents laufen koennen.
 
-Ein waehrend Implementing laufender Development-Runtime (`mxcli run --local`) ersetzt
+Eine waehrend Implementing laufende Development-Runtime ersetzt
 weder das Quality-Gate noch die formale Verifikation. Entwicklungs-Feedback waehrend
 Implementing ist kein Verifikationsnachweis (siehe `policies/development-runtime.md`).
 

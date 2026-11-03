@@ -97,9 +97,8 @@ Assert-FileContains "late materialization: no automatic evidence" $TaxPolicy "NO
 Write-Host ""
 Write-Host "CLASSIFICATION: gap type to action mapping" -ForegroundColor Cyan
 
-Assert-FileContains "taxonomy: VERIFICATION_COVERAGE_GAP -> EXTEND" $TaxPolicy "VERIFICATION_COVERAGE_GAP.*EXTEND|EXTEND.*VERIFICATION_COVERAGE"
-Assert-FileContains "taxonomy: TEST_BINDING_GAP -> REMATERIALIZE" $TaxPolicy "TEST_BINDING_GAP.*REMATERIALIZE|REMATERIALIZE.*TEST_BINDING"
-Assert-FileContains "taxonomy: EVIDENCE_STALE -> REEXECUTE" $TaxPolicy "EVIDENCE_STALE.*REEXECUTE|REEXECUTE.*EVIDENCE_STALE"
+Assert-FileContains "taxonomy delegates revision actions to materialization authority" $TaxPolicy "verification-materialization\.md"
+Assert-FileNotContains "taxonomy does not duplicate gap-to-action mappings" $TaxPolicy "VERIFICATION_COVERAGE_GAP.*EXTEND|TEST_BINDING_GAP.*REMATERIALIZE|EVIDENCE_STALE.*REEXECUTE"
 Assert-FileContains "taxonomy: NO_TC_YET -> deferred" $TaxPolicy "TC creation is deferred|deferred until"
 
 # ─────────────────────────────────────────────────────────────────────────────

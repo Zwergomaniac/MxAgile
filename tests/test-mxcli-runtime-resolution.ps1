@@ -1,9 +1,13 @@
+param([switch]$ContractOnly)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $TestsDir = $PSScriptRoot
 $ScriptDir = Split-Path -Parent $TestsDir
 $Resolver = Join-Path $ScriptDir 'scripts/Resolve-MxAgileMxcli.ps1'
+$RecipeComposer = Join-Path $ScriptDir 'scripts/mxcli_runtime_recipe.py'
+$RecipeTests = Join-Path $TestsDir 'test_runtime_recipe.py'
 $InstallCore = Join-Path $ScriptDir 'scripts/install-core.ps1'
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("mxagile-mxcli-resolution-" + [guid]::NewGuid().ToString('N'))
 $projectRoot = Join-Path $tempRoot 'project'
@@ -45,6 +49,13 @@ try {
     Assert-True 'T1 selects project-local binary ahead of PATH' (
         $resolved.source -eq 'PROJECT_LOCAL' -and
         [System.IO.Path]::GetFullPath($resolved.path) -eq [System.IO.Path]::GetFullPath($localBinary)
+    )
+
+    $missingC2 = (& $Resolver -ProjectRoot $projectRoot -ResolveRecipe -ProjectMpr (Join-Path $projectRoot 'Project.mpr') | ConvertFrom-Json)
+    Assert-True 'Recipe resolution blocks without an explicit current C2 result' (
+        $missingC2.status -eq 'AMBIGUOUS' -and
+        $missingC2.blockers[0].code -eq 'OPERATING_MODE_UNOBSERVED' -and
+        $null -eq $missingC2.recipe
     )
 
     $declaredLocal = (& $Resolver -ProjectRoot $projectRoot -ConfiguredPath './mxcli' | ConvertFrom-Json)
@@ -89,6 +100,12 @@ try {
         $installerText -match 'Resolve-MxAgileMxcli\.ps1' -and
         $installerText -match '\.mxagile/tools/Resolve-MxAgileMxcli\.ps1'
     )
+    Assert-True 'Fresh install/update distributes the C1 recipe composer beside the resolver' (
+        $installerText -match 'mxcli_runtime_recipe\.py' -and
+        $installerText -match '\.mxagile/tools/mxcli_runtime_recipe\.py' -and
+        (Test-Path -LiteralPath $RecipeComposer -PathType Leaf) -and
+        (Test-Path -LiteralPath $RecipeTests -PathType Leaf)
+    )
 
     $conflictPolicy = Join-Path $ScriptDir '.mxagile/policies/tool-instruction-conflict.md'
     $profilePolicy = Join-Path $ScriptDir '.mxagile/policies/local-runtime-profile.md'
@@ -106,8 +123,15 @@ try {
         $profileText -match 'Recipe resolution' -and
         $profileText -match 'Invocation'
     )
-    Assert-True 'CapTrack regression recipe includes local HSQLDB and the default DB identifier' (
-        $profileText -match '(?s)Current regression fixture.*?--local --detach --db-type hsqldb -p <project>\.mpr --dbname default'
+    $composerText = Get-Content -LiteralPath $RecipeComposer -Raw
+    Assert-True 'Company Layer has no implicit runtime-default scan or guessed source' (
+        $profileText -match 'current Company Layer contract does not define a machine-readable runtime-default schema' -and
+        $composerText -notmatch '\.mxagile[\\/]layers'
+    )
+    Assert-True 'Generic runtime policy delegates exact syntax to resolved help, not a fixed CapTrack argv' (
+        $profileText -match 'help output from the resolved binary is the authority' -and
+        $profileText -match 'Do not copy backend options or syntax into consumer-specific instructions' -and
+        $profileText -notmatch '--local --detach --db-type hsqldb.*--dbname default'
     )
     Assert-True 'Consumers must execute the complete recipe argument array unchanged' (
         $profileText -match "recipe's argument array is the sole invocation authority" -and
@@ -180,6 +204,13 @@ try {
         (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'allowedOrigins' -and
         (Get-Content -LiteralPath $generatedVisualSkill -Raw) -match 'shared `capture_id`'
     )
+
+    if (-not $ContractOnly) {
+        & python -m unittest discover -s $TestsDir -p test_runtime_recipe.py
+        Assert-True 'C1 recipe composer synthetic behavior suite passes' ($LASTEXITCODE -eq 0)
+    } else {
+        Write-Host 'SKIP: previously verified C1 recipe behavior suite; contract-only rerun.'
+    }
 } finally {
     $env:PATH = $previousPath
     if (Test-Path -LiteralPath $tempRoot -PathType Container) {

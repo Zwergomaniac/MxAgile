@@ -46,9 +46,17 @@ Assert ($updatePolicy -match 'CONTRACTS_RE_SYNCED') 'Same-session update require
 Assert ($updatePolicy -match 'korrekt\s+aktualisiert') 'Update verification questions use the two-axis completion contract'
 Assert ($routingSource -match 'korrekt aktualisiert' -and $routingSource -match 'CONTRACTS_RE_SYNCED') 'Always-on routing includes follow-up verification and same-session re-sync'
 Assert ($routingSource.IndexOf('Repository Boundary and Git Integrity') -lt $routingSource.IndexOf('Lifecycle Re-Sync FIRST')) 'Git boundary/integrity precedes startup drift analysis'
-Assert ($routingSource.IndexOf('External Change Detection') -gt $routingSource.IndexOf('Lifecycle Re-Sync FIRST') -and $routingSource.IndexOf('External Change Detection') -lt $routingSource.IndexOf('Project Brain after Re-Sync')) 'External detection follows contract re-sync before normal work'
-Assert ($routingSource -match 'not reading legitimate canonical lifecycle') 'Integrity failure preserves canonical artifact reads'
-Assert ($routingSource -match 'BASELINE_REQUIRED, not permission to scan history') 'Missing baseline never authorizes a startup history scan'
+$resyncHeading = $routingSource.IndexOf('1. **Lifecycle Re-Sync FIRST**')
+$externalChangesHeading = $routingSource.IndexOf('3. **External changes**')
+$projectBrainHeading = $routingSource.IndexOf('4. **Project Brain after Re-Sync**')
+Assert ($resyncHeading -ge 0 -and $externalChangesHeading -gt $resyncHeading -and $projectBrainHeading -gt $externalChangesHeading) 'External change detection follows Lifecycle Re-Sync and precedes Project Brain'
+$guardBeforeDrift = $routingSource.IndexOf('index guard') -lt $routingSource.IndexOf('before Git-derived drift analysis')
+$canonicalLifecycleReadsAllowed = $routingSource -match '(?is)blocked guard does not prevent\s+reading\s+canonical lifecycle contracts'
+Assert ($guardBeforeDrift -and $canonicalLifecycleReadsAllowed) 'Integrity failure blocks drift/mutation but preserves canonical lifecycle reads'
+$externalChangesSection = if ($externalChangesHeading -ge 0 -and $projectBrainHeading -gt $externalChangesHeading) {
+    $routingSource.Substring($externalChangesHeading, $projectBrainHeading - $externalChangesHeading)
+} else { '' }
+Assert ($externalChangesSection -match 'BASELINE_REQUIRED' -and $externalChangesSection -match 'not automatic history scanning') 'Missing baseline requires bounded reconciliation and never authorizes a history scan'
 
 # ──────────────────────────────────────────────────────────────
 # A  install-core.ps1: accepts ProvenanceCoreCommit and writes provenance

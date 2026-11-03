@@ -181,7 +181,7 @@ Assert-True "H.4" "fixture-H asserts demo user creation is prohibited before con
 Assert-True "H.5" "fixture-H asserts password reset is prohibited before config parity check" ($fixtureH -match "must NOT reset admin password.*before diagnosing configuration parity")
 Assert-True "H.6" "fixture-H asserts resolution requires constant_overrides (not temporary CLI)" ($fixtureH -match "constant_overrides")
 Assert-True "H.7" "fixture-H asserts evidence during discrepancy is invalid" ($fixtureH -match "evidence.*is invalid")
-Assert-True "H.8" "fixture-H references local-runtime-profile.md" ($fixtureH -match "local-runtime-profile")
+Assert-True "H.8" "fixture-H references runtime configuration reconciliation" ($fixtureH -match "runtime-configuration-reconciliation")
 
 # ---------------------------------------------------------------------------
 # TEST GROUP I: Interrupt/resume after prerequisite repair (fixture-I)

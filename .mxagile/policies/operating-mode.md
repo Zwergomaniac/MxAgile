@@ -78,159 +78,29 @@ Behavior:
 
 ## Tool Routing After Mode Detection
 
-`operating_mode` is determined by the process/project detector above. MCP health
-and project context determine whether an MCP route is usable; they do not create
-another operating-mode state machine.
+`Get-MxAgileCapabilities.ps1 -ResolveOperatingMode -Format json` is the C2 resolver and sole
+owner of current detection, effective mode, and `operating_mode.tool_authority`. Reuse that
+structured result for the session and perform its existing recheck at the first model-mutation
+boundary; do not call the detector separately or reconstruct routes from prose.
 
-If Studio-Pro-MCP exposes project identity and a successful read-only probe
-conflicts with the detector's current `.mpr` path, use the existing
-`AMBIGUOUS-SP-STATE` for that conflict. Never call it `LIVE-SP-CURRENT` for the
-current project until a recheck resolves the disagreement.
+C2 does not probe MCP tools, attest mxcli availability, or resolve runtime argv. Only pass
+`HEALTHY` plus an exact bound project path after a successful current-session read-only probe.
+An MCP route is usable only with an exact binding to the current project.
+Configuration and namespace presence are not health or project-identity evidence. If a probe
+conflicts with the current `.mpr`, C2 returns `AMBIGUOUS-SP-STATE`; an unavailable LIVE-SP route
+is `BLOCKED`, never an mxcli fallback. In `LIVE-SP-CURRENT`, no mxcli model mutation is allowed.
 
-Before choosing a tool for any Mendix model operation, use the current mode and
-the following routing contract:
-
-Resolve conflicting project/Core/Company/harness/external tool instructions per
-`policies/tool-instruction-conflict.md`. A tool listed by a skill or configured in a file is
-not proof that its current-session capability is loaded or usable.
-
-| Mode | Model mutation route | mxcli |
-|---|---|---|
-| `LIVE-SP-CURRENT` | Studio-Pro-MCP first. Concord MCP is the existing fallback only when a successful read-only probe confirms it is healthy and bound to this project. | Never use mxcli for model mutations, including `mxcli exec`. Do not fall back to mxcli after an MCP failure. Read-only mxcli operations remain subject to their own operation contract. |
-| `CLOSED-AUTONOM` | Autonomous route | Use mxcli when available and authorized. |
-| `LIVE-SP-OTHER` | Autonomous route for the current project; do not touch the foreign Studio Pro process. | Use mxcli when available and authorized for the current project. |
-| `AMBIGUOUS-SP-STATE` | Safe non-model work only until the required recheck resolves the mode. | No model mutation through mxcli while mode is ambiguous. |
-
-Tool namespace presence means a tool is offered by the harness. It does NOT by
-itself prove health, successful operation, or correct project context. Count an
-MCP route as usable only after a successful non-mutating call and evidence that
-the endpoint is bound to the current project. Configuration files and installed
-tools are not runtime evidence. If no available MCP operation can establish that
-evidence, do not claim the route is healthy. In `LIVE-SP-CURRENT`, block the
-specific mutation rather than trying mxcli.
-
-When a machine-readable route result is needed, call the existing
-`Get-MxAgileCapabilities.ps1` capability resolver once with
-`-ResolveOperatingMode -Format json` and the current `.mpr`
-path. Supply `-StudioProMcpProbeStatus HEALTHY` / `-StudioProMcpBoundProjectPath`
-or the corresponding Concord parameters only after a successful current-session
-read-only probe establishes that exact project binding. Leave the status at its
-default `NOT_OBSERVED` otherwise. The resolver does not call MCP tools; it keeps
-project configuration separate from caller-attested runtime evidence. Consume
-`operating_mode.tool_authority` rather than reconstructing the route from the
-capability list. A conflicting MCP project identity resolves the effective mode
-to `AMBIGUOUS-SP-STATE`; an unavailable LIVE-SP route is `BLOCKED`, never mxcli.
-For `CLOSED-AUTONOM` / `LIVE-SP-OTHER`, C2 marks mxcli permitted but does not
-resolve its availability or runtime recipe; use the existing project-local
-mxcli resolver for that separate decision.
-
-`-ResolveOperatingMode` invokes the canonical process detector internally. For
-that same startup or mutation-boundary check, it replaces the direct detector
-command below; do not run both. If Startup Re-Sync already produced this
-structured result, reuse it until the required mutation-boundary recheck.
-
-Mode detection must happen before mxcli/Studio-Pro-MCP/Concord-MCP selection.
-Re-use the Startup Re-Sync result and its existing mutation-boundary recheck; do
-not run a second Studio Pro detector or ask the user when the evidence is
-conclusive.
-
-For runtime/browser verification, operating mode determines the permitted tool authority;
-it does not select or prove a database backend. After mode resolution, every runtime consumer
-must use the project-local mxcli capability and complete-recipe preflight in
-`policies/local-runtime-profile.md` before database credential discovery or escalation.
+For `CLOSED-AUTONOM` / `LIVE-SP-OTHER`, C2 marks mxcli permitted, not available. Resolve its
+binary and runtime recipe separately through `local-runtime-profile.md`. Resolve instruction
+conflicts through `tool-instruction-conflict.md`.
 
 ---
 
-## Detection Algorithm
+## C2 Detection Contract
 
-Execute in this exact order. Stop at the first conclusive result.
-
-When using the structured resolver above, its detector invocation is Step 3 for
-this check; do not invoke the detector a second time.
-
-### Step 1 — Establish project root and .mpr path
-
-```
-lifecycle-resync.md § Projektroot-Bestimmung
-    → locate *.mpr in project root
-    → $currentMpr = resolved absolute path
-```
-
-If no `.mpr` file exists: environment is NOT a Mendix project workspace.
-Studio Pro detection does not apply. Proceed as CLOSED-AUTONOM.
-
-### Step 2 — Platform check (headless / Linux / CI)
-
-Check: `$IsLinux -or $IsMacOS -or (Test-Path '/proc')`
-
-If TRUE: Studio Pro cannot run. Classify as CLOSED-AUTONOM immediately.
-Record `detection_source: platform_headless`.
-
-### Step 3 — Run the canonical detector
-
-```powershell
-& ./.mxagile/tools/check-studio-pro-status.ps1 -ProjectPath $currentMpr -Json -TimeoutSeconds 10
-```
-
-The detector runs with a bounded timeout. A slow or frozen WMI/CIM subsystem MUST NOT
-hang the agent indefinitely. Default timeout: 10 seconds.
-
-Parse JSON output. Interpret exit codes:
-
-| Exit | JSON result | Mode |
-|---|---|---|
-| 0 | isOpen=true | LIVE-SP-CURRENT |
-| 1 | isOpen=false, anyStudioProRunning=false | CLOSED-AUTONOM |
-| 1 | isOpen=false, anyStudioProRunning=true | LIVE-SP-OTHER |
-| 2 | error contains "TIMEOUT" | AMBIGUOUS-SP-STATE (UNKNOWN) |
-| 2 | error / anyStudioProRunning=null | AMBIGUOUS-SP-STATE |
-
-For exit 1:
-- `anyStudioProRunning = false` → CLOSED-AUTONOM
-- `anyStudioProRunning = true` → LIVE-SP-OTHER
-- `anyStudioProRunning = $null` → AMBIGUOUS-SP-STATE
-
-**CRITICAL — Timeout MUST NOT become CLOSED-AUTONOM:**
-
-A detection timeout means the result is UNKNOWN (AMBIGUOUS-SP-STATE).
-Repository/runtime evidence cannot prove CLOSED-AUTONOM from a timeout alone.
-
-```
-detector timed out
-    ↓
-detection_state = UNKNOWN
-    ↓
-operating_mode  = AMBIGUOUS-SP-STATE
-    ↓
-NOT CLOSED-AUTONOM
-```
-
-Rationale: The detector failing to complete does NOT prove Studio Pro is absent.
-It only proves the detection did not succeed within the time bound.
-Setting CLOSED-AUTONOM based on a timeout is a false-safety assumption.
-
-### Step 4 — Inspect project lock (supplementary)
-
-If the project directory contains a Mendix lock file (`.mpr.lock`, `.lock`, or similar),
-treat it as corroborating **project-affinity evidence** for LIVE-SP-CURRENT.
-
-**IMPORTANT:** MPR lock evidence MUST NOT:
-- Directly imply user execution intent (`studio_pro_live`)
-- Override a TIMEOUT result (a lock + timeout → still AMBIGUOUS-SP-STATE, not LIVE-SP-CURRENT)
-- Be treated as conclusive without corroborating Step 3 evidence
-
-Combine with Step 3 result only. MPR busy/locked → project-affinity evidence only.
-
-### Step 5 — Classify
-
-Apply the mode definitions above. Record:
-- `operating_mode`
-- `studio_pro_pid` (if relevant)
-- `studio_pro_project_path` (if detected)
-- `other_studio_pro_pids` (if LIVE-SP-OTHER)
-- `detection_source` (script_exit_0 / script_exit_1_no_sp / script_exit_1_other_sp / platform_headless / script_failed / script_timeout)
-- `detection_confidence` (high / medium / ambiguous / unknown)
-- `detected_at` (ISO timestamp)
+Project root and `.mpr` identity, headless behavior, detector timeout, exit-state mapping,
+cross-signal conflicts, and route status are resolved by C2. Consume its structured result and
+preserve `UNKNOWN` / `AMBIGUOUS-SP-STATE`; do not recreate or locally repair its state machine.
 
 ---
 

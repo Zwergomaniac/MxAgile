@@ -50,56 +50,12 @@ Triggers:
 - If proof points are affected: mark each affected point `status: stale` and proceed as above.
 - Document the assessment result in the test contract notes field.
 
-## Revision Impact Action Mapping
+## Revision Impact Statuses
 
-Revisions and changes produce one of five impact actions. Use the smallest justified action.
-Full definitions: `policies/verification-materialization.md`.
-
-| Action | TC status | PP status | VPL action | Evidence action |
-|---|---|---|---|---|
-| PRESERVE | unchanged `active` | unchanged | unchanged | reuse |
-| EXTEND | unchanged `active`; new PPs appended | prior PPs unchanged; new PPs `active` | prior VPL unchanged; new VPL entries added | prior evidence valid; new evidence required for new PPs only |
-| REASSESS | → `stale` or `impacted` | → per-PP `stale` if claim outdated | supersede; regenerate from updated TC | `STALE` — reexecute |
-| REMATERIALIZE | unchanged `active` | unchanged; set `execution_binding_stale: true` | refresh layer assignments only | `STALE_REEXECUTION_REQUIRED` — reexecute |
-| REEXECUTE | unchanged `active` | unchanged `active` | unchanged | `STALE_REEXECUTION_REQUIRED` — reexecute without test rewrite |
-| INVALIDATE | → `superseded` | → `stale` or `deferred` | → `superseded` | historical record |
-
-**Key distinction — EXTEND vs REASSESS:**
-
-EXTEND applies when prior verification scope is confirmed valid AND product scope grows additively.
-New PPs are added; existing PPs are NOT reconsidered. TC status remains `active`.
-
-REASSESS applies when existing PP CLAIMS must be reconsidered — AC changed, business rule changed,
-role permission contract changed.
-
-If existing PPs are unaffected but new scope requires new PPs: use EXTEND.
-If any existing PP claim must change: use REASSESS for those PPs (may co-exist with EXTEND for unaffected scope).
-
-EXTEND does NOT affect existing PP/VPL/evidence. EXTEND does NOT require DECISION_REQUIRED when new scope is unambiguous.
-
-**Key distinction — REMATERIALIZE vs REASSESS:**
-
-REMATERIALIZE applies when the PP CLAIM is unchanged but the technical execution binding changed.
-Locator change, screen restructure, widget rename, infrastructure availability change.
-
-REASSESS applies when the PP CLAIM must be reconsidered.
-Acceptance criteria changed, business rule changed, role permission contract changed.
-
-REMATERIALIZE does NOT change TC status and does NOT require DECISION_REQUIRED.
-REASSESS sets TC status to `stale` or `impacted` and may require DECISION_REQUIRED.
-
-**Propagating NEEDS_RERUN:**
-
-When `policies/impact-resolution.md` marks a TC as `NEEDS_RERUN`, this maps to impact action **REEXECUTE** — non-material (cosmetic) screen change, acceptance criteria unchanged:
-- TC status remains `active`
-- Evidence is marked `STALE_REEXECUTION_REQUIRED`
-- VPL is unchanged (unless infrastructure changed)
-- Do NOT set TC status to `impacted` for a NEEDS_RERUN signal
-
-`NEEDS_RERUN` applies only to **non-material** screen changes (spacing, color, cosmetic layout).
-For **material** screen changes with AC unchanged, `policies/impact-resolution.md` sets
-`PP.execution_binding_stale: true` on affected proof points instead — this maps to **REMATERIALIZE**,
-not REEXECUTE. See `policies/impact-resolution.md` Step 4 Case B vs Case C.
+This policy owns TC/PP status transitions (`active`, `stale`, `impacted`, `superseded`) and the
+staleness cascade below. It does not choose a revision action or duplicate its TC/PP/VPL/Evidence
+effects; `policies/verification-materialization.md` is the sole action authority. Consume the
+`impact-resolution` result when distinguishing `NEEDS_RERUN` from a stale execution binding.
 
 ## Staleness Cascade
 

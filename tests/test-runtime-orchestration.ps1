@@ -66,6 +66,7 @@ function Assert-FileNotContains {
 
 $policyPath      = Join-Path $ScriptDir ".mxagile/policies/development-runtime.md"
 $profilePath     = Join-Path $ScriptDir ".mxagile/policies/local-runtime-profile.md"
+$runtimeRecipePath = Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py"
 $runtimeStrategy = Join-Path $ScriptDir ".mxagile/policies/runtime-strategy.md"
 $testWorkflow    = Join-Path $ScriptDir ".mxagile/policies/test-workflow.md"
 $lifecycleResync = Join-Path $ScriptDir ".mxagile/policies/lifecycle-resync.md"
@@ -95,14 +96,14 @@ Write-Host "--- Section A: Interactive mode uses --watch ---"
 Assert-FileContains "A.1 policy defines Interactive Implementation Mode" `
     $policyPath '(?i)Interactive Implementation Mode'
 
-Assert-FileContains "A.2 interactive mode has --watch = PREFERRED" `
-    $policyPath '(?si)Interactive Implementation Mode.*PREFERRED'
+Assert-FileContains "A.2 interactive mode uses the C1-resolved recipe" `
+    $policyPath '(?si)Interactive Implementation Mode.*recipe.*watch behavior'
 
-Assert-FileContains "A.3 interactive base command includes --watch" `
-    $policyPath '(?si)Interactive.*base command.*mxcli run --local.*--watch'
+Assert-FileContains "A.3 interactive mode does not reconstruct command flags" `
+    $policyPath '(?si)resolved_runtime_recipe.*MUST NOT reconstruct mxcli commands'
 
-Assert-FileContains "A.4 implementation-agent still uses --watch for warm loop" `
-    $implAgentPath 'mxcli run --local.*--watch'
+Assert-FileContains "A.4 implementation-agent consumes C1 runtime recipe" `
+    $implAgentPath 'C1-`resolved_runtime_recipe`'
 
 Write-Host ""
 
@@ -115,11 +116,11 @@ Write-Host "--- Section B: Autonomous verification omits --watch ---"
 Assert-FileContains "B.1 policy defines Autonomous Verification Mode" `
     $policyPath '(?i)Autonomous Verification Mode'
 
-Assert-FileContains "B.2 autonomous mode has --watch = NOT_USED" `
-    $policyPath '(?si)Autonomous Verification Mode.*NOT_USED'
+Assert-FileContains "B.2 autonomous mode is bounded and does not model-watch" `
+    $policyPath '(?si)Autonomous Verification Mode.*Unattended / bounded'
 
-Assert-FileContains "B.3 autonomous base command is mxcli run --local without --watch" `
-    $policyPath '(?si)Autonomous.*base command.*mxcli run --local -p'
+Assert-FileContains "B.3 autonomous invocation comes from the resolved recipe" `
+    $policyPath '(?si)Autonomous verification.*bounded start.*recipe'
 
 Assert-FileContains "B.4 acceptance-agent uses autonomous mode" `
     $accAgentPath '(?i)autonomous mode|ohne.*--watch'
@@ -149,7 +150,7 @@ Assert-FileContains "B.11 mode selection table present" `
     $policyPath '(?i)Mode Selection'
 
 Assert-FileContains "B.12 Watch-Mode Decision table present" `
-    $policyPath '(?i)Watch-Mode Decision'
+    $policyPath '(?i)Runtime Mode Decision'
 
 Write-Host ""
 
@@ -160,13 +161,13 @@ Write-Host ""
 Write-Host "--- Section C: DB default preserved ---"
 
 Assert-FileContains "C.1 Core autonomous default is 'default'" `
-    $policyPath '(?i)MXAGILE_CORE_DEFAULT|Core autonomous default.*default'
+    $runtimeRecipePath '(?i)MXAGILE_CORE_DEFAULT'
 
 Assert-FileContains "C.2 autonomous base command remains separate from DB flags" `
-    $policyPath '(?si)Autonomous Verification base command:\*{0,2}\s*```.*?mxcli run --local -p <project>\.mpr\s*```'
+    $policyPath '(?si)exact argv remains owned by the resolved recipe'
 
 Assert-FileContains "C.3 effective invocation is the complete resolved recipe" `
-    $policyPath 'The effective invocation is the complete `resolved_runtime_recipe`'
+    $profilePath 'recipe''s argument array is the sole invocation authority'
 
 Assert-FileContains "C.4 exact CLI spelling comes from the resolved binary help" `
     $profilePath '(?s)exact option spelling, values, and\s+placement'
@@ -411,7 +412,7 @@ Assert-FileContains "M.1 runtime-strategy still LOCAL FIRST" `
     $runtimeStrategy '(?i)LOCAL FIRST'
 
 Assert-FileContains "M.2 development-runtime still references local warm loop" `
-    $policyPath '(?i)mxcli run --local.*--watch'
+    $policyPath '(?i)warm local runtime.*iterative feedback|interactive C1 recipe.*warm runtime'
 
 Assert-FileContains "M.3 Docker only on escalation" `
     $runtimeStrategy '(?i)docker.*container.parity|container.*parity'
@@ -442,13 +443,13 @@ Write-Host ""
 Write-Host "--- Section O: DB-default regression ---"
 
 Assert-FileContains "O.1 DB flags remain owned by the help-resolved recipe" `
-    $policyPath '(?s)Agents MUST NOT expand the base command themselves or\s+copy individual DB/backend flags from this policy'
+    $profilePath 'MUST NOT rebuild the command from known flags'
 
 Assert-FileContains "O.2 DB_IDENTITY_CONTROL_UNAVAILABLE still defined" `
-    $policyPath 'DB_IDENTITY_CONTROL_UNAVAILABLE'
+    $runtimeRecipePath 'DB_IDENTITY_CONTROL_UNAVAILABLE'
 
 Assert-FileContains "O.3 .mpr-derived db_name still prohibited" `
-    $policyPath '(?i)NOT.*derive.*database name.*mpr|NOT.*mpr.*derived'
+    $profilePath '(?i)filename stems are never database identity inputs'
 
 Write-Host ""
 

@@ -209,9 +209,6 @@ Write-Host "--- O: UI-driven iteration prefers warm local runtime ---"
 Assert-FileContains "runtime-strategy: UI-driven selects local runtime" `
     $runtimeStratPath '(?i)UI-Driven Integration|ui_driven.*local|local.*ui_driven'
 
-Assert-FileContains "evidence-levels: RUNTIME level uses mxcli run --local" `
-    $evidenceLevelsPath '(?i)mxcli run --local|warm.*local.*runtime'
-
 Assert-FileContains "discovery-agent: local runtime for UI readiness" `
     $discoveryAgentPath '(?i)mxcli run --local|warmer lokaler Runtime|lokal.*runtime'
 
@@ -227,7 +224,7 @@ Assert-FileContains "P: Playwright does not require Docker" `
     $runtimeStratPath '(?i)playwright.*not.*require.*docker|playwright.*does not.*docker'
 
 Assert-FileContains "Q: page/microflow changes do NOT imply Docker" `
-    $runtimeStratPath '(?i)page.*changed|microflow.*changed'
+    $runtimeStratPath '(?i)page.*change|microflow.*change'
 
 Assert-FileContains "R: structural model changes do not automatically imply Docker" `
     $runtimeStratPath '(?i)entity.*changed|structural.*model.*change'

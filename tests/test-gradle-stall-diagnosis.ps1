@@ -42,7 +42,7 @@ function Assert-FileNotContains {
     else { Assert-True $TestName ($content -notmatch $Pattern) "Forbidden pattern '$Pattern' found in $FilePath" }
 }
 
-$GradlePol   = Join-Path $ScriptDir ".mxagile/policies/local-runtime-profile.md"
+$GradlePol   = Join-Path $ScriptDir ".mxagile/policies/runtime-dependency-recovery.md"
 $DevRuntime  = Join-Path $ScriptDir ".mxagile/policies/development-runtime.md"
 $ProcSchema  = Join-Path $ScriptDir ".mxagile/schemas/process-state.schema.json"
 
@@ -83,8 +83,8 @@ Write-Host ""
 Write-Host "TEST E: Unrelated Gradle/Java processes are never terminated" -ForegroundColor Cyan
 Assert-FileContains "E.1 policy prohibits killing all Java processes" $GradlePol 'Kill all Java processes'
 Assert-FileContains "E.2 policy prohibits killing all Gradle daemons without owner check" $GradlePol 'Kill all Gradle daemons'
-Assert-FileContains "E.3 hard-kill requires specific stale owner PID only" $GradlePol 'only the specific stale owner PID'
-Assert-FileContains "E.4 development-runtime.md states MUST NOT automatically kill arbitrary processes" $DevRuntime 'MUST NOT automatically kill'
+Assert-FileContains "E.3 hard-kill requires specific stale owner PID only" $GradlePol 'only the[\s\S]*specific stale owner PID'
+Assert-FileContains "E.4 development-runtime routes failures to the dedicated recovery contract" $DevRuntime 'runtime-dependency-recovery\.md'
 
 # TEST F: Lock files are never blindly deleted
 Write-Host ""
@@ -103,7 +103,7 @@ Assert-FileContains "G.2 no active processes AND no held locks: proceed normally
 Write-Host ""
 Write-Host "TEST H: Second run after interrupted lifecycle enters bounded diagnosis, not indefinite wait" -ForegroundColor Cyan
 Assert-FileContains "H.1 repeated-run contract covers interrupted lifecycle" $GradlePol 'stopped or interrupted'
-Assert-FileContains "H.2 held locks trigger Safe Recovery Ladder, not indefinite wait" $GradlePol 'held locks.*Safe Recovery Ladder'
+Assert-FileContains "H.2 held locks trigger Safe Recovery Ladder, not indefinite wait" $GradlePol '(?is)held locks.*Safe Recovery Ladder'
 Assert-FileContains "H.3 concurrent run prevention is defined" $GradlePol 'Concurrent run prevention'
 
 # TEST I: Recovery state is reported clearly

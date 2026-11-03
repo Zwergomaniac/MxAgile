@@ -137,8 +137,8 @@ Write-Host "--- A: Credential discovery before blocker classification ---"
 Assert-FileContains "policy: must discover before blocking" `
     $credDiscovPath '(?i)declaring.*blocker.*is.*agent.*fault|without.*performing.*discovery.*is.*agent|declaring a blocker without'
 
-Assert-FileContains "development-runtime: credential discovery before runtime start" `
-    $devRuntimePath '(?i)credential.*discovery.*before.*runtime|discovery.*before.*runtime.*start'
+Assert-FileContains "development-runtime: C1 selects the route before credential discovery" `
+    $devRuntimePath '(?s)Resolve the complete C1 recipe before discovering credentials.*?Check only credentials required\s+by that route using `policies/credential-discovery\.md`'
 
 Assert-FileContains "development-runtime: references credential-discovery policy" `
     $devRuntimePath 'credential-discovery'
@@ -147,25 +147,25 @@ Assert-FileContains "credential policy: runtime/browser preflight before escalat
     $credDiscovPath '(?i)Runtime and Browser Preflight|before starting a runtime|full discovery path'
 
 Assert-FileContains "quality gate: credential discovery before runtime startup" `
-    $qualityGatePath '(?is)Credential-Verfuegbarkeit vor dem.*Runtime-Start'
+    $qualityGatePath '(?is)resolved_runtime_recipe.*Datenbank-Credentials nur fuer den ausgewaehlten Recipe-Pfad pruefen'
 
-Assert-FileContains "acceptance agent: credential discovery before runtime/login" `
-    $acceptanceAgentPath '(?i)credential-discovery\.md.*complete credential preflight|complete credential preflight'
+Assert-FileContains "acceptance agent: credentials follow the resolved runtime recipe" `
+    $acceptanceAgentPath '(?is)resolved_runtime_recipe.*Discover\s+database credentials only if required by that recipe'
 
 Assert-FileContains "acceptance agent: exhausted discovery before USER_INPUT_REQUIRED" `
-    $acceptanceAgentPath '(?i)full discovery path is exhausted'
+    $acceptanceAgentPath '(?is)credential-discovery\.md.*USER_INPUT_REQUIRED'
 
 Assert-FileContains "UI agent: credentials checked before runtime start and login" `
     $uiAgentPath '(?i)Vor Runtime-Start und vor dem ersten Playwright-/Browser-Login'
 
-Assert-FileContains "generated acceptance agent: credential preflight is projected" `
-    $genAcceptancePath '(?i)complete credential preflight'
+Assert-FileContains "generated acceptance agent: resolved recipe gates credential checks" `
+    $genAcceptancePath '(?is)resolved_runtime_recipe.*Discover\s+database credentials only if required by that recipe'
 
 Assert-FileContains "generated UI agent: early credential preflight is projected" `
     $genUiAgentPath '(?i)Runtime-Preparation ist vor dem Runtime-Start'
 
-Assert-FileContains "generated quality gate: credential preflight is projected" `
-    $genQualityGatePath '(?i)Credential-Verfuegbarkeit vor dem'
+Assert-FileContains "generated quality gate: resolved recipe gates credential checks" `
+    $genQualityGatePath '(?is)resolved_runtime_recipe.*Datenbank-Credentials nur fuer den ausgewaehlten Recipe-Pfad pruefen'
 
 Assert-FileContains "project schema: .env.mendix is canonical credential default" `
     $projectSchemaPath '(?i)Default: \.env\.mendix \(gitignored\)'
@@ -190,8 +190,8 @@ Assert-FileContains "policy: .env.mendix explicitly listed in discovery order" `
 Assert-FileContains "policy: discover .env.mendix before asking developer" `
     $credDiscovPath '(?i)do not ask.*developer.*where.*credentials|do not ask.*before.*discovery'
 
-Assert-FileContains "development-runtime: inspect .env.mendix before runtime" `
-    $devRuntimePath '\.env\.mendix'
+Assert-FileContains "development-runtime: delegates discovery order and secret handling" `
+    $devRuntimePath 'credential policy owns discovery, secret handling, and resume semantics'
 
 Assert-FileContains "safety-rules: .env.mendix stays local" `
     $safetyRulesPath '\.env\.mendix'
@@ -366,8 +366,8 @@ Assert-FileContains "policy: failed default does NOT authorize mutation" `
 Assert-FileContains "safety-rules: credential mutation prohibition" `
     $safetyRulesPath '(?i)credential.mutations.verbot|Credential-Mutations-Verbot|ALTER USER'
 
-Assert-FileContains "development-runtime: no ALTER USER or password reset" `
-    $devRuntimePath '(?i)ALTER USER|credential mutation|passwort.reset'
+Assert-FileContains "development-runtime: selected-route credential checks use the canonical safety contract" `
+    $devRuntimePath '(?s)## Credential Gate.*?policies/credential-discovery\.md'
 
 Write-Host ""
 

@@ -340,7 +340,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Pure static checks on local-runtime-profile.md, development-runtime.md, process-state.schema.json for Gradle stall policy."
+    "Reason": "Pure static checks on runtime-dependency-recovery.md, development-runtime.md, and process-state.schema.json for failure-only Gradle stall recovery."
   },
   {
     "File": "test-ownership-guard.ps1",

@@ -121,6 +121,26 @@ Criteria:
 (`process-state.yaml coverage_matrix_state.uncovered_clauses`).
 Must not appear in current compliance or defect metrics.
 
+## Persisted Authority Disposition
+
+When a finding is classified for later implementation, persist its authority decision in the
+same canonical `planning/findings/FIND-*.yml` record under `authority_disposition`; campaign
+prose and `FINDINGS.md` are not disposition stores. The schema is
+`.mxagile/schemas/finding.schema.json`. The existing read-only Project Status projection
+checks whether the stored source/evidence fingerprint is still current.
+
+The Finding schema enforces classification-specific `allowed_action`, `prohibited_actions`, and
+unresolved-decision requirements. Project Status verifies current hashes and projects the action;
+consumers must use that resolved disposition rather than restating or reconstructing a mapping.
+
+The persisted disposition contains a monotonically increasing `revision`, hashed
+`authoritative_sources`, hashed `evidence_refs`, and `evidence_fingerprint`. A later
+Implementation Agent may consume its action only when the projection reports
+`status: RESOLVED` and `consumable: true`. `STALE`, `NOT_OBSERVABLE`, or `AMBIGUOUS` projects
+`allowed_action: RECONCILE`; it never falls back to the stored implementation action. A changed
+source/evidence basis requires explicit re-reconciliation, a new disposition revision, and a
+new fingerprint before classification or action changes.
+
 ---
 
 ## 4. Planning-State Awareness

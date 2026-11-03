@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MxAgile UI Parity Verification",
-  "description": "Multi-dimensional parity verification result for a UI page or component. Produced by UI-Agent Verify mode. See .mxagile/policies/ui-parity.md for the full contract. A required FAIL yields overall FAIL; required NOT_VERIFIED prevents PASS and remains NOT_VERIFIED when there is no FAIL, STALE, or FIXTURE_BLOCKED; PARTIAL is not FAIL. Required FAIL, PARTIAL, NOT_VERIFIED, CONFLICT, STALE, or FIXTURE_BLOCKED prevents overall PASS. LEGACY_EVIDENCE may coexist with PASS only when all remaining required dimensions are PASS. Precedence among multiple non-FAIL blockers is unresolved in the policy.",
+  "description": "Multi-dimensional parity verification result for a UI page or component. Produced by UI-Agent Verify mode. See .mxagile/policies/ui-parity.md for the full contract. New reports declare evidence_class and use the deterministic build_project_status resolver. A required FAIL yields FAIL; NOT_VERIFIED prevents PASS and takes precedence over PARTIAL; unresolved combinations of multiple non-failing blockers are AMBIGUOUS and cannot be promoted. SMOKE and REFERENCE_VS_MODEL cannot establish complete live parity.",
   "type": "object",
   "required": ["page_id", "verified_at", "evidence_level", "dimensions", "overall_result"],
   "additionalProperties": false,
@@ -27,6 +27,11 @@
       "enum": ["browser", "model", "static", "legacy"],
       "description": "Evidence level of this verification. browser=Playwright against running app (authoritative); model=mxcli inspect only; static=document analysis; legacy=migrated from a pre-dimensional parity record."
     },
+    "evidence_class": {
+      "type": "string",
+      "enum": ["SMOKE", "REFERENCE_VS_MODEL", "LIVE_PARITY"],
+      "description": "Evidence class for promotion. SMOKE and REFERENCE_VS_MODEL cannot establish complete live parity; only LIVE_PARITY is eligible for a full parity PASS, subject to the deterministic resolver. Optional for legacy compatibility; required by policy for new reports."
+    },
     "target_mockup": {
       "type": "string",
       "description": "Path to the ACTIVE acceptance target mockup used for this verification. May differ from the original source_mockup if the target was refined. See policies/mockup-lifecycle.md."
@@ -38,9 +43,6 @@
     "app_url": {
       "type": "string",
       "description": "Application URL used during Playwright verification."
-    },
-    "comparison_identity": {
-      "$ref": "#/definitions/comparison_identity"
     },
     "evidence_matrix": {
       "$ref": "#/definitions/evidence_matrix"
@@ -64,6 +66,16 @@
           "type": "string",
           "minLength": 1,
           "description": "Concise page/role/state/viewport coverage and whether new unlisted deviations were found."
+        },
+        "comparison_result": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "PARTIAL", "CONFLICT"],
+          "description": "Result of the actual whole-screen comparison. A rendered screenshot alone is not a comparison result."
+        },
+        "comparison_summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Concise comparison outcome or observed gap; required for a completed whole-screen review in schema v3."
         },
         "blocked_reason": {
           "type": "string",
@@ -180,7 +192,10 @@
     "overall_result": {
       "type": "string",
       "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED"],
-      "description": "Aggregate across required dimensions. FAIL: at least one required dimension is FAIL. NOT_VERIFIED: at least one required dimension is NOT_VERIFIED and none is FAIL, STALE, or FIXTURE_BLOCKED, or no browser verification exists and all required dimensions are NOT_VERIFIED/LEGACY_EVIDENCE. PARTIAL: a required dimension is PARTIAL or CONFLICT, with no required FAIL, NOT_VERIFIED, STALE, or FIXTURE_BLOCKED. STALE and FIXTURE_BLOCKED prevent PASS. Precedence among multiple non-FAIL blockers is unresolved; see policies/ui-parity.md."
+      "description": "Reported aggregate claim. The authoritative value for new reports is computed by scripts/build_project_status.py and recorded in aggregate_resolution; producers must not promote this field independently."
+    },
+    "aggregate_resolution": {
+      "$ref": "#/definitions/parity_aggregate_resolution"
     },
     "fixture_blocked_reason": {
       "type": "string",
@@ -218,7 +233,7 @@
     "schema_version": {
       "type": "integer",
       "minimum": 1,
-      "description": "Parity record schema version. Version 2 requires immutable comparison_identity and a separate evidence_matrix; version 1 is retained for legacy records."
+      "description": "Parity record schema version. Version 2 requires immutable comparison_identity and a separate evidence_matrix. Version 3 additionally requires evidence_class and aggregate_resolution. Versions 1 and 2 remain readable as legacy claims but are re-resolved before current promotion."
     },
     "evidence_upgrade": {
       "$ref": "#/definitions/evidence_upgrade_state"
@@ -227,10 +242,31 @@
   "allOf": [
     {
       "if": {
-        "properties": { "schema_version": { "const": 2 } },
+        "properties": { "schema_version": { "enum": [2, 3] } },
         "required": ["schema_version"]
       },
       "then": { "required": ["comparison_identity", "evidence_matrix"] }
+    },
+    {
+      "if": {
+        "properties": { "schema_version": { "const": 3 } },
+        "required": ["schema_version"]
+      },
+      "then": { "required": ["evidence_class", "aggregate_resolution"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": { "const": 3 },
+          "whole_screen_review": { "properties": { "status": { "const": "complete" } }, "required": ["status"] }
+        },
+        "required": ["schema_version", "whole_screen_review"]
+      },
+      "then": {
+        "properties": {
+          "whole_screen_review": { "required": ["comparison_result", "comparison_summary"] }
+        }
+      }
     },
     {
       "if": {
@@ -239,7 +275,7 @@
       },
       "then": {
         "required": ["schema_version", "comparison_identity", "evidence_matrix", "whole_screen_review"],
-        "properties": { "schema_version": { "const": 2 } }
+        "properties": { "schema_version": { "enum": [2, 3] } }
       }
     },
     {
@@ -325,9 +361,143 @@
           "required": ["overall_result"]
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_class": { "enum": ["SMOKE", "REFERENCE_VS_MODEL"] },
+          "overall_result": { "const": "PASS" }
+        },
+        "required": ["evidence_class", "overall_result"]
+      },
+      "then": {
+        "not": {
+          "properties": { "overall_result": { "const": "PASS" } },
+          "required": ["overall_result"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_class": { "const": "LIVE_PARITY" },
+          "overall_result": { "const": "PASS" }
+        },
+        "required": ["evidence_class", "overall_result"]
+      },
+      "then": {
+        "required": ["schema_version", "evidence_level", "comparison_identity", "evidence_matrix", "whole_screen_review", "aggregate_resolution"],
+        "properties": {
+          "schema_version": { "const": 3 },
+          "evidence_level": { "const": "browser" },
+          "comparison_identity": {
+            "properties": { "status": { "const": "BOUND" } },
+            "required": ["status"]
+          },
+          "evidence_matrix": {
+            "properties": {
+              "contract_parity": {
+                "required": ["source_artifacts", "evidence"],
+                "properties": {
+                  "source_artifacts": { "minItems": 1 },
+                  "evidence": { "minItems": 1 }
+                }
+              },
+              "model_parity": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } },
+              "structural_dom_parity": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } },
+              "behavioral_parity": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } },
+              "role_parity": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } },
+              "visual_whole_screen_parity": {
+                "properties": {
+                  "status": { "const": "PASS" },
+                  "evidence": { "minItems": 1 },
+                  "capture_ids": { "minItems": 2, "uniqueItems": true }
+                },
+                "required": ["status", "evidence", "capture_ids"]
+              }
+            },
+            "required": ["contract_parity", "visual_whole_screen_parity"]
+          },
+          "whole_screen_review": {
+            "properties": {
+              "status": { "const": "complete" },
+              "comparison_result": { "const": "PASS" },
+              "comparison_summary": { "minLength": 1 },
+              "reference_capture_ids": { "minItems": 1 },
+              "runtime_capture_ids": { "minItems": 1 },
+              "visually_reviewed_capture_ids": { "minItems": 2 }
+            },
+            "required": ["status", "comparison_result", "comparison_summary", "reference_capture_ids", "runtime_capture_ids", "visually_reviewed_capture_ids"]
+          },
+          "aggregate_resolution": {
+            "properties": {
+              "evidence_class": { "const": "LIVE_PARITY" },
+              "status": { "const": "RESOLVED" },
+              "computed_overall_result": { "const": "PASS" },
+              "claim_matches": { "const": true },
+              "promotion_allowed": { "const": true },
+              "comparison_identity_status": { "const": "BOUND" },
+              "target_freshness": { "const": "CURRENT" },
+              "blockers": { "maxItems": 0 }
+            },
+            "required": ["evidence_class", "status", "computed_overall_result", "claim_matches", "promotion_allowed", "comparison_identity_status", "target_freshness", "blockers"]
+          }
+        }
+      }
     }
   ],
   "definitions": {
+    "parity_source_artifact": {
+      "type": "object",
+      "required": ["source_type", "canonical_path", "artifact_id", "content_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": { "enum": ["requirement", "decision"] },
+        "canonical_path": { "type": "string", "minLength": 1 },
+        "artifact_id": { "type": "string", "minLength": 1 },
+        "content_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    },
+    "parity_aggregate_resolution": {
+      "type": "object",
+      "required": ["resolver", "status", "evidence_class", "reported_overall_result", "computed_overall_result", "claim_matches", "promotion_allowed", "comparison_identity_status", "target_freshness", "dimension_results", "evidence_matrix_results", "evidence_provenance", "blockers"],
+      "additionalProperties": false,
+      "properties": {
+        "resolver": { "const": "build_project_status.resolve_parity_status/v1" },
+        "status": { "enum": ["RESOLVED", "BLOCKED", "STALE", "NOT_OBSERVABLE", "UNKNOWN", "AMBIGUOUS"] },
+        "evidence_class": { "enum": ["SMOKE", "REFERENCE_VS_MODEL", "LIVE_PARITY", "NOT_OBSERVABLE"] },
+        "reported_overall_result": { "type": ["string", "null"], "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED", null] },
+        "computed_overall_result": { "type": ["string", "null"], "enum": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "FIXTURE_BLOCKED", null] },
+        "claim_matches": { "type": "boolean" },
+        "promotion_allowed": { "type": "boolean" },
+        "comparison_identity_status": { "enum": ["BOUND", "REFERENCE_DRIFT", "INCOMPLETE", "NOT_OBSERVABLE"] },
+        "target_freshness": { "enum": ["CURRENT", "STALE", "NOT_OBSERVABLE"] },
+        "dimension_results": { "type": "object", "additionalProperties": { "type": "string" } },
+        "evidence_matrix_results": { "type": "object", "additionalProperties": { "type": "string" } },
+        "evidence_provenance": {
+          "type": "object",
+          "required": ["dimension_evidence", "matrix_evidence", "matrix_source_artifacts", "matrix_capture_ids", "validated_contract_sources", "contract_source_validation"],
+          "additionalProperties": false,
+          "properties": {
+            "dimension_evidence": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object" } } },
+            "matrix_evidence": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object" } } },
+            "matrix_source_artifacts": { "type": "object", "additionalProperties": { "type": "array", "items": { "$ref": "#/definitions/parity_source_artifact" } } },
+            "matrix_capture_ids": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+            "validated_contract_sources": { "type": "array", "items": { "$ref": "#/definitions/parity_source_artifact" } },
+            "contract_source_validation": { "enum": ["VALIDATED", "NOT_OBSERVABLE"] }
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "reason"],
+            "additionalProperties": false,
+            "properties": { "code": { "type": "string" }, "reason": { "type": "string" } }
+          }
+        }
+      }
+    },
     "evidence_matrix_status": {
       "type": "object",
       "required": ["status"],
@@ -340,6 +510,8 @@
         },
         "required": { "type": "boolean", "default": true },
         "capture_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "evidence": { "type": "array", "items": { "$ref": "#/definitions/evidence_item" } },
+        "source_artifacts": { "type": "array", "items": { "$ref": "#/definitions/parity_source_artifact" } },
         "note": { "type": "string" }
       }
     },
@@ -438,7 +610,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["screenshot", "dom_text", "dom_selector", "mxcli_inspect", "navigation_flow", "interaction_test", "viewport_test", "role_test", "accessibility_check"],
+          "enum": ["screenshot", "dom_text", "dom_selector", "mxcli_inspect", "navigation_flow", "interaction_test", "viewport_test", "role_test", "accessibility_check", "contract_reference"],
           "description": "Type of evidence. dom_text=browser DOM text extraction; dom_selector=element found/not found; navigation_flow=verified page transition."
         },
         "description": { "type": "string" },

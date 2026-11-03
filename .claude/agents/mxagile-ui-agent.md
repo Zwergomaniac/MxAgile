@@ -32,7 +32,7 @@ Falls die Datei nicht existiert: `ui_driven: false`, `fidelity: standard`.
 - `.mxagile/policies/local-runtime-profile.md` — project profile, pinned mxcli resolution, database identity and bootstrap login
 - `.mxagile/policies/tool-instruction-conflict.md` — authority and capability conflict resolution
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
-- `.mxagile/policies/evidence-levels.md` — Evidenz-Klassifikation (STATIC/MODEL/RUNTIME/BROWSER)
+- `.mxagile/policies/evidence-levels.md` — Gate-Evidenzreife und Recording; Layer-Semantik steht in `verification-layers.md`
 - `.mxagile/policies/credential-discovery.md` — Credential-Discovery vor Runtime-Start
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/ui-element-selection.md` — Intent-driven widget selection: pattern before widget, Data Grid 2 fit check, read-only display contract, escalation ladder
@@ -61,7 +61,7 @@ Im Analyze-Modus erzeugte Artefakte tragen `evidence: static` in ihren YAML-Meta
 Screenshots aus `.concord/screenshots/mockup/` sind STATIC-Evidenz.
 Screenshots aus `.concord/screenshots/app/` sind BROWSER-Evidenz.
 
-**Vollstaendige Evidenz-Level-Definitionen:** `policies/evidence-levels.md`
+**Gate-Evidenzreife:** `policies/evidence-levels.md`; Layer-Semantik: `policies/verification-layers.md`.
 
 ## Modi-Uebersicht
 
@@ -378,9 +378,8 @@ Sie sind wertvolle Spezifikationsgrundlage, aber KEIN Runtime- oder Browser-Nach
 
 Trigger: Phase ist `verifying` und Applikation laeuft und per Browser erreichbar.
 
-Die Applikation laeuft bevorzugt als lokaler Runtime im autonomen Modus
-(`mxcli run --local` ohne `--watch`, Level 3). `--watch` wird im Verifying-Modus
-nicht benoetigt — die Verifikation aendert das Modell nicht. Docker (Level 4)
+Die Applikation laeuft bevorzugt gemaess dem C1-Recipe im autonomen Modus fuer Runtime
+(Level 3). Das Recipe bestimmt Lifecycle und Argumente; Verify aendert das Modell nicht. Docker (Level 4)
 wird nur verwendet wenn Container-Paritaet benoetigt oder der lokale Runtime keine
 valide Verifikationsevidenz liefern kann.
 Vollstaendige Eskalationsregeln: `.mxagile/policies/runtime-strategy.md`.
@@ -408,7 +407,7 @@ Dateinamen wie `all-role-modes` sind kein Authority-Nachweis. Den vollstaendigen
 Mockup-Pfad und die Revision verwenden; partielle HTML-/JS-Reads reichen nicht als
 Whole-Screen- oder Visual-Referenz.
 
-Identitaet als `schema_version: 2` im Parity-Report und in Capture-Gruppen festhalten. Vor/nach
+Identitaet als `schema_version: 3` im Parity-Report und in Capture-Gruppen festhalten. Vor/nach
 jeder Modell-, Runtime-, DOM-, Screenshot- und Report-Phase die Felder erneut vergleichen.
 Bei jeder Aenderung: `comparison_identity.status: REFERENCE_DRIFT`, vorherige Evidence dieses
 Laufs invalidieren, keine Promotion und keinen Implementierungsscope daraus ableiten. Bei
@@ -515,6 +514,8 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
 
 1. `mxagile-project.yaml` lesen (falls vorhanden): `ui.fidelity` ermitteln.
    Standard: `fidelity: standard`.
+  Die Fidelity-Pruefung ist ein semantischer Vergleich von Seitenstruktur, Gruppen,
+  Sektionen und Interaktionen; sie ist kein Pixel-Diff.
 2. `implementation-checklist.yaml` laden.
 3. Playwright gegen die laufende App-URL starten (`authenticated_session_ready` erforderlich).
 4. Fuer jede Seite im UI-Inventar — **7 Dimensionen unabhaengig pruefen:**
@@ -575,27 +576,61 @@ Vollstaendiger Vertrag: `policies/mockup-lifecycle.md` und `policies/spa-mockup-
   Seite abdecken, aber keine weiteren Seiten hinzufuegen. Vollstaendiger Gate-Vertrag:
   `policies/ui-parity.md` § Fresh-Full UI Parity.
 
-6. **Fidelity-Pruefung (Gesamtergebnis):** Semantischen Vergleich der gesamten
-   Seitenstruktur-Gruppen gegen das Ziel-Mockup durchfuehren.
-   `ui_fidelity` fasst das Gesamtergebnis aller Dimensionen zusammen.
-   Standard: `PASS` wenn alle required-Dimensionen PASS, sonst `FAIL`.
+6. **Evidence-Klasse und Fidelity-Daten:** Vor der Aggregation jeden Lauf klassifizieren:
+  - `SMOKE`: nur minimale Text-/Navigations-/Control-Smoke-Pruefungen; niemals vollstaendige Parity.
+  - `REFERENCE_VS_MODEL`: Referenz-/Mockup-gegen-Modell-Analyse ohne Live-Runtime; niemals Live-Parity.
+  - `LIVE_PARITY`: nur wenn der angeforderte Live-Runtime-/Browser-Scope tatsaechlich ausgefuehrt wurde.
+  Die sieben Parity-Dimensionen und alle sechs `evidence_matrix`-Dimensionen unabhaengig
+  mit Status, Requiredness, Evidence-Provenienz und gegebenenfalls Blockern dokumentieren.
+  `evidence_matrix.contract_parity: PASS` enthaelt mindestens einen `source_artifacts`-Eintrag
+  mit `source_type: requirement|decision`, `canonical_path`, `artifact_id` und `content_hash`;
+  der Resolver gleicht den Hash gegen `validated_source_hashes` dieses Laufs ab.
+  Jeder Matrix-PASS enthaelt zusaetzlich eigene typisierte `evidence`-Items aus genau dieser
+  Matrix; Evidence einer anderen Matrix oder UI-Dimension darf nicht uebernommen werden.
+  `overall_result` nicht selbst aus Text, Smoke-Erfolg oder Teilmengen ableiten.
 
-7. Dimensionalen Parity-Report erzeugen gemaess Schema
-   `.mxagile/schemas/parity-verification.schema.json`:
+7. **Deterministische Aggregation:** Dimensionalen Parity-Report gemaess Schema
+  `.mxagile/schemas/parity-verification.schema.json` erzeugen und einen on-demand
+  Resolver-Request mit `report`, aktueller erwarteter `comparison_identity`, expliziter
+  `target_freshness`, dem aktuellen `project_root` sowie den bereits validierten
+  `validated_capture_sides` vorbereiten.
+  `evidence_matrix.contract_parity` PASS benoetigt mindestens einen solchen gehashten
+  Requirement-/Decision-Ref; der Helper liest nur die explizit referenzierten Dateien sicher
+  innerhalb des Projektroots und validiert Schema, ID und SHA-256. Er scannt keine Collections;
+  Notes allein sind keine Contract-Evidence.
+  Dann den installierten Helper einmal fuer genau diesen Report aufrufen:
+
+  ```powershell
+  python .mxagile/tools/build_project_status.py --resolve-parity-request <temporary-request.json>
+  ```
+
+  Der Resolver scannt in diesem Modus nicht das Repository. `status: RESOLVED` erlaubt,
+  `overall_result` exakt auf `computed_overall_result` zu setzen und `aggregate_resolution`
+  anzuhangen, einschliesslich `evidence_provenance.validated_contract_sources`. Bei `BLOCKED`, `UNKNOWN`, `NOT_OBSERVABLE` oder `AMBIGUOUS` bleibt
+  `overall_result: NOT_VERIFIED`; die vollstaendige Resolver-Ausgabe als
+  `aggregate_resolution` beilegen. Resolverfehler oder fehlende Inputs sind kein PASS.
+  Keine niedrigere Evidence-Klasse hochstufen und keine eigene Status-Praezedenz anwenden.
 
   Bei Fresh-Full-Parity: `verification_scope: fresh_full` und
   `whole_screen_review.status: complete` setzen, falls der Pass abgeschlossen ist; sonst
   `blocked` mit Grund. `comparison_identity` und alle sechs getrennten `evidence_matrix`-
-  Statusfelder ausfuellen. Whole-Screen-PASS erfordert gerenderte und visuell geoeffnete
-  Referenz- und Runtime-Captures; deren IDs muessen unter `reference_capture_ids`,
-  `runtime_capture_ids` und `visually_reviewed_capture_ids` referenziert sein. Targeted
-  verification bleibt als targeted markiert. Unerwartete Runtime-Strukturen werden in den
+  Statusfelder ausfuellen. Ein vorhandener Screenshot ist kein Vergleichsergebnis. Fuer jeden
+  abgeschlossenen Whole-Screen-Vergleich `whole_screen_review.comparison_result` und eine
+  knappe `comparison_summary` dokumentieren; das Ergebnis muss dem Status von
+  `evidence_matrix.visual_whole_screen_parity` entsprechen. Whole-Screen-PASS erfordert
+  aktuelle, identitaetsgebundene Referenz- und Runtime-Captures, deren Capture-IDs unter
+  `reference_capture_ids`, `runtime_capture_ids`, `visually_reviewed_capture_ids`, der
+  Visual-Matrix und deren Screenshot-Evidence uebereinstimmend referenziert sind. Die
+  Capture-Seiten muessen als Mockup/Application validiert sein und den gebundenen Rollen-/State-
+  Scope abdecken. Ohne tatsaechliches Vergleichsergebnis bleibt Visual `NOT_VERIFIED`.
+  Targeted verification bleibt als targeted markiert. Unerwartete Runtime-Strukturen werden in den
   passenden Dimensions-Deviations festgehalten.
 
   Der folgende YAML-Block illustriert ausschliesslich die Dimensionsstruktur im Legacy-Schema
   v1 und darf nicht als neue Reportvorlage kopiert werden. Neue Reports verwenden immer
-  `schema_version: 2`, eine gebundene `comparison_identity`, alle `evidence_matrix`-
-  Statusfelder und bei `fresh_full` den Capture-belegten `whole_screen_review`.
+  `schema_version: 3`, eine gebundene `comparison_identity`, alle `evidence_matrix`-
+  Statusfelder, eine passende `evidence_class`, `aggregate_resolution` und bei `fresh_full`
+  den Capture-belegten `whole_screen_review`:
 
 ```yaml
 page_id: PAGE-CUSTOMER-NEWEDIT
@@ -665,11 +700,10 @@ overall_result: FAIL
 ui_fidelity: FAIL
 ```
 
-`overall_result` / `ui_fidelity` Aggregation (gemaess `policies/ui-parity.md`):
-- `PASS`: alle required-Dimensionen sind PASS
-- `FAIL`: mindestens eine required-Dimension ist FAIL
-- `PARTIAL`: keine FAIL, aber mind. eine PARTIAL oder CONFLICT
-- `NOT_VERIFIED`: keine Browser-Verifizierung erfolgt
+`overall_result` nicht aus dieser Legacy-Beispielstruktur ableiten. Fuer neue Reports gilt
+ausschliesslich `aggregate_resolution` aus `scripts/build_project_status.py` gemaess
+`policies/ui-parity.md`; ein eventuell noch benoetigtes Legacy-`ui_fidelity` darf nur den
+Resolverwert spiegeln und keine zweite Aggregation darstellen.
 
 8. Bei any FAIL-Dimension: betroffenes Item in `implementation-checklist.yaml`
    auf `status: failed` setzen.

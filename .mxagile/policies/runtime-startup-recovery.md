@@ -1,11 +1,11 @@
 # Runtime Startup Recovery
 
 Governs evidence-first startup diagnosis, bounded deterministic recovery, and human-gate
-semantics when `mxcli run --local` does not reach `APPLICATION_REACHABLE`.
+semantics when the resolved runtime recipe does not reach `APPLICATION_REACHABLE`.
 
 Related policies:
 - `policies/development-runtime.md` — runtime pipeline stages, ownership model, stale process detection
-- `policies/local-runtime-profile.md` — Gradle lock/dependency-sync stall diagnosis and recovery
+- `policies/runtime-dependency-recovery.md` — Gradle lock/dependency-sync stall diagnosis and recovery
 - `policies/runtime-strategy.md` — local-first escalation model
 - `policies/test-defect-protection.md` — APPLICATION_DEFECT / TEST_DEFECT / TEST_INFRASTRUCTURE_GAP
 
@@ -29,7 +29,7 @@ any classification is recorded or reported.
 
 ## Ambiguous Start Result ≠ Application Not Started (RF-006)
 
-A background or non-blocking `mxcli run --local` command may produce an ambiguous result
+A background or non-blocking runtime recipe may produce an ambiguous result
 (no immediate confirmation of success or failure) while the JVM/runtime has already
 started successfully. A second start attempt against a running application WILL fail with:
 
@@ -62,7 +62,7 @@ AMBIGUOUS START RESULT
 ```
 
 **Prohibited:**
-- Do NOT blindly retry `mxcli run --local` after an ambiguous result.
+- Do NOT blindly retry the same runtime recipe after an ambiguous result.
 - Do NOT declare APPLICATION_NOT_STARTED without checking reachability first.
 - Do NOT implement a general process manager for this check.
   Use mxcli/runtime utilities and OS tools (netstat, Get-Process) for the checks above.
@@ -115,7 +115,7 @@ available in every environment; record availability.
 | Deployment/web path lock state | Filesystem lock on `deployment/web/` or equivalent | File locked by a non-current process |
 | Port occupancy | `app_port` in use? | Previous session runtime still running |
 | Database reachability | Can the resolved db_name be reached? | DB connection error vs runtime error |
-| Gradle daemon state | `dependency_sync_state` from process-state | Stall / lock-contention detected (local-runtime-profile.md) |
+| Gradle daemon state | `dependency_sync_state` from process-state | Stall / lock-contention detected (runtime-dependency-recovery.md) |
 | Local runtime profile | `mxagile-project.yaml local_runtime` | Misconfigured port, db_name, or constants |
 | Prerequisite state | `process-state.yaml prerequisite_state` | Which stage was last reached in this session |
 
@@ -131,7 +131,7 @@ where the pipeline stalled:
 | Observed failure point | Most likely stage | First evidence to gather |
 |---|---|---|
 | mxcli exits immediately or with error | `PREREQUISITE_DISCOVERY` | mxcli exit code and message |
-| No build output; no progress | `DEPENDENCY_SYNC` | Gradle lock state (local-runtime-profile.md) |
+| No build output; no progress | `DEPENDENCY_SYNC` | Gradle lock state (runtime-dependency-recovery.md) |
 | Build output stops mid-way; process persists | `BUILD_IN_PROGRESS` | mxbuild process list, deployment/web lock state |
 | Build appears to complete but app never responds | `BUILD_SUCCEEDED` | Port occupancy, runtime log, mxbuild exit |
 | Runtime started but HTTP probe fails | `RUNTIME_STARTED` | Database reachability, runtime crash log |
@@ -243,7 +243,7 @@ structurally different approaches. A blind retry of the same command is NOT a re
 |---|---|---|
 | Wait for lock release | Transient lock released by other process | Timeout-only retry |
 | Terminate STALE_OWNED_BUILD + retry | mxbuild orphan holding file locks | Simple retry |
-| `gradle --stop` + retry | Gradle daemon stall (see local-runtime-profile.md) | Simple retry |
+| `gradle --stop` + retry | Gradle daemon stall (see runtime-dependency-recovery.md) | Simple retry |
 | Alternate port | Port conflict with a non-mxagile process | Same-port retry |
 | Alternative startup path (different flags) | Misconfigured or unsupported flag | Identical-command retry |
 | DB connectivity recovery | Database not reachable | Build-stage recovery |
@@ -348,7 +348,7 @@ When a runtime incident produces a reusable insight, classify before recording:
    - The lesson must be expressed without project-specific identifiers, PIDs, paths, or timings
    - The lesson must be reviewed as part of a framework change (see CLAUDE.md)
 5. `MXCLI_TOOLING_BEHAVIOR` lessons are recorded as upstream findings in the style of the
-   Gradle lock finding in `policies/local-runtime-profile.md — Upstream Finding for mxcli`.
+    Gradle lock finding in `policies/runtime-dependency-recovery.md — mxcli Upstream Finding`.
 
 ### Example Classifications
 

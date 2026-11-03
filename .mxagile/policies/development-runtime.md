@@ -8,9 +8,9 @@ MxAgile distinguishes three independent concerns:
 
 | Concern | Purpose | Tools | Phase |
 |---|---|---|---|
-| **A. Model Validation** | Syntax, references, consistency | `mxcli check`, `mxcli lint`, `mxcli docker check` | Implementing + Verifying |
-| **B. Development Runtime** | Warm local runtime for iterative feedback | `mxcli run --local --watch` | Implementing |
-| **C. Formal Verification** | Quality Gate, UI-Agent Verify, Acceptance-Agent | Local or Docker per runtime-strategy, Playwright, mxcli DESCRIBE | Verifying |
+| **A. Model Validation** | Syntax, references, consistency | Selected project-local mxcli validation capabilities | Implementing + Verifying |
+| **B. Development Runtime** | Warm local runtime for iterative feedback | C1-resolved interactive recipe | Implementing |
+| **C. Formal Verification** | Quality Gate, UI-Agent Verify, Acceptance-Agent | C1-resolved recipe, Playwright, evidence contracts | Verifying |
 
 A running development app is NOT Verification.
 
@@ -23,26 +23,23 @@ container-parity is required or local runtime cannot provide valid evidence.
 
 ## Runtime Modes
 
-MxAgile distinguishes two runtime invocation modes. Both use `mxcli run --local`
-but differ in `--watch` usage and lifecycle semantics.
+MxAgile distinguishes runtime intent from invocation syntax. C2 determines permitted tool
+authority; C1 resolves the exact binary/version and complete runtime argument array. Consumers
+MUST execute `resolved_runtime_recipe` unchanged and MUST NOT reconstruct mxcli commands from
+examples in this policy.
 
 ### Interactive Implementation Mode
 
-Used during Implementing when a developer/agent is actively iterating on model changes.
+Used during Implementing when a developer/agent is actively iterating on model changes. The
+recipe may request watch behavior only when the selected binary advertises the required syntax.
 
 | Property | Value |
 |---|---|
-| `--watch` | PREFERRED |
+| Runtime lifecycle | Interactive / warm |
 | Purpose | Hot-apply model changes, avoid full restarts |
 | Lifecycle | Foreground/interactive, remains running across iterations |
 | Termination | Developer/agent-initiated or session end |
 | Phase | Implementing |
-
-Interactive base command:
-
-```
-mxcli run --local -p <project>.mpr --watch
-```
 
 ### Autonomous Verification Mode
 
@@ -52,23 +49,15 @@ is terminated after verification completes.
 
 | Property | Value |
 |---|---|
-| `--watch` | NOT_USED |
+| Runtime lifecycle | Unattended / bounded |
 | Purpose | Start → ready → serve → test → terminate |
 | Lifecycle | Background/unattended, no interactive model watching |
 | Termination | After verification complete or on failure |
 | Phase | Verifying (also used for autonomous Discovery browser evidence) |
 
-Autonomous base command:
-
-```
-mxcli run --local -p <project>.mpr
-```
-
-`--watch` is omitted in autonomous mode because:
-1. Autonomous verification does not modify the model during the runtime lifecycle
-2. `--watch` monitors for file changes and may not complete unattended cold-start
-   reliably in all background execution contexts
-3. The verification loop is start → ready → test, not edit → apply → inspect
+Autonomous verification does not modify the model during the runtime lifecycle. Its recipe
+represents the bounded start → ready → verify → terminate sequence; the selected binary's help
+owns any corresponding command options.
 
 ### Mode Selection
 
@@ -81,24 +70,16 @@ The runtime mode is determined by the agent's current purpose, not the lifecycle
 | UI-Agent Verify mode | Autonomous |
 | Acceptance-Agent campaigns | Autonomous |
 | Discovery-Agent browser evidence | Autonomous |
-| Developer explicitly requesting `--watch` | Interactive |
+| Developer explicitly requesting iterative/watch behavior | Interactive |
 
-Both modes are subject to the same DB Identity Resolution, Credential Discovery,
-and Configuration Precedence rules. Only the `--watch` flag and lifecycle semantics differ.
+Both modes consume the same project profile and authority contracts. Only runtime purpose and
+lifecycle semantics differ; exact argv remains owned by the resolved recipe.
 
 ## Default Inner Development Loop
 
-For runtime-relevant iterative implementation, prefer the warm local development loop:
-
-```
-mxcli run --local -p <project>.mpr --watch
-```
-
-This is the *base command*. The effective command is constructed after full profile resolution.
-See § Base Command vs. Effective Command and § DB Identity Resolution below.
-
-`--watch` enables the runtime to detect and apply model changes automatically,
-avoiding full restart cycles between iterations.
+For runtime-relevant iterative implementation, resolve an interactive C1 recipe and reuse a
+compatible warm runtime. The recipe and selected binary determine whether model changes are
+applied continuously or require a restart; this policy does not define the command line.
 
 ### When to Start
 
@@ -136,19 +117,13 @@ When the agent determines that runtime feedback is useful:
 2. **Reuse** it if available and compatible
 3. **Start** a new warm local runtime only if none is running
 4. **Keep available** across iterative implementation changes
-5. **Let `--watch`** handle change propagation where supported
+5. Reuse the resolved interactive recipe for subsequent runtime feedback
 
 The desired pattern:
 
-```
-MDL change
-    -> validate (mxcli check)
-    -> execute (mxcli exec)
-    -> warm runtime applies/reloads change
-    -> inspect when useful
-    -> adjust
-    -> next MDL change
-```
+Model change → validate and apply through the authorized project tool route → observe runtime
+feedback when useful → adjust → next model change. Model mutation syntax belongs to the selected
+tool's current command contract; this policy defines no mxcli argv.
 
 ## Recovery
 
@@ -185,177 +160,33 @@ Preserve completed valid implementation work regardless of runtime state.
 
 ## Project-Declared Local Runtime Profile
 
-Before starting the local runtime, read the `local_runtime` section from `mxagile-project.yaml`
-(if present). This section declares project-specific configuration that overrides mxcli defaults.
+`mxagile-project.yaml` is the project configuration source; its schema owns the profile fields.
+Before a runtime start, consume the existing C2 authority and the single C1
+`resolved_runtime_recipe` from `policies/local-runtime-profile.md`. The recipe owns the selected
+binary/version, supported capability, route, database identity, exact argv, and readiness checks.
+This policy describes lifecycle intent only; it does not duplicate runtime flags or DB precedence.
 
-Key fields: `db_type`, `db_name`, `db_host`, `app_port`, `constant_overrides`,
-`admin_username_env_key`, `admin_password_env_key`.
+## Runtime Configuration Authority
 
-**Full contract:** `policies/local-runtime-profile.md`
+Project/core precedence, default DB identity, Company Layer boundaries, and supported runtime
+overrides are defined only by `policies/local-runtime-profile.md` and the selected project schema.
+Do not derive database identity from the project or `.mpr` name, scan layers for runtime defaults,
+or reconstruct a route from these lifecycle instructions.
 
-### Tool and Instruction Preflight
+## Credential Gate
 
-Before every mxcli command, resolve the project-declared or project-local binary using
-`policies/local-runtime-profile.md` and `.mxagile/tools/Resolve-MxAgileMxcli.ps1`. Record its
-absolute path and `--version`; invoke only that path. The `mxcli` text in command examples
-below means this already-resolved executable, not a fresh PATH lookup.
+Resolve the complete C1 recipe before discovering credentials. Check only credentials required
+by that route using `policies/credential-discovery.md`; a suitable local route must not be blocked
+by unrelated external-database credentials. Bootstrap/test identity remains a later, separate
+readiness gate. The credential policy owns discovery, secret handling, and resume semantics.
 
-Check version-sensitive syntax with command-specific `--help` from the same executable.
-Instructions from project-owned configuration, Company Layers, MxAgile Core, harness
-projections, and external/tool-provided skills are reconciled per
-`policies/tool-instruction-conflict.md`. Unsupported syntax is a capability gap, not
-permission to substitute a different binary or change the operation.
+## Runtime and Database Identity
 
-## Configuration Precedence
-
-For **database name** (autonomous execution), the precedence is:
-
-```
-1. Explicit user/session CLI override
-2. mxagile-project.yaml  local_runtime.db_name  (project-declared override)
-3. MxAgile Core autonomous default:  db_name = "default"
-```
-
-mxcli's `.mpr`-derived database name is NOT part of the autonomous db_name precedence.
-MxAgile does not delegate database identity to mxcli filename conventions.
-
-For **other parameters** (app_port, constant_overrides, etc.):
-
-```
-1. Explicit user/session CLI override  (session-scoped)
-2. mxagile-project.yaml  local_runtime section
-3. Company Layer runtime defaults
-4. mxcli-derived defaults  (e.g., app_port 8080 — but NOT db_name)
-5. MxAgile Core fallback defaults
-```
-
-## Capability and Credential Discovery Before Runtime Start
-
-Before any database/environment credential decision, perform the capability-first preflight
-in `policies/local-runtime-profile.md`: establish operating mode and tool authority, resolve
-the project-local mxcli path/version, inspect that exact binary's `run` help, and publish one
-complete `resolved_runtime_recipe`. Read `mxagile-project.yaml` and resolve the local runtime
-profile as part of this preflight.
-
-Then discover only credentials required by the selected recipe, following
-`policies/credential-discovery.md` and the project's authoritative sources. A supported local
-backend that does not require PostgreSQL means PostgreSQL credentials are not a startup
-prerequisite. Missing external-database credentials MUST NOT block trying that suitable local
-route. Test-identity credentials are checked separately before authentication; they do not
-block a runtime start that can proceed without them.
-
-If credentials required by the selected route are MISSING or EMPTY after full discovery:
-- Follow the bootstrap flow in `policies/credential-discovery.md`
-- Request only the missing keys, and only after suitable local routes were exhausted
-- Never propose credential mutation (ALTER USER, password reset, etc.)
-- Auto-resume after the developer populates the canonical secret source
-
-A failed DEFAULT credential does NOT indicate that `.env.mendix` is wrong or missing.
-The precedence order is: project-local config wins over framework defaults.
-
-Complete credential discovery contract: `policies/credential-discovery.md`
-
-## Database
-
-### Database Identity (Autonomous Execution)
-
-For autonomous local runtime execution, MxAgile resolves the database name per the
-Configuration Precedence above. The Core autonomous default is `"default"`.
-
-Report before startup:
-
-```
-effective_db_name: default
-source: MXAGILE_CORE_DEFAULT   (or: SESSION_OVERRIDE / PROJECT_DECLARED)
-```
-
-Do NOT derive the database name from the `.mpr` filename for autonomous execution.
-Do NOT use the project folder name, display name, or any naming convention as the DB
-identity source. A hidden derived identity is not acceptable.
-
-If the resolved effective_db_name does not exist or cannot be reached:
-- Perform credential and configuration discovery per `policies/credential-discovery.md`
-- Classify the actual failure precisely
-- Do NOT switch to a project-derived database to make startup succeed
-- Do NOT automatically create another database unless the canonical provisioning
-  contract explicitly allows it
-
-### Database Type
-
-`db_type` is project metadata and provisioning input. It is NOT an autonomous-runtime flag.
-It is not by itself a requirement to use an external database for verification. A backend
-selection argument may be included only when the selected mxcli's current runtime help
-advertises it; the central resolver places it in the complete `resolved_runtime_recipe`.
-
-Do not hardcode PostgreSQL or HSQLDB as universal defaults. Different environments
-(native Windows, devcontainer, CI) have different database availability.
-
-### Base Command vs. Effective Command
-
-The *base command* depends on the runtime mode (see § Runtime Modes above):
-
-**Interactive Implementation base command:**
-
-```
-mxcli run --local -p <project>.mpr --watch
-```
-
-**Autonomous Verification base command:**
-
-```
-mxcli run --local -p <project>.mpr
-```
-
-The effective invocation is the complete `resolved_runtime_recipe` from
-`policies/local-runtime-profile.md`. Agents MUST NOT expand the base command themselves or
-copy individual DB/backend flags from this policy. The central recipe resolver maps the
-resolved database identity and runtime profile to the exact syntax advertised by the selected
-mxcli version, then consumers execute its argument array unchanged. If the selected version
-cannot represent a required identity, report `DB_IDENTITY_CONTROL_UNAVAILABLE`; do not start
-with an implicit `.mpr`-derived identity.
-
-### DB Identity Resolution (Required Before Autonomous Start)
-
-Before an autonomous agent starts a local runtime, it MUST resolve the effective database
-identity. Autonomous execution without a confirmed, explicitly-sourced DB identity is unsafe.
-
-```
-1. Explicit user/session CLI override present?
-   YES  → use it; source: SESSION_OVERRIDE
-
-2. local_runtime.db_name declared in mxagile-project.yaml?
-   YES  → use it; source: PROJECT_DECLARED
-
-3. Neither present → apply MxAgile Core autonomous default
-        db_name = "default"
-        source: MXAGILE_CORE_DEFAULT
-```
-
-Do NOT derive the database name from the `.mpr` filename.
-Do NOT use project folder name, display name, or any naming convention.
-These are NOT acceptable sources for autonomous DB identity.
-
-Record before startup in `prerequisite_state.runtime_config`:
-
-```
-effective_db_name: <resolved>
-source: SESSION_OVERRIDE | PROJECT_DECLARED | MXAGILE_CORE_DEFAULT
-```
-
-A `.mpr` filename rename MUST NOT silently alter the autonomous MxAgile runtime database
-identity. Before and after any rename, the autonomous effective db_name remains `"default"`
-unless the user explicitly overrides it (source: SESSION_OVERRIDE or PROJECT_DECLARED).
-
-If the selected mxcli help does not expose a supported way to apply the resolved database
-identity, classify `DB_IDENTITY_CONTROL_UNAVAILABLE`; do not start with an implicit
-`.mpr`-derived name. The central recipe resolver determines the exact current option and
-includes it in the complete argument array.
-
-If startup fails with a database error, first verify that the complete resolved recipe was
-executed and that the observed backend and database/environment identifier match it. A recipe
-mismatch invalidates downstream fixture/login diagnosis for that attempt. A PostgreSQL failure
-does not authorize credential escalation while a suitable local verification backend remains.
-Credential mutation is never authorized by a startup failure.
+The C1 recipe is the sole authority for the effective backend, database/environment identity,
+selected binary, and complete invocation. If it is unavailable or cannot express a required
+identity, block only that runtime operation with the recipe's explicit result. Never append a
+flag, derive a database from a filename, switch routes silently, or reinterpret a database
+error as a credential diagnosis. See the C1 policy for the full input/provenance contract.
 
 ## Runtime Pipeline State Model
 
@@ -383,8 +214,9 @@ Full contract: `policies/local-runtime-profile.md — Runtime Pipeline State Mod
 
 ## Watch-Mode Startup Semantics
 
-`mxcli run --local --watch` manages the full cold-start → readiness → watch loop in one
-invocation. Do NOT add extra restart layers unless mxcli provides evidence that they are needed.
+The C1 recipe selects an interactive or autonomous runtime lifecycle from current help evidence.
+Do not add restart layers or modify its argv unless a resolved recipe step fails and a fresh
+recipe is published.
 
 Agents MUST NOT begin Playwright interaction until `BROWSER_RENDERED` is confirmed.
 Agents MUST NOT begin role/scenario execution until `AUTHENTICATED_SESSION_READY` is confirmed.
@@ -404,19 +236,12 @@ Do NOT use Windows `wmic` process-tree queries as the PRIMARY readiness signal.
 
 Full contract: `policies/local-runtime-profile.md — Readiness Detection Preference Order`
 
-## Gradle Lock / Dependency-Sync Handling
+## Dependency-Sync Failure Route
 
-If dependency sync appears stalled, classify it precisely before taking any action.
-
-MxAgile responsibility: detect the stage, detect abnormal lack of progress, produce a precise
-diagnosis. MxAgile MUST NOT automatically kill arbitrary Java/Gradle processes.
-
-If a Gradle daemon appears to hold a dependency lock:
-- Report the lock file path and which daemon may hold it
-- Recommend `gradle --stop` (stops user's daemons) if supported
-- Escalate to developer if action requires confirmation
-
-Full contract: `policies/local-runtime-profile.md — Gradle Lock / Dependency-Sync Handling`
+Do not load recovery details for a normal or progressing C1 runtime start. If dependency sync
+stalls or a Gradle lock is suspected, use the failure-only contract in
+`policies/runtime-dependency-recovery.md`; it owns diagnosis, owner classification, and bounded
+recovery.
 
 ## Verification Invariants
 
@@ -427,7 +252,7 @@ These hold at all times:
 - `APPLICATION_REACHABLE` ≠ Verification started
 - Runtime inspection during Implementing ≠ UI-Agent Verify
 - Visually checking work while implementing ≠ Acceptance passed
-- `mxcli run --local` succeeds ≠ Wave verified
+- Successful development-runtime start ≠ Wave verified
 
 Formal Verifying requirements (Quality Gate, UI-Agent Verify, Acceptance-Agent)
 are unchanged and cannot be satisfied by development runtime usage.
@@ -585,25 +410,18 @@ Demo-user switch failures caused solely by an unavailable application MUST NOT b
 classified as demo-user/application defects. The runtime must be confirmed operational
 before application behavior is evaluated.
 
-## Watch-Mode Decision
+## Runtime Mode Decision
 
-| Context | `--watch` | Reason |
-|---|---|---|
-| Interactive Implementation | PREFERRED | Enables hot-apply of model changes during iterative development |
-| Autonomous Verification | NOT_USED | Verification does not modify models; `--watch` may not complete unattended cold-start in background contexts |
-| Background Execution | NOT_USED | Use `mxcli run --local` without `--watch`; wait for `APPLICATION_REACHABLE` via readiness gate |
-| Developer-Requested Watch | PREFERRED | Explicit developer request overrides default mode selection |
+| Purpose | Recipe lifecycle |
+|---|---|
+| Interactive implementation | Warm, iterative runtime feedback |
+| Autonomous verification | Bounded start, readiness, evidence, and termination |
+
+The C1 resolver determines whether the selected binary can provide the requested behavior.
+Consumers do not select or append version-sensitive options.
 
 ## Development Runtime vs. Test Runtime
 
-`mxcli run --local` is the **development runtime** — used for warm local development feedback
-during Implementing (governed by this policy).
-
-`mxcli test --local` is a **distinct test runtime** contract, if supported by mxcli.
-
-The MxAgile Core autonomous default (`db_name = "default"`) applies to `mxcli run --local`
-autonomous execution. A separate verified test-runtime contract governs test-database
-identity independently. Do NOT conflate these two contexts.
-
-Do NOT apply development-runtime DB defaults to test-runtime commands or vice versa.
-The boundary is: this policy owns `mxcli run --local` database identity.
+Development and test runtimes are distinct purposes. Each must use the existing resolver or
+test contract that owns its route and identity; do not copy the development profile's DB identity
+or options into a test invocation. This policy owns lifecycle intent, not command syntax.

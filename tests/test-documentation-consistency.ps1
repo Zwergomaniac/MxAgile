@@ -44,6 +44,7 @@ function Assert-FileNotContains {
 }
 
 $ReadMe      = Join-Path $ScriptDir "README.md"
+$CoreReadMe  = Join-Path $ScriptDir ".mxagile/README.md"
 $InstallDoc  = Join-Path $ScriptDir "docs/installation.md"
 $ReconPol    = Join-Path $ScriptDir ".mxagile/policies/reconciliation.md"
 $KnowPol     = Join-Path $ScriptDir ".mxagile/policies/project-knowledge.md"
@@ -185,6 +186,12 @@ Assert-FileContains "S.1 README mentions Project/Release Completion Checkpoint" 
 Assert-FileContains "S.2 README mentions FEATURE_SCOPE_COMPLETE level" $ReadMe 'FEATURE_SCOPE_COMPLETE'
 Assert-FileContains "S.3 README mentions review profiles in non-technical language" $ReadMe '(?i)(Quick Health Check|Integrated Product Review|Release Readiness Review)'
 Assert-FileContains "S.4 README mentions checkpoint policy file" $ReadMe 'project-release-checkpoint'
+
+# T: Canonical policy index routes failure-only Gradle recovery on demand
+Write-Host ""
+Write-Host "TEST T: Canonical policy index includes runtime dependency recovery" -ForegroundColor Cyan
+Assert-FileContains "T.1 MxAgile README lists the failure-only runtime recovery policy" `
+    $CoreReadMe 'runtime-dependency-recovery\.md'
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

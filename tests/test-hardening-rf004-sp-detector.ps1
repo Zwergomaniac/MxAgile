@@ -94,72 +94,79 @@ try {
 }
 
 # -----------------------------------------------------------------------
-# Test 5: Policy says timeout → AMBIGUOUS-SP-STATE (NOT CLOSED-AUTONOM)
+# Tests 5-8: Current C2 detection semantics, not retired metadata names
 # -----------------------------------------------------------------------
-$t = "Policy: timeout → AMBIGUOUS-SP-STATE, NOT CLOSED-AUTONOM"
-try {
-    $content = Get-Content $policyFile -Raw
-    if (($content -match "TIMEOUT.*CLOSED.AUTONOM") -or
-        ($content -match "timeout.*AMBIGUOUS") -or
-        ($content -match "NOT CLOSED-AUTONOM")) {
-        Pass $t
-    } else {
-        Fail $t "Policy does not explicitly rule out CLOSED-AUTONOM for timeout"
-    }
-} catch {
-    Fail $t "Exception: $_"
-}
+& {
+    $fixtureRoot = Join-Path $env:TEMP ('mxagile-rf004-' + [guid]::NewGuid().ToString('N'))
+    try {
+        $resolverFile = Join-Path $repoRoot 'scripts/Get-MxAgileCapabilities.ps1'
+        $resolverRoot = Split-Path -Parent $resolverFile
+        $tokens = $null
+        $parseErrors = $null
+        $resolverAst = [System.Management.Automation.Language.Parser]::ParseFile($resolverFile, [ref]$tokens, [ref]$parseErrors)
+        if ($parseErrors.Count) { throw 'C2 resolver could not be parsed.' }
+        foreach ($functionName in @('Invoke-StudioProStatusDetector', 'Resolve-OperatingModeRoute', 'Resolve-OperatingModeAuthority')) {
+            $functionAst = $resolverAst.Find({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
+            }, $true)
+            if ($null -eq $functionAst) { throw "C2 function missing: $functionName" }
+            . ([ScriptBlock]::Create(($functionAst.Extent.Text -replace '\$PSScriptRoot', '$resolverRoot')))
+        }
+        $ProjectRoot = $fixtureRoot
+        $StudioProProjectPath = Join-Path $fixtureRoot 'App.mpr'
+        $StudioProMcpProbeStatus = $ConcordMcpProbeStatus = 'NOT_OBSERVED'
+        $StudioProMcpBoundProjectPath = $ConcordMcpBoundProjectPath = ''
+        New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
+        New-Item -ItemType File -Path $StudioProProjectPath, "$StudioProProjectPath.lock" | Out-Null
+        function Get-DeclaredMcpConfiguration {
+            param([string]$CapabilityId)
+            return [ordered]@{ state = 'OBSERVED'; configured = $false; source = $CapabilityId }
+        }
+        function Start-Process {
+            param($FilePath, $ArgumentList, [switch]$PassThru, [switch]$Wait, $RedirectStandardOutput, $RedirectStandardError)
+            [ordered]@{ isOpen = $null; anyStudioProRunning = $null; error = 'TIMEOUT: synthetic detector timeout'; detection_state = 'UNKNOWN' } |
+                ConvertTo-Json | Set-Content -LiteralPath $RedirectStandardOutput
+            return [pscustomobject]@{ ExitCode = 2 }
+        }
+        $timeoutDetection = Invoke-StudioProStatusDetector -MprPath $StudioProProjectPath
+        $timeoutAuthority = Resolve-OperatingModeAuthority
+        $t = 'C2: Windows timeout is ambiguous; headless mode uses positive platform evidence'
+        $authorityValid = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+            $timeoutAuthority.mode -eq 'AMBIGUOUS-SP-STATE' -and -not $timeoutAuthority.tool_authority.mxcli_permitted -and
+                $timeoutAuthority.tool_authority.status -eq 'RECHECK_REQUIRED'
+        } else {
+            $timeoutAuthority.mode -eq 'CLOSED-AUTONOM' -and $timeoutAuthority.detection.state -eq 'OBSERVED' -and
+                $timeoutAuthority.detection.source -eq 'platform_headless'
+        }
+        if ($authorityValid) { Pass $t }
+        else { Fail $t 'Timeout or headless platform evidence was mapped to the wrong authority.' }
 
-# -----------------------------------------------------------------------
-# Test 6: Policy says MPR lock does not imply execution intent
-# -----------------------------------------------------------------------
-$t = "Policy: MPR lock is project-affinity evidence only (not execution intent)"
-try {
-    $content = Get-Content $policyFile -Raw
-    $hasIntent = ($content -match "execution intent") -or
-                 ($content -match "execution_intent") -or
-                 ($content -match "user intent")
-    $hasMPR = ($content -match "MPR lock") -or
-              ($content -match "mpr.lock") -or
-              ($content -match "lock.*evidence") -or
-              ($content -match "project-affinity")
-    if ($hasIntent -and $hasMPR) {
-        Pass $t
-    } else {
-        Fail $t "Policy does not state MPR lock does not imply execution intent (hasIntent=$hasIntent, hasMPR=$hasMPR)"
-    }
-} catch {
-    Fail $t "Exception: $_"
-}
+        $t = 'C2: timeout provenance preserves detector source and observed reason'
+        if ($timeoutDetection.source -eq $detectorScript -and $timeoutDetection.reason -match '^TIMEOUT:') { Pass $t }
+        else { Fail $t 'Timeout provenance was lost.' }
 
-# -----------------------------------------------------------------------
-# Test 7: Policy documents script_timeout as detection_source value
-# -----------------------------------------------------------------------
-$t = "Policy: script_timeout listed as valid detection_source"
-try {
-    $content = Get-Content $policyFile -Raw
-    if ($content -match "script_timeout") {
-        Pass $t
-    } else {
-        Fail $t "Policy does not list script_timeout as detection_source option"
-    }
-} catch {
-    Fail $t "Exception: $_"
-}
+        $t = 'C2: unavailable detection preserves UNKNOWN and null process observations'
+        if ($timeoutDetection.state -eq 'UNKNOWN' -and $null -eq $timeoutDetection.is_open -and
+            $null -eq $timeoutDetection.any_studio_pro_running) { Pass $t }
+        else { Fail $t 'Unavailable evidence was converted to a positive or negative observation.' }
 
-# -----------------------------------------------------------------------
-# Test 8: Policy documents unknown as valid detection_confidence
-# -----------------------------------------------------------------------
-$t = "Policy: unknown listed as valid detection_confidence"
-try {
-    $content = Get-Content $policyFile -Raw
-    if (($content -match "detection_confidence.*unknown") -or ($content -match "unknown.*detection_confidence")) {
-        Pass $t
-    } else {
-        Fail $t "Policy does not list 'unknown' as valid detection_confidence"
+        function Start-Process {
+            param($FilePath, $ArgumentList, [switch]$PassThru, [switch]$Wait, $RedirectStandardOutput, $RedirectStandardError)
+            [ordered]@{ isOpen = $false; anyStudioProRunning = $false; projectPath = $StudioProProjectPath } |
+                ConvertTo-Json | Set-Content -LiteralPath $RedirectStandardOutput
+            return [pscustomobject]@{ ExitCode = 1 }
+        }
+        $absentAuthority = Resolve-OperatingModeAuthority
+        $t = 'C2: an MPR lock alone does not establish LIVE-SP or execution intent'
+        $intentPolicy = Get-Content (Join-Path $repoRoot '.mxagile/policies/execution-intent.md') -Raw
+        if ($absentAuthority.mode -eq 'CLOSED-AUTONOM' -and $intentPolicy -match 'not a user-selected') { Pass $t }
+        else { Fail $t 'A lock overrode process evidence or operating mode became a user-selected intent.' }
+    } catch {
+        Fail 'C2: isolated RF-004 behavior checks' "Exception: $_"
+    } finally {
+        Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
-} catch {
-    Fail $t "Exception: $_"
 }
 
 # -----------------------------------------------------------------------

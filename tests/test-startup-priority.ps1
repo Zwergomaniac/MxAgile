@@ -84,6 +84,14 @@ Write-Host "--- 1: Injection script contains startup routing ---"
 Assert-FileContains "inject script: MxAgileStartupBlock variable defined" `
     $injectScriptPath 'MxAgileStartupBlock'
 
+$startupBlockSource = [System.IO.File]::ReadAllText($injectScriptPath)
+$startupBlockMatch = [regex]::Match($startupBlockSource, '(?s)\$MxAgileStartupBlock = @''\r?\n(.*?)\r?\n''@')
+$startupBlockBytes = if ($startupBlockMatch.Success) {
+    [System.Text.Encoding]::UTF8.GetByteCount($startupBlockMatch.Groups[1].Value)
+} else { [int]::MaxValue }
+Assert-True "inject script: basal router stays within 3.2 KB" `
+    ($startupBlockBytes -le 3200) "Measured startup block is $startupBlockBytes UTF-8 bytes"
+
 Assert-FileContains "inject script: Re-Sync First heading in startup block" `
     $injectScriptPath 'Lifecycle Re-Sync First|Re-Sync First'
 
