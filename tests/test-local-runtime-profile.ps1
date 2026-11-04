@@ -8,7 +8,7 @@
     and Playwright toolchain policy.
 
     Test cases:
-    A. Project-declared db_name overrides .mpr-derived default (schema + policy)
+    A. Project-declared db_name is explicit and never .mpr-derived (schema + policy)
     B. Project-declared db_type is applied (schema + policy)
     C. Company Layer runtime defaults are lower precedence than project overrides (policy)
     D. Runtime constant overrides are supplied through mxcli --constant path (policy)
@@ -82,13 +82,15 @@ $BrowserCliConfig = Join-Path $ScriptDir ".playwright/cli.config.json"
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "TEST A: Project-declared db_name overrides .mpr-derived default" -ForegroundColor Cyan
+Write-Host "TEST A: Project-declared db_name is explicit and never .mpr-derived" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
 Assert-FileContains "A.1 schema has db_name field" $Schema '"db_name"'
 Assert-FileContains "A.2 schema db_name description mentions .mpr override" $Schema '\.mpr'
-Assert-FileContains "A.3 C1 composer resolves the Core autonomous db_name default" (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
+Assert-FileContains "A.3 C1 composer blocks when db_name has no explicit authority" (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") 'DB_IDENTITY_UNRESOLVED'
 Assert-FileContains "A.4 C1 composer resolves project db_name as declared" (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)PROJECT_DECLARED'
+Assert-FileContains "A.5 schema permits an explicit default identity for fixture/seed data" $Schema '(?is)db_name.*may explicitly declare.*fixture/seed data'
+Assert-FileContains "A.6 profile guidance requires explicit fixture identity instead of scanning deployment files" $LocalProf '(?is)fixture/seed contract.*explicitly declare.*local_runtime\.db_name|local_runtime\.db_name.*fixture/seed contract'
 
 # ---------------------------------------------------------------------------
 Write-Host ""
@@ -249,11 +251,11 @@ Assert-FileContains "P.2 policy defines effective command concept" `
 Assert-FileContains "P.3 policy prohibits executing base command without profile resolution" `
     $LocalProf '(?i)recipe.s argument array is the sole invocation authority|Do not start the runtime unless the status is RESOLVED'
 
-Assert-FileContains "P.4 policy defines MxAgile Core autonomous DB default (MXAGILE_CORE_DEFAULT)" `
-    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
+Assert-FileContains "P.4 composer requires explicit DB identity instead of a global default" `
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") 'DB_IDENTITY_UNRESOLVED'
 
 Assert-FileContains "P.5 policy documents .mpr-rename safety (MUST NOT silently alter autonomous DB)" `
-    $LocalProf '(?is)\.mpr filename.*not an autonomous fallback|\.mpr.*not an autonomous fallback'
+    $LocalProf '(?is)C1 MUST NOT rely on an mxcli default or derive.*filename'
 
 Assert-FileContains "P.6 policy requires mxcli --help flag verification before use" `
     $LocalProf '(?i)command-specific --help|help run'
@@ -272,18 +274,18 @@ Assert-FileContains "P.10 schema db_type field is preserved (legitimate project 
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "TEST Q: Framework autonomous DB default is 'default'" -ForegroundColor Cyan
+Write-Host "TEST Q: Database identity requires explicit project or request authority" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
-# Behavioral regression tests proving the MxAgile Core autonomous DB contract.
+# Behavioral regression tests proving the explicit C1 database identity contract.
 # Each assertion validates observable policy/schema content, not implementation guesses.
 
-# Q.A: autonomous runtime with no user override resolves db_name to "default"
-Assert-FileContains "Q.A policy states Core autonomous default is 'default'" `
-    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
+# Q.A: no project or request identity blocks instead of assuming mxcli's default
+Assert-FileContains "Q.A composer fails closed when DB identity is missing" `
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") 'DB_IDENTITY_UNRESOLVED'
 
-# Q.B: effective command contains verified --db-name and value "default"
-Assert-FileContains "Q.B policy defines canonical effective command with --db-name default" `
-    $LocalProf '(?is)resolved_runtime_recipe.*database identifier with its source'
+# Q.B: effective command contains the explicit identity using help-verified syntax
+Assert-FileContains "Q.B policy requires explicit identity and help-verified option spelling" `
+    $LocalProf '(?is)database identity must come from `local_runtime\.db_name`.*exact option advertised'
 
 # Q.C: bare base command is never a complete autonomous command
 Assert-FileContains "Q.C policy prohibits executing base command without profile resolution" `
@@ -291,7 +293,7 @@ Assert-FileContains "Q.C policy prohibits executing base command without profile
 
 # Q.D: .mpr rename does not change effective DB identity
 Assert-FileContains "Q.D policy states .mpr rename MUST NOT alter autonomous DB identity" `
-    $LocalProf '(?is)\.mpr filename.*not an autonomous fallback|\.mpr.*not an autonomous fallback'
+    $LocalProf '(?is)C1 MUST NOT rely on an mxcli default or derive.*filename'
 
 # Q.E: explicit user/session override takes precedence and is reported
 Assert-FileContains "Q.E policy defines SESSION_OVERRIDE source classification" `
@@ -300,9 +302,9 @@ Assert-FileContains "Q.E policy defines SESSION_OVERRIDE source classification" 
 Assert-FileContains "Q.E2 policy requires reporting source before startup" `
     (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?is)db_name_source'
 
-# Q.F: project/folder/display names do not silently override "default"
-Assert-FileContains "Q.F policy prohibits project folder/display name as DB identity source" `
-    $LocalProf '(?s)Project display names[\s\S]*never database identity inputs'
+# Q.F: project/folder/display names do not silently supply a missing identity
+Assert-FileContains "Q.F policy prohibits inferred project and folder DB identity" `
+    $LocalProf '(?s)Project display names, folder names,[\s\S]*never identity sources'
 
 # Q.G: no unsupported --db-type option is emitted
 Assert-FileContains "Q.G policy prohibits emitting --db-type as autonomous runtime flag" `

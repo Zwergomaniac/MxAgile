@@ -53,21 +53,76 @@ Options:
 
 
 class RuntimeRecipeTests(unittest.TestCase):
-    def test_composes_default_db_recipe_from_c2_profile_and_help(self) -> None:
-        result = resolve_runtime_recipe(request(BASE_HELP), project_config(db_type="hsqldb"))
+    def test_composes_recipe_from_explicit_project_db_identity_and_help(self) -> None:
+        result = resolve_runtime_recipe(request(BASE_HELP), project_config(db_type="hsqldb", db_name="default"))
 
         self.assertEqual(result["status"], "RESOLVED")
-        self.assertEqual(result["recipe"]["database"], {"name": "default", "source": "MXAGILE_CORE_DEFAULT"})
+        self.assertEqual(result["recipe"]["database"], {"name": "default", "source": "PROJECT_DECLARED"})
         self.assertEqual(
             result["recipe"]["arguments"],
             ["run", "--local", "--detach", "--db-type", "hsqldb", "-p", str(ROOT / "Project.mpr"), "--dbname", "default"],
         )
         self.assertEqual(result["recipe"]["required_checks"]["authentication"], ["demo-user-switch"])
 
+    def test_development_recipe_preserves_project_hsqldb_identity_and_detach(self) -> None:
+        help_with_two_local_backends = BASE_HELP + "  --watch\n  postgresql Local database backend\n"
+        config = project_config(db_type="hsqldb", db_name="default")
+
+        result = resolve_runtime_recipe(
+            request(help_with_two_local_backends, purpose="development", detach=True),
+            config,
+        )
+
+        self.assertEqual(result["status"], "RESOLVED")
+        recipe = result["recipe"]
+        self.assertEqual(recipe["backend"], {"class": "LOCAL_ISOLATED", "type": "hsqldb", "source": "PROJECT_DECLARED"})
+        self.assertEqual(recipe["database"], {"name": "default", "source": "PROJECT_DECLARED"})
+        self.assertEqual(
+            recipe["arguments"],
+            ["run", "--local", "--watch", "--detach", "--db-type", "hsqldb", "-p", str(ROOT / "Project.mpr"), "--dbname", "default"],
+        )
+
+    def test_development_recipe_does_not_fall_back_from_declared_hsqldb(self) -> None:
+        help_without_local_hsqldb = BASE_HELP.replace("hsqldb Local embedded database backend", "hsqldb file database backend") + "  --watch\n"
+        help_without_local_hsqldb += "  postgresql Local database backend\n"
+
+        result = resolve_runtime_recipe(
+            request(help_without_local_hsqldb, purpose="development"),
+            project_config(db_type="hsqldb"),
+        )
+
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["blockers"][0]["code"], "PROJECT_BACKEND_UNAVAILABLE")
+        self.assertIsNone(result["recipe"])
+
+    def test_development_request_cannot_override_project_hsqldb_with_postgresql(self) -> None:
+        help_with_two_local_backends = BASE_HELP + "  --watch\n  postgresql Local database backend\n"
+
+        result = resolve_runtime_recipe(
+            request(help_with_two_local_backends, purpose="development", requested_backend="postgresql"),
+            project_config(db_type="hsqldb", db_name="default"),
+        )
+
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["blockers"][0]["code"], "REQUESTED_BACKEND_CONFLICTS_WITH_PROJECT_RUNTIME")
+        self.assertIsNone(result["recipe"])
+
+    def test_detached_development_recipe_requires_advertised_detach_flag(self) -> None:
+        help_without_detach = BASE_HELP.replace("--detach ", "").replace("  --detach\n", "") + "  --watch\n"
+
+        result = resolve_runtime_recipe(
+            request(help_without_detach, purpose="development", detach=True),
+            project_config(db_type="hsqldb"),
+        )
+
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["blockers"][0]["code"], "DETACH_CONTROL_UNAVAILABLE")
+        self.assertIsNone(result["recipe"])
+
     def test_uses_only_db_name_spelling_advertised_by_this_help(self) -> None:
         alternate_help = BASE_HELP.replace("--dbname <name>", "--db-name <name>").replace("--dbname <name>\n", "--db-name <name>\n")
 
-        result = resolve_runtime_recipe(request(alternate_help), project_config(db_type="hsqldb"))
+        result = resolve_runtime_recipe(request(alternate_help), project_config(db_type="hsqldb", db_name="default"))
 
         self.assertEqual(result["status"], "RESOLVED")
         self.assertIn("--db-name", result["recipe"]["arguments"])
@@ -80,6 +135,13 @@ class RuntimeRecipeTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "BLOCKED")
         self.assertEqual(result["blockers"][0]["code"], "DB_IDENTITY_CONTROL_UNAVAILABLE")
+        self.assertIsNone(result["recipe"])
+
+    def test_missing_db_identity_fails_closed_without_using_a_global_default(self) -> None:
+        result = resolve_runtime_recipe(request(BASE_HELP), project_config(db_type="hsqldb"))
+
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["blockers"][0]["code"], "DB_IDENTITY_UNRESOLVED")
         self.assertIsNone(result["recipe"])
 
     def test_conflicting_mcp_identity_blocks_mxcli_route(self) -> None:
@@ -108,7 +170,7 @@ class RuntimeRecipeTests(unittest.TestCase):
         self.assertEqual(result["recipe"]["secret_bindings"][0]["env_key"], "SECRET_KEY")
 
     def test_db_type_metadata_does_not_override_a_single_supported_local_backend(self) -> None:
-        result = resolve_runtime_recipe(request(BASE_HELP), project_config(db_type="postgresql"))
+        result = resolve_runtime_recipe(request(BASE_HELP), project_config(db_type="postgresql", db_name="fixture_db"))
 
         self.assertEqual(result["status"], "RESOLVED")
         self.assertEqual(result["recipe"]["backend"]["type"], "hsqldb")

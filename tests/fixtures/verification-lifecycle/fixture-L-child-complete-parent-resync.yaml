@@ -1,0 +1,33 @@
+fixture: parent_workstream_resync_after_child_completion
+scope: current_parent_workstream_only
+cases:
+  - id: child_done_parent_has_actionable_gap
+    child_status: VERIFIED
+    remaining: [CONFIRMED_IMPLEMENTATION_GAP]
+    expected_parent: ACTIVE
+    expected_next: REPAIR_SCOPED_GAP
+  - id: child_done_parent_has_unknown_delta
+    child_status: VERIFIED
+    remaining: [UNKNOWN]
+    expected_parent: ACTIVE
+    expected_next: RESOLVE_OR_COLLECT_EVIDENCE
+  - id: child_done_only_non_actionable_dispositions_remain
+    child_status: VERIFIED
+    remaining: [CLOSED, REFERENCE_GAP, AUTHORITY_CONFLICT]
+    expected_parent: TERMINAL_NO_AUTHORIZED_ACTIONABLE_GAP
+    acceptance_result: NOT_PASSED
+  - id: parent_terminal_allows_independent_authorized_work
+    parent: TERMINAL_NO_AUTHORIZED_ACTIONABLE_GAP
+    authority_conflict: PRESERVED_OPEN
+    expected_next: INDEPENDENT_AUTHORIZED_SCOPE
+  - id: authority_conflict_does_not_block_independent_scope
+    remaining: [AUTHORITY_CONFLICT]
+    conflict_resolution: HUMAN_AUTHORITY_ONLY
+    expected_parent: TERMINAL_NO_AUTHORIZED_ACTIONABLE_GAP
+    expected_independent_work: ALLOWED
+  - id: interruption_reconstructs_child_and_parent
+    sources: [canonical_parent_scope, canonical_findings, current_evidence, process_state]
+    conversation_history_required: false
+    expected_resume: RE_SYNC_PARENT_BEFORE_GLOBAL_NEXT_WORK
+  - id: parent_re_sync_precedes_global_next_work
+    sequence: [PERSIST_CHILD_EVIDENCE, RE_RESOLVE_PARENT_SCOPE, CLASSIFY_REMAINING, SELECT_GLOBAL_NEXT]

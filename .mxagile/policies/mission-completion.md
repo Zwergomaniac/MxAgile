@@ -201,6 +201,25 @@ The following silent promotions are forbidden:
 | Checklist item marked done | Acceptance criterion satisfied |
 | Static validation passes | Runtime defect is resolved |
 
+## Checkpoint and Completion Readiness
+
+These labels distinguish commit permission from delivery evidence. They are decision/reporting
+terms, not additional lifecycle states:
+
+| Label | Meaning | Permitted claim |
+|---|---|---|
+| `implementation checkpoint available` | A coherent implementation change passed its required technical gates. | Implementation progress is checkpointable; required verification may still be pending. |
+| `checkpoint-committable` | The separate `commit-authority.md` preconditions permit a local checkpoint commit. | A technical checkpoint may be committed; this does not promote requirement, wave, or mission completion. |
+| `verification pending` | One or more required verification plans, campaigns, or evidence checks remain. | Work is not completion-ready. |
+| `runtime evidence pending` | A visible/runtime-dependent Acceptance Criterion lacks current evidence at its required level. | The criterion remains at `IMPLEMENTATION_COMPLETE`, not verified or complete. |
+| `completion-ready` | All in-scope required verification and evidence obligations are satisfied, and the active parent workstream has been re-synchronized. | The applicable completion/acceptance gate may be evaluated; this label alone is not a PASS. |
+| `acceptance/parity verified` | The canonical acceptance and parity authorities resolve all required evidence as passing and current. | Only the resolver-confirmed result may be reported; no producer-authored promotion is allowed. |
+
+`checkpoint committed` means only that a checkpoint was recorded. It MUST NOT be interpreted as
+`completion-ready`, `acceptance/parity verified`, or completion of a UI requirement. A local
+checkpoint commit may precede Runtime/Visual Verification when commit authority permits it, but
+the report MUST state which verification or runtime evidence remains pending.
+
 ---
 
 ## False Completion Equivalences (Forbidden)
@@ -317,6 +336,36 @@ TODO empty
 
 **A TODO list or implementation checklist becoming empty is never a reason to stop.
 It is a reason to re-sync and evaluate the mission at the next level.**
+
+### Active Parent Workstream Re-Sync
+
+Completing a child Finding/GAP, task, proof point, or bounded repair closes only that child.
+Before leaving its active parent workstream or selecting global next work, the owner MUST
+re-synchronize that parent from its canonical scope and current evidence. Re-read only the
+parent's referenced requirements/decisions, active target, related findings, and affected
+verification evidence; do not launch a project-wide parity scan.
+
+The required order is: persist child evidence → re-resolve the parent scope → classify every
+remaining in-scope Requirement/Finding → select the next authorized action. Do not select global
+next work while the parent remains active. If canonical authority determines the next action,
+continue autonomously; ask the user only when a genuine business or authority decision is
+missing.
+
+- If any in-scope actionable child remains, the parent stays active and that scoped work is
+  next.
+- Any `UNKNOWN` or `NOT_VERIFIED` child keeps the parent active until its scope/evidence is
+  resolved; absence of evidence is not a non-actionable disposition.
+- If remaining children are only `CLOSED`, `REFERENCE_GAP`, or `AUTHORITY_CONFLICT`, the
+  parent may become terminal as **no authorized actionable work remains**. This is not a
+  successful parity/acceptance result: `REFERENCE_GAP` and `AUTHORITY_CONFLICT` remain open
+  with their existing authority, and an authority conflict MUST NOT be resolved by the agent.
+- A terminal parent permits unrelated authorized work to proceed while those findings remain
+  unresolved; it does not permit a compliance or acceptance claim.
+
+On interruption or resume, reconstruct both child and parent state from canonical lifecycle,
+scope, Finding, and evidence artifacts. Conversation history is not sufficient. If the active
+parent scope or current evidence cannot be established, keep the parent active and re-sync that
+scope before global next-work selection.
 
 ---
 

@@ -493,6 +493,15 @@ try {
         Write-Host "[INFO] .claude/bootstrap-mxcli.sh not found -- skipping SessionStart fixup."
     }
 
+    # Normalize mxcli-generated SessionStart hook registrations structurally.
+    # This runs after mxcli init on fresh installs and on every UPDATE, while
+    # preserving unrelated hooks and failing without edits on ambiguous JSON.
+    $sessionStartNormalizer = Join-Path $PSScriptRoot 'Normalize-MxcliSessionStart.ps1'
+    if (-not (Test-Path -LiteralPath $sessionStartNormalizer -PathType Leaf)) {
+        throw "SessionStart normalizer not found: $sessionStartNormalizer"
+    }
+    & $sessionStartNormalizer -SettingsPath (Join-Path $ProjectRoot '.claude\settings.json')
+
     # Step 1c: Copy canonical .mxagile/ payload (skills, agents, policies, lifecycle.yaml, etc.)
     # The canonical source is at $PSScriptRoot/../.mxagile/ (the framework dev tree).
     $canonicalSource = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $PSScriptRoot "..") ".mxagile"))

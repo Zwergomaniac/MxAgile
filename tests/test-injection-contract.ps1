@@ -64,13 +64,15 @@ function Count-Occurrences {
 
 $NewStart = "<!-- MXAGILE:MANAGED:START -->"
 $NewEnd   = "<!-- MXAGILE:MANAGED:END -->"
+$FixturePrefix = 'mxagile-contract-test-'
+. (Join-Path $PSScriptRoot 'helpers/Remove-TestTempDirectory.ps1')
 
 # =============================================================================
 # Setup: Create fixture project
 # =============================================================================
 Write-Host "Setting up fixture project..." -ForegroundColor Cyan
 
-$FixtureDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mxagile-contract-test-" + [System.IO.Path]::GetRandomFileName())
+$FixtureDir = Join-Path ([System.IO.Path]::GetTempPath()) ($FixturePrefix + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $FixtureDir -Force | Out-Null
 
 try {
@@ -241,11 +243,8 @@ try {
     }
 
 } finally {
-    # Cleanup
     Write-Host "`nCleaning up fixture project: $FixtureDir" -ForegroundColor DarkGray
-    if (Test-Path -LiteralPath $FixtureDir) {
-        Remove-Item -LiteralPath $FixtureDir -Recurse -Force
-    }
+    Remove-TestTempDirectory -Path $FixtureDir -ExpectedPrefix $FixturePrefix
 }
 
 # =============================================================================

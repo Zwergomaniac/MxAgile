@@ -46,6 +46,7 @@ Consumers of this contract include:
 | `AGENT.md` | CREATE (FIRST_INSTALL_ONLY) | mxcli generated | `mxcli init --all-tools` | mxcli / Project | Preserved if exists; only generated when missing | Skip on UPDATE if exists |
 | `AGENTS.md` | MANAGED_BLOCK | `AGENT.md` content (full) | `apply-project-agent-instructions.ps1` | Shared: user owns file, MxAgile owns managed block | Replace block content | Replace block, preserve surrounding user content |
 | `CLAUDE.md` | MANAGED_BLOCK | mxcli base + MxAgile block | `mxcli init` base + `apply-project-agent-instructions.ps1` block | Shared: mxcli base, MxAgile managed block, user content | Replace MxAgile block; mxcli base skipped on UPDATE | Replace block, preserve surrounding |
+| `.claude/settings.json` | SHARED / STRUCTURALLY NORMALIZED | mxcli `init` hook registration | mxcli generates; `Normalize-MxcliSessionStart.ps1` normalizes | mxcli owns its generated provisioning/bootstrap SessionStart hook; project owns all other hooks and JSON fields | After mxcli init and on every install/update, remove only unambiguous mxcli-owned provisioning/bootstrap hooks; invalid or mixed ownership fails without writing | Idempotent; unrelated hooks, events, group metadata, and additional JSON fields are preserved |
 | `.devcontainer/` | CREATE (FIRST_INSTALL_ONLY) | mxcli generated | `mxcli init --all-tools` | mxcli | Only generated on NEW INSTALL; not regenerated on UPDATE when already present | Skip on UPDATE |
 | `.github/copilot-instructions.md` | MANAGED_BLOCK | `AGENT.md` content (full) | `apply-project-agent-instructions.ps1` | Shared: user owns file, MxAgile owns managed block | Replace block content | Replace block, preserve surrounding user content |
 | `.claude/skills/mxagile-*/SKILL.md` | GENERATE | `.mxagile/skills/*.md` | `generate-mxagile-platform-skills.ps1` | MxAgile (generated — do not edit) | Overwrite on rerun | Always regenerated |
@@ -70,6 +71,20 @@ Consumers of this contract include:
 | `specs/` | CREATE | Empty directory | `mxagile-init.ps1` | Project | Never overwrite content | Idempotent (skip if exists) |
 | `planning/tasks/` | CREATE | Empty directory | `mxagile-init.ps1` | Project | Never overwrite content | Idempotent (skip if exists) |
 | `.gitignore` entries | MANAGED | N/A | `apply-project-agent-instructions.ps1` | Shared | Append missing entries | Idempotent (no duplicates appended) |
+
+---
+
+## mxcli SessionStart Hook Ownership
+
+`Normalize-MxcliSessionStart.ps1` treats `.claude/settings.json` as structured JSON. It removes only a `SessionStart` command hook that is unambiguously an mxcli bootstrap script invocation or an mxcli local `run`/setup command. Provisioning-free hooks, foreign hooks, other hook events, unknown JSON fields, and group metadata are preserved. Invalid JSON or a provisioning-like command with mixed/unclear shell ownership fails closed before any file write. The normalizer runs after `mxcli init` and on every Core install/update, so installer-driven reinitialization cannot leave the generated provisioning hook active.
+
+An explicit `mxcli init` run outside MxAgile's installer can regenerate its hook registration; the next MxAgile install/update normalizes it again. Runtime provisioning is on demand through the canonical MxAgile resolver, never from a normal SessionStart.
+
+Native mxcli suppression capability is `NOT_VERIFIED` in this framework repository because no
+downstream project's pinned mxcli binary is available here. Do not assume an undocumented init
+option exists. During downstream integration, inspect `init` help from the exact selected binary;
+prefer a documented native option only if it reliably suppresses the provisioning hook. Until
+then, retain the structured normalizer.
 
 ---
 

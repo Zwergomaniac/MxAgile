@@ -75,6 +75,13 @@ $templateBootstrap  = Join-Path $templateFixtureRoot ".claude\bootstrap-mxcli.sh
 $testingBootstrap   = Join-Path $testingFixtureRoot ".claude\bootstrap-mxcli.sh"
 $templateSettings   = Join-Path $templateFixtureRoot ".claude\settings.json"
 $installCorePath    = Join-Path $ScriptDir "scripts\install-core.ps1"
+$sessionStartNormalizer = Join-Path $ScriptDir "scripts\Normalize-MxcliSessionStart.ps1"
+$injectionContract = Join-Path $ScriptDir "docs\injection-contract.md"
+
+# Exercise the exact structural normalizer called by install-core after mxcli init.
+& $sessionStartNormalizer -SettingsPath $templateSettings
+$settingsContent = Get-Content -LiteralPath $templateSettings -Raw | ConvertFrom-Json
+$settingsText = Get-Content -LiteralPath $templateSettings -Raw
 
 Write-Host ""
 Write-Host "=== SessionStart Bootstrap Safety Tests ==="
@@ -142,22 +149,21 @@ Assert-True "C1: synthetic settings.json exists" `
     (Test-Path -LiteralPath $templateSettings) `
     "Not found: $templateSettings"
 
-$settingsContent = Get-Content -LiteralPath $templateSettings -Raw -ErrorAction SilentlyContinue
 Assert-True "C2: settings.json contains SessionStart" `
-    ($settingsContent -match 'SessionStart') `
+    ($settingsText -match 'SessionStart') `
     "SessionStart hook missing from settings.json"
 
-Assert-True "C3: settings.json hook invokes bootstrap-mxcli.sh" `
-    ($settingsContent -match 'bootstrap-mxcli\.sh') `
-    "bootstrap-mxcli.sh not referenced in settings.json hook"
+Assert-True "C3: mxcli bootstrap hook was removed from SessionStart" `
+    (($settingsContent.hooks.SessionStart | ForEach-Object { $_.hooks.command }) -notcontains 'sh .claude/bootstrap-mxcli.sh || true') `
+    "mxcli bootstrap hook remains registered in SessionStart"
 
-Assert-True "C4: settings.json hook uses sh (POSIX shell, cross-platform)" `
-    ($settingsContent -match '"sh\s+\.claude/bootstrap-mxcli\.sh') `
-    "Hook should use 'sh .claude/bootstrap-mxcli.sh' for cross-platform compatibility"
+Assert-True "C4: project-owned SessionStart hook is preserved" `
+    (($settingsContent.hooks.SessionStart | ForEach-Object { $_.hooks.command }) -contains 'echo project-owned-session-start') `
+    "Provisioning-free project hook was removed"
 
-Assert-True "C5: settings.json hook has || true safety net for non-zero exit" `
-    ($settingsContent -match 'bootstrap-mxcli\.sh\s*\|\|\s*true') `
-    "Hook must have '|| true' so a bootstrap failure (e.g. network down) does not block session"
+Assert-True "C5: unrelated settings fields and non-SessionStart hooks are preserved" `
+    ($settingsContent.projectSetting.preserve -and $settingsContent.hooks.PreToolUse.Count -eq 1) `
+    "JSON normalization dropped unrelated settings fields or hooks"
 
 Write-Host ""
 
@@ -183,6 +189,9 @@ Assert-Contains "D5: install-core.ps1 fixup inserts DL_TIMEOUT variable" `
 
 Assert-Contains "D6: install-core.ps1 fixup documents the manual provisioning command" `
     $installCorePath '--setup.*--ensure-db|ensure-db.*--setup'
+
+Assert-Contains "D7: install-core.ps1 invokes structural SessionStart normalization" `
+    $installCorePath 'Normalize-MxcliSessionStart\.ps1'
 
 Write-Host ""
 
@@ -398,8 +407,8 @@ Assert-Contains "H2: bootstrap exits non-zero on curl failure (not silently cont
 Assert-Contains "H3: bootstrap documents recovery after network failure" `
     $templateBootstrap 'Fetch it manually|obtain mxcli'
 
-Assert-Contains "H4: settings.json has || true so network failure does not block session start" `
-    $templateSettings 'bootstrap-mxcli\.sh.*\|\|\s*true'
+Assert-NotContains "H4: normalized settings do not run the bootstrap download at SessionStart" `
+    $templateSettings 'bootstrap-mxcli\.sh|mxcli.*run.*--local'
 
 Write-Host ""
 
@@ -408,12 +417,12 @@ Write-Host ""
 # ===========================================================================
 Write-Host "--- I: Windows and VS Code Extension compatibility ---"
 
-Assert-True "I1: settings.json hook uses 'sh' (not bash, not pwsh) for portability" `
-    ($settingsContent -match '"sh\s+\.claude/bootstrap-mxcli\.sh') `
-    'Hook should use sh for POSIX portability -- bash or pwsh may not be available'
+Assert-True "I1: project-owned SessionStart hook remains registered" `
+    (($settingsContent.hooks.SessionStart | ForEach-Object { $_.hooks.command }) -contains 'echo project-owned-session-start') `
+    'Provisioning-free project SessionStart hook was not retained'
 
 Assert-True "I2: settings.json hook is under SessionStart (not PreToolUse or other)" `
-    ($settingsContent -match '"SessionStart"') `
+    ($settingsText -match '"SessionStart"') `
     "Hook must be registered under SessionStart"
 
 Assert-NotContains "I3: bootstrap does NOT use bash-specific shebang" `
@@ -422,8 +431,9 @@ Assert-NotContains "I3: bootstrap does NOT use bash-specific shebang" `
 Assert-Contains "I4: bootstrap uses portable /bin/sh shebang" `
     $templateBootstrap '/bin/sh'
 
-Assert-Contains "I5: settings.json sets MXCLI_QUIET to suppress noisy output" `
-    $templateSettings 'MXCLI_QUIET'
+Assert-True "I5: additional settings fields and hook-group metadata survive normalization" `
+    ($settingsContent.projectSetting.preserve -and $settingsContent.hooks.SessionStart[0].matcher -eq '') `
+    "Additional JSON fields were dropped during normalization"
 
 Write-Host ""
 
@@ -467,6 +477,118 @@ Assert-Contains "J5: install-core.ps1 fixup reports [FIX] when blocking line rem
 Write-Host ''
 
 # ===========================================================================
+# GROUP K: Structural JSON normalization is safe, idempotent, and repeatable
+# ===========================================================================
+Write-Host "--- K: structural mxcli SessionStart normalization ---"
+
+$normalizerTemp = Join-Path $env:TEMP "mxagile-sessionstart-json-$([System.Guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $normalizerTemp -Force | Out-Null
+
+try {
+    $normalizerSettingsPath = Join-Path $normalizerTemp 'settings.json'
+    $variableHook = @'
+MXCLI=./mxcli
+if [ -x "$MXCLI" ]; then
+  "$MXCLI" run -p "$MPR" --ensure-db --setup --local
+fi
+'@
+    $structuredSettings = [ordered]@{
+        projectSetting = [ordered]@{ preserve = $true; extra = 42 }
+        hooks = [ordered]@{
+            SessionStart = @(
+                [ordered]@{
+                    matcher = ''
+                    groupMetadata = 'keep'
+                    hooks = @(
+                        [ordered]@{ type = 'command'; command = 'exec ./mxcli run --local --setup --ensure-db -p "$MPR"'; generatedMarker = 'mxcli' },
+                        [ordered]@{ type = 'command'; command = $variableHook; generatedMarker = 'mxcli' },
+                        [ordered]@{ type = 'command'; command = './mxcli init --sync-skills .'; owner = 'mxcli' },
+                        [ordered]@{ type = 'command'; command = 'echo project-owned-session-start'; owner = 'project' }
+                    )
+                }
+            )
+            PreToolUse = @([ordered]@{ hooks = @([ordered]@{ type = 'command'; command = 'echo pre-tool' }) })
+        }
+    }
+    [System.IO.File]::WriteAllText($normalizerSettingsPath, (ConvertTo-Json -InputObject $structuredSettings -Depth 20))
+    & $sessionStartNormalizer -SettingsPath $normalizerSettingsPath
+    $normalizedSettings = Get-Content -LiteralPath $normalizerSettingsPath -Raw | ConvertFrom-Json
+    $remainingCommands = @($normalizedSettings.hooks.SessionStart[0].hooks | ForEach-Object { $_.command })
+
+    Assert-True "K1: old direct hook with canonical flags is removed" `
+        ($remainingCommands -notcontains 'exec ./mxcli run --local --setup --ensure-db -p "$MPR"') `
+        "Known mxcli provisioning hook remains"
+    Assert-True "K2: variable-backed shell-block hook is removed" `
+        ($remainingCommands -notcontains $variableHook) `
+        "Variable-backed mxcli provisioning hook remains"
+    Assert-True "K3: provisioning-free mxcli and project hooks are retained" `
+        ($remainingCommands -contains './mxcli init --sync-skills .' -and $remainingCommands -contains 'echo project-owned-session-start') `
+        "Provisioning-free hooks were not preserved"
+    Assert-True "K4: unrelated JSON fields, groups, and event hooks survive" `
+        ($normalizedSettings.projectSetting.preserve -and $normalizedSettings.projectSetting.extra -eq 42 -and $normalizedSettings.hooks.SessionStart[0].groupMetadata -eq 'keep' -and $normalizedSettings.hooks.PreToolUse.Count -eq 1) `
+        "Normalization dropped unrelated JSON fields"
+    Assert-True "K5: normal SessionStart has no runtime, dependency, DB, or binary provisioning command" `
+        (@($remainingCommands -match '(?i)bootstrap-mxcli\.sh|mxcli.*run.*(?:--local|--setup|--ensure-db)|curl.*mxcli').Count -eq 0) `
+        "A provisioning command remains registered for SessionStart"
+
+    $normalizedBytes = Get-Content -LiteralPath $normalizerSettingsPath -Raw
+    & $sessionStartNormalizer -SettingsPath $normalizerSettingsPath
+    Assert-True "K6: repeated normalization is idempotent" `
+        ((Get-Content -LiteralPath $normalizerSettingsPath -Raw) -ceq $normalizedBytes) `
+        "Second normalization changed settings.json"
+
+    $reinitSettings = [ordered]@{ hooks = [ordered]@{ SessionStart = @([ordered]@{ hooks = @([ordered]@{ type = 'command'; command = './mxcli run --ensure-db --local --setup -p app.mpr' }) }) } }
+    [System.IO.File]::WriteAllText($normalizerSettingsPath, (ConvertTo-Json -InputObject $reinitSettings -Depth 20))
+    & $sessionStartNormalizer -SettingsPath $normalizerSettingsPath
+    $afterReinit = Get-Content -LiteralPath $normalizerSettingsPath -Raw | ConvertFrom-Json
+    Assert-True "K7: repeated mxcli init output is normalized on the next installer pass" `
+        ($afterReinit.hooks.SessionStart[0].hooks.Count -eq 0) `
+        "A repeated mxcli init left provisioning registered"
+
+    $pipelineJson = '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"./mxcli run --local --setup --ensure-db -p app.mpr | tee runtime.log"}]}]}}'
+    [System.IO.File]::WriteAllText($normalizerSettingsPath, $pipelineJson)
+    $beforeAmbiguous = Get-Content -LiteralPath $normalizerSettingsPath -Raw
+    $pipelineRejected = $false
+    try { & $sessionStartNormalizer -SettingsPath $normalizerSettingsPath } catch { $pipelineRejected = $true }
+    Assert-True "K8: mixed pipeline ownership fails closed without rewriting JSON" `
+        ($pipelineRejected -and (Get-Content -LiteralPath $normalizerSettingsPath -Raw) -ceq $beforeAmbiguous) `
+        "Ambiguous pipeline was modified or accepted"
+
+    $mixedJson = '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo start; ./mxcli run --local --setup --ensure-db -p app.mpr"}]}]}}'
+    [System.IO.File]::WriteAllText($normalizerSettingsPath, $mixedJson)
+    $beforeMixed = Get-Content -LiteralPath $normalizerSettingsPath -Raw
+    $mixedRejected = $false
+    try { & $sessionStartNormalizer -SettingsPath $normalizerSettingsPath } catch { $mixedRejected = $true }
+    Assert-True "K9: mixed shell command fails closed without rewriting JSON" `
+        ($mixedRejected -and (Get-Content -LiteralPath $normalizerSettingsPath -Raw) -ceq $beforeMixed) `
+        "Mixed shell hook was modified or accepted"
+
+    $invalidJson = '{ "hooks": '
+    [System.IO.File]::WriteAllText($normalizerSettingsPath, $invalidJson)
+    $beforeInvalid = Get-Content -LiteralPath $normalizerSettingsPath -Raw
+    $invalidRejected = $false
+    try { & $sessionStartNormalizer -SettingsPath $normalizerSettingsPath } catch { $invalidRejected = $true }
+    Assert-True "K10: invalid JSON fails closed without rewriting the file" `
+        ($invalidRejected -and (Get-Content -LiteralPath $normalizerSettingsPath -Raw) -ceq $beforeInvalid) `
+        "Invalid JSON was modified or accepted"
+
+    $invalidShape = '{"hooks":{"SessionStart":{"hooks":[]}}}'
+    [System.IO.File]::WriteAllText($normalizerSettingsPath, $invalidShape)
+    $beforeInvalidShape = Get-Content -LiteralPath $normalizerSettingsPath -Raw
+    $invalidShapeRejected = $false
+    try { & $sessionStartNormalizer -SettingsPath $normalizerSettingsPath } catch { $invalidShapeRejected = $true }
+    Assert-True "K11: valid JSON with an invalid SessionStart shape fails closed without rewriting" `
+        ($invalidShapeRejected -and (Get-Content -LiteralPath $normalizerSettingsPath -Raw) -ceq $beforeInvalidShape) `
+        "Malformed SessionStart structure was modified or accepted"
+
+    Assert-Contains "K12: native mxcli suppression remains unverified without a pinned project binary" `
+        $injectionContract 'Native mxcli suppression capability is `NOT_VERIFIED`'
+} finally {
+    Remove-Item -LiteralPath $normalizerTemp -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host ''
+
 # Final summary
 # ===========================================================================
 Remove-MxAgileBaselineFixture -Path $templateFixtureRoot

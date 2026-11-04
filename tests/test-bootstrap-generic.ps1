@@ -2,7 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 # Define a temporary directory path for a mock Mendix project.
 # Using a unique name to avoid conflicts in parallel runs.
-$tempDir = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
+$tempPrefix = 'mxagile-bootstrap-generic-'
+$tempDir = Join-Path $env:TEMP ($tempPrefix + [System.Guid]::NewGuid().ToString('N'))
+. (Join-Path $PSScriptRoot 'helpers/Remove-TestTempDirectory.ps1')
 
 try {
     # Create the temporary directory.
@@ -12,17 +14,17 @@ try {
     $mprPath = Join-Path $tempDir "project.mpr"
     New-Item -ItemType File -Path $mprPath | Out-Null
     
-    # Execute the refactored install-mxagile.ps1, passing the path of the temporary directory.
-    # Assuming the script is in the root of the repo, and this test is in a 'tests' subfolder.
-    $installerScriptPath = Join-Path $PSScriptRoot "..\install-mxagile.ps1"
+    # Exercise the canonical bootstrap in unattended test mode. Wrapper delegation
+    # is covered separately by test-setup-detection.ps1.
+    $installerScriptPath = Join-Path $PSScriptRoot "..\mxagile-setup.ps1"
     
     # We need to start a new process to capture the exit code correctly.
-    $process = Start-Process pwsh -ArgumentList "-File `"$installerScriptPath`" -ProjectRoot `"$tempDir`"" -Wait -PassThru
+    $process = Start-Process pwsh -ArgumentList "-NoProfile -NonInteractive -File `"$installerScriptPath`" -ProjectRoot `"$tempDir`" -NonInteractive" -Wait -PassThru
     $exitCode = $process.ExitCode
     
     # Assert that the exit code is 0.
     if ($exitCode -ne 0) {
-        throw "install-mxagile.ps1 exited with code $exitCode."
+        throw "mxagile-setup.ps1 exited with code $exitCode."
     }
     
     # Assert that the .mxagile directory was successfully created.
@@ -41,8 +43,5 @@ try {
     exit 1
     
 } finally {
-    # Use a `try/finally` block to ensure the temporary directory is always cleaned up.
-    if (Test-Path -Path $tempDir) {
-        Remove-Item -Path $tempDir -Recurse -Force
-    }
+    Remove-TestTempDirectory -Path $tempDir -ExpectedPrefix $tempPrefix
 }

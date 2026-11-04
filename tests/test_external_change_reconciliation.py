@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from jsonschema import Draft7Validator
+from temp_cleanup import cleanup_temporary_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -45,7 +46,7 @@ class ReconciliationBaselineTests(unittest.TestCase):
         self.git("commit", "--quiet", "-m", "Fixture baseline")
 
     def tearDown(self) -> None:
-        self.temporary.cleanup()
+        cleanup_temporary_directory(self.temporary, expected_prefix="mxagile-reconcile-")
 
     def git(self, *args: str) -> str:
         result = subprocess.run(

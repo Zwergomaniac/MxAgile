@@ -2,6 +2,7 @@
 
 # Main execution block
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'helpers/Remove-TestTempDirectory.ps1')
 
 # Helper function for assertions
 function Assert-Condition {
@@ -47,10 +48,7 @@ function Test-GenericInstallation {
         Write-Host "Test-GenericInstallation PASSED."
     }
     finally {
-        # Cleanup
-        if (Test-Path $projectRoot) {
-            Remove-Item -Recurse -Force $projectRoot
-        }
+        Remove-TestTempDirectory -Path $projectRoot -ExpectedPrefix 'Test-GenericInstallation-'
     }
 }
 
@@ -99,10 +97,7 @@ function Test-LocalLayerInstallation {
         Write-Host "Test-LocalLayerInstallation PASSED."
     }
     finally {
-        # Cleanup
-        if (Test-Path $projectRoot) {
-            Remove-Item -Recurse -Force $projectRoot
-        }
+        Remove-TestTempDirectory -Path $projectRoot -ExpectedPrefix 'Test-LocalLayerInstallation-'
     }
 }
 

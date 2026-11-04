@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from temp_cleanup import cleanup_temporary_directory
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import git_index_integrity
 import reconcile_external_changes
@@ -20,7 +22,7 @@ class IndexIntegrityTests(unittest.TestCase):
         self.command("init", "--quiet")
 
     def tearDown(self):
-        self.temp.cleanup()
+        cleanup_temporary_directory(self.temp, expected_prefix="mxagile-index-")
 
     def command(self, *arguments):
         return subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", *arguments], capture_output=True, check=True).stdout

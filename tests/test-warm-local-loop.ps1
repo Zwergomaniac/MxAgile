@@ -240,8 +240,8 @@ Assert-FileNotContains "policy: no hardcoded postgresql default" `
 Assert-FileContains "profile: database precedence is defined by the canonical runtime profile" `
     (Join-Path $ScriptDir ".mxagile/policies/local-runtime-profile.md") '(?i)Configuration Precedence|db_name.*precedence'
 
-Assert-FileContains "profile: defines MxAgile autonomous DB default (not hardcoded type)" `
-    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") '(?i)MXAGILE_CORE_DEFAULT'
+Assert-FileContains "profile: requires explicit database identity rather than a global default" `
+    (Join-Path $ScriptDir "scripts/mxcli_runtime_recipe.py") 'DB_IDENTITY_UNRESOLVED'
 
 Write-Host ""
 

@@ -152,13 +152,31 @@ def resolve_runtime_recipe(request: dict[str, Any], project_config: dict[str, An
     requested_backend = request.get("requested_backend")
     if requested_backend is not None and (not isinstance(requested_backend, str) or not requested_backend.strip()):
         return _block(result, "REQUESTED_BACKEND_INVALID", "The requested verification backend must be a non-empty string.")
+    purpose = request.get("purpose", "verification")
+    if purpose not in {"verification", "implementation", "development"}:
+        return _block(result, "RUNTIME_PURPOSE_INVALID", "The requested runtime purpose is not recognized.")
     local_runtime_value = project_config.get("local_runtime", {})
     if not isinstance(local_runtime_value, dict):
         return _block(result, "PROJECT_LOCAL_RUNTIME_CONFIG_INVALID", "Project local_runtime configuration must be an object.")
     local_runtime = local_runtime_value
     profile_backend = local_runtime.get("db_type")
     backend_options = _local_backends(help_text, options)
-    if requested_backend:
+    if purpose in {"implementation", "development"} and profile_backend:
+        if requested_backend and requested_backend != profile_backend:
+            return _block(
+                result,
+                "REQUESTED_BACKEND_CONFLICTS_WITH_PROJECT_RUNTIME",
+                f"Development backend {requested_backend} conflicts with project local_runtime.db_type={profile_backend}.",
+            )
+        if profile_backend not in backend_options:
+            return _block(
+                result,
+                "PROJECT_BACKEND_UNAVAILABLE",
+                f"Project local_runtime.db_type={profile_backend} is not advertised as a local backend by this binary; refusing to switch databases.",
+            )
+        selected_backend = profile_backend
+        backend_source = "PROJECT_DECLARED"
+    elif requested_backend:
         if requested_backend not in backend_options:
             return _block(result, "REQUESTED_BACKEND_UNAVAILABLE", f"Requested backend {requested_backend} is not advertised as a local backend by this binary.")
         selected_backend = requested_backend
@@ -181,9 +199,6 @@ def resolve_runtime_recipe(request: dict[str, Any], project_config: dict[str, An
     if backend_error:
         return _block(result, "BACKEND_ARGUMENT_UNAVAILABLE", backend_error)
 
-    purpose = request.get("purpose", "verification")
-    if purpose not in {"verification", "implementation", "development"}:
-        return _block(result, "RUNTIME_PURPOSE_INVALID", "The requested runtime purpose is not recognized.")
     runtime_mode = "interactive" if purpose in {"implementation", "development"} else "autonomous"
     arguments = ["run", "--local"]
     if runtime_mode == "autonomous":
@@ -195,15 +210,24 @@ def resolve_runtime_recipe(request: dict[str, Any], project_config: dict[str, An
         if "--watch" not in options:
             return _block(result, "INTERACTIVE_WATCH_CONTROL_UNAVAILABLE", "The selected binary help does not advertise --watch for the requested interactive runtime.")
         arguments.append("--watch")
+        if request.get("detach") is True:
+            if "--detach" not in options:
+                return _block(result, "DETACH_CONTROL_UNAVAILABLE", "The requested detached interactive runtime is not advertised by the selected binary.")
+            arguments.append("--detach")
     arguments.extend([backend_flag, selected_backend, project_flag, str(project_mpr)])
 
     db_name_override = request.get("db_name_override")
-    if db_name_override:
+    if db_name_override is not None and (not isinstance(db_name_override, str) or not db_name_override.strip()):
+        return _block(result, "DB_NAME_OVERRIDE_INVALID", "The requested database identity must be a non-empty string.")
+    project_db_name = local_runtime.get("db_name")
+    if project_db_name is not None and (not isinstance(project_db_name, str) or not project_db_name.strip()):
+        return _block(result, "PROJECT_DB_NAME_INVALID", "Project local_runtime.db_name must be a non-empty string when specified.")
+    if db_name_override is not None:
         db_name, db_name_source = db_name_override, "SESSION_OVERRIDE"
-    elif local_runtime.get("db_name"):
-        db_name, db_name_source = local_runtime["db_name"], "PROJECT_DECLARED"
+    elif project_db_name is not None:
+        db_name, db_name_source = project_db_name, "PROJECT_DECLARED"
     else:
-        db_name, db_name_source = "default", "MXAGILE_CORE_DEFAULT"
+        return _block(result, "DB_IDENTITY_UNRESOLVED", "Database identity must be declared in local_runtime.db_name or supplied as an explicit runtime override; it is never inferred from the project or mxcli defaults.")
     arguments.extend([db_name_flag, str(db_name)])
 
     session_overrides = request.get("runtime_overrides") if isinstance(request.get("runtime_overrides"), dict) else {}

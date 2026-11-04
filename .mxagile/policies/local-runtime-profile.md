@@ -102,6 +102,10 @@ performed.
    - Use an external database only when the verification contract requires it, no suitable
      local backend is offered, or the selected local route cannot provide the required
      evidence. State the reason before changing routes.
+   - For `purpose: implementation` or `purpose: development`, honor a declared
+     `local_runtime.db_type` as the project's interactive runtime backend. If the selected
+     binary does not advertise that backend as local, block with a capability result; never
+     substitute PostgreSQL merely because the declared HSQLDB recipe is unavailable.
 6. Construct the invocation only from this binary's help and the resolved project profile.
    Do not copy backend options or syntax into consumer-specific instructions. Do not retry
    another backend or binary silently.
@@ -137,6 +141,13 @@ entire recipe before execution. Persisted recipes and handoffs contain no secret
 secret-bearing argument is represented by its authoritative key/reference and redacted in
 reports. The runtime owner resolves that reference only at the credential-consuming operation;
 the actual value is never copied into the recipe artifact or agent handoff.
+
+External mxcli skill examples for `run --local` describe that tool's standalone defaults; they
+are not C1 recipes. C1 MUST NOT rely on an mxcli default or derive `db_name` from the `.mpr`
+filename. The database identity must come from `local_runtime.db_name` or an explicit,
+authorized session override, and C1 emits it using the exact option advertised by the selected
+binary. Do not infer or rediscover identity from the project folder or deployment files.
+Without an explicit identity, C1 blocks with `DB_IDENTITY_UNRESOLVED`.
 
 ### Post-Launch Recipe Verification
 
@@ -265,16 +276,16 @@ the only authority for backend and CLI syntax.
 
 ## Database Identity
 
-The C1 recipe currently supplies the Core autonomous `db_name` default `default`; an explicit
-`local_runtime.db_name` or request override is resolved by the composer. Project display names,
-folder names, and `.mpr` filename stems are never database identity inputs. In particular,
-mxcli-derived-from-`.mpr` naming is not an autonomous fallback.
-
-Projects that require a non-default identity declare `local_runtime.db_name` explicitly:
+There is no framework-wide database identity default. The recipe composer requires an explicit
+`local_runtime.db_name` or an authorized request override; otherwise it returns
+`DB_IDENTITY_UNRESOLVED` and does not start the runtime. Project display names, folder names,
+`.mpr` filename stems, and mxcli's implicit default are never identity sources. A project may
+explicitly declare `default` if that is the identity required by its fixture/seed contract; C1
+then reports that source as `PROJECT_DECLARED`.
 
 ```yaml
 local_runtime:
-  db_name: <actual-database-name>
+   db_name: <explicit-project-database-name>
 ```
 
 If the identity cannot be expressed with syntax advertised by the selected mxcli, the recipe

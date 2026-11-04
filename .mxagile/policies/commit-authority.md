@@ -15,6 +15,11 @@ All universal safety rules apply at all times.
 - No effect on remote repositories
 - Permitted under bounded autonomous delegation when all preconditions pass
 
+A local checkpoint commit is a repository-history operation, not a delivery or verification
+claim. It may be created while verification or runtime evidence is pending if the checkpoint
+preconditions below pass. The report must identify the pending evidence; the commit must not be
+described as completion-ready, acceptance-ready, or parity-verified on that basis.
+
 ### PUSH
 - Transmits local commits to a remote repository
 - Changes shared/remote repository state

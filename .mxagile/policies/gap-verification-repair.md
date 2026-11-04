@@ -277,6 +277,24 @@ Vergleiche: Task, Requirement, Decision, Spec, UI-Inventar, Parity Report, Accep
 
 **Eine Repair Task darf erst `done` werden, wenn ALLE für den Scope relevanten Verifikationsschritte (Steps 8–13) erfüllt sind. Eine reine Codeänderung ohne Nachverifikation ist nicht abgeschlossen.**
 
+### Parent Parity Workstream Re-Sync
+
+`VERIFIED` closes the repaired Finding, not the active parent parity workstream. After current
+runtime/visual evidence for a repaired GAP, perform a targeted delta re-check against the active
+target for that same parent scope before leaving the workstream. Reuse the current parity
+contract and inspect only the affected scope plus its referenced findings; do not rescan all
+pages, roles, or project verification.
+
+Classify each remaining in-scope delta using the existing canonical authority disposition:
+`CLOSED` (no actionable difference), `REFERENCE_GAP`, `AUTHORITY_CONFLICT`, an actionable
+implementation/verification gap, or `UNKNOWN`/`NOT_VERIFIED`. Any actionable, UNKNOWN, or
+NOT_VERIFIED delta keeps the parent active. If only CLOSED, REFERENCE_GAP, and AUTHORITY_CONFLICT remain, the parity workstream may be terminal as
+`NO_AUTHORIZED_ACTIONABLE_GAP`; preserve unresolved reference/authority findings and their
+prohibitions. `AUTHORITY_CONFLICT` is never resolved by this re-check. This terminal workstream
+status is not a parity PASS or acceptance result. On interruption, resume by reading the
+canonical parent scope and child Findings again; never infer parent completion from the most
+recent child result or conversation history.
+
 ## Relation to Acceptance Gate
 
 A GAP repair does NOT generate a new wave. It is part of the current wave's verification cycle.

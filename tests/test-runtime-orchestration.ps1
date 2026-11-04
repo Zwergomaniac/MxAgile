@@ -8,7 +8,7 @@
 
     A. Interactive warm development uses --watch
     B. Autonomous verification omits --watch
-    C. db_name remains "default" under Core contract
+    C. db_name is explicit and never inferred globally
     D. Tests cannot begin before APPLICATION_REACHABLE
     E. Authenticated tests cannot begin before AUTHENTICATED_SESSION_READY
     F. chrome-error:// from startup does not fail an application PP
@@ -20,7 +20,8 @@
     L. Generated agents/skills receive the corrected contract
     M. Local First / Docker by Need remains intact
     N. Lifecycle state not incorrectly advanced because a runtime started
-    O. Existing DB-default regression coverage remains green
+    O. Explicit DB-identity regression coverage remains green
+    Q. Runtime decisions distinguish start, reuse, reload, restart, leave-running and stop
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -155,13 +156,16 @@ Assert-FileContains "B.12 Watch-Mode Decision table present" `
 Write-Host ""
 
 # =========================================================================
-# Section C: db_name remains "default" under Core contract
+# Section C: db_name is explicit and never inferred globally
 # =========================================================================
 
-Write-Host "--- Section C: DB default preserved ---"
+Write-Host "--- Section C: Explicit DB identity required ---"
 
-Assert-FileContains "C.1 Core autonomous default is 'default'" `
-    $runtimeRecipePath '(?i)MXAGILE_CORE_DEFAULT'
+Assert-FileContains "C.1 missing DB identity blocks instead of assuming a global default" `
+    $runtimeRecipePath 'DB_IDENTITY_UNRESOLVED'
+
+Assert-FileNotContains "C.1b runtime composer has no framework-wide database-name default" `
+    $runtimeRecipePath 'MXAGILE_CORE_DEFAULT'
 
 Assert-FileContains "C.2 autonomous base command remains separate from DB flags" `
     $policyPath '(?si)exact argv remains owned by the resolved recipe'
@@ -440,7 +444,7 @@ Write-Host ""
 # Section O: DB-default coverage green
 # =========================================================================
 
-Write-Host "--- Section O: DB-default regression ---"
+Write-Host "--- Section O: Explicit DB-identity regression ---"
 
 Assert-FileContains "O.1 DB flags remain owned by the help-resolved recipe" `
     $profilePath 'MUST NOT rebuild the command from known flags'
@@ -448,8 +452,8 @@ Assert-FileContains "O.1 DB flags remain owned by the help-resolved recipe" `
 Assert-FileContains "O.2 DB_IDENTITY_CONTROL_UNAVAILABLE still defined" `
     $runtimeRecipePath 'DB_IDENTITY_CONTROL_UNAVAILABLE'
 
-Assert-FileContains "O.3 .mpr-derived db_name still prohibited" `
-    $profilePath '(?i)filename stems are never database identity inputs'
+Assert-FileContains "O.3 inferred DB identity remains prohibited" `
+    $profilePath '(?i)filename stems.*never identity sources|mxcli.s implicit default.*never identity sources'
 
 Write-Host ""
 
@@ -476,6 +480,31 @@ if ($null -eq $schemaContent) {
     Assert-True "P.6 runtime_owner_pid field defined" `
         ($schemaContent -match '"runtime_owner_pid"') "runtime_owner_pid not found in schema"
 }
+
+Write-Host ""
+
+# =========================================================================
+# Section Q: Runtime decisions and post-visual-verification disposition
+# =========================================================================
+
+Write-Host "--- Section Q: Runtime decision contract ---"
+
+foreach ($decision in @('START', 'REUSE', 'WATCH/RELOAD', 'RESTART', 'LEAVE_RUNNING', 'STOP')) {
+    Assert-FileContains "Q: runtime decision $decision is explicit" `
+        $policyPath ([regex]::Escape($decision))
+}
+
+Assert-FileContains "Q.1 successful visual verification defaults to LEAVE_RUNNING" `
+    $policyPath '(?is)LEAVE_RUNNING.*Default after successful Runtime/Visual Verification'
+
+Assert-FileContains "Q.2 unknown reload capability is not treated as hot reload" `
+    $policyPath '(?is)Unknown reload behavior is not a hot-reload guarantee'
+
+Assert-FileContains "Q.3 stop requires explicit request or documented reason" `
+    $policyPath '(?is)STOP.*Only on explicit user request or a documented technical/safety reason'
+
+Assert-FileContains "Q.4 external run-local consumer is explicitly unverified" `
+    $policyPath 'does not contain the installed mxcli `run-local` caller'
 
 Write-Host ""
 
