@@ -5,7 +5,7 @@
 .DESCRIPTION
     Regression coverage for the MxAgile Mission Completion policy.
     Validates that the canonical framework sources contain the complete contracts
-    required to prevent the autonomy failure observed during the CapTrack REV-014
+    required to prevent the autonomy failure observed during the Example Project REV-014
     mission (implementation-checklist completion was incorrectly treated as
     USER_MISSION_COMPLETE; Verifying phase was never entered).
 
@@ -33,7 +33,7 @@
     O. "Are you finished?" → agent checks mission contract and lifecycle first
 
     All tests are static content checks on canonical policy files.
-    No CapTrack, KidsCompass, or Mercedes knowledge in this test file.
+    No Example Project, KidsCompass, or Mercedes knowledge in this test file.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -440,8 +440,8 @@ Write-Host ""
 # =============================================================================
 Write-Host "--- P: Purity — no project-specific knowledge ---" -ForegroundColor Cyan
 
-Assert-FileNotContains "P1: mission-completion.md: no CapTrack reference" `
-    $MissionPolicy 'CapTrack'
+Assert-FileNotContains "P1: mission-completion.md: no Example Project reference" `
+    $MissionPolicy 'Example Project'
 
 Assert-FileNotContains "P2: mission-completion.md: no KidsCompass reference" `
     $MissionPolicy 'KidsCompass'
@@ -450,10 +450,10 @@ Assert-FileNotContains "P3: mission-completion.md: no Mercedes reference" `
     $MissionPolicy '(?i)mercedes'
 
 Assert-FileNotContains "P4: mission-state.schema.json: no project-specific reference" `
-    $MissionSchema '(?i)(CapTrack|KidsCompass|mercedes)'
+    $MissionSchema '(?i)(Example Project|KidsCompass|mercedes)'
 
-Assert-FileNotContains "P5: lifecycle-resync: no CapTrack reference" `
-    $ResyncPolicy 'CapTrack'
+Assert-FileNotContains "P5: lifecycle-resync: no Example Project reference" `
+    $ResyncPolicy 'Example Project'
 
 Write-Host ""
 
@@ -507,6 +507,31 @@ Assert-FileContains "R2: implementation-agent: checklist abschluss is NOT missio
 
 Assert-FileContains "R3: implementation-agent: IMPLEMENTATION_CHANGE_COMPLETE terminology" `
     $ImplAgent 'IMPLEMENTATION_CHANGE_COMPLETE'
+
+Write-Host ""
+
+# =============================================================================
+# SECTION S: Checkpoint commit is distinct from completion and acceptance
+# =============================================================================
+Write-Host "--- S: Checkpoint commit != completion-ready or verified ---" -ForegroundColor Cyan
+
+Assert-FileContains "S1: mission-completion distinguishes checkpoint-committable from completion-ready" `
+    $MissionPolicy '(?is)checkpoint-committable.*local checkpoint commit.*does not promote.*completion'
+
+Assert-FileContains "S2: runtime evidence pending keeps visible criteria at IMPLEMENTATION_COMPLETE" `
+    $MissionPolicy '(?is)runtime evidence pending.*lacks current evidence.*IMPLEMENTATION_COMPLETE'
+
+Assert-FileContains "S3: a committed checkpoint cannot claim UI requirement completion" `
+    $MissionPolicy '(?is)checkpoint committed.*MUST NOT be interpreted as.*completion-ready.*acceptance/parity verified.*completion of a UI requirement'
+
+Assert-FileContains "S4: checkpoint may precede Runtime/Visual Verification when authority permits" `
+    $MissionPolicy '(?is)local\s+checkpoint commit may precede Runtime/Visual Verification when commit authority permits'
+
+Assert-FileContains "S5: commit authority states checkpoint is not a delivery or verification claim" `
+    $CommitAuth '(?is)checkpoint commit is a repository-history operation, not a delivery or verification\s+claim'
+
+Assert-FileContains "S6: checkpoint report must disclose pending evidence" `
+    $CommitAuth '(?is)report must identify the pending evidence'
 
 Write-Host ""
 

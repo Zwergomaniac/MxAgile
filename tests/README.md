@@ -16,7 +16,7 @@ The sections below marked historical retain the 2026-09-28 test architecture sna
 ## Historical 1.8.x Workstream Completion Snapshot (2026-10-31)
 
 Implementation checkpoint: `39776ef` (nine cohesive local commits since `43fd60c`).
-No CapTrack files or `experiment/lifecycle-resync-helper` changes are part of this
+No Example Project files or `experiment/lifecycle-resync-helper` changes are part of this
 workstream. No push or release publication was performed.
 
 - Fast Gate: PASS on the implemented workstream; syntax/schema/whitespace checks
@@ -65,6 +65,12 @@ working-tree diff (including untracked files). `--base <commit>` includes commit
 changes since that commit. Selection is deterministic and deduplicated. Unmapped
 paths require Tier 3; they are never silently skipped.
 
+The emitted plan includes `selected_by` (changed path and matching rule patterns)
+and a per-suite `not_selected` reason. Exclusions are only asserted when every
+changed path maps to a rule; an unmapped path disables exclusion authority and
+requires the release gate. This is auditable evidence from the reviewed impact
+map, not an assertion that cost or suite duration makes coverage unnecessary.
+
 - Tier 0: `--tier fast`: changed Python/PowerShell parsers and `git diff --check`.
 - Tier 1: default: selected component/contract suites only.
 - Tier 2: installer, projections, distribution and cross-contract inputs select
@@ -85,6 +91,13 @@ blocked WP2 test and smoke test before a new, separately logged gate.
 Python unittest suites share one interpreter. PowerShell suites run sequentially;
 no new shared-state/port parallelism is introduced. Existing full coverage remains
 available, including wrappers discovered by the full runner.
+
+`run-all-tests.ps1` reports per-suite durations for the current process but does
+not persist machine-readable timing history. The documented timing observations
+are not used to select or skip tests; automatic cost ordering remains deferred
+until stable runner telemetry exists. The Full Release Gate has no resumable
+checkpoint contract: interruption is INCOMPLETE, and later independent results
+cannot be aggregated into Full-Gate authority.
 
 Measured on this Windows workspace, Python 3.14 (not portable performance claims):
 
@@ -124,7 +137,7 @@ real isolated merges/index rebuilds, Windows sharing violations, authorization,
 post-check and secret boundaries. The 15-test suite passed in 127.45s; the final
 additional auto-stash postcondition was checked with the focused counterexample.
 The original six index-guard regressions also passed after the extension.
-Recovery tests never operate on CapTrack or this repository's actual Git state.
+Recovery tests never operate on Example Project or this repository's actual Git state.
 
 These are different workloads, not a before/after speedup percentage. The older
 measurements below remain historical. Browser startup, fresh/update installation
@@ -450,7 +463,7 @@ The cascade removals eliminate no integration boundary coverage:
 
 ---
 
-## READY FOR REAL CAPTRACK COMPANY LAYER UPDATE
+## READY FOR REAL Example Project COMPANY LAYER UPDATE
 
 YES — subject to running a confirmed FULL regression pass after the cascade removal changes.
 

@@ -53,18 +53,26 @@ fi
             [System.IO.File]::WriteAllText((Join-Path $claudeDirectory 'bootstrap-mxcli.sh'), $bootstrap + "`n", [System.Text.UTF8Encoding]::new($false))
             $settings = @'
 {
+  "projectSetting": { "preserve": true },
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
             "command": "sh .claude/bootstrap-mxcli.sh || true",
-            "env": { "MXCLI_QUIET": "1" }
+            "timeout": 60000,
+            "mxcliGenerated": true
+          },
+          {
+            "type": "command",
+            "command": "echo project-owned-session-start"
           }
         ]
       }
-    ]
+    ],
+    "PreToolUse": [{ "hooks": [{ "type": "command", "command": "echo pre-tool" }] }]
   }
 }
 '@

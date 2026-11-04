@@ -24,6 +24,11 @@ class ImpactTests(unittest.TestCase):
     def test_installer_requires_integration(self):
         self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
 
+    def test_impact_router_changes_require_release_gate(self):
+        plan = impact.select(["tests/run-impact-tests.py"])
+        self.assertEqual(plan["tier"], 3)
+        self.assertEqual(plan["suites"], ["test_test_impact.py"])
+
     def test_delegation_policy_and_adapter_paths_are_targeted(self):
         paths = [
             ".mxagile/adapters/claude/agent-delegation.yaml",
@@ -48,6 +53,26 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-context-architecture-telemetry.ps1"])
 
+    def test_temp_cleanup_helpers_select_all_direct_consumers(self):
+        python_helper = impact.select(["tests/temp_cleanup.py"])
+        self.assertEqual(python_helper["tier"], 1)
+        self.assertEqual(python_helper["unmapped"], [])
+        self.assertEqual(python_helper["suites"], [
+            "test_board_performance.py",
+            "test_external_change_reconciliation.py",
+            "test_git_index_integrity.py",
+            "test_project_status.py",
+        ])
+
+        powershell_helper = impact.select(["tests/helpers/Remove-TestTempDirectory.ps1"])
+        self.assertEqual(powershell_helper["tier"], 1)
+        self.assertEqual(powershell_helper["unmapped"], [])
+        self.assertEqual(powershell_helper["suites"], [
+            "test-bootstrap-generic.ps1",
+            "test-core-installer.ps1",
+            "test-injection-contract.ps1",
+        ])
+
     def test_c1_recipe_paths_select_only_the_runtime_resolver_suite(self):
         plan = impact.select([
             "scripts/Resolve-MxAgileMxcli.ps1",
@@ -58,7 +83,35 @@ class ImpactTests(unittest.TestCase):
         ])
         self.assertEqual(plan["tier"], 1)
         self.assertEqual(plan["unmapped"], [])
-        self.assertEqual(plan["suites"], ["test-mxcli-runtime-resolution.ps1"])
+        self.assertEqual(plan["suites"], ["test-mxcli-runtime-resolution.ps1", "test-warm-local-loop.ps1"])
+
+    def test_development_runtime_contract_selects_recipe_and_warm_loop_suites(self):
+        plan = impact.select([".mxagile/policies/development-runtime.md"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertIn("test-mxcli-runtime-resolution.ps1", plan["suites"])
+        self.assertIn("test-warm-local-loop.ps1", plan["suites"])
+
+    def test_project_runtime_schema_selects_c1_and_profile_suites(self):
+        plan = impact.select([".mxagile/schemas/mxagile-project.schema.json"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertIn("test-mxcli-runtime-resolution.ps1", plan["suites"])
+        self.assertIn("test-local-runtime-profile.ps1", plan["suites"])
+
+    def test_parent_completion_policy_selects_mission_guard(self):
+        plan = impact.select([".mxagile/policies/mission-completion.md"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-mission-completion.ps1"])
+
+    def test_parent_resync_fixture_selects_verification_lifecycle_suite(self):
+        plan = impact.select(["tests/fixtures/verification-lifecycle/fixture-L-child-complete-parent-resync.yaml"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-verification-lifecycle.ps1"])
+
+    def test_sessionstart_normalizer_selects_its_production_backed_suite(self):
+        plan = impact.select(["scripts/Normalize-MxcliSessionStart.ps1"])
+        self.assertEqual(plan["tier"], 1)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-session-bootstrap.ps1"])
 
     def test_dependency_recovery_policy_selects_its_failure_suite(self):
         plan = impact.select([".mxagile/policies/runtime-dependency-recovery.md"])
@@ -209,6 +262,27 @@ class ImpactTests(unittest.TestCase):
 
     def test_unknown_fails_closed(self):
         self.assertEqual(impact.select(["scripts/new-authority.py"])["tier"], 3)
+
+    def test_selection_plan_explains_selected_and_not_selected_suites(self):
+        plan = impact.select(["scripts/project_compatibility.py"])
+        self.assertTrue(plan["exclusions_authoritative"])
+        self.assertIn("scripts/project_compatibility.py", [
+            item["changed_path"] for item in plan["selected_by"]["test_project_status.py"]
+        ])
+        omitted = next(item for item in plan["not_selected"] if item["suite"] == "test-reconciliation-board.ps1")
+        self.assertIn("No matched impact rule", omitted["reason"])
+
+    def test_unmapped_path_prevents_authoritative_exclusion_claims(self):
+        plan = impact.select(["scripts/project_compatibility.py", "scripts/new-authority.py"])
+        self.assertFalse(plan["exclusions_authoritative"])
+        omitted = next(item for item in plan["not_selected"] if item["suite"] == "test-reconciliation-board.ps1")
+        self.assertIn("No justified exclusion", omitted["reason"])
+
+    def test_empty_change_set_makes_no_exclusion_claim(self):
+        plan = impact.select([])
+        self.assertFalse(plan["exclusions_authoritative"])
+        omitted = next(item for item in plan["not_selected"] if item["suite"] == "test-reconciliation-board.ps1")
+        self.assertIn("No changed paths", omitted["reason"])
 
     def test_selection_is_stable_and_deduplicated(self):
         paths = ["scripts/project_compatibility.py", "scripts/build_project_status.py"]

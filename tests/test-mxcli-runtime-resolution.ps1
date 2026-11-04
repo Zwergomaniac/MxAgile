@@ -123,12 +123,22 @@ try {
         $profileText -match 'Recipe resolution' -and
         $profileText -match 'Invocation'
     )
+    Assert-True 'Development runtime honors declared backend and blocks silent PostgreSQL fallback' (
+        $profileText -match '(?is)purpose: implementation.*purpose: development' -and
+        $profileText -match '(?is)never\s+substitute PostgreSQL' -and
+        (Get-Content -LiteralPath (Join-Path $ScriptDir 'scripts/mxcli_runtime_recipe.py') -Raw) -match 'PROJECT_BACKEND_UNAVAILABLE'
+    )
+    Assert-True 'External run-local examples cannot replace the C1 recipe or implicit DB identity' (
+        $profileText -match '(?is)External mxcli skill examples.*not C1 recipes' -and
+        $profileText -match '(?is)identity must come from `local_runtime\.db_name` or an explicit,\s+authorized session override.*C1 emits it using the exact option' -and
+        (Get-Content -LiteralPath (Join-Path $ScriptDir '.mxagile/policies/development-runtime.md') -Raw) -match 'Do not copy its sample start command as argv'
+    )
     $composerText = Get-Content -LiteralPath $RecipeComposer -Raw
     Assert-True 'Company Layer has no implicit runtime-default scan or guessed source' (
         $profileText -match 'current Company Layer contract does not define a machine-readable runtime-default schema' -and
         $composerText -notmatch '\.mxagile[\\/]layers'
     )
-    Assert-True 'Generic runtime policy delegates exact syntax to resolved help, not a fixed CapTrack argv' (
+    Assert-True 'Generic runtime policy delegates exact syntax to resolved help, not a fixed Example Project argv' (
         $profileText -match 'help output from the resolved binary is the authority' -and
         $profileText -match 'Do not copy backend options or syntax into consumer-specific instructions' -and
         $profileText -notmatch '--local --detach --db-type hsqldb.*--dbname default'
@@ -213,8 +223,51 @@ try {
     }
 } finally {
     $env:PATH = $previousPath
-    if (Test-Path -LiteralPath $tempRoot -PathType Container) {
-        Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    $tempRootFull = [System.IO.Path]::GetFullPath($tempRoot)
+    $tempParentFull = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+    $pathSeparators = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $expectedParent = $tempParentFull.TrimEnd($pathSeparators)
+    $actualParent = [System.IO.Path]::GetDirectoryName($tempRootFull).TrimEnd($pathSeparators)
+    $tempLeaf = [System.IO.Path]::GetFileName($tempRootFull)
+
+    if (-not $actualParent.Equals($expectedParent, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $tempLeaf -notmatch '^mxagile-mxcli-resolution-[0-9a-f]{32}$') {
+        throw "Refusing to clean an unexpected resolver-test temp path: $tempRootFull"
+    }
+
+    $cleanupAttempts = 3
+    $cleanupSucceeded = $false
+    $cleanupError = $null
+    for ($attempt = 1; $attempt -le $cleanupAttempts; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $tempRootFull -PathType Container) {
+                Remove-Item -LiteralPath $tempRootFull -Recurse -Force -ErrorAction Stop
+            }
+            $cleanupSucceeded = -not (Test-Path -LiteralPath $tempRootFull)
+            if ($cleanupSucceeded) { break }
+            $cleanupError = 'The suite-owned temp root still exists after removal.'
+        } catch {
+            $cleanupError = $_.Exception.Message
+        }
+
+        if ($attempt -lt $cleanupAttempts) {
+            Start-Sleep -Milliseconds (100 * $attempt)
+        }
+    }
+
+    if (-not $cleanupSucceeded -and (Test-Path -LiteralPath $tempRootFull -PathType Container)) {
+        try {
+            $remainingEntries = @(Get-ChildItem -LiteralPath $tempRootFull -Force -Recurse -ErrorAction Stop)
+        } catch {
+            throw "Could not verify resolver-test temp contents after $cleanupAttempts cleanup attempts: $($_.Exception.Message)"
+        }
+
+        if ($remainingEntries.Count -gt 0) {
+            $remainingPaths = ($remainingEntries | Select-Object -First 5 -ExpandProperty FullName) -join ', '
+            throw "Resolver-test cleanup left relevant artifacts after $cleanupAttempts attempts: $remainingPaths. Last cleanup error: $cleanupError"
+        }
+
+        Write-Warning "The suite-owned GUID temp root remains empty after $cleanupAttempts cleanup attempts; no test artifacts remain: $tempRootFull"
     }
 }
 

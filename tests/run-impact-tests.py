@@ -23,10 +23,14 @@ RULES = (
             ".mxagile/schemas/change-set.schema.json", ".mxagile/schemas/project-reconciliation-state.schema.json",
             ".mxagile/policies/external-change-reconciliation.md"),
          3, ("test_external_change_reconciliation.py", "test-core-provenance.ps1", "test-injection-contract.ps1")),
+        (("tests/temp_cleanup.py",), 1,
+            ("test_external_change_reconciliation.py", "test_git_index_integrity.py", "test_project_status.py", "test_board_performance.py")),
+        (("tests/helpers/Remove-TestTempDirectory.ps1",), 1,
+            ("test-bootstrap-generic.ps1", "test-core-installer.ps1", "test-injection-contract.ps1")),
     (("mxagile-dev.ps1", "tests/test-mxagile-dev-cli.ps1"), 1, ("test-mxagile-dev-cli.ps1",)),
     (("scripts/canonicalize_artifacts.py",), 2,
      ("test-wp10-artifact-schemas.ps1", "test-migration-fixtures.ps1", "test_git_index_integrity.py")),
-    (("tests/test-inventory.json", "tests/run-all-tests.ps1", "tests/run-fast-tests.ps1", "CLAUDE.md"), 3, ("test_test_impact.py",)),
+    (("tests/test-inventory.json", "tests/run-all-tests.ps1", "tests/run-fast-tests.ps1", "tests/run-impact-tests.py", "tests/test_test_impact.py", "tests/test-impact-tiers.ps1", "CLAUDE.md"), 3, ("test_test_impact.py",)),
     (("scripts/git_index_integrity.py", "tests/test_git_index_integrity.py", "tests/test-git-index-integrity.ps1", "tests/test_git_recovery.py", "tests/test-git-recovery.ps1", ".mxagile/policies/safety-rules.md", ".mxagile/policies/commit-authority.md"),
      1, ("test_git_index_integrity.py", "test_git_recovery.py", "test-commit-authority.ps1")),
     (("scripts/project_compatibility.py", ".mxagile/policies/project-compatibility.md", "tests/test_project_status.py"),
@@ -64,6 +68,10 @@ RULES = (
      ("test-verification-lifecycle.ps1",)),
     ((".mxagile/policies/verification-gap-taxonomy.md",), 2,
      ("test-verification-gap-taxonomy.ps1", "test-scope-aware-verification.ps1")),
+    ((".mxagile/policies/mission-completion.md",), 2,
+     ("test-mission-completion.ps1",)),
+    (("tests/fixtures/verification-lifecycle/*", "tests/test-verification-lifecycle.ps1"), 2,
+     ("test-verification-lifecycle.ps1",)),
     ((".mxagile/lifecycle.yaml",), 2,
      ("test-session-bootstrap.ps1", "test-mxcli-runtime-resolution.ps1")),
     (("tests/fixtures/scope-aware-verification/fixture-H-runtime-config-discrepancy-diagnosed-before-identity-mutation.yaml",), 2,
@@ -74,9 +82,15 @@ RULES = (
      2, ("test-agent-delegation.ps1", "test-agent-delegation-results.ps1")),
     (("scripts/Get-MxAgileCapabilities.ps1",), 1,
      ("test-agent-delegation.ps1", "test-capabilities-resolver.ps1", "test-capability-discovery-routing.ps1")),
+    (("scripts/Normalize-MxcliSessionStart.ps1",), 1,
+     ("test-session-bootstrap.ps1",)),
         (('scripts/Resolve-MxAgileMxcli.ps1', 'scripts/mxcli_runtime_recipe.py', 'tests/test_runtime_recipe.py',
              '.mxagile/policies/local-runtime-profile.md', '.mxagile/policies/development-runtime.md'), 1,
             ('test-mxcli-runtime-resolution.ps1',)),
+        (('.mxagile/policies/development-runtime.md',), 1,
+         ('test-warm-local-loop.ps1',)),
+        (('.mxagile/schemas/mxagile-project.schema.json',), 1,
+         ('test-mxcli-runtime-resolution.ps1', 'test-local-runtime-profile.ps1')),
         (('.mxagile/policies/runtime-strategy.md',), 1,
          ('test-runtime-strategy.ps1',)),
         (('.mxagile/policies/verification-layers.md', '.mxagile/policies/gap-verification-repair.md'), 2,
@@ -112,18 +126,64 @@ RULES = (
 
 def select(paths: list[str]) -> dict:
     suites = set()
+    selected_by: dict[str, set[tuple[str, tuple[str, ...]]]] = {}
     unknown = []
     tier = 0
     for path in sorted(set(paths)):
-        matches = [rule for rule in RULES if any(fnmatch.fnmatchcase(path, pattern) for pattern in rule[0])]
+        matches = []
+        for rule in RULES:
+            patterns, depth, tests = rule
+            matched_patterns = tuple(pattern for pattern in patterns if fnmatch.fnmatchcase(path, pattern))
+            if matched_patterns:
+                matches.append((depth, tests, matched_patterns))
         if not matches and path.startswith("tests/test-") and path.endswith(".ps1"):
-            matches = [((), 1, (Path(path).name,))]
+            matches = [(1, (Path(path).name,), (path,))]
         if not matches:
             unknown.append(path)
-        for _, depth, tests in matches:
+        for depth, tests, matched_patterns in matches:
             tier = max(tier, depth)
             suites.update(tests)
-    return {"tier": max(tier, 3 if unknown else 0), "suites": sorted(suites), "unmapped": unknown}
+            for test in tests:
+                selected_by.setdefault(test, set()).add((path, matched_patterns))
+
+    inventory = json.loads((ROOT / "tests/test-inventory.json").read_text(encoding="utf-8-sig"))
+    full_suites = {entry["File"]: entry for entry in inventory}
+    full_suites.update({path.name: full_suites.get(path.name, {}) for path in (ROOT / "tests").glob("test-*.ps1")})
+    smoke = ROOT / "tests/smoke-test.ps1"
+    if smoke.exists():
+        full_suites.setdefault(smoke.name, {})
+
+    exclusions_authoritative = bool(paths) and not unknown
+    if exclusions_authoritative:
+        no_selection_reason = "No matched impact rule selects this suite for the supplied changed paths."
+    elif unknown:
+        no_selection_reason = "No justified exclusion: an unmapped changed path requires the full release gate."
+    else:
+        no_selection_reason = "No changed paths were supplied; no impact exclusion decision was made."
+    selected_evidence = {
+        suite: [
+            {"changed_path": path, "matched_patterns": list(patterns)}
+            for path, patterns in sorted(evidence)
+        ]
+        for suite, evidence in sorted(selected_by.items())
+    }
+    not_selected = [
+        {
+            "suite": suite,
+            "tier": metadata.get("Tier", "unknown"),
+            "reason": no_selection_reason,
+        }
+        for suite, metadata in sorted(full_suites.items())
+        if suite not in suites
+    ]
+    return {
+        "tier": max(tier, 3 if unknown else 0),
+        "suites": sorted(suites),
+        "unmapped": unknown,
+        "exclusions_authoritative": exclusions_authoritative,
+        "selected_by": selected_evidence,
+        "not_selected": not_selected,
+    }
 
 
 def changed_paths(base: str) -> list[str]:
