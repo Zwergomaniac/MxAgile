@@ -335,6 +335,76 @@ updated: "2026-10-13T00:00:00Z"
     Remove-TempProjectRoot -Path $tmpP
 }
 
+# Q. Builder Kit install, harness availability, and live delegation are separate facts
+$tmpBuilder = New-TempProjectRoot
+$previousHarness = $env:MXAGILE_HARNESS
+$previousClaude = $env:CLAUDECODE
+$previousOpenCodeSession = $env:OPENCODE_SESSION_ID
+$previousOpenCodeUrl = $env:OPENCODE_BASE_URL
+try {
+    $env:MXAGILE_HARNESS = 'vscode_copilot'
+    $env:CLAUDECODE = ''
+    $env:OPENCODE_SESSION_ID = ''
+    $env:OPENCODE_BASE_URL = ''
+    $emptyOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness vscode_copilot -ResolveBuilderKit 2>&1
+    $emptyResult = $emptyOutput | ConvertFrom-Json
+    Assert-True 'Q1. absent Builder Kit manifest reports not installed' ($emptyResult.builder_kit.installed -eq $false) 'installed should be false'
+    Assert-True 'Q1. absent harness agent reports unavailable' ($emptyResult.builder_kit.agent_available_for_harness -eq $false) 'agent should be unavailable'
+    Assert-True 'Q1. delegation is unknown until current session agent inventory is observed' ($null -eq $emptyResult.builder_kit.agent_delegable) 'delegability was inferred'
+
+    $agentPath = Join-Path $tmpBuilder '.github/agents/mendix-page-designer-html-mode.agent.md'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $agentPath) -Force | Out-Null
+    @'
+---
+name: mendix-page-designer-html-mode
+description: Fixture Builder Kit agent
+---
+'@ | Set-Content -Path $agentPath -Encoding UTF8
+    $agentOnlyOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness vscode_copilot -ResolveBuilderKit `
+        -BuilderAgentObserved -BuilderAgentObservedName 'mendix-page-designer-html-mode' 2>&1
+    $agentOnlyResult = $agentOnlyOutput | ConvertFrom-Json
+    Assert-True 'Q2a. an agent file without Kit manifest is not delegable' `
+        ($agentOnlyResult.builder_kit.agent_available_for_harness -eq $true -and $agentOnlyResult.builder_kit.agent_delegable -eq $false) 'missing manifest did not block delegation'
+    $manifestDirectory = Join-Path $tmpBuilder '.mendix-page-designer-html-mode'
+    New-Item -ItemType Directory -Path $manifestDirectory -Force | Out-Null
+    @{
+        kit = 'mendix-ui-builder-kit'
+        agent = 'mendix-page-designer-html-mode'
+        version = '9.8.7'
+        tools = @('copilot')
+        scope = 'project'
+        files = @{ '.github/agents/mendix-page-designer-html-mode.agent.md' = 'fixture-hash' }
+    } | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $manifestDirectory 'manifest.json') -Encoding UTF8
+    $adapterDirectory = Join-Path $tmpBuilder '.mxagile/adapters/copilot'
+    New-Item -ItemType Directory -Path $adapterDirectory -Force | Out-Null
+    Copy-Item (Join-Path $ScriptDir '.mxagile/adapters/copilot/agent-delegation-vscode.yaml') `
+        (Join-Path $adapterDirectory 'agent-delegation-vscode.yaml')
+
+    $unobservedOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness vscode_copilot -ResolveBuilderKit 2>&1
+    $unobservedResult = $unobservedOutput | ConvertFrom-Json
+    Assert-True 'Q2. valid manifest reports kit version' ($unobservedResult.builder_kit.installed -eq $true -and $unobservedResult.builder_kit.version -eq '9.8.7') 'kit version not resolved'
+    Assert-True 'Q2. project agent is available for current harness' ($unobservedResult.builder_kit.agent_available_for_harness -eq $true -and $unobservedResult.builder_kit.agent_source -eq 'project') 'agent availability not resolved'
+    Assert-True 'Q2. installed and available do not imply delegable' ($null -eq $unobservedResult.builder_kit.agent_delegable) 'delegability inferred without observation'
+
+    $observedOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness vscode_copilot -ResolveBuilderKit `
+        -BuilderAgentObserved -BuilderAgentObservedName 'mendix-page-designer-html-mode' 2>&1
+    $observedResult = $observedOutput | ConvertFrom-Json
+    Assert-True 'Q3. observed exact agent plus supported adapter is delegable' ($observedResult.builder_kit.agent_delegable -eq $true) $observedResult.builder_kit.delegation_reason
+
+    $env:MXAGILE_HARNESS = ''
+    $unknownHarnessOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness auto -ResolveBuilderKit `
+        -BuilderAgentObserved -BuilderAgentObservedName 'mendix-page-designer-html-mode' 2>&1
+    $unknownHarnessResult = $unknownHarnessOutput | ConvertFrom-Json
+    Assert-True 'Q4. exact agent observation without attested harness remains unknown' `
+        ($null -eq $unknownHarnessResult.builder_kit.agent_available_for_harness -and $null -eq $unknownHarnessResult.builder_kit.agent_delegable) 'unknown harness was coerced to true or false'
+} finally {
+    $env:MXAGILE_HARNESS = $previousHarness
+    $env:CLAUDECODE = $previousClaude
+    $env:OPENCODE_SESSION_ID = $previousOpenCodeSession
+    $env:OPENCODE_BASE_URL = $previousOpenCodeUrl
+    Remove-TempProjectRoot -Path $tmpBuilder
+}
+
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "=== Results ===" -ForegroundColor Cyan

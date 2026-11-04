@@ -7,14 +7,18 @@ import hashlib
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
-from build_project_status import build_status
+import yaml
+
+from build_project_status import ProjectUiConfigError, build_status, build_status_summary, resolve_project_ui_settings
 from project_compatibility import safe_file
 from reconcile_external_changes import build_report
 
@@ -29,7 +33,8 @@ STATUS_ROOTS = (
     "requirements", "specs", "scripts", "planning", "input-resources/ui-ux", "mprcontents",
     ".mxagile/schemas", ".mxagile/tools", ".mxagile/state",
 )
-SKIP_STATUS_DIRS = {".git", ".concord", ".mxcli", "node_modules", "deployment"}
+SKIP_STATUS_DIRS = {".git", ".concord", ".mxcli", "__pycache__", "node_modules", "deployment"}
+PREVIEW_EXTENSIONS = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2", ".ttf"}
 
 
 def _metadata_record(root: Path, path: Path) -> tuple | None:
@@ -96,7 +101,21 @@ def _windows_change_time(path: Path) -> int | None:
         close_handle(handle)
 
 
+def _emit_board_timing(event: str, **fields: object) -> None:
+    if os.environ.get("MXAGILE_BOARD_PROFILE") != "1":
+        return
+    payload = {"event": event, **fields}
+    sys.stderr.write("BOARD_TIMING " + json.dumps(payload, ensure_ascii=True, sort_keys=True) + "\n")
+
+
 def source_metadata_signature(project_root: Path) -> str | None:
+    started = time.perf_counter()
+    result = _source_metadata_signature(project_root)
+    _emit_board_timing("source_signature", seconds=round(time.perf_counter() - started, 4), available=result is not None)
+    return result
+
+
+def _source_metadata_signature(project_root: Path) -> str | None:
     """Cheap invalidation hint; metadata is never emitted as project authority."""
     root = project_root.resolve()
     records: dict[str, tuple] = {}
@@ -138,11 +157,13 @@ def source_metadata_signature(project_root: Path) -> str | None:
                 retained = []
                 for name in sorted(dirnames):
                     child = current / name
+                    if name in SKIP_STATUS_DIRS:
+                        continue
                     child_record = _metadata_record(root, child)
                     if child_record is None:
                         return None
                     records[child.relative_to(root).as_posix()] = child_record
-                    if name not in SKIP_STATUS_DIRS and not child.is_symlink():
+                    if not child.is_symlink():
                         retained.append(name)
                 dirnames[:] = retained
                 for name in sorted(filenames):
@@ -201,50 +222,65 @@ class ProjectStatusCache:
         self.project_root = project_root.resolve()
         self._condition = threading.Condition()
         self._building = False
+        self._reconciliation_building = False
         self._signature: str | None = None
         self._status: dict | None = None
+        self._full_status: dict | None = None
+        self._gallery_cache: dict[str, dict] = {}
+        self._gallery_building: set[str] = set()
         self._failure_generation = 0
         self._last_failure: Exception | None = None
         self.build_count = 0
 
-    def get(self) -> dict:
+    def get_summary(self) -> dict:
+        request_started = time.perf_counter()
+        signature_started = time.perf_counter()
         signature = source_metadata_signature(self.project_root)
+        signature_seconds = time.perf_counter() - signature_started
         observed_failure_generation = self._failure_generation
         with self._condition:
             while self._building:
                 self._condition.wait()
                 if self._failure_generation > observed_failure_generation and self._last_failure is not None:
                     raise RuntimeError(f"PROJECT_STATUS_BUILD_FAILED:{type(self._last_failure).__name__}") from self._last_failure
+                signature_started = time.perf_counter()
                 signature = source_metadata_signature(self.project_root)
+                signature_seconds += time.perf_counter() - signature_started
                 if signature is not None and signature == self._signature and self._status is not None:
+                    _emit_board_timing("status_cache_hit", seconds=round(time.perf_counter() - request_started),
+                                       signature_seconds=round(signature_seconds, 4))
                     return self._status
             if signature is not None and signature == self._signature and self._status is not None:
+                _emit_board_timing("status_cache_hit", seconds=round(time.perf_counter() - request_started, 4),
+                                   signature_seconds=round(signature_seconds, 4))
                 return self._status
             self._building = True
             self.build_count += 1
         try:
-            status = build_status(self.project_root)
-            reconciliation = build_report(self.project_root, project_status=status)
-            status["reconciliation"] = {
-                "status": reconciliation.get("status", "UNKNOWN"),
-                "read_only": True,
-                "commit_range": reconciliation.get("commit_range", {"status": "UNKNOWN", "commits": [], "spans": []}),
-                "watermark_gate": reconciliation.get("watermark_gate", {"can_advance": False, "blockers": ["REPORT_UNAVAILABLE"]}),
-                "finding_impacts": reconciliation.get("finding_impacts", []),
-                "model_semantic_review": reconciliation.get("model_semantic_review", {"status": "NOT_APPLICABLE", "model_paths": [], "capabilities": []}),
-                "external_reference_candidates": reconciliation.get("external_reference_candidates", []),
-                "impact_resolution": reconciliation.get("impact_resolution", {"status": "UNKNOWN", "candidates": []}),
-            }
+            build_started = time.perf_counter()
+            status = build_status_summary(self.project_root)
+            build_seconds = time.perf_counter() - build_started
+            after_started = time.perf_counter()
             after = source_metadata_signature(self.project_root)
+            after_seconds = time.perf_counter() - after_started
             if signature is not None and after != signature:
                 raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_BUILD")
             with self._condition:
                 if signature is not None and after == signature:
                     self._signature = signature
                     self._status = status
+                    self._full_status = None
+                    self._gallery_cache.clear()
                 else:
                     self._signature = None
                     self._status = None
+                    self._full_status = None
+                    self._gallery_cache.clear()
+            _emit_board_timing(
+                "status_cache_miss", seconds=round(time.perf_counter() - request_started, 4),
+                signature_before_seconds=round(signature_seconds, 4), build_project_status_seconds=round(build_seconds, 4),
+                signature_after_seconds=round(after_seconds, 4),
+            )
             return status
         except Exception as exc:
             with self._condition:
@@ -254,6 +290,105 @@ class ProjectStatusCache:
         finally:
             with self._condition:
                 self._building = False
+                self._condition.notify_all()
+
+    def get(self) -> dict:
+        status = self.get_summary()
+        with self._condition:
+            while self._reconciliation_building:
+                self._condition.wait()
+            if self._full_status is not None:
+                return self._full_status
+            self._reconciliation_building = True
+            expected_signature = self._signature
+        started = time.perf_counter()
+        try:
+            reconciliation = build_report(self.project_root, project_status=status)
+            result = dict(status)
+            result["reconciliation"] = {
+                "status": reconciliation.get("status", "UNKNOWN"),
+                "read_only": True,
+                "commit_range": reconciliation.get("commit_range", {"status": "UNKNOWN", "commits": [], "spans": []}),
+                "watermark_gate": reconciliation.get("watermark_gate", {"can_advance": False, "blockers": ["REPORT_UNAVAILABLE"]}),
+                "finding_impacts": reconciliation.get("finding_impacts", []),
+                "model_semantic_review": reconciliation.get("model_semantic_review", {"status": "NOT_APPLICABLE", "model_paths": [], "capabilities": []}),
+                "external_reference_candidates": reconciliation.get("external_reference_candidates", []),
+                "impact_resolution": reconciliation.get("impact_resolution", {"status": "UNKNOWN", "candidates": []}),
+            }
+            after_started = time.perf_counter()
+            after = source_metadata_signature(self.project_root)
+            after_seconds = time.perf_counter() - after_started
+            if expected_signature is not None and after != expected_signature:
+                with self._condition:
+                    self._signature = None
+                    self._status = None
+                    self._full_status = None
+                    self._gallery_cache.clear()
+                raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_RECONCILIATION")
+            with self._condition:
+                if expected_signature is not None and after == expected_signature:
+                    self._full_status = result
+            _emit_board_timing("full_projection_complete", reconciliation_seconds=round(time.perf_counter() - started, 4),
+                               validation_signature_seconds=round(after_seconds, 4))
+            return result
+        except Exception as exc:
+            with self._condition:
+                self._failure_generation += 1
+                self._last_failure = exc
+            raise
+        finally:
+            with self._condition:
+                self._reconciliation_building = False
+                self._condition.notify_all()
+
+    def get_gallery(self, screen_id: str | None = None) -> dict:
+        self.get_summary()
+        cache_key = screen_id or "*"
+        with self._condition:
+            while cache_key in self._gallery_building:
+                self._condition.wait()
+                cached = self._gallery_cache.get(cache_key)
+                if cached is not None:
+                    return cached
+            cached = self._gallery_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            self._gallery_building.add(cache_key)
+            expected_signature = self._signature
+        started = time.perf_counter()
+        try:
+            status = build_status(self.project_root, include_gallery=True, gallery_screen_id=screen_id)
+            after_started = time.perf_counter()
+            after = source_metadata_signature(self.project_root)
+            after_seconds = time.perf_counter() - after_started
+            if expected_signature is not None and after != expected_signature:
+                with self._condition:
+                    self._signature = None
+                    self._status = None
+                    self._full_status = None
+                    self._gallery_cache.clear()
+                raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_GALLERY_BUILD")
+            result = {
+                "source_fingerprint": status.get("source_fingerprint"),
+                "gallery_state": status.get("verification", {}).get("gallery_state", "available"),
+                "screen_id": screen_id,
+                "items": status.get("verification", {}).get("gallery", []),
+            }
+            with self._condition:
+                if expected_signature is not None and after == expected_signature:
+                    self._gallery_cache[cache_key] = result
+            _emit_board_timing("gallery_projection_complete", seconds=round(time.perf_counter() - started, 4),
+                               validation_signature_seconds=round(after_seconds, 4),
+                               screen_id=screen_id, runs=len(result["items"]))
+            return result
+        except Exception as exc:
+            with self._condition:
+                self._failure_generation += 1
+                self._last_failure = exc
+            raise
+        finally:
+            with self._condition:
+                self._gallery_building.discard(cache_key)
                 self._condition.notify_all()
 
 
@@ -335,6 +470,263 @@ def resolve_source_file(project_root: Path, status: dict, requested_path: str) -
     return None
 
 
+def load_page_inventory(project_root: Path, page_id: str) -> dict | None:
+    if not isinstance(page_id, str) or not re.fullmatch(r"PAGE-[A-Z0-9][A-Z0-9_-]*", page_id):
+        return None
+    inventory_root = _no_symlink_components(project_root, "planning/ui-inventory")
+    if inventory_root is None or not inventory_root.is_dir():
+        return None
+    matches = []
+    for path in sorted(inventory_root.glob("*.yaml"), key=lambda item: item.name.casefold()):
+        if path.is_symlink():
+            continue
+        try:
+            page = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        if isinstance(page, dict) and page.get("page_id") == page_id:
+            matches.append(page)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _html_source_location(project_root: Path, page: dict) -> tuple[str, str] | None:
+    source = page.get("html_source")
+    canonical = canonical_url_path(source) if isinstance(source, str) else None
+    if canonical is None:
+        return None
+    parts = PurePosixPath(canonical).parts
+    if len(parts) < 5 or parts[0] != "themesource" or parts[2] != "public":
+        return None
+    if PurePosixPath(canonical).suffix.lower() not in (".html", ".htm"):
+        return None
+    if any(part.startswith(".") for part in parts):
+        return None
+    return canonical, PurePosixPath(*parts[:4]).as_posix()
+
+
+def resolve_design_preview_file(project_root: Path, page_id: str, resource_path: str = "") -> Path | None:
+    page = load_page_inventory(project_root, page_id)
+    if page is None:
+        return None
+    location = _html_source_location(project_root, page)
+    if location is None:
+        return None
+    source, feature_root = location
+    relative = source
+    if resource_path:
+        canonical_resource = canonical_url_path(resource_path)
+        if canonical_resource is None or any(part.startswith(".") for part in PurePosixPath(canonical_resource).parts):
+            return None
+        relative = f"{feature_root}/{canonical_resource}"
+    if PurePosixPath(relative).suffix.lower() not in PREVIEW_EXTENSIONS:
+        return None
+    candidate = _no_symlink_components(project_root, relative)
+    if candidate is None or not candidate.is_file():
+        return None
+    try:
+        if candidate.stat().st_size > MAX_SOURCE_BYTES:
+            return None
+    except OSError:
+        return None
+    return candidate
+
+
+def build_page_previews(project_root: Path, status: dict) -> dict:
+    inventory_root = _no_symlink_components(project_root, "planning/ui-inventory")
+    if inventory_root is None or not inventory_root.is_dir():
+        return {"availability": "unavailable", "items": []}
+
+    gallery = status.get("verification", {}).get("gallery", [])
+    gallery_loaded = status.get("verification", {}).get("gallery_state") != "not_loaded"
+    finding_projection = status.get("findings", {})
+    finding_state = finding_projection.get("availability")
+    findings = finding_projection.get("items", [])
+    targets = status.get("project", {}).get("active_targets", {}).get("items", [])
+    readiness = status.get("runtime", {}).get("recorded_readiness")
+    runtime_state = "NOT_RECORDED"
+    if isinstance(readiness, dict):
+        runtime_state = readiness.get("state") or readiness.get("status") or "RECORDED"
+    pages = []
+
+    for path in sorted(inventory_root.glob("*.yaml")):
+        if path.is_symlink():
+            continue
+        try:
+            page = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        if not isinstance(page, dict) or not isinstance(page.get("page_id"), str):
+            continue
+        page_id = page["page_id"]
+        if not re.fullmatch(r"PAGE-[A-Z0-9][A-Z0-9_-]*", page_id):
+            continue
+
+        try:
+            settings = resolve_project_ui_settings(project_root, page_id)["settings"]
+            settings_available = True
+        except ProjectUiConfigError:
+            settings = {}
+            settings_available = False
+        html_setting = settings.get("html_first", {})
+        mockup_setting = settings.get("mockup_driven", {})
+
+        target = next((item for item in targets if page_id in item.get("screen_ids", [])), None)
+        reference_path = (target or {}).get("canonical_path") or page.get("target_mockup") or page.get("source_mockup")
+        reference_available = bool(
+            isinstance(reference_path, str) and resolve_reference_file(project_root, status, reference_path)
+        )
+
+        page_runs = [run for run in gallery if run.get("screen_id") == page_id]
+        current_runs = [run for run in page_runs if not run.get("historical")]
+        relevant_runs = current_runs or page_runs
+        latest_run = max(
+            relevant_runs,
+            key=lambda run: max((capture.get("captured_at", "") for capture in run.get("captures", [])), default=""),
+            default=None,
+        )
+        parity_status = latest_run.get("parity_result", "NOT_VERIFIED") if latest_run else ("NOT_VERIFIED" if gallery_loaded else "NOT_LOADED")
+        if page_runs and not current_runs:
+            parity_status = "STALE"
+        captures = latest_run.get("captures", []) if latest_run else []
+        last_evidence = None
+        if latest_run:
+            last_evidence = {
+                "entry_id": latest_run.get("entry_id"),
+                "run_id": latest_run.get("run_id"),
+                "parity_status": latest_run.get("parity_result", "NOT_VERIFIED"),
+                "captured_at": max((item.get("captured_at", "") for item in captures), default=None),
+                "capture_count": len(captures),
+                "historical": bool(latest_run.get("historical")),
+                "runtime_url": next((item.get("runtime_url") for item in captures if item.get("runtime_url")), None),
+            }
+        elif not gallery_loaded:
+            last_evidence = {"status": "NOT_LOADED"}
+
+        inventory_path = f"planning/ui-inventory/{page_id}.yaml"
+        conflicts = []
+        page_bound_findings = []
+        for finding in findings:
+            disposition = finding.get("authority_disposition") or {}
+            if inventory_path in finding.get("source_artifact_paths", []):
+                page_bound_findings.append(finding)
+            if inventory_path in finding.get("source_artifact_paths", []) and disposition.get("classification") == "AUTHORITY_CONFLICT":
+                conflicts.append({"id": finding.get("id"), "title": finding.get("title"), "status": disposition.get("status")})
+
+        source_location = _html_source_location(project_root, page)
+        html_source = page.get("html_source") if source_location else None
+        source_exists = bool(source_location and resolve_design_preview_file(project_root, page_id))
+        pages.append({
+            "page_id": page_id,
+            "page_name": page.get("page_name") or page.get("title") or page_id,
+            "implementation_mode": (
+                "HTML_FIRST" if html_setting.get("effective") is True else
+                "MENDIX_NATIVE" if html_setting.get("effective") is False else "UNKNOWN"
+            ),
+            "html_first": html_setting,
+            "mockup_driven": mockup_setting,
+            "reference": {
+                "path": reference_path,
+                "availability": "available" if reference_available else "unknown",
+                "url": f"/reference/{reference_path}" if reference_available else None,
+            },
+            "parity_status": parity_status,
+            "authority_conflicts": {
+                "availability": (
+                    "unavailable" if finding_state not in ("available", "partial") else
+                    "available" if page_bound_findings else "not_observable"
+                ),
+                "items": conflicts,
+            },
+            "html_source": {
+                "path": html_source,
+                "availability": "available" if source_exists else ("missing" if html_source else "not_configured"),
+                "preview_url": f"/design-preview/{page_id}/" if source_exists else None,
+                "source_url": f"/design-preview-source/{page_id}/?view=source" if source_exists else None,
+                "preview_class": "DESIGN PREVIEW",
+            },
+            "runtime_status": {"state": runtime_state, "source": "recorded_readiness"},
+            "last_verification_evidence": last_evidence,
+        })
+    return {"availability": "available", "items": pages}
+
+
+def _design_preview_shell(page_id: str) -> bytes:
+    safe_id = page_id.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    document = (
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+        "<title>Design Preview</title><style>html,body{margin:0;min-height:100%;font:13px 'Segoe UI',sans-serif;background:#f1f3f1;color:#18211d}"
+        "header{padding:9px 14px;background:#1d2925;color:#fff;font:11px Consolas,monospace;letter-spacing:.04em}"
+        "iframe{display:block;width:100%;height:calc(100vh - 35px);border:0;background:#fff}</style></head><body>"
+        f"<header>DESIGN PREVIEW · {safe_id} · NOT MENDIX RUNTIME EVIDENCE</header>"
+        f"<iframe title=\"Design Preview {safe_id}\" sandbox=\"allow-scripts\" src=\"/design-preview-source/{safe_id}/\"></iframe>"
+        "</body></html>"
+    )
+    return document.encode("utf-8")
+
+
+def resolve_builder_kit_status(project_root: Path) -> dict:
+    started = time.perf_counter()
+    home = Path.home()
+    manifest_paths = (
+        (project_root / ".mendix-page-designer-html-mode" / "manifest.json", "project"),
+        (home / ".mendix-page-designer-html-mode" / "manifest.json", "global"),
+    )
+    manifest_state = "missing"
+    manifest_version = None
+    manifest_source = None
+    for path, source in manifest_paths:
+        if not path.is_file() or path.is_symlink():
+            continue
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            manifest_state = "invalid"
+            continue
+        if manifest.get("kit") != "mendix-ui-builder-kit" or manifest.get("agent") != "mendix-page-designer-html-mode":
+            continue
+        manifest_state = "valid"
+        manifest_version = manifest.get("version") if isinstance(manifest.get("version"), str) else None
+        manifest_source = source
+        break
+
+    agent_files = {
+        "vscode_copilot": (
+            project_root / ".github/agents/mendix-page-designer-html-mode.agent.md",
+            home / ".copilot/agents/mendix-page-designer-html-mode.agent.md",
+        ),
+        "claude_code": (
+            project_root / ".claude/agents/mendix-page-designer-html-mode.md",
+            home / ".claude/agents/mendix-page-designer-html-mode.md",
+        ),
+        "opencode": (
+            project_root / ".opencode/agents/mendix-page-designer-html-mode.md",
+            home / ".config/opencode/agents/mendix-page-designer-html-mode.md",
+        ),
+    }
+    available_agents = {
+        harness: any(path.is_file() and not path.is_symlink() for path in paths)
+        for harness, paths in agent_files.items()
+    }
+    result = {
+        "availability": "available",
+        "kit": "mendix-ui-builder-kit",
+        "installed": manifest_state == "valid",
+        "installation_state": manifest_state,
+        "version": manifest_version,
+        "manifest_source": manifest_source,
+        "current_harness": "unknown",
+        "agent": "mendix-page-designer-html-mode",
+        "agent_files_available": available_agents,
+        "agent_available_for_harness": None,
+        "agent_delegable": None,
+        "agent_observed": False,
+        "delegation_reason": "The Board has no current-session harness or named-agent observation.",
+        "note": "Builder Kit installation is independent from ui.implementation.html_first.",
+    }
+    _emit_board_timing("builder_kit_capability", seconds=round(time.perf_counter() - started, 4))
+    return result
+
+
 def resolve_capture_file(project_root: Path, status: dict, requested_path: str) -> Path | None:
     canonical = canonical_url_path(requested_path)
     if canonical is None:
@@ -355,7 +747,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
     def ui_root(self) -> Path:
         return self.server.ui_root  # type: ignore[attr-defined]
 
-    def _send(self, status_code: int, body: bytes, content_type: str, *, is_reference: bool = False) -> None:
+    def _send(self, status_code: int, body: bytes, content_type: str, *, is_reference: bool = False, is_preview: bool = False) -> None:
         if len(body) > MAX_SOURCE_BYTES:
             self.send_error(413)
             return
@@ -365,7 +757,15 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Referrer-Policy", "no-referrer")
-        if is_reference:
+        if is_preview:
+            self.send_header("X-MxAgile-Evidence-Class", "DESIGN_PREVIEW")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; "
+                "font-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
+            )
+        elif is_reference:
             self.send_header(
                 "Content-Security-Policy",
                 "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; "
@@ -383,6 +783,15 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
             self.log_message("CLIENT_DISCONNECT")
+        finally:
+            request_started = getattr(self, "_request_started_at", None)
+            if request_started is not None:
+                _emit_board_timing(
+                    "http_response", path=urlsplit(self.path).path, status=status_code,
+                    seconds=round(time.perf_counter() - request_started, 4),
+                    server_age_seconds=round(time.perf_counter() - self.server.created_at, 4),
+                    response_bytes=len(body),
+                )
 
     def _read_file(self, path: Path) -> bytes | None:
         try:
@@ -393,11 +802,31 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             return None
 
     def _status(self) -> dict:
-        return self.server.status_cache.get()  # type: ignore[attr-defined]
+        status = dict(self.server.status_cache.get_summary())  # type: ignore[attr-defined]
+        try:
+            status["ui_settings"] = {
+                "availability": "available",
+                **resolve_project_ui_settings(self.project_root),
+            }
+        except ProjectUiConfigError:
+            status["ui_settings"] = {"availability": "invalid", "page_id": None, "settings": {}}
+        status["reconciliation"] = {
+            "availability": "not_loaded",
+            "status": "NOT_LOADED",
+            "read_only": True,
+            "commit_range": {"status": "NOT_LOADED", "commits": [], "spans": []},
+            "watermark_gate": {"can_advance": False, "blockers": ["RECONCILIATION_NOT_LOADED"]},
+            "finding_impacts": [],
+            "model_semantic_review": {"status": "NOT_LOADED", "model_paths": [], "capabilities": []},
+            "external_reference_candidates": [],
+            "impact_resolution": {"status": "NOT_LOADED", "candidates": []},
+        }
+        return status
 
     def do_GET(self) -> None:
+        self._request_started_at = time.perf_counter()
         parsed = urlsplit(self.path)
-        if parsed.query and not parsed.path.startswith(("/reference/", "/source/")):
+        if parsed.query and parsed.path != "/api/gallery" and not parsed.path.startswith(("/reference/", "/source/", "/design-preview-source/")):
             self.send_error(400)
             return
         if parsed.path == "/api/status":
@@ -409,6 +838,102 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self._send(503, payload, "application/json; charset=utf-8")
                 return
             self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path == "/api/gallery":
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            if set(query) - {"screen_id"} or any(len(values) != 1 for values in query.values()):
+                self.send_error(400)
+                return
+            screen_id = query.get("screen_id", [None])[0]
+            if screen_id is not None and not re.fullmatch(r"PAGE-[A-Z0-9][A-Z0-9_-]*", screen_id):
+                self.send_error(400)
+                return
+            try:
+                payload = json.dumps(
+                    self.server.status_cache.get_gallery(screen_id),  # type: ignore[attr-defined]
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ).encode("utf-8")
+            except Exception as exc:
+                self.log_error("GALLERY_BUILD_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "gallery_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path == "/api/reconciliation":
+            try:
+                started = time.perf_counter()
+                full_status = self.server.status_cache.get()  # type: ignore[attr-defined]
+                payload = json.dumps({
+                    "source_fingerprint": full_status.get("source_fingerprint"),
+                    "reconciliation": full_status.get("reconciliation"),
+                }, ensure_ascii=False, sort_keys=True).encode("utf-8")
+                _emit_board_timing("reconciliation_json", seconds=round(time.perf_counter() - started, 4), bytes=len(payload))
+            except Exception as exc:
+                self.log_error("RECONCILIATION_BUILD_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "reconciliation_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path == "/api/page-previews":
+            try:
+                started = time.perf_counter()
+                status = self._status()
+                projection = build_page_previews(self.project_root, status)
+                payload = json.dumps({
+                    "availability": projection["availability"],
+                    "project_settings": status["ui_settings"],
+                    "builder_kit": resolve_builder_kit_status(self.project_root),
+                    "items": projection["items"],
+                }, ensure_ascii=False, sort_keys=True).encode("utf-8")
+                _emit_board_timing("page_preview_metadata", seconds=round(time.perf_counter() - started, 4),
+                                   page_count=len(projection["items"]), bytes=len(payload))
+            except Exception as exc:
+                self.log_error("PAGE_PREVIEW_METADATA_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "page_preview_metadata_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path.startswith("/design-preview/"):
+            encoded_id = parsed.path[len("/design-preview/"):].strip("/")
+            try:
+                page_id = unquote(encoded_id, errors="strict")
+            except UnicodeError:
+                self.send_error(404)
+                return
+            if "/" in page_id or resolve_design_preview_file(self.project_root, page_id) is None:
+                self.send_error(404)
+                return
+            self._send(200, _design_preview_shell(page_id), "text/html; charset=utf-8", is_preview=True)
+            return
+
+        if parsed.path.startswith("/design-preview-source/"):
+            raw = parsed.path[len("/design-preview-source/"):]
+            encoded_id, separator, encoded_resource = raw.partition("/")
+            try:
+                page_id = unquote(encoded_id, errors="strict")
+                resource = unquote(encoded_resource, errors="strict") if separator else ""
+            except UnicodeError:
+                self.send_error(404)
+                return
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            if query not in ({}, {"view": ["source"]}) or "/" in page_id:
+                self.send_error(400)
+                return
+            file_path = resolve_design_preview_file(self.project_root, page_id, resource)
+            body = self._read_file(file_path) if file_path else None
+            if body is None:
+                self.send_error(404)
+                return
+            if query.get("view") == ["source"]:
+                self._send(200, body, "text/plain; charset=utf-8")
+                return
+            content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+            self._send(200, body, content_type, is_preview=True)
             return
 
         if parsed.path.startswith("/diagnostic-source/"):
@@ -460,6 +985,15 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self.log_error("STATUS_BUILD_FAILED: %s", type(exc).__name__)
                 self._send(503, json.dumps({"error": "status_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
                 return
+            if status.get("verification", {}).get("gallery_state") == "not_loaded":
+                try:
+                    gallery = self.server.status_cache.get_gallery()  # type: ignore[attr-defined]
+                    status["verification"]["gallery"] = gallery["items"]
+                    status["verification"]["gallery_state"] = gallery["gallery_state"]
+                except Exception as exc:
+                    self.log_error("GALLERY_BUILD_FAILED: %s", type(exc).__name__)
+                    self._send(503, json.dumps({"error": "gallery_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                    return
             path = resolve_capture_file(self.project_root, status, requested)
             body = self._read_file(path) if path else None
             if body is None:
@@ -528,10 +1062,14 @@ class ProjectBoardServer(ThreadingHTTPServer):
     allow_reuse_address = False
 
     def __init__(self, project_root: Path, ui_root: Path, port: int):
+        started = time.perf_counter()
         self.project_root = project_root.resolve()
         self.ui_root = ui_root.resolve()
         self.status_cache = ProjectStatusCache(self.project_root)
         super().__init__(("127.0.0.1", port), ProjectBoardHandler)
+        self.created_at = time.perf_counter()
+        self.startup_seconds = self.created_at - started
+        _emit_board_timing("server_bound", seconds=round(self.startup_seconds, 4), port=self.server_port)
 
 
 def default_project_root() -> Path:

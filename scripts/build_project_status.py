@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
+import time
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -65,6 +67,14 @@ DISPOSITION_PROHIBITIONS = {
     "INFORMATIONAL_COVERAGE_GAP": "APP_IMPLEMENTATION",
 }
 SHA256_PATTERN = "sha256:"
+
+
+def _emit_project_stage(stage: str, started: float, **fields: Any) -> None:
+    if os.environ.get("MXAGILE_BOARD_PROFILE") != "1":
+        return
+    payload = {"event": "project_status_stage", "stage": stage,
+               "seconds": round(time.perf_counter() - started, 4), **fields}
+    sys.stderr.write("BOARD_TIMING " + json.dumps(payload, ensure_ascii=True, sort_keys=True) + "\n")
 
 
 def _parity_date(value: Any) -> date | None:
@@ -602,6 +612,8 @@ def read_collection(
         value, state = read_yaml_file(root, relative, hashes, gaps, parsed_documents)
         if state != "available" or not isinstance(value, dict):
             invalid += 1
+            continue
+        if id_field == "page_id" and is_standalone_interaction_artifact(relative):
             continue
         value = projected_for_validation(relative, value)
         if id_field:
@@ -1409,7 +1421,8 @@ def mission_projection(
 
 
 def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths: list[str],
-                               targets: list[dict], hashes: dict, gaps: list) -> list[dict]:
+                               targets: list[dict], hashes: dict, gaps: list,
+                               screen_id_filter: str | None = None) -> list[dict]:
     runs = []
     valid = [(manifest, source) for manifest, source in zip(manifests, manifest_paths) if not schema_errors(source, manifest)]
     bindings: dict[str, set[str]] = {}
@@ -1421,6 +1434,8 @@ def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths
         for entry in manifest['entries']:
             identity = entry.get('comparison_identity', {})
             screen_id = entry.get('screen_id') if isinstance(entry.get('screen_id'), str) else "UNKNOWN"
+            if screen_id_filter is not None and screen_id != screen_id_filter:
+                continue
             report_path = entry.get('parity_report_path')
             if not isinstance(report_path, str) or not report_path.startswith('planning/parity/'):
                 continue
@@ -1554,23 +1569,39 @@ def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths
     return sorted(runs, key=lambda item: (item['historical'], item['screen_id'], item['entry_id'], item['run_id'], item['manifest_path']))
 
 
-def _build_status(project_root: Path) -> dict[str, Any]:
+def _build_status(
+    project_root: Path,
+    *,
+    include_gallery: bool = True,
+    gallery_screen_id: str | None = None,
+) -> dict[str, Any]:
     root = project_root.resolve()
     hashes: dict[str, str] = {}
     gaps: list[dict[str, str | None]] = []
     parsed_documents: dict[str, dict[str, Any]] = {}
 
+    stage_started = time.perf_counter()
     project_config, _ = read_yaml_file(root, "mxagile-project.yaml", hashes, gaps, parsed_documents)
     version_doc, version_state = read_yaml_file(root, ".mxagile/version.yaml", hashes, gaps, parsed_documents)
     process_doc, process_state = read_yaml_file(root, "planning/lifecycle/process-state.yaml", hashes, gaps, parsed_documents)
     mission_doc, mission_state = read_yaml_file(root, "planning/mission/mission-state.yaml", hashes, gaps, parsed_documents)
     context_doc, context_state = read_yaml_file(root, "planning/lifecycle/context-epoch.yaml", hashes, gaps, parsed_documents)
+    _emit_project_stage("project_config_and_lifecycle_inputs", stage_started, hashed_sources=len(hashes))
 
+    stage_started = time.perf_counter()
     requirement_state, requirements, requirement_paths = read_collection(root, "requirements", "*.yml", "ID", hashes, gaps, parsed_documents)
     read_collection(root, "specs", "*.yml", "ID", hashes, gaps, parsed_documents)
     task_state, tasks, task_paths = read_collection(root, "planning/tasks", "*.yml", "ID", hashes, gaps, parsed_documents)
+    _emit_project_stage("requirements_specs_tasks_scan", stage_started,
+                        requirements=len(requirements), tasks=len(tasks), hashed_sources=len(hashes))
+
+    stage_started = time.perf_counter()
     decision_state, decisions, decision_paths = read_collection(root, "planning/decisions", "*.yml", "ID", hashes, gaps, parsed_documents)
     finding_state, finding_records, finding_paths = read_collection(root, "planning/findings", "*.yml", "ID", hashes, gaps, parsed_documents)
+    _emit_project_stage("findings_and_decisions_scan", stage_started,
+                        findings=len(finding_records), decisions=len(decisions), hashed_sources=len(hashes))
+
+    stage_started = time.perf_counter()
     contract_state, contracts, contract_paths = read_collection(root, "planning/test-contracts", "TC-*.yaml", "ID", hashes, gaps, parsed_documents)
     plan_state, plans, plan_paths = read_collection(root, "planning/verification-plans", "*.yaml", "ID", hashes, gaps, parsed_documents)
     page_state, pages, page_paths = read_collection(root, "planning/ui-inventory", "*.yaml", "page_id", hashes, gaps, parsed_documents)
@@ -1578,13 +1609,25 @@ def _build_status(project_root: Path) -> dict[str, Any]:
                     if not is_standalone_interaction_artifact(path)]
     pages = [page for page, _ in page_records]
     page_paths = [path for _, path in page_records]
+    _emit_project_stage("contracts_plans_and_page_inventory", stage_started,
+                        contracts=len(contracts), plans=len(plans), pages=len(pages), hashed_sources=len(hashes))
+
+    stage_started = time.perf_counter()
     evidence_state, manifests, manifest_paths = read_collection(
         root, "planning/evidence/manifests", "*-evidence-manifest.yaml", "", hashes, gaps, parsed_documents
     )
+    _emit_project_stage("evidence_manifest_scan", stage_started,
+                        manifests=len(manifests), hashed_sources=len(hashes))
+
+    stage_started = time.perf_counter()
     read_collection(root, "planning/parity", "*.yaml", "", hashes, gaps, parsed_documents)
     revision_state, revisions, revision_paths = read_collection(
         root, "planning/target-mockups", "*/_history/REV-*/revision.yaml", "revision_id", hashes, gaps, parsed_documents
     )
+    _emit_project_stage("parity_and_mockup_revision_scan", stage_started,
+                        revisions=len(revisions), hashed_sources=len(hashes))
+
+    stage_started = time.perf_counter()
     checklist_directory = root / "planning/checklists"
     checklist_paths: list[str] = []
     if checklist_directory.exists():
@@ -1604,9 +1647,14 @@ def _build_status(project_root: Path) -> dict[str, Any]:
                 checklist_paths.append(relative)
         else:
             add_gap(gaps, "CHECKLIST_PATH_INVALID", "planning/checklists", "Checklist directory is not safely contained in the project root.")
+    _emit_project_stage("checklist_hashing", stage_started, checklists=len(checklist_paths), hashed_sources=len(hashes))
 
+    stage_started = time.perf_counter()
     wave_state, waves, wave_counts = wave_projection(process_doc if process_state == "available" else None)
     waves, checklist_summary, workpackages = delivery_projection(task_state, tasks, waves, checklist_paths, gaps)
+    _emit_project_stage("lifecycle_and_workstream_projection", stage_started, waves=len(waves), workpackages=len(workpackages))
+
+    stage_started = time.perf_counter()
     target_availability, active_targets, spa_targets, target_by_screen = build_active_targets(
         root, revision_state, revisions, revision_paths, page_state, pages, page_paths, hashes, gaps
     )
@@ -1631,6 +1679,8 @@ def _build_status(project_root: Path) -> dict[str, Any]:
     else:
         lifecycle_phase = None
         lifecycle_availability = "unavailable"
+    _emit_project_stage("active_mockup_target_projection", stage_started,
+                        pages=len(pages), targets=len(active_targets), status=lifecycle_availability)
 
     project_name = project_config.get("name") if isinstance(project_config, dict) else None
     if not isinstance(project_name, str) or not project_name.strip():
@@ -2059,8 +2109,22 @@ def _build_status(project_root: Path) -> dict[str, Any]:
         "source_references": {"availability": source_reference_state, "items": source_references},
         "gaps": sorted(gaps, key=lambda gap: (gap["code"], gap["source"] or "", gap["description"])),
     }
-    result["verification"]["gallery"] = visual_evidence_projection(root, manifests, manifest_paths, active_targets, hashes, gaps)
+    stage_started = time.perf_counter()
+    if include_gallery:
+        result["verification"]["gallery"] = visual_evidence_projection(
+            root, manifests, manifest_paths, active_targets, hashes, gaps, gallery_screen_id
+        )
+        result["verification"]["gallery_state"] = "available"
+        _emit_project_stage("parity_gallery_and_capture_validation", stage_started,
+                            runs=len(result["verification"]["gallery"]), hashed_sources=len(hashes),
+                            screen_id=gallery_screen_id)
+    else:
+        result["verification"]["gallery"] = []
+        result["verification"]["gallery_state"] = "not_loaded"
+        _emit_project_stage("parity_gallery_and_capture_validation", stage_started,
+                            runs=0, hashed_sources=len(hashes), state="not_loaded")
     result["gaps"] = sorted(gaps, key=lambda gap: (gap["code"], gap["source"] or "", gap["description"]))
+    stage_started = time.perf_counter()
     result["compatibility"] = compatibility_report(root, result, hashes, parsed_documents=parsed_documents)
     result["decisions"]["historical"] = [
         {"id": Path(item["source_path"]).stem, "source_path": item["source_path"]}
@@ -2069,12 +2133,118 @@ def _build_status(project_root: Path) -> dict[str, Any]:
         and item["affected_board_area"] == "decisions"
     ]
     result["source_fingerprint"] = result["compatibility"]["source_fingerprint"]
+    _emit_project_stage("compatibility_and_fingerprint", stage_started,
+                        diagnostics=len(result["compatibility"].get("diagnostics", [])), hashed_sources=len(hashes))
     return result
 
 
-def build_status(project_root: Path) -> dict[str, Any]:
+def build_status(
+    project_root: Path,
+    *,
+    include_gallery: bool = True,
+    gallery_screen_id: str | None = None,
+) -> dict[str, Any]:
     with schema_validation_scope():
-        return _build_status(project_root)
+        return _build_status(
+            project_root,
+            include_gallery=include_gallery,
+            gallery_screen_id=gallery_screen_id,
+        )
+
+
+def build_status_summary(project_root: Path) -> dict[str, Any]:
+    """Build the complete project status except the lazy screenshot/gallery projection."""
+    return build_status(project_root, include_gallery=False)
+
+
+UI_SETTING_DEFAULTS = {
+    "html_first": (False, ("implementation", "html_first"), True),
+    "mockup_driven": ("guided", ("verification", "mockup_driven"), True),
+    "leave_running_after_visual_verification": (
+        True, ("runtime", "leave_running_after_visual_verification"), False,
+    ),
+}
+PAGE_ID_PATTERN = re.compile(r"PAGE-[A-Z0-9][A-Z0-9_-]*\Z")
+
+
+class ProjectUiConfigError(ValueError):
+    """The project UI configuration is malformed or has an invalid value."""
+
+
+def _ui_mapping(value: Any, label: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ProjectUiConfigError(f"{label} must be a mapping")
+    return value
+
+
+def _read_project_ui_config(project_root: Path) -> dict[str, Any]:
+    config_path = project_root / "mxagile-project.yaml"
+    if not config_path.exists():
+        return {}
+    try:
+        raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ProjectUiConfigError(f"Cannot read {config_path}: {type(exc).__name__}") from exc
+    return _ui_mapping(raw, "project configuration")
+
+
+def _ui_get(mapping: dict[str, Any], key: str, label: str) -> dict[str, Any]:
+    return _ui_mapping(mapping.get(key), label)
+
+
+def _validate_ui_setting(setting: str, value: Any, label: str) -> None:
+    if setting in ("html_first", "leave_running_after_visual_verification"):
+        if type(value) is not bool:
+            raise ProjectUiConfigError(f"{label} must be a boolean")
+    elif setting == "mockup_driven" and value not in ("off", "guided", "full"):
+        raise ProjectUiConfigError(f"{label} must be off, guided, or full")
+
+
+def _resolve_ui_setting(setting: str, ui: dict[str, Any], page_id: str | None) -> dict[str, Any]:
+    default, path, supports_override = UI_SETTING_DEFAULTS[setting]
+    current = ui
+    labels = ["ui"]
+    for part in path[:-1]:
+        labels.append(part)
+        current = _ui_get(current, part, ".".join(labels))
+
+    config_key = path[-1]
+    config_label = ".".join((*labels, config_key))
+    requested = current.get(config_key, default)
+    _validate_ui_setting(setting, requested, config_label)
+    requested_source = "project_config" if config_key in current else "schema_default"
+
+    override_value = None
+    if page_id and supports_override:
+        overrides = _ui_get(current, "overrides", ".".join((*labels, "overrides")))
+        page_overrides = _ui_mapping(overrides.get(page_id), f"{'.'.join((*labels, 'overrides'))}.{page_id}")
+        if config_key in page_overrides:
+            override_value = page_overrides[config_key]
+            _validate_ui_setting(setting, override_value, f"page override {page_id}.{config_key}")
+
+    has_override = override_value is not None
+    return {
+        "requested": requested,
+        "effective": override_value if has_override else requested,
+        "source": "page_override" if has_override else requested_source,
+        "requested_source": requested_source,
+        "scope": page_id if has_override else "project",
+        "override": {"page_id": page_id, "value": override_value} if has_override else None,
+    }
+
+
+def resolve_project_ui_settings(project_root: Path, page_id: str | None = None) -> dict[str, Any]:
+    """Resolve canonical UI settings for agent routing and Board projection."""
+    if page_id is not None and not PAGE_ID_PATTERN.fullmatch(page_id):
+        raise ProjectUiConfigError(f"Invalid canonical page_id: {page_id}")
+    config = _read_project_ui_config(project_root)
+    ui = _ui_get(config, "ui", "ui")
+    return {
+        "page_id": page_id,
+        "settings": {setting: _resolve_ui_setting(setting, ui, page_id) for setting in UI_SETTING_DEFAULTS},
+    }
 
 
 def main() -> int:
@@ -2082,7 +2252,18 @@ def main() -> int:
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="Project root (default: current directory).")
     parser.add_argument("--resolve-parity-request", type=Path,
                         help="Resolve one parity record from a JSON request; does not scan the project.")
+    parser.add_argument("--resolve-ui-settings", action="store_true",
+                        help="Resolve canonical project UI settings without scanning project status.")
+    parser.add_argument("--page-id", help="Optional canonical UI inventory page ID for page-scoped overrides.")
     args = parser.parse_args()
+    if args.resolve_ui_settings:
+        try:
+            settings = resolve_project_ui_settings(args.project_root.resolve(), args.page_id)
+        except (OSError, ProjectUiConfigError) as exc:
+            print(json.dumps({"error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(settings, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
     if args.resolve_parity_request:
         try:
             request = json.loads(args.resolve_parity_request.read_text(encoding="utf-8-sig"))

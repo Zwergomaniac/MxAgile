@@ -444,10 +444,11 @@
     },
     "verification": {
       "type": "object",
-      "required": ["test_contracts", "proof_points", "plans", "evidence"],
+      "required": ["test_contracts", "proof_points", "plans", "evidence", "gallery", "gallery_state"],
       "additionalProperties": false,
       "properties": {
         "gallery": {"type": "array", "items": {"$ref": "#/definitions/gallery_run"}},
+        "gallery_state": {"type": "string", "enum": ["available", "not_loaded"]},
         "test_contracts": {
           "type": "object",
           "required": ["availability", "status_counts", "items"],

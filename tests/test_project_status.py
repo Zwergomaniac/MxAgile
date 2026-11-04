@@ -16,6 +16,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 from jsonschema import Draft7Validator
+from temp_cleanup import cleanup_temporary_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "scripts" / "build_project_status.py"
@@ -343,7 +344,7 @@ class ProjectStatusTests(unittest.TestCase):
         fixture(self.root)
 
     def tearDown(self) -> None:
-        self.temp.cleanup()
+      cleanup_temporary_directory(self.temp, expected_prefix="mxagile-status-")
 
     def test_parser_diagnostic_preserves_location_without_source_content(self) -> None:
       write_file(self.root, "planning/lifecycle/process-state.yaml", "waves: invalid: secret-scalar-value\n")
@@ -753,6 +754,10 @@ class ProjectStatusTests(unittest.TestCase):
     def test_non_tc_analysis_and_standalone_interactions_are_not_projected_as_artifacts(self) -> None:
       impact_path = "planning/test-contracts/ANL-014-verification-impact.yaml"
       interaction_path = "planning/ui-inventory/interaction-states-rev005.yaml"
+      legacy_page_interaction_path = "planning/ui-inventory/PAGE-INTERACTION-STATES-REV5.yaml"
+      metadata_interaction_path = "planning/ui-inventory/interaction-metadata-rev9.yaml"
+      legacy_page_interaction_path = "planning/ui-inventory/PAGE-INTERACTION-STATES-REV5.yaml"
+      metadata_interaction_path = "planning/ui-inventory/interaction-metadata-rev9.yaml"
       write_file(self.root, impact_path, """
         analysis_id: IMPACT-014
         revision_id: REV-014
@@ -761,6 +766,36 @@ class ProjectStatusTests(unittest.TestCase):
       write_file(self.root, interaction_path, """
         revision_id: REV-005
         states: []
+      """)
+      write_file(self.root, legacy_page_interaction_path, """
+        page_id: PAGE-INTERACTION-STATES-REV5
+        source_mockup: input-resources/ui-ux/legacy.html
+        mockup_id: legacy
+        target_revision: REV-005
+        interaction_states:
+          - state_id: STATE-001
+            data_effect: null
+            navigation_effect: null
+      """)
+      write_file(self.root, metadata_interaction_path, """
+        metadata:
+          revision: REV-009
+        interactions: []
+      """)
+      write_file(self.root, legacy_page_interaction_path, """
+        page_id: PAGE-INTERACTION-STATES-REV5
+        source_mockup: input-resources/ui-ux/legacy.html
+        mockup_id: legacy
+        target_revision: REV-005
+        interaction_states:
+          - state_id: STATE-001
+            data_effect: null
+            navigation_effect: null
+      """)
+      write_file(self.root, metadata_interaction_path, """
+        metadata:
+          revision: REV-009
+        interactions: []
       """)
 
       status = build_project_status.build_status(self.root)
@@ -776,6 +811,17 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertEqual(diagnostics[interaction_path]["repairability"], "UNSUPPORTED")
       self.assertEqual(diagnostics[impact_path]["artifact_type"], "unknown")
       self.assertEqual(diagnostics[interaction_path]["artifact_type"], "unknown")
+      standalone_paths = (legacy_page_interaction_path, metadata_interaction_path)
+      for standalone_path in standalone_paths:
+        standalone_diagnostics = [item for item in status["compatibility"]["diagnostics"] if item["source_path"] == standalone_path]
+        self.assertFalse(any(item["blocking"] for item in standalone_diagnostics), standalone_path)
+        self.assertFalse(any(item["category"] in ("ID_MISMATCH", "SCHEMA_ERROR") for item in standalone_diagnostics), standalone_path)
+        self.assertFalse(any(item.get("canonical_path") == standalone_path for item in status["project"]["active_targets"]["items"]))
+      for standalone_path in (legacy_page_interaction_path, metadata_interaction_path):
+        standalone_diagnostics = [item for item in status["compatibility"]["diagnostics"] if item["source_path"] == standalone_path]
+        self.assertFalse(any(item["blocking"] for item in standalone_diagnostics), standalone_path)
+        self.assertFalse(any(item["category"] in ("ID_MISMATCH", "SCHEMA_ERROR") for item in standalone_diagnostics), standalone_path)
+        self.assertFalse(any(item.get("canonical_path") == standalone_path for item in status["project"]["active_targets"]["items"]))
       with redirect_stdout(StringIO()):
         indexed = build_artifact_index.find_artifacts(self.root)
       self.assertNotIn("IMPACT-014", indexed["test_contract"])
@@ -1873,7 +1919,9 @@ class ParityStatusResolverTests(unittest.TestCase):
 
   def test_single_report_cli_resolves_without_project_scan(self):
     report, identity, capture_sides = self.live_report()
-    with tempfile.TemporaryDirectory(prefix="mxagile-parity-request-") as temp_dir:
+    temporary = tempfile.TemporaryDirectory(prefix="mxagile-parity-request-")
+    temp_dir = temporary.name
+    try:
       source_path = Path(temp_dir) / self.CONTRACT_SOURCE_PATH
       source_path.parent.mkdir(parents=True, exist_ok=True)
       source_path.write_bytes(self.CONTRACT_SOURCE_CONTENT)
@@ -1889,6 +1937,8 @@ class ParityStatusResolverTests(unittest.TestCase):
         [sys.executable, str(BUILDER), "--resolve-parity-request", str(request_path)],
         capture_output=True, text=True, check=False,
       )
+    finally:
+      cleanup_temporary_directory(temporary, expected_prefix="mxagile-parity-request-")
 
     self.assertEqual(result.returncode, 0, result.stderr)
     resolution = json.loads(result.stdout)

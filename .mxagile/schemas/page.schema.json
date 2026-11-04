@@ -66,6 +66,11 @@
             "type": "string",
             "description": "Path to the canonical reference screenshot for this page. Set by UI-Agent Analyze. Used by Implementation-Agent and UI-Agent Verify."
         },
+        "html_source": {
+            "type": "string",
+            "pattern": "^themesource/[^/]+/public/[^/]+/.+$",
+            "description": "Optional Builder Kit HTML entrypoint under themesource/<module>/public/<feature>/. Read-only preview source; does not establish Mendix integration or runtime evidence."
+        },
         "purpose": {
             "type": "string"
         },

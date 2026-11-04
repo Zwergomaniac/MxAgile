@@ -143,6 +143,12 @@ param(
 
     [switch]$ResolveOperatingMode,
 
+    [switch]$ResolveBuilderKit,
+
+    [switch]$BuilderAgentObserved,
+
+    [string]$BuilderAgentObservedName = '',
+
     [string]$StudioProProjectPath = '',
 
     [ValidateSet('NOT_OBSERVED', 'HEALTHY', 'FAILED', 'TIMEOUT')]
@@ -1018,6 +1024,126 @@ function Resolve-ContextModeIntegration {
 # ---------------------------------------------------------------------------
 # Resolve a single capability
 # ---------------------------------------------------------------------------
+function Resolve-BuilderKit {
+    param(
+        [string]$ProjectRoot_,
+        [string]$Home_,
+        [string]$HarnessRequested,
+        [bool]$AgentObserved,
+        [string]$AgentObservedName
+    )
+
+    $agentName = 'mendix-page-designer-html-mode'
+    $harness = Resolve-HarnessId -Requested $HarnessRequested
+    $manifestCandidates = @(
+        (Join-Path $ProjectRoot_ '.mendix-page-designer-html-mode/manifest.json'),
+        (Join-Path $Home_ '.mendix-page-designer-html-mode/manifest.json')
+    )
+    $manifest = $null
+    $manifestPath = $null
+    $manifestState = 'missing'
+    foreach ($candidate in $manifestCandidates) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+        try {
+            $parsed = Get-Content -LiteralPath $candidate -Raw | ConvertFrom-Json -ErrorAction Stop
+            if ($parsed.kit -ne 'mendix-ui-builder-kit' -or $parsed.agent -ne $agentName) { continue }
+            $manifest = $parsed
+            $manifestPath = $candidate
+            $manifestState = 'valid'
+            break
+        } catch {
+            $manifestState = 'invalid'
+        }
+    }
+
+    $agentLocations = @(switch ($harness.id) {
+        { $_ -in @('vscode_copilot', 'copilot_cli') } {
+            @(
+                @{ path = (Join-Path $ProjectRoot_ '.github/agents/mendix-page-designer-html-mode.agent.md'); source = 'project' }
+                @{ path = (Join-Path $Home_ '.copilot/agents/mendix-page-designer-html-mode.agent.md'); source = 'global' }
+            )
+        }
+        'claude_code' {
+            @(
+                @{ path = (Join-Path $ProjectRoot_ '.claude/agents/mendix-page-designer-html-mode.md'); source = 'project' }
+                @{ path = (Join-Path $Home_ '.claude/agents/mendix-page-designer-html-mode.md'); source = 'global' }
+            )
+        }
+        'opencode' {
+            @(
+                @{ path = (Join-Path $ProjectRoot_ '.opencode/agents/mendix-page-designer-html-mode.md'); source = 'project' }
+                @{ path = (Join-Path $Home_ '.config/opencode/agents/mendix-page-designer-html-mode.md'); source = 'global' }
+            )
+        }
+        default { @() }
+    })
+    $agentPath = $null
+    $agentSource = $null
+    $agentAvailable = $null
+    if ($agentLocations.Count -gt 0) {
+        foreach ($candidate in $agentLocations) {
+            if (-not (Test-Path -LiteralPath $candidate.path -PathType Leaf)) { continue }
+            $content = Get-Content -LiteralPath $candidate.path -Raw
+            if ($content -match [regex]::Escape($agentName)) {
+                $agentPath = $candidate.path
+                $agentSource = $candidate.source
+                $agentAvailable = $true
+                break
+            }
+        }
+        if ($null -eq $agentAvailable) { $agentAvailable = $false }
+    }
+
+    $delegation = $null
+    if (-not $harness.ambiguous -and $harness.id -ne 'unknown') {
+        $delegation = Resolve-DelegationIntegration -ProjectRoot_ $ProjectRoot_ -HarnessResolution $harness `
+            -Profile '' -Enabled (Get-ProjectConfigBool -KeyPath 'agent_delegation.enabled' -Default $true)
+    }
+
+    $delegable = $null
+    $delegableReason = 'Current-session agent inventory was not observed.'
+    if ($AgentObserved) {
+        if ($AgentObservedName -ne $agentName) {
+            $delegable = $false
+            $delegableReason = "Observed agent name does not match '$agentName'."
+        } elseif ($harness.id -eq 'unknown' -or $null -eq $agentAvailable) {
+            $delegable = $null
+            $delegableReason = 'Current-session harness is not attested; agent availability and routing remain UNKNOWN.'
+        } elseif ($agentAvailable -ne $true) {
+            $delegable = $false
+            $delegableReason = 'The agent file is unavailable for the attested current harness.'
+        } elseif ($manifestState -ne 'valid') {
+            $delegable = $false
+            $delegableReason = 'The Kit manifest does not confirm that its private skills are installed.'
+        } elseif (-not $delegation -or -not $delegation.route_allowed -or $delegation.named_agents -ne 'supported') {
+            $delegable = $false
+            $delegableReason = if ($delegation) { $delegation.reason } else { 'Current harness delegation is not attested.' }
+        } else {
+            $delegable = $true
+            $delegableReason = 'Exact agent name was observed in this session and the harness adapter permits named delegation.'
+        }
+    }
+
+    return [ordered]@{
+        kit = 'mendix-ui-builder-kit'
+        installed = ($manifestState -eq 'valid')
+        installation_state = $manifestState
+        version = if ($manifest) { $manifest.version } else { $null }
+        manifest_path = $manifestPath
+        current_harness = $harness.id
+        harness_evidence = $harness.source
+        agent = $agentName
+        agent_path = $agentPath
+        agent_source = $agentSource
+        agent_available_for_harness = $agentAvailable
+        agent_delegable = $delegable
+        agent_observed = $AgentObserved
+        delegation_status = if ($delegation) { $delegation.status } else { 'unknown' }
+        delegation_reason = $delegableReason
+        note = 'Kit capability is independent from ui.implementation.html_first; no automatic installation or native fallback is performed.'
+    }
+}
+
 function Resolve-Capability {
     param([hashtable]$Cap, [hashtable]$AllResolved)
 
@@ -1465,6 +1591,11 @@ if ($Format -eq 'json') {
             last_seen_version = $lastSeenVersion
             new_capabilities  = @($newCapabilities | ForEach-Object { $_.id })
         }
+    }
+    if ($ResolveBuilderKit) {
+        $output.builder_kit = Resolve-BuilderKit -ProjectRoot_ $ProjectRoot -Home_ $HomeDir `
+            -HarnessRequested $Harness -AgentObserved $BuilderAgentObserved.IsPresent `
+            -AgentObservedName $BuilderAgentObservedName
     }
     foreach ($key in $targetResolved.Keys) {
         $r = $targetResolved[$key]

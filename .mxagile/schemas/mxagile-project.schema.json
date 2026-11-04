@@ -73,6 +73,73 @@
     "ui": {
       "type": "object",
       "properties": {
+        "implementation": {
+          "type": "object",
+          "description": "UI implementation strategy. Independent from mockup verification authority.",
+          "properties": {
+            "html_first": {
+              "type": "boolean",
+              "default": false,
+              "description": "Route future in-scope page implementation through the HTML-first Builder Kit path. Does not convert existing pages."
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Optional page-specific implementation settings keyed by canonical page_id from planning/ui-inventory.",
+              "patternProperties": {
+                "^PAGE-[A-Z0-9][A-Z0-9_-]*$": {
+                  "type": "object",
+                  "properties": {
+                    "html_first": { "type": "boolean" }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "verification": {
+          "type": "object",
+          "description": "Mockup/design verification authority. Independent from UI implementation strategy.",
+          "properties": {
+            "mockup_driven": {
+              "type": "string",
+              "enum": ["off", "guided", "full"],
+              "default": "guided",
+              "description": "off disables mockup-driven lifecycle requirements; guided preserves existing project behavior; full enforces the complete mockup parity lifecycle."
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Optional page-specific verification settings keyed by canonical page_id from planning/ui-inventory.",
+              "patternProperties": {
+                "^PAGE-[A-Z0-9][A-Z0-9_-]*$": {
+                  "type": "object",
+                  "properties": {
+                    "mockup_driven": {
+                      "type": "string",
+                      "enum": ["off", "guided", "full"]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "runtime": {
+          "type": "object",
+          "properties": {
+            "leave_running_after_visual_verification": {
+              "type": "boolean",
+              "default": true,
+              "description": "Keep a healthy compatible local runtime running after successful visual verification."
+            }
+          },
+          "additionalProperties": false
+        },
         "fidelity": {
           "type": "string",
           "enum": ["standard", "high"],
@@ -89,11 +156,11 @@
         "db_type": {
           "type": "string",
           "enum": ["hsqldb", "postgresql", "sqlserver"],
-          "description": "Database type for local runtime. Project metadata and provisioning input, not by itself a verification backend requirement. Any runtime backend option must be discovered from the selected project-local mxcli version's current run help and included in the complete resolved runtime recipe. Used for provisioning context."
+          "description": "Database type for local runtime. For implementation/development recipes this is the declared backend and C1 must block rather than switch when it is unavailable. For verification it is provisioning metadata, not by itself a backend requirement. Any runtime backend option must be discovered from the selected project-local mxcli version's current run help and included in the complete resolved runtime recipe."
         },
         "db_name": {
           "type": "string",
-          "description": "Explicit project override for the database name. MxAgile Core autonomous default is 'default'. Declare this field only when the project uses a database name that differs from the Core default. When absent, MxAgile uses 'default' — not a mxcli-derived name."
+          "description": "Explicit project database identity for C1. There is no framework-wide database identity default; when omitted, C1 blocks unless an authorized session override supplies the identity. A project may explicitly declare 'default' when that identity pins fixture/seed data. C1 never derives identity from an .mpr name, mxcli defaults, or deployment-file scanning."
         },
         "db_host": {
           "type": "string",

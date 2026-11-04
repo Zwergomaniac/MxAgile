@@ -2,7 +2,7 @@
 
 const $ = (selector) => document.querySelector(selector);
 const root = $("#view");
-const tabs = ["overview", "waves", "requirements", "verification", "gallery", "findings", "decisions"];
+const tabs = ["overview", "waves", "requirements", "verification", "gallery", "ui-pages", "findings", "decisions"];
 let status = null;
 
 function node(tag, className = "", text = "") {
@@ -402,7 +402,14 @@ function renderVerification() {
 
 function renderGallery(screenId = null) {
   root.append(sectionTitle(screenId || "Parity Evidence", "Mock / Runtime"));
-  const runs = (status.verification.gallery || []).filter((run) => !screenId || run.screen_id === screenId);
+  const runs = screenId ? status.page_galleries?.[screenId] : status.all_gallery;
+  if (!runs) {
+    const cacheKey = screenId || "*";
+    const unavailable = status.gallery_errors?.[cacheKey];
+    root.append(empty(unavailable ? "PARITY EVIDENCE UNAVAILABLE" : (status.gallery_loading?.[cacheKey] ? "LOADING PARITY EVIDENCE" : "PARITY EVIDENCE NOT LOADED")));
+    if (!unavailable) void loadGallery(screenId);
+    return;
+  }
   if (!runs.length) {
     root.append(empty("VISUAL PARITY NOT VERIFIED"));
     return;
@@ -478,6 +485,215 @@ function renderGallery(screenId = null) {
       }
     });
     root.append(details);
+  }
+}
+
+function renderUiPages() {
+  root.append(sectionTitle("UI & Pages", "Project settings · page implementation · design and runtime evidence"));
+  const resolved = status.ui_settings || {};
+  const settingLabels = [
+    ["html_first", "UI IMPLEMENTATION"],
+    ["mockup_driven", "MOCKUP VERIFICATION"],
+    ["leave_running_after_visual_verification", "RUNTIME AFTER VISUAL VERIFICATION"],
+  ];
+  const settings = node("section", "ui-settings");
+  settings.append(node("h3", "eyebrow", "PROJECT DEFAULTS"));
+  if (resolved.availability !== "available") {
+    settings.append(empty("PROJECT SETTINGS INVALID OR UNAVAILABLE"));
+  } else {
+    const settingGrid = node("div", "ui-setting-grid");
+    for (const [key, label] of settingLabels) {
+      const value = resolved.settings?.[key];
+      if (!value) continue;
+      const row = node("div", "ui-setting-row");
+      row.append(node("span", "metric-label", label));
+      row.append(node("strong", "ui-setting-value", String(value.effective).toUpperCase()));
+      row.append(node("small", "muted", `REQUESTED ${String(value.requested).toUpperCase()} · SOURCE ${String(value.source).toUpperCase()} · SCOPE ${value.scope || "project"}`));
+      if (value.override) row.append(node("small", "muted", `OVERRIDE ${value.override.page_id} = ${String(value.override.value).toUpperCase()}`));
+      settingGrid.append(row);
+    }
+    settings.append(settingGrid);
+  }
+  root.append(settings);
+
+  const projection = status.page_previews;
+  if (!projection) {
+    root.append(empty(status.page_previews_loading ? "LOADING PAGE PREVIEW METADATA" : "PAGE PREVIEW METADATA NOT LOADED"));
+    void loadPagePreviews();
+    return;
+  }
+  const builder = projection.builder_kit || {};
+  const builderSection = node("section", "ui-settings");
+  builderSection.append(node("h3", "eyebrow", "BUILDER KIT CAPABILITY"));
+  const builderGrid = node("div", "ui-setting-grid");
+  for (const [label, value] of [
+    ["KIT INSTALLED", builder.availability === "available" ? String(builder.installed).toUpperCase() : "UNKNOWN"],
+    ["KIT VERSION", builder.version || "UNKNOWN"],
+    ["AGENT AVAILABLE FOR HARNESS", builder.agent_available_for_harness === null || builder.agent_available_for_harness === undefined ? "UNKNOWN" : String(builder.agent_available_for_harness).toUpperCase()],
+    ["AGENT DELEGABLE THIS SESSION", builder.agent_delegable === null || builder.agent_delegable === undefined ? "UNKNOWN" : String(builder.agent_delegable).toUpperCase()],
+  ]) {
+    const row = node("div", "ui-setting-row");
+    row.append(node("span", "metric-label", label));
+    row.append(node("strong", "ui-setting-value", value));
+    builderGrid.append(row);
+  }
+  builderSection.append(builderGrid);
+  root.append(builderSection);
+
+  if (projection.availability !== "available") {
+    root.append(empty("PAGE INVENTORY UNAVAILABLE"));
+    return;
+  }
+  if (!projection.items.length) {
+    root.append(empty("NO CANONICAL PAGES IN UI INVENTORY"));
+    return;
+  }
+  const pageGrid = node("div", "page-preview-grid");
+  for (const page of projection.items) {
+    const card = node("article", "page-preview-card");
+    const heading = node("div", "page-preview-heading");
+    heading.append(node("div", "page-preview-name", page.page_name));
+    heading.append(node("code", "page-preview-id", page.page_id));
+    card.append(heading);
+
+    const facts = node("dl", "page-preview-facts");
+    for (const [label, value] of [
+      ["IMPLEMENTATION", page.implementation_mode],
+      ["MOCKUP MODE", page.mockup_driven?.effective || "UNKNOWN"],
+      ["PARITY", page.parity_status || "NOT_VERIFIED"],
+      ["RUNTIME (RECORDED)", page.runtime_status?.state || "NOT_RECORDED"],
+    ]) {
+      const pair = node("div");
+      pair.append(node("dt", "metric-label", label));
+      pair.append(node("dd", "", value));
+      facts.append(pair);
+    }
+    const conflicts = page.authority_conflicts?.items || [];
+    const conflictPair = node("div");
+    conflictPair.append(node("dt", "metric-label", "AUTHORITY CONFLICTS"));
+    conflictPair.append(node("dd", "", page.authority_conflicts?.availability === "available" ? String(conflicts.length) : "UNKNOWN"));
+    facts.append(conflictPair);
+    card.append(facts);
+
+    const actions = node("div", "page-preview-actions");
+    if (page.reference?.availability === "available" && page.reference.path) {
+      actions.append(externalLink("Reference / Mockup", safePathUrl("/reference", page.reference.path), "preview-type preview-reference"));
+    } else actions.append(node("span", "state unknown", "Reference unknown"));
+    if (page.html_source?.availability === "available") {
+      actions.append(externalLink("DESIGN PREVIEW", page.html_source.preview_url, "preview-type preview-design"));
+      actions.append(externalLink("HTML Source", page.html_source.source_url, "preview-type preview-source"));
+    } else if (page.implementation_mode === "HTML_FIRST") {
+      actions.append(node("span", "state warn", "HTML source unavailable"));
+    }
+    const evidenceLink = internalLink("Verification Evidence", `page/${encodeURIComponent(page.page_id)}`);
+    evidenceLink.className = "preview-type preview-evidence";
+    actions.append(evidenceLink);
+    if (page.last_verification_evidence?.runtime_url) {
+      actions.append(externalLink("Mendix Runtime", page.last_verification_evidence.runtime_url, "preview-type preview-runtime"));
+    }
+    card.append(actions);
+    const evidence = page.last_verification_evidence;
+    card.append(node("small", "gallery-provenance", evidence
+      ? evidence.status === "NOT_LOADED"
+        ? "LAST VERIFICATION EVIDENCE · NOT LOADED"
+        : `${evidence.entry_id || "EVIDENCE"} · ${evidence.run_id || "RUN UNKNOWN"} · ${evidence.captured_at || "TIME UNKNOWN"}${evidence.historical ? " · HISTORICAL" : ""}`
+      : "LAST VERIFICATION EVIDENCE · NOT RECORDED"));
+    if (conflicts.length) {
+      const conflictList = node("div", "page-authority-conflicts");
+      for (const conflict of conflicts) conflictList.append(stateBadge(`${conflict.id || "FINDING"} · AUTHORITY CONFLICT`, "authority-conflict"));
+      card.append(conflictList);
+    }
+    pageGrid.append(card);
+  }
+  root.append(pageGrid);
+}
+
+async function loadPagePreviews() {
+  if (status.page_previews_loading || status.page_previews) return;
+  status.page_previews_loading = true;
+  try {
+    const response = await fetch("/api/page-previews", { cache: "no-store" });
+    if (!response.ok) throw new Error("Page preview metadata unavailable");
+    status.page_previews = await response.json();
+  } catch {
+    status.page_previews = { availability: "unavailable", items: [] };
+  } finally {
+    status.page_previews_loading = false;
+    if (routeParts()[0] === "ui-pages") renderView();
+  }
+}
+
+async function loadGallery(screenId = null) {
+  const cacheKey = screenId || "*";
+  status.gallery_loading ||= {};
+  status.gallery_errors ||= {};
+  status.page_galleries ||= {};
+  if (status.gallery_loading[cacheKey]) return;
+  if (screenId ? status.page_galleries[screenId] : status.all_gallery) return;
+  status.gallery_loading[cacheKey] = true;
+  try {
+    const query = screenId ? `?screen_id=${encodeURIComponent(screenId)}` : "";
+    const response = await fetch(`/api/gallery${query}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Parity gallery unavailable");
+    const result = await response.json();
+    if (screenId) {
+      status.page_galleries[screenId] = result.items || [];
+      updatePageEvidence(screenId, result.items || []);
+    } else {
+      status.all_gallery = result.items || [];
+      for (const page of status.page_previews?.items || []) {
+        updatePageEvidence(page.page_id, result.items || []);
+      }
+    }
+    delete status.gallery_errors[cacheKey];
+  } catch {
+    status.gallery_errors[cacheKey] = true;
+  } finally {
+    status.gallery_loading[cacheKey] = false;
+    const parts = routeParts();
+    if ((screenId && parts[0] === "page" && parts[1] === screenId) || (!screenId && parts[0] === "gallery")) {
+      renderView();
+    }
+  }
+}
+
+function updatePageEvidence(pageId, runs) {
+  const page = status.page_previews?.items?.find((item) => item.page_id === pageId);
+  if (!page) return;
+  const pageRuns = runs.filter((run) => run.screen_id === pageId);
+  const currentRuns = pageRuns.filter((run) => !run.historical);
+  const relevantRuns = currentRuns.length ? currentRuns : pageRuns;
+  const latestRun = relevantRuns.at(-1);
+  page.parity_status = latestRun?.historical ? "STALE" : (latestRun?.parity_result || "NOT_VERIFIED");
+  if (!latestRun) {
+    page.last_verification_evidence = null;
+    return;
+  }
+  const captures = latestRun.captures || [];
+  page.last_verification_evidence = {
+    entry_id: latestRun.entry_id,
+    run_id: latestRun.run_id,
+    parity_status: latestRun.parity_result || "NOT_VERIFIED",
+    captured_at: captures.map((capture) => capture.captured_at || "").sort().at(-1) || null,
+    capture_count: captures.length,
+    historical: Boolean(latestRun.historical),
+    runtime_url: captures.find((capture) => capture.runtime_url)?.runtime_url || null,
+  };
+}
+
+async function loadReconciliation() {
+  if (!status || status.reconciliation?.availability !== "not_loaded" || status.reconciliation_loading) return;
+  status.reconciliation_loading = true;
+  try {
+    const response = await fetch("/api/reconciliation", { cache: "no-store" });
+    if (!response.ok) throw new Error("Project reconciliation unavailable");
+    const result = await response.json();
+    status.reconciliation = result.reconciliation || { status: "UNKNOWN", availability: "unavailable" };
+  } catch {
+    status.reconciliation = { status: "UNKNOWN", availability: "unavailable" };
+  } finally {
+    status.reconciliation_loading = false;
+    if (routeParts()[0] === "overview") renderView();
   }
 }
 
@@ -736,6 +952,7 @@ function renderView() {
   else if (view === "requirements") renderRequirements();
   else if (view === "verification") renderVerification();
   else if (view === "gallery") renderGallery();
+  else if (view === "ui-pages") renderUiPages();
   else if (view === "page") renderGallery(parts[1]);
   else if (view === "findings") renderFindings();
   else if (view === "decisions") renderDecisions();
@@ -793,6 +1010,7 @@ async function load() {
     $("#board").hidden = false;
     renderView();
     $("#updated-label").textContent = `READ ${new Date().toLocaleTimeString()}`;
+    void loadReconciliation();
   } catch {
     $("#load-state").textContent = "Project status unavailable. The board did not infer missing state.";
   } finally {

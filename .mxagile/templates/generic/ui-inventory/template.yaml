@@ -18,6 +18,8 @@ platform_boundary: false      # true = company platform module (e.g. authenticat
 
 source_mockup: "input-resources/ui-ux/customer-overview.html"
 layout_reference: ".concord/screenshots/mockup/Customer_Overview_default.png"
+# Optional Builder Kit entrypoint, only when this page is HTML First:
+# html_source: "themesource/MyModule/public/customer-overview/CustomerOverview.html"
 
 sections:
   - id: SEC-001

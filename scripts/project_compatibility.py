@@ -205,6 +205,8 @@ def is_standalone_interaction_artifact(relative: str) -> bool:
     return any(PurePosixPath(relative).match(pattern) for pattern in (
         'planning/ui-inventory/interaction-metadata-*.yaml',
         'planning/ui-inventory/interaction-states-*.yaml',
+        'planning/ui-inventory/PAGE-INTERACTION-STATES-*.yaml',
+        'planning/ui-inventory/PAGE-INTERACTION-STATES-*.yaml',
     ))
 
 
