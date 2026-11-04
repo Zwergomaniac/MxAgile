@@ -219,11 +219,11 @@ Write-Host ""
 Write-Host "TEST M: No project-specific logic leaked into MxAgile Core" -ForegroundColor Cyan
 # ---------------------------------------------------------------------------
 
-Assert-FileNotContains "M.1 mx-scroll.js does not mention CapTrack" $ScrollHelper 'CapTrack|captrack'
-Assert-FileNotContains "M.2 mx-scroll-shell.sh does not mention CapTrack" $ShellHelper 'CapTrack|captrack'
+Assert-FileNotContains "M.1 mx-scroll.js does not mention Example Project" $ScrollHelper 'Example Project|example_project'
+Assert-FileNotContains "M.2 mx-scroll-shell.sh does not mention Example Project" $ShellHelper 'Example Project|example_project'
 Assert-FileNotContains "M.3 mx-scroll.js does not hardcode a page height like 5201" $ScrollHelper '5201'
 Assert-FileNotContains "M.4 mx-scroll.js does not hardcode specific stop positions" $ScrollHelper '= 700|= 1400|= 2100'
-Assert-FileNotContains "M.5 visual-verification.md does not reference CapTrack as owner" $Skill 'CapTrack is the canonical|owned by CapTrack'
+Assert-FileNotContains "M.5 visual-verification.md does not reference Example Project as owner" $Skill 'Example Project is the canonical|owned by Example Project'
 
 # ---------------------------------------------------------------------------
 Write-Host ""

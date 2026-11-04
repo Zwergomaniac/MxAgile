@@ -235,7 +235,7 @@ Assert-True 'same-session pre-update loaded instructions remain stale' ($oldSess
 Assert-True 'same-session install does not attest loaded session currency' ($invalidCompletion.session_contract.state -eq 'RE_SYNC_REQUIRED' -and $invalidCompletion.session_contract.policy -eq '.mxagile/policies/update-contract.md') 'disk generation falsely attests session reload'
 $legacyFilteredOutput = ($updateOutput | Select-String -Pattern 'version=|commit=|FAILED|\[OK\] Core') -join "`n"
 foreach ($required in @('Doctor_executed=True', 'Compatibility=BLOCKED', 'blocking_diagnostic_count=', 'safe_deterministic_count=', 'agent_repairable_count=', 'decision_required_count=', 'unsupported_count=', 'SESSION_CONTRACT=RE_SYNC_REQUIRED', 're-read .mxagile/policies/update-contract.md', 'UPDATE_INSTALLED_RESTART_REQUIRED / NOT_VERIFIED')) {
-    Assert-True "CapTrack legacy log filter preserves $required" ($legacyFilteredOutput.Contains($required)) 'real legacy filter hides completion evidence'
+    Assert-True "Example Project legacy log filter preserves $required" ($legacyFilteredOutput.Contains($required)) 'real legacy filter hides completion evidence'
 }
 foreach ($projection in @('AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md')) {
     $installedInstructions = Get-Content (Join-Path $proj $projection) -Raw

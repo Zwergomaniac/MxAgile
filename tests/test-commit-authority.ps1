@@ -5,7 +5,7 @@
 .DESCRIPTION
     Regression coverage for the autonomous checkpoint commit authority model.
     Validates that the canonical commit-authority.md policy contains the complete
-    contract required to prevent the autonomy failure observed during the CapTrack
+    contract required to prevent the autonomy failure observed during the Example Project
     REV-014 mission (agent stopped at first checkpoint commit, did not continue).
 
     Scenarios:
@@ -24,7 +24,7 @@
       M. Staged-only state - not treated as successful mission completion
 
     All tests are static content checks on canonical policy files.
-    No CapTrack, KidsCompass, or Mercedes knowledge in this test file.
+    No Example Project, KidsCompass, or Mercedes knowledge in this test file.
 #>
 
 $ErrorActionPreference = 'Stop'

@@ -104,7 +104,7 @@
         },
         "campaign": {
           "type": ["string", "null"],
-          "description": "Acceptance or overlay campaign identifier (e.g. 'captrack-abcd', 'hardening-1.6'). Null when not an overlay campaign. Used by Resume to distinguish campaign scope from general project lifecycle."
+          "description": "Acceptance or overlay campaign identifier (e.g. 'example-project-abcd', 'hardening-1.6'). Null when not an overlay campaign. Used by Resume to distinguish campaign scope from general project lifecycle."
         }
       }
     },

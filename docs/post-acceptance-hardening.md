@@ -139,7 +139,7 @@ No cleanup discipline documented.
 
 ## RF-009: Test-Script Findings Stay Project-Specific
 
-**Problem:** Risk of CapTrack-specific Playwright findings entering Core behavior.
+**Problem:** Risk of Example Project-specific Playwright findings entering Core behavior.
 
 **Fix:**
 - Added `TEST_SCRIPT_FAILURE` / `APPLICATION_DEFECT` / `TEST_INFRASTRUCTURE_GAP` classification

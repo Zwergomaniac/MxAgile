@@ -45,7 +45,7 @@
     L. Fresh-session re-sync
        → reproduces reconciled canonical state without stale-cache regression
 
-    No CapTrack, KidsCompass, or Mercedes-specific knowledge in this file.
+    No Example Project, KidsCompass, or Mercedes-specific knowledge in this file.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -409,8 +409,8 @@ Assert-FileContains "GLO7: completion_reconciliation category in glossary" `
 Write-Host ""
 Write-Host "--- PURITY: No project-specific knowledge ---" -ForegroundColor Cyan
 
-Assert-FileNotContains "PUR1: legacy policy: no CapTrack reference" `
-    $LegacyPolicy 'CapTrack'
+Assert-FileNotContains "PUR1: legacy policy: no Example Project reference" `
+    $LegacyPolicy 'Example Project'
 
 Assert-FileNotContains "PUR2: legacy policy: no KidsCompass reference" `
     $LegacyPolicy 'KidsCompass'
@@ -421,8 +421,8 @@ Assert-FileNotContains "PUR3: legacy policy: no Mercedes reference" `
 Assert-FileNotContains "PUR4: legacy policy: no REQ-NNN from real projects" `
     $LegacyPolicy '(?i)(REQ-084|REQ-014|REQ-017)'
 
-Assert-FileNotContains "PUR5: orchestrator: no CapTrack reference in legacy reconciliation context" `
-    $OrchestratorMd 'CapTrack'
+Assert-FileNotContains "PUR5: orchestrator: no Example Project reference in legacy reconciliation context" `
+    $OrchestratorMd 'Example Project'
 
 # =============================================================================
 # CROSS-POLICY CONSISTENCY

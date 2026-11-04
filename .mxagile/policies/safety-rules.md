@@ -55,7 +55,7 @@ verhindern. Aktivierung ausschliesslich bei belegtem beschaedigtem/unvollstaendi
 Git-State, bekanntem sicheren Ziel, ausdruecklichem Nutzerauftrag, technisch zum
 aktuellen State passender Operation und zuvor diagnostiziertem Scope. Allgemeine
 Commit-/Autonomie-Autoritaet reicht nicht. Keine Recovery im Frameworkauftrag an
-CapTrack oder anderen fremden Projekten ausfuehren.
+Example Project oder anderen fremden Projekten ausfuehren.
 
 Read-only Preflight: `python .mxagile/tools/git_index_integrity.py --project-root .
 --recovery merge-abort --user-authorized --scope-reviewed` (eine Kommandozeile).

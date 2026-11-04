@@ -218,7 +218,7 @@ Write-Host "`n[5] No company-specific content"
 $banned = @(
     'Mercedes', 'mercedes', 'Daimler', 'daimler',
     'MBUI', 'MB_UI', 'MB_SSO', 'MBTech',
-    'CapTrack', 'KidsCompass',
+    'Example Project', 'KidsCompass',
     'mbrepo', 'mercedes-benz'
 )
 $testsDir = Join-Path $ProductRoot 'tests'

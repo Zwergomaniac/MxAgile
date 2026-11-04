@@ -4,7 +4,7 @@
 **Scope result:** `WAVE_A_COMPLETE = JA`
 **Stop boundary:** `STOP_AFTER_WAVE_A = JA`
 
-Wave A implements only the approved C0 instrumentation and C2 minimal Operating Mode authority. C1, C3, C4, C5, and C6 remain pending. No CapTrack project artifacts were changed, no commit was created, and no parity behavior was implemented or restarted.
+Wave A implements only the approved C0 instrumentation and C2 minimal Operating Mode authority. C1, C3, C4, C5, and C6 remain pending. No Example Project project artifacts were changed, no commit was created, and no parity behavior was implemented or restarted.
 
 ## C0: Opt-In Telemetry
 

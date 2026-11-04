@@ -9,8 +9,8 @@ meaning from reports. Missing or conflicting sources remain `UNKNOWN` or
 
 The inventory below describes the Core contracts. This framework repository is
 not a consumer project: it has no active `planning/lifecycle/process-state.yaml`,
-`planning/mission/mission-state.yaml`, or CapTrack project artifacts. CapTrack
-reality results therefore require a separate, authorized CapTrack checkout.
+`planning/mission/mission-state.yaml`, or Example Project project artifacts. Example Project
+reality results therefore require a separate, authorized Example Project checkout.
 
 ## Canonical State Map
 
@@ -128,7 +128,7 @@ integration; do not merge, rebase, or cherry-pick as part of this mission.
 | Operating mode and capability health are session/machine observations | A local repository snapshot cannot claim current Studio Pro or harness health | Keep these values unavailable unless an attested observation is supplied separately |
 | No canonical source/session registry | Multi-worktree agent/session attribution is unavailable | Add a source contract only when ownership, lifecycle, and privacy rules are defined |
 | Lifecycle path declaration drift | One machine-readable lifecycle field points to the local cache while the schema and policies name the tracked file | Align the lifecycle definition in a separate lifecycle-owned change |
-| CapTrack project artifacts not present in this checkout | No real-project counts or behavioral assertions can be reported here | Run the generic builder against an explicitly supplied CapTrack checkout |
+| Example Project project artifacts not present in this checkout | No real-project counts or behavioral assertions can be reported here | Run the generic builder against an explicitly supplied Example Project checkout |
 
 ## Reference Architecture Findings
 
@@ -177,7 +177,7 @@ source/session fields remain unavailable where canonical sources do not exist.
 
 On this Windows framework checkout, the in-process build took 50.6 ms. A full
 CLI process took 3.8 s in the same environment, including process and shell
-overhead. This is a local framework-repository measurement, not a CapTrack or
+overhead. This is a local framework-repository measurement, not a Example Project or
 large-project benchmark.
 
 ## Gap Closure and UI-Spike Gate

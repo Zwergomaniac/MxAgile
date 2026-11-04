@@ -8,7 +8,7 @@
 
 ## 1. Kampagnenübersicht
 
-Vier CapTrack-Abnahmekampagnen wurden durchgeführt, um MxAgile-Kernverhalten,
+Vier Example Project-Abnahmekampagnen wurden durchgeführt, um MxAgile-Kernverhalten,
 Kontext-Optimierung und kombiniertes Modus-Verhalten zu verifizieren.
 
 | Modus | Konfiguration | Framework-Version | Ziel |
@@ -36,9 +36,9 @@ Daraus folgt:
 
 ---
 
-## 3. Befunde: Keine CapTrack-Applikationsdefekte
+## 3. Befunde: Keine Example Project-Applikationsdefekte
 
-Über alle vier Kampagnen wurden **0 CapTrack-Applikationsdefekte** festgestellt.
+Über alle vier Kampagnen wurden **0 Example Project-Applikationsdefekte** festgestellt.
 
 Dies bedeutet:
 - Keine durch MxAgile verursachten Applikationsfehler.
@@ -103,7 +103,7 @@ und bilden die Grundlage für den Hardening Pass:
 | RF-006 | Runtime-Start | Ambiguous Start Result ≠ Application Not Started; Blind-Retry führt zu BindException |
 | RF-007 | MxTest | Test-Harness injiziert Repository-Pollution (*.mxunit, javasource/mxtest etc.); keine Cleanup-Disziplin dokumentiert |
 | RF-008 | mxcli | Bekannte mxcli-Limitierungen (CALL MICROFLOW, Windows attach/PID, OQL) wurden als Applikationsdefekte klassifiziert statt als Tooling-Limitierungen |
-| RF-009 | Testskript | CapTrack-spezifische Playwright-Navigations-Bugs dürfen nicht in MxAgile Core-Semantik eingehen |
+| RF-009 | Testskript | Example Project-spezifische Playwright-Navigations-Bugs dürfen nicht in MxAgile Core-Semantik eingehen |
 | RF-010 | Abschluss | Agent meldete Clean-Completion nach git-status-Check, der VOR der finalen Test-Harness-Aktion lag |
 
 ---
@@ -122,7 +122,7 @@ und bilden die Grundlage für den Hardening Pass:
 
 | Metrik | Klassifikation | Begründung |
 |--------|---------------|-----------|
-| CapTrack-Applikationsdefekte | MEASURED: 0 | Direkt beobachtet und verifiziert |
+| Example Project-Applikationsdefekte | MEASURED: 0 | Direkt beobachtet und verifiziert |
 | RTK Token-Vorteil | UNAVAILABLE | Nicht gemessen; Methodologie unzureichend |
 | Context Mode Token-Vorteil | UNAVAILABLE | Nicht gemessen; Methodologie unzureichend |
 | SP+Concord Kombinationsverhalten auf 1.5 | PROXY | Mode D lief auf 1.1, nicht 1.5 |
@@ -141,5 +141,5 @@ Dieses Dokument ist die Akzeptanz-Evidenzbasis für:
 Dieses Dokument darf nicht als Quelle für allgemeine Token-Effizienzbehauptungen
 zitiert werden.
 
-CapTrack-spezifische Testskript-Details dürfen nicht in generische MxAgile-Core-Semantik
+Example Project-spezifische Testskript-Details dürfen nicht in generische MxAgile-Core-Semantik
 übernommen werden.

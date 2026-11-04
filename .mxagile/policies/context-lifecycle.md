@@ -231,7 +231,7 @@ mission_scope:
 
 ### Akzeptanz-/Overlay-Kampagne
 
-Laufende Akzeptanz-Kampagnen (wie CapTrack A/B/C/D) nutzen `mission_scope.campaign`
+Laufende Akzeptanz-Kampagnen (wie Example Project A/B/C/D) nutzen `mission_scope.campaign`
 als Scoping-Diskriminator.
 
 Ein Checkpoint einer laufenden Kampagne hat VORRANG vor `process-state.yaml`

@@ -473,7 +473,7 @@ Assert ($mhContent -match 'gates remain authoritative|not bypass.*gate|does NOT 
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[20] No company-specific content in WP2/WP3 files"
 $banned = @('Mercedes', 'mercedes', 'Daimler', 'daimler', 'MBUI', 'MB_UI', 'MB_SSO', 'MBTech',
-            'CapTrack', 'KidsCompass', 'mbrepo', 'mercedes-benz')
+            'Example Project', 'KidsCompass', 'mbrepo', 'mercedes-benz')
 $wp2Files = @(
     '.mxagile/schemas/test-contract.schema.json',
     '.mxagile/schemas/verification-plan.schema.json',

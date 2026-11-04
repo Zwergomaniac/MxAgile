@@ -110,7 +110,7 @@ These rules also apply to follow-up questions about whether the update was corre
 For Bash callers, use the public setup script with `-ProjectRoot`, `-DistributionSource`
 and `-NonInteractive`. Do not send an unquoted PowerShell `$true` through Bash to a direct
 installer invocation. Do not reduce completion to filtered version/commit or `[OK] Core`
-lines: the CapTrack reality regression ran Doctor successfully but discarded its `BLOCKED`
+lines: the Example Project reality regression ran Doctor successfully but discarded its `BLOCKED`
 result through exactly that filter, then answered from commit equality alone.
 
 ### What the update preserves

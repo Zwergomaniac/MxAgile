@@ -175,11 +175,11 @@ try {
     Fail $t "Exception: $_"
 }
 
-# Test 10: No CapTrack-specific navigation names in Core
-$t = "RF-009: No CapTrack-specific test names/routes in Core policies"
+# Test 10: No Example Project-specific navigation names in Core
+$t = "RF-009: No Example Project-specific test names/routes in Core policies"
 try {
     $policyDir = Join-Path $repoRoot ".mxagile\policies"
-    $suspiciousTerms = @("user-switcher", "UserSwitcher", "captrack_nav", "CapTrackNav")
+    $suspiciousTerms = @("user-switcher", "UserSwitcher", "example_project_nav", "ExampleProjectNav")
     $found = @()
     $files = Get-ChildItem -Path $policyDir -Filter "*.md" -Recurse -File
     foreach ($file in $files) {
@@ -193,7 +193,7 @@ try {
     if ($found.Count -eq 0) {
         Pass $t
     } else {
-        Fail $t "CapTrack-specific terms found in Core policies: $($found -join ', ')"
+        Fail $t "Example Project-specific terms found in Core policies: $($found -join ', ')"
     }
 } catch {
     Fail $t "Exception: $_"

@@ -18,7 +18,7 @@
     G. Explicit user selection of Board story → normal intake/refinement as new input
     H. No external Board access required to complete/verify existing authorized scope
 
-    No CapTrack, KidsCompass, or Mercedes-specific knowledge in this file.
+    No Example Project, KidsCompass, or Mercedes-specific knowledge in this file.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -340,8 +340,8 @@ Assert-FileContains "XF7: backlog-sync: Board-Story-ID optional traceability not
 Write-Host ""
 Write-Host "--- PURITY: No project-specific knowledge ---" -ForegroundColor Cyan
 
-Assert-FileNotContains "PUR1: backlog-sync: no CapTrack reference" `
-    $BacklogSync 'CapTrack'
+Assert-FileNotContains "PUR1: backlog-sync: no Example Project reference" `
+    $BacklogSync 'Example Project'
 
 Assert-FileNotContains "PUR2: backlog-sync: no KidsCompass reference" `
     $BacklogSync 'KidsCompass'
@@ -349,11 +349,11 @@ Assert-FileNotContains "PUR2: backlog-sync: no KidsCompass reference" `
 Assert-FileNotContains "PUR3: backlog-sync: no Mercedes reference" `
     $BacklogSync '(?i)mercedes'
 
-Assert-FileNotContains "PUR4: glossary: no CapTrack reference" `
-    $GlossaryYaml 'CapTrack'
+Assert-FileNotContains "PUR4: glossary: no Example Project reference" `
+    $GlossaryYaml 'Example Project'
 
-Assert-FileNotContains "PUR5: orchestrator: no CapTrack reference" `
-    $OrchestratorMd 'CapTrack'
+Assert-FileNotContains "PUR5: orchestrator: no Example Project reference" `
+    $OrchestratorMd 'Example Project'
 
 # =============================================================================
 # FINAL SUMMARY

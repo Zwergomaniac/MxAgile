@@ -13,7 +13,7 @@ This baseline separates:
 3. Content the selected harness actually includes automatically.
 4. Content loaded only when a router, agent, skill, resolver, or hook selects it.
 
-Generated copies are not counted as additional normative authorities. Their bytes are counted only where the harness can inject their descriptions or bodies. The analysis used repository sources at `91e8cec`, the CapTrack campaign commit `c34c4c285d4c91764b899286afd1767bb959c6aa`, Claude Code transcript metadata, the local Copilot session index, and current Claude/Copilot load documentation. The CapTrack repository was inspected read-only; its pre-existing dirty files were left untouched.
+Generated copies are not counted as additional normative authorities. Their bytes are counted only where the harness can inject their descriptions or bodies. The analysis used repository sources at `91e8cec`, the Example Project campaign commit `c34c4c285d4c91764b899286afd1767bb959c6aa`, Claude Code transcript metadata, the local Copilot session index, and current Claude/Copilot load documentation. The Example Project repository was inspected read-only; its pre-existing dirty files were left untouched.
 
 Evidence labels used below:
 
@@ -22,7 +22,7 @@ Evidence labels used below:
 - `DECLARED`: adapter/configuration says a capability is supported or requested.
 - `NOT_OBSERVABLE`: the available logs do not establish the fact.
 
-The local Copilot SQLite index has no per-event token/usage table and did not contain the CapTrack campaign commit or recipe turns. Claude JSONL logs did contain the campaign. Provider usage remains authoritative for billed totals; transcript-derived token sums do not fully reconcile and are reported separately.
+The local Copilot SQLite index has no per-event token/usage table and did not contain the Example Project campaign commit or recipe turns. Claude JSONL logs did contain the campaign. Provider usage remains authoritative for billed totals; transcript-derived token sums do not fully reconcile and are reported separately.
 
 ## 1. Load Graph
 
@@ -34,10 +34,10 @@ The framework repository's root `CLAUDE.md` is **FRAMEWORK_DEVELOPMENT_ONLY**. I
 
 ### Claude Code consumer session
 
-| Classification | CapTrack evidence and load behavior |
+| Classification | Example Project evidence and load behavior |
 |---|---|
 | `ALWAYS_LOADED` | Claude Code loads root `CLAUDE.md` and expands its `@AGENT.md` import. At campaign commit, `CLAUDE.md` was 13,296 bytes and `AGENT.md` 13,672 bytes. Replacing the 9-byte import directive yields about 26,959 bytes of project instruction content, including a 6,715-byte managed MxAgile startup block. User-level instructions are also in scope; current profile files measured 239 bytes (`~/.claude/CLAUDE.md`) and 460 bytes (`RTK.md`), but their exact campaign-time snapshot is `NOT_OBSERVABLE`. |
-| `ALWAYS_LOADED` metadata | Claude's available skill descriptions and custom-agent descriptions contribute a listing/selection context. CapTrack commit contains 87 project `SKILL.md` files: 1,399,522 body bytes and 20,645 description characters. Nine custom agents contain 142,799 body bytes and 1,037 description characters. Claude's description budget can truncate listings; exact descriptions delivered in each request are `NOT_OBSERVABLE`. |
+| `ALWAYS_LOADED` metadata | Claude's available skill descriptions and custom-agent descriptions contribute a listing/selection context. Example Project commit contains 87 project `SKILL.md` files: 1,399,522 body bytes and 20,645 description characters. Nine custom agents contain 142,799 body bytes and 1,037 description characters. Claude's description budget can truncate listings; exact descriptions delivered in each request are `NOT_OBSERVABLE`. |
 | `ON_DEMAND` | Full skill bodies load on invocation/relevance. The campaign invoked `mxagile-visual-verification` once; its projected body is 13,690 bytes. The other 86 skill bodies were available but are not evidence of being loaded. |
 | `ON_DEMAND` | Custom-agent bodies load when selected/spawned. The campaign's 13 children are Claude `fork` transcripts, not the generated MxAgile custom agents; their custom-agent bodies are not shown as invoked. |
 | `GENERATED_PROJECTION` | The 12 generated MxAgile skills total 109,145 bytes in `.claude/skills/`; their descriptions total 935 characters. The nine custom-agent descriptions are 1,037 characters. These are projections of canonical `.mxagile/` bodies, not separate authorities. |
@@ -47,7 +47,7 @@ Claude's documented fork behavior is decisive here: a fork inherits the entire p
 
 ### Copilot consumer session
 
-VS Code Copilot automatically includes `.github/copilot-instructions.md` when the Copilot harness is selected. Custom instructions are additive and may include `AGENTS.md` or applicable `*.instructions.md`. Skills are progressive: discovery/description first, full `SKILL.md` body when relevant or explicitly invoked, then supporting resources only when referenced. Custom agent files become context when selected or spawned. At the CapTrack commit, `.github/copilot-instructions.md` was 22,660 bytes; this was not the harness used for the Claude/Bedrock benchmark.
+VS Code Copilot automatically includes `.github/copilot-instructions.md` when the Copilot harness is selected. Custom instructions are additive and may include `AGENTS.md` or applicable `*.instructions.md`. Skills are progressive: discovery/description first, full `SKILL.md` body when relevant or explicitly invoked, then supporting resources only when referenced. Custom agent files become context when selected or spawned. At the Example Project commit, `.github/copilot-instructions.md` was 22,660 bytes; this was not the harness used for the Claude/Bedrock benchmark.
 
 ### Startup and Re-Sync
 
@@ -80,13 +80,13 @@ All byte counts are UTF-8 bytes unless noted. They are source/result sizes, not 
 
 | Measurement | Observed value | Scope/limit |
 |---|---:|---|
-| CapTrack `CLAUDE.md` at `c34c4c28` | 13,296 B | Contains startup block and `@AGENT.md` include. |
-| CapTrack `AGENT.md` at `c34c4c28` | 13,672 B | Expanded project instructions. |
+| Example Project `CLAUDE.md` at `c34c4c28` | 13,296 B | Contains startup block and `@AGENT.md` include. |
+| Example Project `AGENT.md` at `c34c4c28` | 13,672 B | Expanded project instructions. |
 | Effective project instruction source | about 26,959 B | `CLAUDE.md` with the 9-byte import directive replaced by `AGENT.md`; exact harness serialization not captured. |
-| MxAgile managed startup block | 6,715 B | Exact managed block in CapTrack `CLAUDE.md`; current Core script block is 6,702 B. |
+| MxAgile managed startup block | 6,715 B | Exact managed block in Example Project `CLAUDE.md`; current Core script block is 6,702 B. |
 | Generated Copilot instructions | 22,660 B | Separate harness projection; not loaded in the Claude benchmark. |
-| CapTrack project skills | 87 files / 1,399,522 B | All bodies on disk; not all bodies enter context. |
-| CapTrack project skill descriptions | 20,645 chars | Listing source size; exact post-budget descriptions delivered are `NOT_OBSERVABLE`. |
+| Example Project project skills | 87 files / 1,399,522 B | All bodies on disk; not all bodies enter context. |
+| Example Project project skill descriptions | 20,645 chars | Listing source size; exact post-budget descriptions delivered are `NOT_OBSERVABLE`. |
 | Generated MxAgile skill projections | 12 / 109,145 B | Generated copies, not new authorities. |
 | Invoked visual-verification skill | 13,690 B | One explicit skill invocation. |
 | Custom agents | 9 / 142,799 B | Bodies are not loaded just because they exist. |
@@ -107,7 +107,7 @@ The local transcript's commit-bounded usage sum does not reconcile with the prov
 ## 3. Reality Benchmark
 
 ```text
-REALITY_BENCHMARK_ID: CAPTRACK_REGIONS_2026-11-02
+REALITY_BENCHMARK_ID: EXAMPLE_PROJECT_REGIONS_2026-11-02
 Commit: c34c4c285d4c91764b899286afd1767bb959c6aa
 Campaign result: PARTIAL
 ```
@@ -151,7 +151,7 @@ The installed Core at the campaign commit already had project-local mxcli resolu
 - `Resolve-MxAgileMxcli.ps1` selected a binary path/source; it did not return a versioned runtime capability manifest or a resolved argv array.
 - `development-runtime.md` documented `default` but used the `--db-name` spelling and said not to emit `--db-type` absent help evidence.
 - Credential discovery ran as a pre-start requirement, and the consumers each reconstructed the effective command from examples and profile fragments.
-- The user-reported project-local `./mxcli help run` documented `--dbname default` for the actual CapTrack binary, a different spelling from the policy example.
+- The user-reported project-local `./mxcli help run` documented `--dbname default` for the actual Example Project binary, a different spelling from the policy example.
 
 Observed active sequence: PostgreSQL was discussed at 08:20Z; `mxcli help run` was read at 08:29Z; an HSQLDB local invocation at 08:31Z omitted the DB identifier; another HSQLDB invocation at 09:11Z also omitted it; `AfterStartup` troubleshooting occurred around 09:10Z; the user supplied the missing `--dbname default` hint at 09:12Z. A later logged invocation included `--db-name default`, while the supplied Reality Evidence says the working binary option was `--dbname default`. This syntax discrepancy is unresolved in the saved transcript. The user reports that the HSQLDB runtime itself starts; the missing fixtures/identities are separate blockers.
 
@@ -160,7 +160,7 @@ Observed active sequence: PostgreSQL was discussed at 08:20Z; `mxcli help run` w
 ## 4. Load and Read Anatomy
 ### Verification/Parity Reality Fund (user-supplied, 2026-11-02)
 
-**Evidence class:** `USER-SUPPLIED REALITY`; the underlying CapTrack artifacts were not re-inspected as part of this audit update.
+**Evidence class:** `USER-SUPPLIED REALITY`; the underlying Example Project artifacts were not re-inspected as part of this audit update.
 
 The Regions run first passed four minimum smoke checks: expected text fragments, Regions title, successful navigation, and presence of any edit control/action. That evidence was later promoted to `overall_result: PASS` for Regions parity even though complete Behavioral, Role, and Whole-Screen Visual parity had not been established. A separate Mockup-vs-Mendix-Model analysis was also initially described as complete SOLL/IST parity while live-runtime evidence was still absent.
 
@@ -172,15 +172,15 @@ This is a resolver/authority failure, not a request for an ad-hoc parity patch. 
 - Label reference-vs-model analysis as such. It is not a live-runtime parity result and cannot satisfy runtime-dependent dimensions by implication.
 - Treat `overall_result` as resolver output. A producer may submit dimension evidence, but may not promote the aggregate unless the deterministic resolver confirms all required evidence and identity constraints.
 
-**Required future regression:** Regions navigation/text/edit smoke = `PASS`, with Behavioral/Role/Whole-Screen Visual evidence absent, must yield `overall_result != PASS`. Add a separate case proving Reference-vs-Model analysis with no live runtime remains non-final. These belong to planned Wave C4; no verification schema, policy, resolver, or CapTrack artifact was changed for this Reality Fund.
+**Required future regression:** Regions navigation/text/edit smoke = `PASS`, with Behavioral/Role/Whole-Screen Visual evidence absent, must yield `overall_result != PASS`. Add a separate case proving Reference-vs-Model analysis with no live runtime remains non-final. These belong to planned Wave C4; no verification schema, policy, resolver, or Example Project artifact was changed for this Reality Fund.
 
 The existing baseline already identifies overlapping verification authorities (`evidence-contract.md`, `evidence-levels.md`, `verification-layers.md`, `ui-parity.md`, and parity schema) and notes that schema shape does not compute all cross-field aggregation. This Reality Fund supplies a concrete promotion failure for the future resolver mapping; it does not authorize parallel policy or schema authorities.
 
 ### MxAgile/mxcli Skill Authority Overlap Reality Fund (user-supplied, 2026-11-02)
 
-**Evidence class:** `USER-SUPPLIED REALITY`; the reported CapTrack sessions and their transcripts were not re-inspected as part of this checkpoint.
+**Evidence class:** `USER-SUPPLIED REALITY`; the reported Example Project sessions and their transcripts were not re-inspected as part of this checkpoint.
 
-Across several real CapTrack verification runs, agents reportedly reconstructed technical execution paths from mxcli capabilities/help, repository scripts, and Playwright helpers even when MxAgile mission/runtime/verification contracts or a resolved recipe were already available. The reported examples are:
+Across several real Example Project verification runs, agents reportedly reconstructed technical execution paths from mxcli capabilities/help, repository scripts, and Playwright helpers even when MxAgile mission/runtime/verification contracts or a resolved recipe were already available. The reported examples are:
 
 - **Runtime:** PostgreSQL, credentials, MB_SSO, and AfterStartup were investigated despite a known local HSQLDB recipe with the default database identity.
 - **Role parity:** separate demo-user credentials were investigated despite an authorized Mendix Demo User Switcher route after MBAdmin login.
@@ -224,7 +224,7 @@ The local Copilot session index found no benchmark commit reference, no `mxcli r
 | Release-readiness commit | 3 | 40 | Session/file-event proxy only, not a standalone suite context measurement. |
 | Simple implementation-only session | — | — | `NOT_OBSERVABLE` in the retrieved sample set. |
 | Migration mission | — | — | `NOT_OBSERVABLE` in the retrieved sample set. |
-| Copilot Runtime Verification / UI Parity | — | — | No matching local Copilot campaign session; CapTrack evidence is Claude Code. |
+| Copilot Runtime Verification / UI Parity | — | — | No matching local Copilot campaign session; Example Project evidence is Claude Code. |
 
 These are examples, not comparable cost baselines. `session_files` counts file events/path records, not bytes or unique policy-body tokens.
 
@@ -338,7 +338,7 @@ Sizes are source-file bytes at the current repository baseline. “Consumers” 
 
 ### Reality recipe and existing knowledge
 
-At the CapTrack snapshot, framework policy recorded Core `db_name = "default"`, required project-local mxcli path/version and command-specific help, and separately discussed local `db_type`. Its canonical autonomous examples used `--db-name default`; the user-reported current CapTrack mxcli help exposed `--dbname default`. This is a versioned CLI spelling mismatch, not a reason to hard-code either spelling as eternal Core syntax.
+At the Example Project snapshot, framework policy recorded Core `db_name = "default"`, required project-local mxcli path/version and command-specific help, and separately discussed local `db_type`. Its canonical autonomous examples used `--db-name default`; the user-reported current Example Project mxcli help exposed `--dbname default`. This is a versioned CLI spelling mismatch, not a reason to hard-code either spelling as eternal Core syntax.
 
 The project-local `Resolve-MxAgileMxcli.ps1` resolves binary path/source only. The consumer assembled the start command from fragments, so local HSQLDB was selected but the DB identifier was omitted. The complete recipe was not one data object handed to the executing agent.
 
@@ -358,7 +358,7 @@ The transcript does not prove that the logged `--db-name` syntax was accepted or
 
 `AVOIDABLE_WORKFLOW_BRANCH = JA`: direct HSQLDB starts without the required identifier precede the user correction, and an AfterStartup investigation occurs before the complete recipe is handed over. No attributable cost for that branch is available. The branch is a real workflow inefficiency, not proof that the entire 21.5h session was waste.
 
-## 8. Reality Benchmark: CAPTRACK_REGIONS_2026-11-02
+## 8. Reality Benchmark: EXAMPLE_PROJECT_REGIONS_2026-11-02
 
 ### User/provider report
 
@@ -391,7 +391,7 @@ Provider-reported usage and deduplicated JSONL `message.usage` sums do not recon
 - Startup instructions are present by the Claude harness contract, but the transcript does not record an `InstructionsLoaded` event for every file. Session-start automatic instruction content is reconstructed from the committed `CLAUDE.md`/`AGENT.md` and official Claude load rules, not from a per-request byte trace.
 - One explicit `Read` of `external-change-reconciliation.md` returned 1,806 bytes. Bash read/search commands naming `external-change-reconciliation.md`, `local-runtime-profile.md`, `ui-parity.md`, and `update-contract.md` returned 7,499; 1,960; 3,266; and 15,807 bytes respectively. `update-contract.md` also had one Context Mode file-route return of 2,954 bytes. These may be excerpts; do not claim each was a full-body load.
 - `development-runtime.md`, `credential-discovery.md`, `runtime-strategy.md`, and `runtime-startup-recovery.md` are not shown as direct file-read paths in the saved tool log. User-provided Reality Evidence names the PostgreSQL/MB_SSO branch; exact policy-read order and the full credentials question exchange are `NOT_OBSERVABLE`.
-- Local Copilot store has no matching CapTrack commit/recipe turn and no token/cache event table. The Claude log is the only direct benchmark session source located.
+- Local Copilot store has no matching Example Project commit/recipe turn and no token/cache event table. The Claude log is the only direct benchmark session source located.
 - The Claude log contains the user's campaign/commit marker and one child metadata record without `finished: true`; parent result is non-error. Completion for that child metadata is `NOT_OBSERVABLE`, not presumed failed.
 
 ### User-visible value and normalization
@@ -495,7 +495,7 @@ Policy-source sizes are exact current working-tree bytes. Static consumer refere
 | `verification-materialization.md` | 12,296 | Impact action authority; A/VPL | Canonical actions, duplicates in staleness/taxonomy | RESOLVERIZE |
 | `verification-scenario.md` | 10,972 | Role/data/viewport scenario; UI | Scenario schema validates structure; full procedure is specific | ON_DEMAND |
 
-`ON_DEMAND` is not a statement that a policy body was observed in the CapTrack session. It is the intended bundle routing. A full-size policy read is counted only where the actual tool event proves it.
+`ON_DEMAND` is not a statement that a policy body was observed in the Example Project session. It is the intended bundle routing. A full-size policy read is counted only where the actual tool event proves it.
 
 ## 11. Target Architecture
 
@@ -564,7 +564,7 @@ Do not treat cache reads as savings. Do not infer dollars from context bytes. Do
 
 ## 14. Approval Boundary
 
-**Phase 1 complete. No production policy, schema, resolver, hook, or CapTrack artifact was changed.** The only new artifact is this requested report. No tests, parity, runtime, or release gates were run.
+**Phase 1 complete. No production policy, schema, resolver, hook, or Example Project artifact was changed.** The only new artifact is this requested report. No tests, parity, runtime, or release gates were run.
 
 ```text
 CONTEXT_ARCHITECTURE_BASELINE_COMPLETE = JA
@@ -580,7 +580,7 @@ This addendum records implementation after the Phase-1 snapshot above; it does n
 
 **C4 Parity Aggregate: IMPLEMENTED.** The existing read-only `build_project_status.py` owns `resolve_parity_status` and an on-demand single-report CLI. New UI parity reports use schema v3 while v1/v2 remain available as legacy inputs. `SMOKE` and `REFERENCE_VS_MODEL` cannot produce full live parity PASS. The resolver preserves the existing seven UI dimensions and six evidence-matrix dimensions, requires per-dimension/per-matrix typed evidence, validates Requirement/Decision source hashes for Contract PASS, checks bound comparison identity and target freshness, and requires `whole_screen_review.comparison_result` plus a non-empty summary to agree with the Visual matrix. Reference/runtime capture sides and reviewed IDs must match the current identity and role/state scope. It returns explicit `BLOCKED`, `STALE`, `NOT_OBSERVABLE`, `UNKNOWN`, or `AMBIGUOUS` states with provenance. The existing Board gallery consumes the same result and retains the producer claim separately. The existing canonical Finding store also carries revisioned, hash-bound authority dispositions consumed through Project Status.
 
-**C4 Reality coverage:** synthetic tests exercise smoke suppression, model-only suppression, typed-evidence sufficiency, validated Contract source hashes, identity/freshness mismatch, unresolved precedence, no-capture and unbound-identity Board paths, screenshots without a comparison result, explicit comparison-result mismatch, actual visual FAIL/PARTIAL results, and an eligible LIVE_PARITY Board PASS. Finding fixtures verify V4–V6: `REFERENCE_GAP` prohibits app implementation, `AUTHORITY_CONFLICT` blocks semantic implementation, and changed source fingerprints require a newer persisted reconciliation revision. These tests use no external Mendix runtime or CapTrack artifacts.
+**C4 Reality coverage:** synthetic tests exercise smoke suppression, model-only suppression, typed-evidence sufficiency, validated Contract source hashes, identity/freshness mismatch, unresolved precedence, no-capture and unbound-identity Board paths, screenshots without a comparison result, explicit comparison-result mismatch, actual visual FAIL/PARTIAL results, and an eligible LIVE_PARITY Board PASS. Finding fixtures verify V4–V6: `REFERENCE_GAP` prohibits app implementation, `AUTHORITY_CONFLICT` blocks semantic implementation, and changed source fingerprints require a newer persisted reconciliation revision. These tests use no external Mendix runtime or Example Project artifacts.
 
 **Context boundary:** no C0 telemetry was made automatic; no broad startup reads, repository scans, persistent telemetry store, second operating-mode detector, or separate parity resolver were added. The on-demand parity CLI resolves only the supplied report request. C2 remains the sole tool-authority aggregator; C1 consumes its explicit result.
 
@@ -593,9 +593,9 @@ The Phase-1 baseline contains user-supplied mxcli skill-authority Reality eviden
 - The single Full Release Gate run returned **FAIL**: Tier 0 had failures in `test-credential-discovery.ps1`, `test-local-runtime-profile.ps1`, and `test-ui-driven-contract.ps1`; Tier 1 and Tier 2 passed. The assertions were aligned with the resolved-recipe and semantic-fidelity contracts, then each affected suite passed in focused runs. The Full Release Gate was not repeated, so full-release status remains **NOT PASSED**.
 - No checkpoint commit was amended and no push was performed.
 
-## 16. Supplemental CapTrack Reality and C4 Reconciliation (2026-11-03)
+## 16. Supplemental Example Project Reality and C4 Reconciliation (2026-11-03)
 
-**Evidence class:** user-supplied CapTrack campaign observations. Raw campaign transcripts and
+**Evidence class:** user-supplied Example Project campaign observations. Raw campaign transcripts and
 provider logs were not supplied in this turn, so only facts stated in the Reality Evidence are
 recorded; turns, read counts, tool-call counts, output volume, tokens, and cost are not inferred.
 
@@ -620,7 +620,7 @@ Reconciliation against the current C4 contract:
   V2 captures without a comparison result → visual status is not VERIFIED/PASS; V3 an actual
   comparison gap → visual and aggregate results remain FAIL/PARTIAL as submitted and resolved.
 
-These are synthetic resolver tests, not a new CapTrack or Regionen-specific implementation.
+These are synthetic resolver tests, not a new Example Project or Regionen-specific implementation.
 
 ### B. Authority-Disposition Persistence
 

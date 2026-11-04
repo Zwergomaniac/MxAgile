@@ -171,7 +171,7 @@ Assert ($allContent -notmatch 'secret|credential') 'no secret/credential mention
 # [8] Purity: synthetic fixtures contain no real project names
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[8] Purity: no real project names in synthetic fixtures"
-$bannedInFixtures = @('CapTrack', 'captrack', 'KidsCompass', 'kidscompass', 'Mercedes', 'mercedes', 'mercedes-benz', 'MB_SSO', 'MB_UI', 'MBUI')
+$bannedInFixtures = @('Example Project', 'example_project', 'KidsCompass', 'kidscompass', 'Mercedes', 'mercedes', 'mercedes-benz', 'MB_SSO', 'MB_UI', 'MBUI')
 foreach ($term in $bannedInFixtures) {
     Assert ($allContent -notmatch [regex]::Escape($term)) "No '$term' in synthetic Core fixtures"
 }
@@ -218,7 +218,7 @@ $genericCoreTests = @(
     'tests/test-migration-lifecycle-resync.ps1',
     'tests/test-migration-provenance.ps1'
 )
-$companyTermRx  = [regex]'Mercedes|mercedes-benz|Daimler|MB_SSO|MB_UI|MBUI|CapTrack|KidsCompass'
+$companyTermRx  = [regex]'Mercedes|mercedes-benz|Daimler|MB_SSO|MB_UI|MBUI|Example Project|KidsCompass'
 $safeLineRx     = [regex]'notmatch|notlike|notcontain|-not\s|banned|forbid|Write-Host'
 $couplingLeaks  = [System.Collections.Generic.List[string]]::new()
 foreach ($relPath in $genericCoreTests) {

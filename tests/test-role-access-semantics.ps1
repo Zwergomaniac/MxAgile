@@ -93,7 +93,7 @@ Assert-FileContains "intake policy: NAVIGABLE without WRITE" $IntakePolicy "NAVI
 Write-Host ""
 Write-Host "PURITY: no real project role names in schema" -ForegroundColor Cyan
 
-Assert-FileNotContains "schema does not contain CapTrack roles" $TcSchema "SITE_MANAGER|AppAdmin|CeKo|Eintragung"
+Assert-FileNotContains "schema does not contain Example Project roles" $TcSchema "SITE_MANAGER|AppAdmin|CeKo|Eintragung"
 Assert-FileNotContains "schema does not contain Mercedes roles" $TcSchema "MB_|Mercedes"
 
 # ─────────────────────────────────────────────────────────────────────────────

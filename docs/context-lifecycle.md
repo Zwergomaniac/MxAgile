@@ -403,7 +403,7 @@ When `context_lifecycle.enabled: false` (the default):
 - All existing MxAgile processes operate unchanged
 - Existing `planning/lifecycle/context-epoch.yaml` files are ignored
 
-Consumer projects (CapTrack, MB_SSO, HierarchyTree, etc.) do not need to migrate
+Consumer projects (Example Project, MB_SSO, HierarchyTree, etc.) do not need to migrate
 to benefit from existing functionality. Context Lifecycle is opt-in.
 
 ---

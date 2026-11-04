@@ -70,10 +70,10 @@ is retained. Workpackages are never invented; absence is reported separately.
 
 ## Legacy Compatibility Matrix
 
-This matrix separates observed legacy shapes from verified framework producers. CapTrack's CCM
+This matrix separates observed legacy shapes from verified framework producers. Example Project's CCM
 report identifies the checked Core baseline as MxAgile 1.9.0; SCR-002 records an earlier 1.8.0
 installation. The exact producer/version for each individual legacy artifact remains unverified.
-Compatibility does not authorize editing CapTrack or accepting arbitrary fields.
+Compatibility does not authorize editing Example Project or accepting arbitrary fields.
 
 | Cluster | Legacy shape → current shape | Historical producer evidence | Equivalence and migration/projection | Original mutation / ambiguity | Validation after projection |
 |---|---|---|---|---|---|
@@ -192,8 +192,8 @@ credentials, tokens, or arbitrary machine state. Reject path traversal and symli
 components. Diagnostic source links return redacted metadata, never raw invalid
 source contents. Diagnostic data is rendered as text, not HTML.
 
-CapTrack is reality evidence only in the framework mission. After framework
+Example Project is reality evidence only in the framework mission. After framework
 validation, commit and update, a separate authorized reality test runs Doctor,
 reviews the exact plan, applies permitted repairs, reruns validation, and checks
-Board coverage against actual project artifacts. No claim of repaired CapTrack
+Board coverage against actual project artifacts. No claim of repaired Example Project
 is permitted before that separate evidence exists.

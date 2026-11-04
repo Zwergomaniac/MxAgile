@@ -29,7 +29,7 @@ These limitations inform how MxAgile selects verification paths.
 ### KL-001: CALL MICROFLOW — Not Available in Tested Versions
 
 **Symptom:** `mxcli exec call-microflow` command not recognized or exits with error.
-**Observed in:** Selected mxcli versions during CapTrack acceptance campaign (2026-10).
+**Observed in:** Selected mxcli versions during Example Project acceptance campaign (2026-10).
 **Impact:** Microflow invocation via mxcli not available for acceptance testing.
 **Evidence basis:** Campaign finding; command returned non-zero exit with "unknown command" or similar.
 **Metric classification:** PROXY (campaign observation; may not apply to all mxcli versions)

@@ -138,8 +138,8 @@ Assert ($uo -match 'orchestrator\.md.*detects|architectural owner.*orchestrator'
 # L  Company-agnostic content
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[L] Company-agnostic content"
-Assert ($uo -notmatch 'CapTrack|Mercedes|KidsCompass|mercedes-benz') 'L1: user-orientation.md contains no company-specific names'
-Assert ($orch -notmatch 'CapTrack|Mercedes|KidsCompass') 'L2: orientation additions to orchestrator.md are company-agnostic'
+Assert ($uo -notmatch 'Example Project|Mercedes|KidsCompass|mercedes-benz') 'L1: user-orientation.md contains no company-specific names'
+Assert ($orch -notmatch 'Example Project|Mercedes|KidsCompass') 'L2: orientation additions to orchestrator.md are company-agnostic'
 
 # ──────────────────────────────────────────────────────────────
 # M  New install hint present; update path unchanged

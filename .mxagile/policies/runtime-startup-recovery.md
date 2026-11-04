@@ -355,7 +355,7 @@ When a runtime incident produces a reusable insight, classify before recording:
 | Observation | Class | Reason |
 |---|---|---|
 | "Orphan mxbuild retaining deployment/web lock blocks next startup silently" | `GENERIC_MXAGILE_CANDIDATE` | Pattern applies to any mxbuild-based project; not project-specific |
-| "After cleaning stale runtime, CapTrack started in 47s" | `PROJECT_SPECIFIC` | Timing is project/machine-specific |
+| "After cleaning stale runtime, Example Project started in 47s" | `PROJECT_SPECIFIC` | Timing is project/machine-specific |
 | "mxcli does not expose stale mxbuild PID in any structured output" | `MXCLI_TOOLING_BEHAVIOR` | Tooling gap; upstream finding for mxcli |
 
 ---

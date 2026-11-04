@@ -20,7 +20,7 @@
       I. Interrupted/resumed flow -> architecture classification remains reconstructable
 
     All fixtures use synthetic names only.
-    No CapTrack, KidsCompass, or Mercedes knowledge in this test file.
+    No Example Project, KidsCompass, or Mercedes knowledge in this test file.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -190,9 +190,9 @@ Assert-FileContains "I5: Agent reads checklist ownership fields before implement
 Write-Host ""
 Write-Host "CROSS-CUTTING: Framework purity checks" -ForegroundColor Cyan
 
-Assert-FileNotContains "P1: implementation-control does not mention CapTrack" $ImplControl "CapTrack|KidsCompass"
-Assert-FileNotContains "P2: gate-to-ready does not mention CapTrack" $GateReady "CapTrack|KidsCompass"
-Assert-FileNotContains "P3: GLOSSARY does not introduce company-specific knowledge" $Glossary "CapTrack|KidsCompass|Mercedes"
+Assert-FileNotContains "P1: implementation-control does not mention Example Project" $ImplControl "Example Project|KidsCompass"
+Assert-FileNotContains "P2: gate-to-ready does not mention Example Project" $GateReady "Example Project|KidsCompass"
+Assert-FileNotContains "P3: GLOSSARY does not introduce company-specific knowledge" $Glossary "Example Project|KidsCompass|Mercedes"
 Assert-FileContains "P4: dependency-matrix is marked OPTIONAL" $DepMatrix "OPTIONAL"
 Assert-FileContains "P5: planning/README reflects dependency-matrix as optional" $PlanReadme "OPTIONAL"
 Assert-FileContains "P6: Sprint remains external Board construct" $ImplControl "keine lokalen Sprints|not a local sprint"

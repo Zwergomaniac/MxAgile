@@ -37,7 +37,7 @@
     R. Fresh-session resume → checkpoint state reconstructed from mission-state.yaml
     S. Documentation reflects current behavior
 
-    No CapTrack, KidsCompass, or Mercedes-specific knowledge in this file.
+    No Example Project, KidsCompass, or Mercedes-specific knowledge in this file.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -455,8 +455,8 @@ Assert-FileContains "S5: orchestrator: false completion prevention documented" `
 Write-Host ""
 Write-Host "--- PURITY: No project-specific knowledge ---" -ForegroundColor Cyan
 
-Assert-FileNotContains "PUR1: checkpoint policy: no CapTrack reference" `
-    $CheckpointPolicy 'CapTrack'
+Assert-FileNotContains "PUR1: checkpoint policy: no Example Project reference" `
+    $CheckpointPolicy 'Example Project'
 
 Assert-FileNotContains "PUR2: checkpoint policy: no KidsCompass reference" `
     $CheckpointPolicy 'KidsCompass'
@@ -464,11 +464,11 @@ Assert-FileNotContains "PUR2: checkpoint policy: no KidsCompass reference" `
 Assert-FileNotContains "PUR3: checkpoint policy: no Mercedes reference" `
     $CheckpointPolicy '(?i)mercedes'
 
-Assert-FileNotContains "PUR4: mission-completion.md: no CapTrack reference" `
-    $MissionPolicy 'CapTrack'
+Assert-FileNotContains "PUR4: mission-completion.md: no Example Project reference" `
+    $MissionPolicy 'Example Project'
 
-Assert-FileNotContains "PUR5: lifecycle.yaml: no CapTrack reference" `
-    $LifecycleYaml 'CapTrack'
+Assert-FileNotContains "PUR5: lifecycle.yaml: no Example Project reference" `
+    $LifecycleYaml 'Example Project'
 
 # =============================================================================
 # SCHEMA INTEGRITY
