@@ -12,6 +12,27 @@ evidence for each applicable dimension.
 This policy defines the seven parity dimensions, their canonical statuses, aggregation rules,
 evidence requirements, and the mandatory regression scenario.
 
+## Mockup-Driven Lifecycle Levels
+
+`ui.verification.mockup_driven` is independent of `ui.implementation.html_first` and the legacy
+`development.ui_driven` flag. Resolve the effective project/page value through
+`build_project_status.py --resolve-ui-settings --page-id PAGE-NNN`; do not implement a second
+Board or agent interpretation.
+
+| Effective mode | Contract |
+|---|---|
+| `off` | No additional mockup-driven lifecycle obligation; existing explicit acceptance/evidence gates remain. |
+| `guided` | Preserve existing MxAgile UI discovery, parity, and acceptance behavior. |
+| `full` | For visible UI work: bind the active reference, implement, collect real Runtime Evidence, perform a scoped delta recheck, classify relevant findings, re-sync the parent workstream, then decide completion. |
+
+For `full`, `DESIGN PREVIEW` is static design feedback, never Runtime, role, integration, security,
+or parity evidence. Classify each relevant delta as `CLOSED`, `REFERENCE_GAP`,
+`AUTHORITY_CONFLICT`, `ACTIONABLE`, or `UNKNOWN` / `NOT_VERIFIED`. `ACTIONABLE`, `UNKNOWN`,
+and `NOT_VERIFIED` keep the parent active. `AUTHORITY_CONFLICT` is never PASS. If only
+`CLOSED`, `REFERENCE_GAP`, and `AUTHORITY_CONFLICT` remain, the parent may complete or remain
+`BLOCKED` according to its gate. Follow `mission-completion.md` for parent re-sync and terminal
+state; parity aggregate authority remains `build_project_status.py`.
+
 Full schema: `.mxagile/schemas/parity-verification.schema.json`
 
 Related policies:

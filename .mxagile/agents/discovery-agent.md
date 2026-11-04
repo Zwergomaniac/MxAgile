@@ -23,8 +23,12 @@ Relevante Felder:
 - `development.ui_driven` — steuert ob Mockup-Inventarisierung Pflicht ist
 - `source_authority` — concern-spezifische Aufloesungsregeln fuer Widersprueche
 - `ui.fidelity` — Fidelity-Anforderung (relevant fuer Verifying)
+- `ui.implementation.html_first` — Implementierungsroute, unabhaengig von Mockup-Authority
+- `ui.verification.mockup_driven` — `off`, `guided` oder `full`, unabhaengig von HTML First
 
 Falls die Datei nicht existiert: Standardverhalten — `ui_driven: false`, alle anderen Defaults.
+Neue UI-Werte mit `build_project_status.py --resolve-ui-settings` aufloesen;
+`development.ui_driven` nicht semantisch umdeuten.
 
 ## Verhalten
 

@@ -11,6 +11,9 @@ Gate-Skills pruefen Vorbedingungen vor Phasenwechseln.
 Quellen-Vorrang: siehe `policies/source-priority.md` (D44).
 Lifecycle Re-Sync & Interruption: siehe `policies/lifecycle-resync.md`.
 Ownership-Guard: siehe `policies/ownership-guard.md`.
+Testauswahl und Broad-Run-Budget: siehe `policies/test-workflow.md` § Testlauf-Kostenbewusstsein.
+Der Main Agent prueft dort die aktuelle Impact-/Gate-Authority vor jedem teuren Suite-Lauf;
+der Impact-Resolver bestimmt Coverage, Laufzeitkosten autorisieren keine Skips.
 
 ## Bounded Agent Delegation
 
@@ -37,6 +40,15 @@ After Feature Scope completion and Project/Release Checkpoint evaluation:
 - New scope requires explicit developer/product-authority selection.
 - Absence of new authorized scope → product prioritization, NOT Board story selection.
 - Projects without Board integration experience no Board-related behavior or prompts.
+
+## Mockup-Driven FULL Completion Guard
+
+For visible page work, resolve `ui.verification.mockup_driven` per canonical `page_id` through
+`build_project_status.py --resolve-ui-settings`. In `full` mode, do not close the parent before
+real Runtime Evidence, scoped delta recheck, finding classification, and parent workstream
+re-sync. `ACTIONABLE`, `UNKNOWN`, or `NOT_VERIFIED` keeps the parent active. `REFERENCE_GAP`
+or `AUTHORITY_CONFLICT` may leave the parent blocked, never PASS. `DESIGN PREVIEW` is not
+Runtime Evidence. Detailed class semantics: `policies/ui-parity.md` § Mockup-Driven Lifecycle Levels.
 
 ---
 

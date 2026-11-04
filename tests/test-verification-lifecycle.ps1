@@ -72,6 +72,11 @@ $TcSkill     = Join-Path $ScriptDir ".mxagile/skills/test-contract.md"
 $TcDeriv     = Join-Path $ScriptDir ".mxagile/policies/test-contract-derivation.md"
 $GateReady   = Join-Path $ScriptDir ".mxagile/skills/gate-to-ready.md"
 $AccAgent    = Join-Path $ScriptDir ".mxagile/agents/acceptance-agent.md"
+$TestWorkflow = Join-Path $ScriptDir ".mxagile/policies/test-workflow.md"
+$ImplAgent   = Join-Path $ScriptDir ".mxagile/agents/implementation-agent.md"
+$UiAgent     = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
+$Orchestrator = Join-Path $ScriptDir ".mxagile/orchestrator.md"
+$QualityGate = Join-Path $ScriptDir ".mxagile/skills/quality-gate.md"
 
 # Pre-initialize fixture variables to $null so strict mode does not fire if a
 # prior SilentlyContinue error record is in scope when the Get-Content runs.
@@ -96,6 +101,26 @@ Assert-FileContains "VPL deferred until Verifying  - skills doc" $VplSkill "Veri
 Assert-FileNotContains "VPL not created in Refinement  - skills doc" $VplSkill "Refinement.*VPL"
 Assert-FileContains "TC created in Refinement  - skills doc" $TcSkill "during Refinement"
 Assert-FileContains "gate-to-ready does NOT require VPL" $GateReady "Verification Plan is NOT required here"
+Assert-FileContains "test workflow separates CHEAP/FOCUSED, TARGETED and BROAD/EXPENSIVE" `
+    $TestWorkflow '(?s)CHEAP/FOCUSED.*TARGETED.*BROAD/EXPENSIVE'
+Assert-FileContains "test workflow defaults to focused then one stabilized changeset gate" `
+    $TestWorkflow '(?s)CHANGE -> kleinste relevante fokussierte Pruefung.*einmaliger autorisierter Impact-/Gate-Lauf'
+Assert-FileContains "test workflow requires broad-run authority and suite preflight" `
+    $TestWorkflow '(?s)Welche Authority verlangt den Lauf\?.*Welche Suiten waehlt der aktuelle Impact-Plan aus'
+Assert-FileContains "test workflow reruns failed suites before re-resolving impact" `
+    $TestWorkflow '(?s)Nach einem fehlgeschlagenen Broad-Lauf zuerst nur die fehlgeschlagene bzw\. unmittelbar\s+betroffene Suite.*Impact-Resolver\s+neu konsultieren'
+Assert-FileContains "test workflow does not loop/re-aggregate full-gate failures" `
+    $TestWorkflow '(?s)keine automatische Wiederholungsschleife.*INCOMPLETE.*nicht\s+aggregiert'
+Assert-FileContains "test workflow does not skip suites based on cost" `
+    $TestWorkflow '(?s)niemals eine erforderliche Suite.*entfernen.*Kein kostenbasierter `SKIP`'
+Assert-FileContains "test workflow requires changed evidence for another broad run" `
+    $TestWorkflow '(?s)Ein weiterer Broad-Lauf ist nur zulaessig.*relevante Evidence/Codebasis geaendert hat'
+Assert-FileContains "test workflow retains required coverage despite cost" `
+    $TestWorkflow '(?s)Dauer darf die Reihenfolge\s+beeinflussen, aber niemals eine erforderliche Suite'
+foreach ($consumer in @($AccAgent, $ImplAgent, $UiAgent, $Orchestrator, $QualityGate)) {
+    Assert-FileContains "$(Split-Path -Leaf $consumer) references canonical test workflow" `
+        $consumer 'policies/test-workflow\.md'
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REVISION IMPACT VOCABULARY
@@ -337,6 +362,45 @@ Assert-FileContains "K.11 materialization policy defines EXTEND" $MatPol "### EX
 Assert-FileContains "K.12 test-staleness delegates actions to materialization" $StalePol "verification-materialization\.md.*sole action authority"
 Assert-FileContains "K.13 EXTEND preserves existing PPs per materialization policy" $MatPol "existing PPs unchanged|prior PPs unchanged"
 Assert-FileContains "K.14 EXTEND TC remains active per materialization policy" $MatPol "TC status remains.*active"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHILD COMPLETION DOES NOT CLOSE PARENT WORKSTREAM
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "PARENT WORKSTREAM RE-SYNC AFTER CHILD COMPLETION" -ForegroundColor Cyan
+
+$parentFixturePath = Join-Path $FixDir "fixture-L-child-complete-parent-resync.yaml"
+$parentFixture = Get-Content -LiteralPath $parentFixturePath -Raw -ErrorAction SilentlyContinue
+$missionCompletionPolicy = Join-Path $ScriptDir ".mxagile/policies/mission-completion.md"
+$gapRepairPolicy = Join-Path $ScriptDir ".mxagile/policies/gap-verification-repair.md"
+Assert-FileExists "L.1 parent re-sync fixture exists" $parentFixturePath
+Assert-True "L.2 completed child with actionable sibling keeps parent active" (
+    $parentFixture -match '(?s)child_done_parent_has_actionable_gap.*?expected_parent: ACTIVE'
+)
+Assert-True "L.2b UNKNOWN child keeps parent active until evidence is resolved" (
+    $parentFixture -match '(?s)child_done_parent_has_unknown_delta.*?remaining: \[UNKNOWN\].*?expected_parent: ACTIVE'
+)
+Assert-True "L.3 only closed/reference/authority outcomes permit non-success terminal parent" (
+    $parentFixture -match '(?s)child_done_only_non_actionable_dispositions_remain.*?expected_parent: TERMINAL_NO_AUTHORIZED_ACTIONABLE_GAP.*?acceptance_result: NOT_PASSED'
+)
+Assert-True "L.4 terminal parent permits independent work while conflict remains open" (
+    $parentFixture -match '(?s)parent_terminal_allows_independent_authorized_work.*?authority_conflict: PRESERVED_OPEN.*?expected_next: INDEPENDENT_AUTHORIZED_SCOPE'
+)
+Assert-True "L.5 authority conflict stays human-owned and does not block independent work" (
+    $parentFixture -match '(?s)authority_conflict_does_not_block_independent_scope.*?conflict_resolution: HUMAN_AUTHORITY_ONLY.*?expected_independent_work: ALLOWED'
+)
+Assert-True "L.6 resume reconstructs parent/child from canonical artifacts" (
+    $parentFixture -match '(?s)interruption_reconstructs_child_and_parent.*?conversation_history_required: false.*?expected_resume: RE_SYNC_PARENT_BEFORE_GLOBAL_NEXT_WORK'
+)
+Assert-True "L.6b child evidence and parent re-sync precede global next-work selection" (
+    $parentFixture -match '(?s)parent_re_sync_precedes_global_next_work.*?sequence: \[PERSIST_CHILD_EVIDENCE, RE_RESOLVE_PARENT_SCOPE, CLASSIFY_REMAINING, SELECT_GLOBAL_NEXT\]'
+)
+Assert-FileContains "L.7 mission completion requires parent re-sync before global work selection" $missionCompletionPolicy "Before leaving its active parent workstream or selecting global next work"
+Assert-FileContains "L.7b unknown or unverified parent item keeps the parent active" $missionCompletionPolicy '(?s)Any `UNKNOWN` or `NOT_VERIFIED` child keeps the parent active'
+Assert-FileContains "L.7c next work follows canonical authority without unnecessary user prompt" $missionCompletionPolicy '(?s)If canonical authority determines the next action,\s+continue autonomously; ask the user only when a genuine business or authority decision is\s+missing'
+Assert-FileContains "L.8 parity repair requires scoped delta re-check after child verification" $gapRepairPolicy "(?is)targeted delta re-check against the active\s+target"
+Assert-FileContains "L.9 scoped delta re-check does not authorize conflict resolution" $gapRepairPolicy "AUTHORITY_CONFLICT.*never resolved by this re-check"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GRAPH IMPACT MODEL

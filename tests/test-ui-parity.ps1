@@ -475,6 +475,32 @@ Assert-FileContains "T.14 resolver fixtures reject screenshots without compariso
 Assert-FileContains "T.15 resolver fixtures preserve actual whole-screen FAIL/PARTIAL results" `
     $ProjectStatusTests 'test_whole_screen_comparison_gap_is_preserved_as_fail_or_partial'
 
+Assert-FileContains "T.16 mockup-driven full remains independent from html_first and legacy ui_driven" `
+    $ParityPol '(?s)ui\.verification\.mockup_driven.*independent.*ui\.implementation\.html_first.*development\.ui_driven'
+
+Assert-FileContains "T.17 full mode requires runtime evidence and scoped delta recheck" `
+    $ParityPol '(?s)full.*collect real Runtime Evidence.*scoped delta recheck'
+
+Assert-FileContains "T.18 actionable, unknown, and not-verified findings keep parent active" `
+    $ParityPol '(?s)ACTIONABLE`, `UNKNOWN`.*keep the parent active'
+
+Assert-FileContains "T.19 authority conflict is never PASS" `
+    $ParityPol 'AUTHORITY_CONFLICT` is never PASS'
+
+Assert-FileContains "T.20 design preview is not runtime, security, or parity evidence" `
+    $ParityPol '(?s)DESIGN PREVIEW.*never Runtime, role, integration, security,\s*or parity evidence'
+
+Assert-FileContains "T.21 effective UI settings use the shared resolver" `
+    $ParityPol 'build_project_status\.py --resolve-ui-settings'
+
+$RuntimePolicy = Join-Path $ScriptDir ".mxagile/policies/development-runtime.md"
+Assert-FileContains "T.22 runtime preference resolves to LEAVE_RUNNING by default" `
+    $RuntimePolicy '(?s)leave_running_after_visual_verification.*default is `true`.*choose `LEAVE_RUNNING`'
+
+$ProjectSchema = Join-Path $ScriptDir ".mxagile/schemas/mxagile-project.schema.json"
+Assert-FileContains "T.23 html_first config is independent from mockup_driven config" `
+    $ProjectSchema '(?s)"implementation".*"html_first".*"verification".*"mockup_driven"'
+
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount
 Write-Host ""

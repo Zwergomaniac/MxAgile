@@ -4,6 +4,10 @@ Technische Validierung nach Abschluss der Implementing-Phase.
 Prueft ausschliesslich technische Korrektheit — UI-Treue und fachliche Akzeptanz
 werden vom UI-Agent und Acceptance-Agent separat geprueft.
 
+Suite-Auswahl und Broad-Test-Budget folgen `.mxagile/policies/test-workflow.md`.
+Dieses Gate startet keinen zusaetzlichen Full-/Impact-Lauf ausserhalb der autoritativen
+Changeset-Auswahl.
+
 ## Trigger
 
 Nach Abschluss der Implementing-Phase, bevor UI-Agent und Acceptance-Agent starten.

@@ -37,27 +37,44 @@ recipe may request watch behavior only when the selected binary advertises the r
 |---|---|
 | Runtime lifecycle | Interactive / warm |
 | Purpose | Hot-apply model changes, avoid full restarts |
-| Lifecycle | Foreground/interactive, remains running across iterations |
+| Lifecycle | Foreground by default; detached only when explicitly requested and supported by the selected binary |
 | Termination | Developer/agent-initiated or session end |
 | Phase | Implementing |
+
+The mxcli `run-local` skill is guidance for lifecycle commands (`run wait`, `status`, `stop`,
+`restart`) and current binary syntax. Do not copy its sample start command as argv: first
+resolve the C1 recipe with `purpose: development`, then execute its complete argument array.
+This carries the project's declared local backend and fixture database identity into the run;
+if HSQLDB is declared but unavailable, stop with the C1 capability result rather than
+switching to PostgreSQL.
+
+The framework repository does not contain the installed mxcli `run-local` caller. Its consuming
+harness/skill remains an integration follow-up: it must execute the published C1 recipe
+arguments unchanged. C1 tests prove recipe composition, not that an external caller consumes it.
 
 ### Autonomous Verification Mode
 
 Used when an agent needs unattended runtime startup for verification, testing, or
 evidence collection. The runtime starts, becomes reachable, serves requests, and
-is terminated after verification completes.
+is kept available or stopped according to the shared runtime decision contract.
 
 | Property | Value |
 |---|---|
 | Runtime lifecycle | Unattended / bounded |
-| Purpose | Start → ready → serve → test → terminate |
+| Purpose | Start/reuse → ready → serve → collect evidence |
 | Lifecycle | Background/unattended, no interactive model watching |
-| Termination | After verification complete or on failure |
+| Termination | Successful visual verification defaults to `LEAVE_RUNNING`; other disposition follows the shared decision contract |
 | Phase | Verifying (also used for autonomous Discovery browser evidence) |
 
 Autonomous verification does not modify the model during the runtime lifecycle. Its recipe
-represents the bounded start → ready → verify → terminate sequence; the selected binary's help
-owns any corresponding command options.
+represents the bounded start/reuse → ready → verify sequence; runtime disposition is a separate
+decision and the selected binary's help owns any corresponding command options.
+
+Resolve `ui.runtime.leave_running_after_visual_verification` through
+`build_project_status.py --resolve-ui-settings`. Its schema default is `true`: after successful
+visual verification, choose `LEAVE_RUNNING` so the developer can inspect the app. A value of
+`false` disables that preference but does not itself authorize `STOP` when another active
+consumer owns the runtime or a lifecycle contract requires reuse.
 
 ### Mode Selection
 
@@ -74,6 +91,25 @@ The runtime mode is determined by the agent's current purpose, not the lifecycle
 
 Both modes consume the same project profile and authority contracts. Only runtime purpose and
 lifecycle semantics differ; exact argv remains owned by the resolved recipe.
+
+## Runtime Decision Contract
+
+Runtime lifecycle decisions are distinct from verification result and MxAgile lifecycle state.
+Resolve the complete C1 recipe first, inspect the actual runtime, and classify compatibility and
+ownership before managing a process.
+
+| Decision | Required evidence and behavior |
+|---|---|
+| `START` | No compatible runtime is running; C1 status is `RESOLVED`; start with its complete argument array. |
+| `REUSE` | Project, selected binary, backend, database identity, and app endpoint are compatible and runtime health/readiness is observed. |
+| `WATCH/RELOAD` | Use only when the selected mxcli version and this change class support it. Do not infer that every Mendix model change hot-reloads. |
+| `RESTART` | Use only when current tool capability or observed runtime state requires a clean restart; resolve and execute the authorized recipe again. |
+| `LEAVE_RUNNING` | Preferred after successful visual verification when `ui.runtime.leave_running_after_visual_verification` resolves to `true` (schema default). Do not stop a healthy compatible runtime merely because the agent's check ended. If the setting is `false`, the preference is removed; `STOP` still requires an explicit user request or the documented technical/safety reason below. |
+| `STOP` | Only on explicit user request or a documented technical/safety reason: required clean restart, stale/damaged runtime, port/process conflict, or consistency requirement. Apply ownership checks before termination. |
+
+Unknown reload behavior is not a hot-reload guarantee. Do not use potentially stale runtime state
+as verification evidence; if freshness cannot be established, re-resolve the runtime path and
+perform the required restart or fail-closed verification.
 
 ## Default Inner Development Loop
 
@@ -101,11 +137,10 @@ Runtime feedback becomes particularly valuable for:
 
 ### When to Stop
 
-- When no longer needed for the current implementation scope
-- When environment cleanup requires it
-- Before transitioning into formal verification that requires a different runtime environment
-- The runtime MAY remain running across the Implementing exit if the formal verification
-  environment does not conflict — this is an operational decision, not a lifecycle rule
+Do not stop a healthy compatible runtime merely because implementation or verification ended,
+the agent is changing phase, or an evidence check passed. Apply the Runtime Decision Contract.
+When formal verification requires a different environment, preserve the current runtime unless
+a concrete process, port, or consistency conflict requires stopping it.
 
 ## Runtime Reuse
 

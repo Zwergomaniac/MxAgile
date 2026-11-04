@@ -15,19 +15,26 @@ current wave's verified implementation and produce a traceable acceptance gate r
 - `.mxagile/policies/verification-layers.md` — layer semantics and security dimensions
 - `.mxagile/policies/verification-materialization.md` — materialization boundary; PRESERVE/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE; evidence level selection rule; execution_binding_stale lifecycle
 - `.mxagile/policies/runtime-strategy.md` — local-first runtime strategy for Verifying phase
+- `.mxagile/policies/development-runtime.md` — runtime reuse and configured leave-running preference
+- `.mxagile/policies/ui-parity.md` — independent mockup-driven lifecycle and parity authority
 - `.mxagile/policies/local-runtime-profile.md` — project runtime profile and pinned mxcli resolution
 - `.mxagile/policies/tool-instruction-conflict.md` — technical authority and actual capability gate
 - `.mxagile/policies/test-identity-lifecycle.md` — bootstrap authentication vs. requested role switch
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
 - `.mxagile/policies/credential-discovery.md` — secret-safe discovery for the selected runtime route and each required login
 - `.mxagile/policies/safety-rules.md` — universal safety rules
+- `.mxagile/policies/test-workflow.md` — suite-level test-cost awareness; required verification coverage must not be skipped
 
 ## Project Configuration
 
 Read `mxagile-project.yaml` at session start. Relevant fields:
 - `development.ui_driven` — determines whether FRONTEND evidence is required for all page proof points
 - `ui.fidelity` — `standard` or `high` (affects FRONTEND comparison strictness)
+- `ui.verification.mockup_driven` — independent `off` / `guided` / `full` lifecycle setting
 - `source_authority` — conflict resolution rules
+
+Resolve new UI values through `build_project_status.py --resolve-ui-settings`; do not reinterpret
+`development.ui_driven` as the mockup-driven mode.
 
 ## Skills Called
 

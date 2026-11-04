@@ -14,10 +14,12 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/local-runtime-profile.md` — project-pinned mxcli and runtime profile resolution
 - `.mxagile/policies/tool-instruction-conflict.md` — resolve conflicting technical instructions and tool capabilities
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+- `.mxagile/policies/test-workflow.md` — fokussierte Pruefungen waehrend Implementierung; Broad-Test-Budget und Re-Run-Regel
 - `.mxagile/policies/scss-engineering.md` — SCSS-Ownership, main.scss-Kompositionsprinzip, Partial-Struktur
 - `.mxagile/policies/mission-completion.md` — Completion Levels, Terminal-State Guard, Phase-Boundary Continuation
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
 - `.mxagile/policies/parity-finding-reconciliation.md` — persisted authority disposition for Finding-linked implementation
+- `.mxagile/policies/capability-discovery.md` — Builder Kit discovery and harness-attested routing
 
 Before any mxcli invocation, resolve and use the exact project-declared/project-local binary
 per `policies/local-runtime-profile.md`. Record its absolute path and version; validate
@@ -116,6 +118,35 @@ Wenn ein `revision_delta` in der akzeptierten Revision vorliegt, werden Effects 
 Effects mit `derived_page: false` erzeugen KEINE neuen Mendix-Seiten.
 Effects mit `type: PLATFORM_BOUNDARY` erzeugen KEINE Implementierungsaufgaben.
 
+### UI Implementation Route
+
+Before page work, resolve the canonical `page_id` from UI inventory and query the shared
+effective-settings resolver:
+
+```powershell
+python .mxagile/tools/build_project_status.py --resolve-ui-settings --project-root . --page-id PAGE-NNN
+```
+
+- `html_first.effective: false`: use the existing MxAgile Mendix implementation path.
+- `html_first.effective: true`: query Builder Kit capability separately:
+
+```powershell
+pwsh .mxagile/tools/Get-MxAgileCapabilities.ps1 -Format json -ResolveBuilderKit
+```
+
+Delegate only when `builder_kit.installed == true`, `agent_available_for_harness == true`,
+and `agent_delegable == true` are proven for the current harness/session. `UNKNOWN`, `null`,
+or `false` blocks the HTML-First route; never silently implement Native instead. Do not equate
+the Kit capability with project settings, install the Kit automatically, or copy its private
+skills into MxAgile.
+
+The Builder Agent returns its Mendix Artifact Report as a bounded handoff, not a parsed machine
+contract. The Main Agent must account for required Entities/Associations, Access/Security,
+JS Actions, Microflows/Nanoflows, Pages/Widgets, Source Files, blockers, open Studio Pro tasks,
+and Integration Verification. Main Agent retains lifecycle, scope, model/security authority,
+and verification. HTML/JS is not a second business or security authority. Builder source follows
+`themesource/<module>/public/<feature>/`.
+
 ## Ablauf
 
 ### 1. Vorbereitung
@@ -123,7 +154,10 @@ Effects mit `type: PLATFORM_BOUNDARY` erzeugen KEINE Implementierungsaufgaben.
 1. `planning/checklists/W*-implementation-checklist.yaml` der laufenden Wave laden
 2. Nur Items mit `status: pending` oder `status: failed` bearbeiten
 3. **Projektkonfiguration lesen:** `mxagile-project.yaml` im Projektstamm laden (falls vorhanden).
-   Relevante Felder: `development.ui_driven`, `ui.fidelity`.
+   Relevante unabhaengige Felder: `development.ui_driven`, `ui.fidelity`,
+   `ui.implementation.html_first`, `ui.verification.mockup_driven` und
+   `ui.runtime.leave_running_after_visual_verification`. `development.ui_driven` nicht
+   umdeuten oder durch die neuen Felder ersetzen.
    Falls Datei fehlt: `ui_driven: false`, `fidelity: standard`.
 4. **UI-Artefakte laden** (wenn `development.ui_driven = true`):
    Fuer jedes Checklisten-Item vom Typ `page`:
