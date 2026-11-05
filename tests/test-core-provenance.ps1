@@ -98,6 +98,12 @@ $merc = Get-Content (Join-Path $RepoRoot 'mxagile-setup-mercedes.ps1') -Raw -Enc
 Assert ($merc -match 'rev-parse HEAD') 'C1: resolves commit SHA'
 Assert ($merc -match 'provenanceCoreCommit') 'C2: stores resolved commit'
 Assert (([regex]::Matches($merc, 'ProvenanceCoreCommit')).Count -ge 2) 'C3: ProvenanceCoreCommit passed at both call sites'
+Assert ($merc -match '\$coreMarker\s*=\s*Join-Path\s+\$ProjectRoot\s+"\.mxagile\\lifecycle\.yaml"') 'C4: Core installation state uses the canonical lifecycle marker'
+Assert ($merc -match '\$coreInstalled\s*=\s*Test-Path\s+-LiteralPath\s+\$coreMarker\s+-PathType\s+Leaf') 'C5: an existing Core installation is detected before flavor setup'
+Assert (([regex]::Matches($merc, '-IsUpdate\s+\$coreInstalled')).Count -eq 2) 'C6: both Mercedes Core installer branches preserve UPDATE mode'
+Assert (([regex]::Matches($merc, '-ProvenanceFlavor\s+"mercedes"')).Count -eq 2) 'C7: both installer branches record the requested Mercedes flavor'
+Assert ($ic -match 'if\s*\(\$IsUpdate\s+-and\s+\(Test-Path[^\r\n]*\$coreProvPath') 'C8: Core updates load previous provenance when it exists'
+Assert ($ic -match '\$previousCommit\s*=\s*\$prevProv\.commit' -and $ic -match '\$previousVersion\s*=\s*\$prevProv\.version' -and $ic -match '\$previousInstalledAt\s*=\s*\$prevProv\.installed_at') 'C9: prior commit, version, and install timestamp are preserved on flavor update'
 
 # ──────────────────────────────────────────────────────────────
 # D  setup-agent-system.ps1 and generate-mxagile-platform-skills.ps1: projections manifest
