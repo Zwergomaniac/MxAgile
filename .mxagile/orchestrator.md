@@ -119,12 +119,18 @@ Das Ergebnis `operating_mode` und `tool_authority` ist verbindlich. Keine zweite
 Ausfuehrung und keine agentenseitige Rekonstruktion aus Prozessfeldern. Bei `AMBIGUOUS-SP-STATE`
 safe non-model work fortsetzen; gezielt erst dann fragen, wenn eine konkrete Modellmutation
 am Mutation Boundary blockiert ist. Bei eindeutigen C2-Ergebnissen: KEINE Rueckfrage.
+`tool_authority.user_interaction` ist fuer den Dialog verbindlich: `mode_choice_required: false`
+bedeutet, keinen CLOSED-AUTONOM/LIVE-SP/Other-Auswahldialog und keine als "Recommended"
+formulierte Modusbestaetigung anzuzeigen. Bei `question_policy: NONE` die erkannte Route direkt
+verwenden. Bei `MUTATION_BOUNDARY_AFTER_RECHECK` safe Arbeit fortsetzen und nur bei weiterhin
+blockierender Ambiguitaet an der konkreten Modellmutation eine praezise Rueckfrage stellen.
 Vollvertrag: `policies/operating-mode.md`.
 
 ### Schritt 1b — Toolroute fuer Mendix-Operationen
 
 Keine zweite Mode-Ermittlung. Vor einer Modelloperation den aktuellen `tool_authority`-Block
-aus C2 konsumieren. C2 sperrt LIVE-SP-CURRENT bei fehlender MCP-Probe/Projektbindung, markiert
+aus C2 konsumieren, einschliesslich `user_interaction`; die Moduswahl ist bei eindeutigen
+Ergebnissen abgeschlossen und wird nicht erneut an den Nutzer delegiert. C2 sperrt LIVE-SP-CURRENT bei fehlender MCP-Probe/Projektbindung, markiert
 MCP-Identitaetskonflikte als `AMBIGUOUS-SP-STATE`, und erlaubt mxcli bei CLOSED-AUTONOM nur als
 Kandidat. C1 loest danach separat die Runtime-Binary/Recipe auf.
 

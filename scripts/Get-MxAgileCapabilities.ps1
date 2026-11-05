@@ -1462,6 +1462,14 @@ function Resolve-OperatingModeRoute {
             $result.reason = 'Operating mode is ambiguous or unobserved; recheck before any model mutation.'
         }
     }
+    $result.user_interaction = [ordered]@{
+        mode_choice_required = $false
+        question_policy = if ($result.effective_mode -in @('CLOSED-AUTONOM', 'LIVE-SP-OTHER', 'LIVE-SP-CURRENT')) {
+            'NONE'
+        } else {
+            'MUTATION_BOUNDARY_AFTER_RECHECK'
+        }
+    }
     return $result
 }
 

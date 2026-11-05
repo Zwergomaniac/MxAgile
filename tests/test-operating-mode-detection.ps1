@@ -65,6 +65,7 @@ $operatingModePath   = Join-Path $ScriptDir '.mxagile\policies\operating-mode.md
 $detectorPath        = Join-Path $ScriptDir 'scripts\check-studio-pro-status.ps1'
 $capabilityResolverPath = Join-Path $ScriptDir 'scripts\Get-MxAgileCapabilities.ps1'
 $orchestratorPath    = Join-Path $ScriptDir '.mxagile\orchestrator.md'
+$startupRouterPath   = Join-Path $ScriptDir 'scripts\apply-project-agent-instructions.ps1'
 $implAgentPath       = Join-Path $ScriptDir '.mxagile\agents\implementation-agent.md'
 $implControlPath     = Join-Path $ScriptDir '.mxagile\policies\implementation-control.md'
 $consistencyPath     = Join-Path $ScriptDir '.mxagile\policies\consistency-check.md'
@@ -109,6 +110,14 @@ Assert-FileContains 'A4: orchestrator: startup detects mode before lifecycle wor
 
 Assert-FileContains 'A5: orchestrator: CLOSED-AUTONOM -> no Rueckfrage' `
     $orchestratorPath 'KEINE.*Rueckfrage'
+Assert-FileContains 'A6: C2 mode is final, not a recommendation' `
+    $orchestratorPath '(?s)mode_choice_required: false.{0,300}Recommended'
+Assert-FileContains 'A7: orchestrator consumes structured user interaction policy' `
+    $orchestratorPath 'tool_authority\.user_interaction'
+Assert-FileContains 'A8: always-on startup router consumes structured user interaction policy' `
+    $startupRouterPath 'tool_authority\.user_interaction'
+Assert-FileContains 'A9: always-on router forbids the redundant mode menu' `
+    $startupRouterPath 'do not show a CLOSED-AUTONOM / LIVE-SP / Other choice'
 
 Write-Host ''
 
@@ -376,6 +385,9 @@ if ($routeAst) {
     Assert-True 'L7: healthy current-project Studio Pro MCP is primary' `
         ($studioRoute.selected_route -eq 'studio_pro_mcp' -and $studioRoute.status -eq 'RUNTIME_ATTESTED') `
         'Studio Pro route was not selected from healthy same-project evidence'
+    Assert-True 'L7a: LIVE-SP-CURRENT does not prompt for mode choice' `
+        (-not $studioRoute.user_interaction.mode_choice_required -and $studioRoute.user_interaction.question_policy -eq 'NONE') `
+        'Conclusive LIVE-SP-CURRENT result permits a redundant mode prompt'
     Assert-True 'L8: runtime evidence remains separate from configuration' `
         ($studioRoute.runtime_attestation.studio_pro_mcp.usable -and -not $studioRoute.configured.studio_pro_mcp.configured) `
         'Runtime attestation was conflated with project configuration'
@@ -400,6 +412,9 @@ if ($routeAst) {
     Assert-True 'L11: Studio Pro project identity conflict blocks fallback' `
         ($conflictRoute.status -eq 'CONFLICT' -and -not $conflictRoute.selected_route -and $conflictRoute.effective_mode -eq 'AMBIGUOUS-SP-STATE') `
         'Conflicting primary MCP identity did not block fallback and promote ambiguity'
+    Assert-True 'L11a: project identity conflict escalates only at mutation boundary' `
+        ($conflictRoute.user_interaction.question_policy -eq 'MUTATION_BOUNDARY_AFTER_RECHECK') `
+        'Conflict retained the prior concrete-mode no-question policy'
 
     $autonomousRoute = Resolve-OperatingModeRoute -Mode 'CLOSED-AUTONOM' -CurrentProjectPath $currentMpr `
         -StudioProConfiguration $unconfigured -StudioProMcpProbeStatus 'NOT_OBSERVED' -StudioProMcpBoundProjectPath '' `
@@ -407,6 +422,9 @@ if ($routeAst) {
     Assert-True 'L12: CLOSED-AUTONOM permits existing mxcli resolver route' `
         ($autonomousRoute.mxcli_permitted -and $autonomousRoute.mxcli_availability -eq 'NOT_RESOLVED_BY_C2') `
         'Autonomous route did not preserve the existing mxcli availability boundary'
+    Assert-True 'L12a: known CLOSED-AUTONOM has zero user questions' `
+        (-not $autonomousRoute.user_interaction.mode_choice_required -and $autonomousRoute.user_interaction.question_policy -eq 'NONE') `
+        'Known CLOSED-AUTONOM result did not suppress the mode question'
 
     $ambiguousRoute = Resolve-OperatingModeRoute -Mode 'AMBIGUOUS-SP-STATE' -CurrentProjectPath $currentMpr `
         -StudioProConfiguration $unconfigured -StudioProMcpProbeStatus 'NOT_OBSERVED' -StudioProMcpBoundProjectPath '' `
@@ -414,6 +432,52 @@ if ($routeAst) {
     Assert-True 'L13: ambiguous mode allows only safe non-model work' `
         ($ambiguousRoute.preferred_route -eq 'safe_non_model_work_only' -and -not $ambiguousRoute.mxcli_permitted) `
         'Ambiguous mode exposed a model-mutation route'
+    Assert-True 'L13a: ambiguous result defers its question to the mutation boundary' `
+        (-not $ambiguousRoute.user_interaction.mode_choice_required -and $ambiguousRoute.user_interaction.question_policy -eq 'MUTATION_BOUNDARY_AFTER_RECHECK') `
+        'Ambiguous result was treated as a startup mode-choice prompt'
+
+    $authorityAst = $resolverAst.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq 'Resolve-OperatingModeAuthority'
+    }, $true)
+    Assert-True 'L14: structured C2 authority resolver exists' ($null -ne $authorityAst) 'Resolve-OperatingModeAuthority not found in resolver AST'
+    if ($authorityAst) {
+        $authorityFixture = Join-Path $env:TEMP "mxagile-c2-closed-$([guid]::NewGuid().ToString('N'))"
+        New-Item -ItemType Directory -Path $authorityFixture -Force | Out-Null
+        $knownMpr = Join-Path $authorityFixture 'Target.mpr'
+        New-Item -ItemType File -Path $knownMpr -Force | Out-Null
+        $ProjectRoot = $authorityFixture
+        $StudioProProjectPath = ''
+        $StudioProMcpProbeStatus = 'NOT_OBSERVED'
+        $StudioProMcpBoundProjectPath = ''
+        $ConcordMcpProbeStatus = 'NOT_OBSERVED'
+        $ConcordMcpBoundProjectPath = ''
+        function Get-DeclaredMcpConfiguration {
+            param([string]$CapabilityId)
+            return [ordered]@{ state = 'OBSERVED'; configured = $false; source = 'C2 test fixture' }
+        }
+        function Invoke-StudioProStatusDetector {
+            param([string]$MprPath)
+            return [ordered]@{
+                state = 'OBSERVED'; is_open = $false; any_studio_pro_running = $false
+                project_path = $MprPath; source = 'synthetic closed detector'; reason = 'target project is closed'
+            }
+        }
+        try {
+            . ([ScriptBlock]::Create($authorityAst.Extent.Text))
+            $authorityResult = Resolve-OperatingModeAuthority
+            $modeQuestionCount = if ($authorityResult.tool_authority.user_interaction.mode_choice_required) { 1 } else { 0 }
+            Assert-True 'L15: known target plus conclusive closed detection selects CLOSED-AUTONOM' `
+                ($authorityResult.mode -eq 'CLOSED-AUTONOM' -and $authorityResult.detection.project_path -eq $knownMpr) `
+                "Unexpected mode/identity: $($authorityResult.mode) / $($authorityResult.detection.project_path)"
+            Assert-True 'L16: known closed target has zero mode questions' `
+                ($modeQuestionCount -eq 0 -and $authorityResult.tool_authority.user_interaction.question_policy -eq 'NONE') `
+                'C2 emitted a user mode-choice requirement for a conclusive closed target'
+        } finally {
+            Remove-Item -LiteralPath $authorityFixture -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 Write-Host ''

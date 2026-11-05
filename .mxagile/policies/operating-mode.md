@@ -144,11 +144,20 @@ Recheck cost is one script invocation. Do not skip it at the mutation boundary.
 
 The agent MUST attempt deterministic detection BEFORE asking the user about Studio Pro.
 
+A conclusive C2 result is the mode decision, not a recommendation. Never present a follow-up
+choice such as `CLOSED-AUTONOM / LIVE-SP / Other`, and never ask the user to confirm a detected
+`CLOSED-AUTONOM` or `LIVE-SP-OTHER` result. Consume `tool_authority.user_interaction`: a concrete
+mode has `mode_choice_required: false` and `question_policy: NONE`. Explicit user instructions
+that conflict with detected facts are handled by the existing execution-intent/source-authority
+rules; they do not justify a generic mode menu.
+
 Asking is ONLY permitted when ALL of the following are true:
 1. Detection has been attempted (Step 3 above was executed).
 2. The result is AMBIGUOUS-SP-STATE.
 3. The ambiguity blocks the NEXT ACTUAL MENDIX MODEL MUTATION (not startup).
 4. A recheck at the mutation boundary did not resolve the ambiguity.
+The structured route uses `question_policy: MUTATION_BOUNDARY_AFTER_RECHECK` for ambiguous/unresolved
+modes; it does not authorize a startup question by itself.
 
 When asking is permitted, the question MUST report what was detected:
 

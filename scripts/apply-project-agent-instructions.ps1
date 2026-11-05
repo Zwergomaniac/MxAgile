@@ -354,6 +354,10 @@ reading canonical lifecycle contracts.
     read `.mxagile/policies/tool-instruction-conflict.md`. For Mendix, consume current C2; do not
     redetect or infer health. Never choose by PATH or skill load order, or fall back from
     LIVE-SP-CURRENT after MCP failure. Use the current session's discovered tool interface.
+    Consume `tool_authority.user_interaction`: when `mode_choice_required` is false, the detected
+    mode is final — do not show a CLOSED-AUTONOM / LIVE-SP / Other choice or ask the user to confirm
+    a merely recommended mode. For ambiguous results, continue safe work and honor only the
+    mutation-boundary-after-recheck question policy.
 3. **External changes** — after Re-Sync, if `.mxagile/policies/external-change-reconciliation.md`
     is installed, use its read-only report and bounded impact route. Missing baseline means
     `BASELINE_REQUIRED`, not automatic history scanning or baseline adoption.
