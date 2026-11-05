@@ -30,7 +30,8 @@ Produce an `inspect:` block per proof point:
 
 ```yaml
 inspect:
-  entity: <EntityName>
+  type: entity
+  target: <EntityName>
   expect: "Access rule for <ROLE> grants <operation>"  # operation-aware when proof point has operation field
 ```
 
@@ -38,9 +39,17 @@ or:
 
 ```yaml
 inspect:
-  microflow: <Module>.<MicroflowName>
+  type: microflow
+  target: <Module>.<MicroflowName>
   expect: "<high-level behavior assertion>"
 ```
+
+`type` is one of `entity`, `microflow`, `association`, `rule`, `snippet`, or `page`; `target` is
+one machine-readable Mendix model target. Produce `expect` only when its assertion is grounded in
+the canonical proof-point claim or another named acceptance authority. Never derive it from `detail`,
+`note`, or implementation prose. A supported target without an authoritative expectation may still
+be inspected for existence, but omit `expect`; the Acceptance Agent must leave semantic verification
+`NOT_VERIFIED` and request the missing decision.
 
 For operation-aware proof points: the `expect` clause must reflect the specific operation disposition
 (READ access allowed, DELETE access forbidden, etc.).

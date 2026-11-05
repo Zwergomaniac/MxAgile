@@ -56,6 +56,15 @@ function Assert-FileExists {
 
 $TcSchema     = Join-Path $RepoRoot '.mxagile/schemas/test-contract.schema.json'
 $IntakePolicy = Join-Path $RepoRoot '.mxagile/policies/design-contract-intake.md'
+$RoleIdentityPolicy = Join-Path $RepoRoot '.mxagile/policies/implementation-control.md'
+$ImplementationAgent = Join-Path $RepoRoot '.mxagile/agents/implementation-agent.md'
+$UiAgent = Join-Path $RepoRoot '.mxagile/agents/ui-agent.md'
+$AcceptanceAgent = Join-Path $RepoRoot '.mxagile/agents/acceptance-agent.md'
+$MocketeerAgent = Join-Path $RepoRoot '.mxagile/agents/mocketeer-agent.md'
+$MaintainerAgent = Join-Path $RepoRoot '.mxagile/agents/maintainer.md'
+$BrownfieldSkill = Join-Path $RepoRoot '.mxagile/skills/brownfield-adoption.md'
+$MocketeerGuide = Join-Path $RepoRoot 'products/MxMocketeer/knowledge/mendix-design-guide.txt'
+$MocketeerPrompt = Join-Path $RepoRoot 'products/MxMocketeer/system-prompt.md'
 $FixAccess    = Join-Path $RepoRoot 'tests/fixtures/role-access-semantics/fixture-access-dimensions.yaml'
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,6 +130,34 @@ Write-Host ""
 Write-Host "BACKWARD COMPATIBILITY: access_dimensions optional" -ForegroundColor Cyan
 
 Assert-FileContains "intake policy: absence of access_dimensions does not invalidate" $IntakePolicy "Backward compatible|backward.*compat"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MENDIX ROLE IDENTITY: system variable, not free-text or fuzzy matching
+# ─────────────────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "MENDIX ROLE IDENTITY: model-bound XPath reference" -ForegroundColor Cyan
+
+Assert-FileContains "R1: policy uses the Mendix UserRole system variable" $RoleIdentityPolicy '\[%UserRole_Developer%\]'
+Assert-FileContains "R1: policy uses the model association identity" $RoleIdentityPolicy 'System\.UserRoles/System\.UserRole\[id ='
+Assert-FileContains "R1: policy rejects UserRole.Name comparisons" $RoleIdentityPolicy 'rather than comparing `System\.UserRole\.Name` to free text'
+Assert-FileContains "R2: role rename requires model revalidation" $RoleIdentityPolicy 'After a User Role rename'
+Assert-FileContains "R2: rename-aware refactoring is not assumed" $RoleIdentityPolicy 'does not, by itself, guarantee rename-aware refactoring'
+Assert-FileContains "R3: wildcard and contains matching are forbidden" $RoleIdentityPolicy 'Never use wildcard, `contains\(\)`'
+Assert-FileContains "role identity remains distinct from business capability" $RoleIdentityPolicy 'UserRole identity is not business capability'
+Assert-FileContains "business scope and lifecycle rules are preserved" $RoleIdentityPolicy 'scope or lifecycle checks'
+
+Assert-FileContains "Implementation Agent consumes the role policy" $ImplementationAgent 'policies/implementation-control\.md'
+Assert-FileContains "Builder Kit route consumes the same role rule" $ImplementationAgent 'identity rule applies to Builder Kit output and every other implementation route'
+Assert-FileContains "UI Agent consumes the role policy" $UiAgent 'policies/implementation-control\.md'
+Assert-FileContains "Acceptance Agent consumes the role policy" $AcceptanceAgent 'policies/implementation-control\.md'
+Assert-FileContains "Maintainer consumes the role policy for compatibility repairs" $MaintainerAgent 'policies/implementation-control\.md'
+Assert-FileContains "Brownfield adoption preserves model-bound role identity" $BrownfieldSkill 'policies/implementation-control\.md'
+Assert-FileContains "Mocketeer Agent preserves the implementation boundary" $MocketeerAgent 'policies/implementation-control\.md'
+Assert-FileContains "Mocketeer Agent prominently identifies the UserRole handoff" $MocketeerAgent 'Wichtiger UserRole-Identity-Handoff'
+Assert-FileContains "Mocketeer handoff names the Design Guide to update" $MocketeerAgent 'products/MxMocketeer/knowledge/mendix-design-guide\.txt'
+Assert-FileContains "Mocketeer handoff protects the prompt length limit" $MocketeerAgent '8,000-character hard limit and 100-character'
+Assert-FileContains "Mocketeer design guidance rejects free-text role predicates" $MocketeerGuide 'not instructions to compare `System\.UserRole\.Name`'
+Assert-FileContains "Mocketeer prompt points to the Mendix Design Guide" $MocketeerPrompt 'Role security: follow Mendix Design Guide'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SUMMARY

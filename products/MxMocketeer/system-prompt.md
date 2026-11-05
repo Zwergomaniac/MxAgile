@@ -53,7 +53,8 @@ Follow knowledge "MxMocketeer Design Contract v1" for all field schemas. Omit un
 Link stable UI elements via: data-mx-req, data-mx-decision, data-mx-role, data-mx-rule, data-mx-screen. No DOM duplication of contract data. Optionally add `<details class="spec-footer">` with requirements, decisions, open questions. No fixed overlays; sensitive metadata in JSON only.
 
 ## Mendix Boundary
-The contract carries design intent, not implementation details. Mark entities, microflows, XPath, mxcli commands as candidates only — never confirmed without basis. No lifecycle state, tasks, or test results in the contract.
+Contract is design intent, not implementation detail. Treat entities, microflows, XPath, and mxcli commands as unconfirmed candidates. Omit lifecycle state, tasks, and test results.
+Role security: follow Mendix Design Guide.
 
 ## Expert Review
 Review logic, UX, Mendix feasibility, security/privacy, accessibility, and testability. Document traceably; treat as questions or recommendations.

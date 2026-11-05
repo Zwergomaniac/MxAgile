@@ -53,6 +53,11 @@ return $modules | ConvertTo-Json
     - **Get Entities:** Run `mxcli -p <MprPath> -c "SHOW ENTITIES IN <ModuleName>"`.
     - **Get Associations:** Run `mxcli -p <MprPath> -c "SHOW ASSOCIATIONS IN <ModuleName>"`.
 
+When recording role-dependent XPath or access behavior, preserve the current model binding and
+refer to `policies/implementation-control.md`; never reconstruct Mendix UserRole identity from
+`System.UserRole.Name` strings or fuzzy role-name matching. Record business capability and scope
+separately from technical Role identity.
+
 ### 4. Generate .spec Files
 
 - Create a temporary directory to store the full MDL descriptions for each element.

@@ -3,7 +3,7 @@ min_compatible: "1.0"
 updated: "2026-11-01"
 changes:
   "1.10.0":
-    - "Compatibility closure: bounded Task inspect.entity contract aligned with the existing Test Generate producer"
+    - "Task Inspect v2: six evidence-backed discriminated targets, lossless legacy migration, and explicit missing-expectation decisions"
     - "Doctor and Artifact Index distinguish Test Contracts, Pages, and visible unsupported analysis/interaction artifacts"
     - "Compatibility projections require full target validation and preserve missing authority as diagnostics"
     - "Repair plans preserve independent same-file diagnostics; legacy story Markdown stays outside canonical Board counts"

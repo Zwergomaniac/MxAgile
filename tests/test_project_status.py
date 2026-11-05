@@ -1066,15 +1066,115 @@ class ProjectStatusTests(unittest.TestCase):
       issues = project_compatibility.schema_diagnostics("planning/ui-inventory/PAGE-1.yaml", {"page": "PAGE-1", "source": "design.html"})
       self.assertTrue(issues)
       self.assertFalse(any(item[1] == "SAFE_DETERMINISTIC" for item in issues))
-      issues = project_compatibility.schema_diagnostics("planning/tasks/TASK-001.yml", {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect", "inspect": {"entity": "Module.Entity"}})
-      self.assertTrue(any(item[1] == "DECISION_REQUIRED" for item in issues))
+      relative = "planning/tasks/TASK-001.yml"
+      task = {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect",
+              "inspect": {"entity": "Module.Entity"}}
+      self.assertEqual(project_compatibility.schema_errors(relative, task), [])
+      write_file(self.root, relative, "ID: TASK-001\nspec: SPEC-001\naction: Inspect\ninspect:\n  entity: Module.Entity\n")
+      diagnostics = build_project_status.build_status(self.root)["compatibility"]["diagnostics"]
+      self.assertTrue(any(item["category"] == "EXPECTATION_MISSING" and item["repairability"] == "DECISION_REQUIRED"
+                          for item in diagnostics))
+      self.assertTrue(any(item["proposed_repair_type"] == "TASK_INSPECT_TYPED_TARGET_V1"
+                          and item["repairability"] == "SAFE_DETERMINISTIC" for item in diagnostics))
       canonical = {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect",
-                   "inspect": {"entity": "Module.Entity", "expect": "Entity has an access rule."}}
-      self.assertEqual(project_compatibility.schema_errors("planning/tasks/TASK-001.yml", canonical), [])
+                   "inspect": {"type": "entity", "target": "Module.Entity", "expect": "Entity has an access rule."}}
+      self.assertEqual(project_compatibility.schema_errors(relative, canonical), [])
       unsupported = copy.deepcopy(canonical)
       unsupported["inspect"]["unclassified"] = "preserve"
       issues = project_compatibility.schema_diagnostics("planning/tasks/TASK-001.yml", unsupported)
       self.assertTrue(any(item[1] == "DECISION_REQUIRED" for item in issues))
+
+    def test_typed_task_inspect_supports_evidence_types_and_one_target(self) -> None:
+      relative = "planning/tasks/TASK-001.yml"
+      for target_type in ("entity", "microflow", "association", "rule", "snippet", "page"):
+        task = {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect",
+                "inspect": {"type": target_type, "target": "CAP_Core.PlanYear_Center", "expect": "Exists."}}
+        self.assertEqual(project_compatibility.schema_errors(relative, task), [], target_type)
+
+      task["inspect"]["entity"] = "Module.Other"
+      self.assertIn("additionalProperties", project_compatibility.schema_errors(relative, task))
+      legacy_multiple = {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect",
+                         "inspect": {"entity": "Module.Entity", "microflow": "Module.Flow", "expect": "Exists."}}
+      projected, _, conflicts = project_compatibility.compatibility_projection(relative, legacy_multiple)
+      self.assertEqual(projected, legacy_multiple)
+      self.assertTrue(conflicts)
+      self.assertTrue(project_compatibility.schema_errors(relative, legacy_multiple))
+
+      legacy_empty_strings = {"ID": "TASK-001", "spec": "SPEC-001", "action": "Inspect",
+              "inspect": {"microflow": "", "expect": ""}}
+      self.assertEqual(project_compatibility.schema_errors(relative, legacy_empty_strings), [])
+      projected, rules, conflicts = project_compatibility.compatibility_projection(relative, legacy_empty_strings)
+      self.assertEqual(conflicts, [])
+      self.assertEqual(rules, ["task_inspect_typed_target_v1"])
+      self.assertEqual(projected["inspect"], {"type": "microflow", "target": "", "expect": ""})
+      write_file(self.root, relative, "ID: TASK-001\nspec: SPEC-001\naction: Inspect\ninspect:\n  microflow: Module.Flow\n  expect: '   '\n")
+      blank_expectation_task = project_compatibility.load_yaml((self.root / relative).read_bytes())
+      self.assertEqual(project_compatibility.schema_errors(relative, blank_expectation_task), [])
+      diagnostics = build_project_status.build_status(self.root)["compatibility"]["diagnostics"]
+      self.assertTrue(any(item["category"] == "EXPECTATION_MISSING" and item["source_path"] == relative
+              and item["repairability"] == "DECISION_REQUIRED" for item in diagnostics))
+
+    def test_task_inspect_legacy_migration_preserves_structured_targets_and_bytes(self) -> None:
+      target_types = ("entity", "microflow", "association", "rule", "snippet", "page")
+      for index, target_type in enumerate(target_types, start=1):
+        task_id = f"TASK-{index:03d}"
+        target = f"CAP_Core.Target{index}"
+        write_file(self.root, f"planning/tasks/{task_id}.yml",
+                   f"ID: {task_id}\nspec: SPEC-001\naction: Inspect\nstatus: pending\ninspect:\n  {target_type}: '{target}' # retain target comment\n  expect: \"Exact expectation {index}.\"\n")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      migrations = [item for item in report["diagnostics"]
+                    if item["proposed_repair_type"] == "TASK_INSPECT_TYPED_TARGET_V1"]
+      self.assertEqual(len(migrations), len(target_types))
+      plan = project_compatibility.repair_plan(self.root, report)
+      self.assertEqual(len(plan["repairs"]), len(target_types))
+      result = project_compatibility.apply_repair(self.root, plan["plan_hash"])
+      self.assertEqual(len(result["applied"]), len(target_types))
+      for index, target_type in enumerate(target_types, start=1):
+        task_id = f"TASK-{index:03d}"
+        path = self.root / f"planning/tasks/{task_id}.yml"
+        migrated = project_compatibility.load_yaml(path.read_bytes())
+        self.assertEqual(migrated["inspect"], {
+          "type": target_type, "target": f"CAP_Core.Target{index}", "expect": f"Exact expectation {index}."
+        })
+        self.assertIn("# retain target comment", path.read_text(encoding="utf-8"))
+        self.assertEqual(project_compatibility.schema_errors(path.relative_to(self.root).as_posix(), migrated), [])
+
+    def test_missing_inspect_expectation_is_not_passed_or_invented(self) -> None:
+      write_file(self.root, "planning/tasks/TASK-071.yml", "ID: TASK-071\nspec: SPEC-001\naction: Inspect snippet\ndetail: prose that is not an expectation\ninspect:\n  snippet: CAP_Core.Snippet\n")
+      report = build_project_status.build_status(self.root)["compatibility"]
+      diagnostic = next(item for item in report["diagnostics"]
+                        if item["source_path"] == "planning/tasks/TASK-071.yml" and item["category"] == "EXPECTATION_MISSING")
+      self.assertTrue(diagnostic["blocking"])
+      self.assertEqual(diagnostic["repairability"], "DECISION_REQUIRED")
+      self.assertNotIn("PASS", diagnostic["message"])
+      plan = project_compatibility.repair_plan(self.root, report)
+      self.assertEqual(len(plan["repairs"]), 1)
+      project_compatibility.apply_repair(self.root, plan["plan_hash"])
+      migrated = project_compatibility.load_yaml((self.root / "planning/tasks/TASK-071.yml").read_bytes())
+      self.assertEqual(migrated["inspect"], {"type": "snippet", "target": "CAP_Core.Snippet"})
+      self.assertEqual(migrated["detail"], "prose that is not an expectation")
+      after = build_project_status.build_status(self.root)["compatibility"]["diagnostics"]
+      self.assertTrue(any(item["category"] == "EXPECTATION_MISSING" and item["source_path"] == "planning/tasks/TASK-071.yml" for item in after))
+      self.assertFalse(any(item["category"] == "SCHEMA_ERROR" and item["source_path"] == "planning/tasks/TASK-071.yml" for item in after))
+      self.assertEqual(project_compatibility.repair_plan(self.root, build_project_status.build_status(self.root)["compatibility"])["repairs"], [])
+
+    def test_acceptance_and_maintainer_keep_inspect_authority(self) -> None:
+      acceptance = (ROOT / ".mxagile/agents/acceptance-agent.md").read_text(encoding="utf-8")
+      maintainer = (ROOT / ".mxagile/agents/maintainer.md").read_text(encoding="utf-8")
+      for target_type in ("entity", "microflow", "association", "rule", "snippet", "page"):
+        self.assertIn(target_type, acceptance)
+      self.assertIn("mxcli describe <type> <target>", acceptance)
+      self.assertIn("NOT_VERIFIED", acceptance)
+      self.assertIn("TASK_INSPECT_TYPED_TARGET_V1", maintainer)
+      self.assertIn("EXPECTATION_MISSING", maintainer)
+      self.assertIn("generate `expect` from `detail`", maintainer)
+
+    def test_board_summarizes_inspect_migrations_and_keeps_details_collapsed(self) -> None:
+      board_js = (ROOT / ".mxagile/board/board.js").read_text(encoding="utf-8")
+      self.assertIn("tasks require task-inspect compatibility migration", board_js)
+      self.assertIn('item.proposed_repair_type === "TASK_INSPECT_TYPED_TARGET_V1"', board_js)
+      self.assertIn("panel.open = false", board_js)
+      self.assertIn("for (const item of report.diagnostics)", board_js)
 
     def test_legacy_ui_conflicts_are_explicit_and_never_automapped(self) -> None:
       write_file(self.root, "planning/ui-inventory/PAGE-1.yaml", "page_id: PAGE-1\npage: PAGE-9\nsource_mockup: input-resources/ui-ux/new.html\nsource: input-resources/ui-ux/old.html\n")

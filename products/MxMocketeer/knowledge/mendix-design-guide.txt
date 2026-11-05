@@ -29,6 +29,8 @@ MxMocketeer does not make final decisions about:
 ## Roles and Security
 Visibility is not complete security. The mockup documents what users may see/do and may not see/do from a business perspective. The later Mendix implementation must enforce page, microflow, and entity/attribute access separately.
 
+Role names in a Design Contract express business/test identity; they are not instructions to compare `System.UserRole.Name` strings. When implementation XPath refers to a concrete Mendix User Role, use the documented `[%UserRole_<RoleName>%]` system variable and verify it against the actual project role. Never substitute wildcard or substring matching. Keep capabilities such as `CanEditRegions` distinct from role identity; scope, context, lifecycle, and status rules may still apply. See MxAgile `policies/implementation-control.md` for the canonical implementation contract.
+
 ## Design Quality
 - Small, coherent flows rather than disconnected screens
 - Clear actions and understandable feedback

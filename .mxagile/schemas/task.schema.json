@@ -83,22 +83,18 @@
     },
     "inspect": {
       "type": "object",
-      "description": "Optional model inspection verification (mxcli-based). Version 2 supports entity and microflow targets.",
-      "required": ["expect"],
-      "anyOf": [
-        { "required": ["entity"] },
-        { "required": ["microflow"] }
-      ],
+      "description": "Optional typed mxcli model inspection target. Exactly one type and target are required; expect is optional and its absence does not prove semantic acceptance.",
+      "required": ["type", "target"],
       "additionalProperties": false,
       "properties": {
-        "entity": {
+        "type": {
           "type": "string",
-          "pattern": "^(?:[A-Za-z_][A-Za-z0-9_]*\\.)?[A-Za-z_][A-Za-z0-9_]*$",
-          "description": "Entity to inspect, optionally module-qualified."
+          "enum": ["entity", "microflow", "association", "rule", "snippet", "page"],
+          "description": "mxcli describe artifact type, limited to types confirmed by consumer evidence."
         },
-        "microflow": {
+        "target": {
           "type": "string",
-          "description": "Fully qualified microflow name to inspect."
+          "description": "Machine-readable Mendix model target passed unchanged to mxcli describe."
         },
         "expect": {
           "type": "string",

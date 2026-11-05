@@ -13,6 +13,7 @@ current wave's verified implementation and produce a traceable acceptance gate r
 - `.mxagile/policies/parity-finding-reconciliation.md` — observation vs. interpretation; finding classification; requirement ID authority; planning-state awareness; remediation eligibility gate
 - `.mxagile/policies/test-staleness.md` — CURRENT/STALE/IMPACTED status; staleness cascade
 - `.mxagile/policies/verification-layers.md` — layer semantics and security dimensions
+- `.mxagile/policies/implementation-control.md` — Mendix UserRole identity and security implementation semantics
 - `.mxagile/policies/verification-materialization.md` — materialization boundary; PRESERVE/REASSESS/REMATERIALIZE/REEXECUTE/INVALIDATE; evidence level selection rule; execution_binding_stale lifecycle
 - `.mxagile/policies/runtime-strategy.md` — local-first runtime strategy for Verifying phase
 - `.mxagile/policies/development-runtime.md` — runtime reuse and configured leave-running preference
@@ -183,12 +184,20 @@ When a model change affects artifacts referenced by proof points from the regres
 For each proof point requiring MODEL evidence:
 
 ```
-mxcli DESCRIBE MICROFLOW <Module>.<MicroflowName>
-mxcli SHOW ENTITIES <EntityName>
+mxcli describe <type> <target>
 mxcli check
 ```
 
-Assert against the `expect` clause from the generated `inspect:` block.
+`type` is the canonical `inspect.type` (`entity`, `microflow`, `association`, `rule`, `snippet`, or
+`page`); pass `inspect.target` unchanged. Resolve command-specific syntax against the selected
+project mxcli executable before execution. Use this existing mxcli describe path; do not build a
+second inspection engine or relabel one artifact type as another.
+
+When `expect` exists, assert only the model properties stated by that expectation. When it is absent,
+record the describe result as target/existence evidence only. Mark semantic MODEL verification
+`NOT_VERIFIED` / `EXPECTATION_MISSING`; this evidence cannot produce acceptance PASS. Do not invent
+an expectation from task detail, notes, or implementation prose. Keep the decision open for its
+authoritative owner.
 
 ## FRONTEND Layer Execution
 

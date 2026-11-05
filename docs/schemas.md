@@ -349,9 +349,11 @@ When a Design Contract source ID is already occupied canonically by an unrelated
 ### Evolved Contract Versions
 
 Requirement, Test Contract, Evidence Manifest, Page, and Task schemas declare
-`x-mxagile-contract-version: 2`. Task v2 accepts the existing Test Generate producer's bounded
-`inspect.entity` target alongside `inspect.microflow`; Task artifacts do not require a separate
-`schema_version` field, so existing records remain readable. Test Contract artifacts with
+`x-mxagile-contract-version: 2`. Task v2 uses one typed `inspect.type` / `inspect.target` pair for
+`entity`, `microflow`, `association`, `rule`, `snippet`, or `page`; `expect` is optional and its
+absence leaves semantic verification `NOT_VERIFIED`. The Doctor losslessly projects and can migrate
+legacy `inspect.<type>` forms only when exactly one supported target exists. Task artifacts do not
+require a separate `schema_version` field. Test Contract artifacts with
 `schema_version: 1` remain readable; new producers write `schema_version: 2`.
 `proof_points[].traceability.requirement_ids` is optional, unique, and validated independently
 from the parent TC's required `requirement_ids`.

@@ -43,7 +43,25 @@ Das Erstellen und Verfeinern von Mockups obliegt dem MxMocketeer-Produkt selbst.
 - `.mxagile/policies/impact-resolution.md` — Revision-Impact-Propagation
 - `.mxagile/policies/gap-verification-repair.md` — GAP-Klassifikation und -Lifecycle
 - `.mxagile/policies/source-priority.md` — Quellen-Autoritaet
+- `.mxagile/policies/implementation-control.md` — Mendix UserRole identity; business capability remains separate
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
+
+## Wichtiger UserRole-Identity-Handoff
+Role names in Mocketeer Design Contracts are business/test identities, not Mendix XPath
+predicates. The Mocketeer product guidance must preserve that boundary:
+
+- `products/MxMocketeer/knowledge/mendix-design-guide.txt` must prohibit free-text
+- `products/MxMocketeer/knowledge/mendix-design-guide.txt` must prohibit free-text
+   `System.UserRole.Name` checks and wildcard/substring matching, and direct concrete Mendix role
+   identity to the documented UserRole system variable after project-model verification.
+- Preserve business capabilities such as `CanEditRegions` separately from UserRole identity and
+   retain scope, KnowledgeContext, lifecycle, and status conditions.
+- Keep `products/MxMocketeer/system-prompt.md` within its 8,000-character hard limit and 100-character
+   safety margin. Keep the precise syntax and examples in the Design Guide, not duplicated in the
+   prompt; the prompt should retain only a short reference if there is measured room.
+- Do not let Mocketeer choose implementation policy or claim rename-aware refactoring. The
+   Implementation Agent validates the exact role token against the actual project and its
+   Studio Pro/mxcli version.
 
 ## Schemas
 

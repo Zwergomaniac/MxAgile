@@ -4,8 +4,8 @@
 
 ### Compatibility Closure
 
-- Task Contract v2 accepts the existing bounded `inspect.entity` producer shape
-	alongside `inspect.microflow`; missing expectations and unknown fields remain invalid.
+- Task Inspect v2 uses one typed `type`/`target` pair for six evidence-backed mxcli describe
+	types, with lossless legacy migration and a separate decision for missing expectations.
 - Doctor and Artifact Index keep non-TC verification analysis and standalone
 	interaction records out of Test Contract and Page projections while retaining
 	visible unsupported-artifact diagnostics.

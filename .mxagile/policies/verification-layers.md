@@ -97,6 +97,10 @@ Tag: `evidence: browser` (maps to FRONTEND in layer vocabulary)
 These four dimensions are ORTHOGONAL. A role may pass one dimension but fail another.
 All four must be explicitly assessed when security proof points are present.
 
+For technical Mendix role identity in XPath, use the model-bound UserRole system-variable rule in
+`policies/implementation-control.md`. Role identity does not subsume business capability or data
+scope; verify those independently.
+
 ### VISIBILITY
 
 **What it checks:** Whether a UI element (page, section, button, field, navigation item) is

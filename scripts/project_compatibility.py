@@ -150,6 +150,21 @@ def compatibility_projection(relative: str, value: Any) -> tuple[Any, list[str],
                     link.setdefault('leads_to_page', link['target'])
                     del link['target']
                     rules.append('page_navigation_target_v1')
+    elif artifact == 'task':
+        inspect = projected.get('inspect')
+        if isinstance(inspect, dict):
+            target_types = ('entity', 'microflow', 'association', 'rule', 'snippet', 'page')
+            legacy_types = [name for name in target_types if name in inspect]
+            if legacy_types:
+                typed_fields = {'type', 'target'}.intersection(inspect)
+                if len(legacy_types) != 1 or typed_fields:
+                    conflicts.append('inspect target cardinality/form')
+                elif set(inspect).issubset({legacy_types[0], 'expect'}):
+                    target_type = legacy_types[0]
+                    target = inspect.pop(target_type)
+                    inspect['type'] = target_type
+                    inspect['target'] = target
+                    rules.append('task_inspect_typed_target_v1')
     return projected, sorted(set(rules)), sorted(set(conflicts))
 
 
@@ -514,8 +529,11 @@ def compatibility_report(
         if projection_rules and projection_valid:
             for rule in projection_rules:
                 add('LEGACY_VARIANT', relative, contract[1],
-                    'Known legacy shape is projected read-only to the current contract; source bytes are unchanged.',
-                    repairability='SAFE_DETERMINISTIC', repair=rule,
+                    'Legacy Task inspect target can be migrated losslessly to the typed contract; source bytes are unchanged.'
+                    if rule == 'task_inspect_typed_target_v1'
+                    else 'Known legacy shape is projected read-only to the current contract; source bytes are unchanged.',
+                    repairability='SAFE_DETERMINISTIC',
+                    repair='TASK_INSPECT_TYPED_TARGET_V1' if rule == 'task_inspect_typed_target_v1' else rule,
                     authority='.mxagile/policies/project-compatibility.md', severity='INFO')
         errors = schema_errors(relative, value)
         if errors:
@@ -698,6 +716,14 @@ def compatibility_report(
                     blocking=True, repairability='DECISION_REQUIRED' if category == 'REFERENCE_AMBIGUOUS' else 'AGENT_REPAIRABLE',
                     authority='page_id')
         if area == 'tasks':
+            task_inspect = documents.get(relative, {}).get('inspect')
+            expectation = task_inspect.get('expect') if isinstance(task_inspect, dict) else None
+            if (isinstance(task_inspect, dict) and 'type' in task_inspect
+                    and 'target' in task_inspect
+                    and (not isinstance(expectation, str) or not expectation.strip())):
+                add('EXPECTATION_MISSING', relative, area,
+                    'Inspect target is valid, but no authoritative semantic expectation is recorded.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='inspect.expect')
             state, wave, provenance = assignment(root, value, waves, assignment_cache)
             if state not in ('explicit',):
                 coverage['task']['unassigned'] += 1
@@ -818,6 +844,54 @@ def quoted_yaml_candidate(relative: str, raw: bytes) -> bytes | None:
     return None
 
 
+def task_inspect_candidate(relative: str, raw: bytes) -> bytes | None:
+    if not contract_for(relative) or contract_for(relative)[0] != 'task':
+        return None
+    try:
+        text = raw.decode('utf-8-sig')
+        original = load_yaml(text)
+        projected, rules, conflicts = compatibility_projection(relative, original)
+        root_node = yaml.compose(text, Loader=CanonicalLoader)
+    except (UnicodeError, yaml.YAMLError):
+        return None
+    if rules != ['task_inspect_typed_target_v1'] or conflicts or schema_errors(relative, original):
+        return None
+    if not isinstance(root_node, yaml.MappingNode):
+        return None
+    inspect_nodes = [value for key, value in root_node.value
+                     if isinstance(key, yaml.ScalarNode) and key.value == 'inspect']
+    if len(inspect_nodes) != 1 or not isinstance(inspect_nodes[0], yaml.MappingNode) or inspect_nodes[0].flow_style:
+        return None
+    inspect_node = inspect_nodes[0]
+    target_types = {'entity', 'microflow', 'association', 'rule', 'snippet', 'page'}
+    entries = [(key, value) for key, value in inspect_node.value if isinstance(key, yaml.ScalarNode)]
+    legacy = [(key, value) for key, value in entries if key.value in target_types]
+    if len(legacy) != 1 or any(key.value not in target_types | {'expect'} for key, _ in entries):
+        return None
+    key_node, value_node = legacy[0]
+    if not isinstance(value_node, yaml.ScalarNode) or key_node.start_mark.line != value_node.start_mark.line or value_node.end_mark.line != key_node.start_mark.line:
+        return None
+    key_start = key_node.start_mark.index
+    value_end = value_node.end_mark.index
+    line_start = text.rfind('\n', 0, key_start) + 1
+    indent = text[line_start:key_start]
+    if indent.strip() or ':' not in text[key_node.end_mark.index:value_node.start_mark.index]:
+        return None
+    target_text = text[value_node.start_mark.index:value_end]
+    newline = '\r\n' if '\r\n' in text else '\n'
+    replacement = f'type: {key_node.value}{newline}{indent}target: {target_text}'
+    converted = text[:key_start] + replacement + text[value_end:]
+    bom = b'\xef\xbb\xbf' if raw.startswith(b'\xef\xbb\xbf') else b''
+    candidate = bom + converted.encode('utf-8')
+    try:
+        converted_value = load_yaml(converted)
+    except yaml.YAMLError:
+        return None
+    if converted_value != projected or schema_errors(relative, converted_value):
+        return None
+    return candidate
+
+
 def protected_values(value: Any, prefix: tuple = ()) -> dict:
     result = {}
     if isinstance(value, dict):
@@ -853,6 +927,10 @@ def repair_candidates(root: Path, report: dict, candidate_dir: Path | None = Non
             replacement = quoted_yaml_candidate(relative, raw)
             if replacement is not None:
                 candidates[relative] = replacement, 'QUOTE_TEXT_SCALAR'
+        elif diagnostic['proposed_repair_type'] == 'TASK_INSPECT_TYPED_TARGET_V1':
+            replacement = task_inspect_candidate(relative, raw)
+            if replacement is not None:
+                candidates[relative] = replacement, 'TASK_INSPECT_TYPED_TARGET_V1'
         elif diagnostic['proposed_repair_type'] == 'ADD_WAVE_ID':
             value = load_yaml(raw.decode('utf-8-sig'))
             state, wave, provenance = assignment(root, value, waves, assignment_cache)
@@ -890,6 +968,8 @@ def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None) -> 
         preview = {'before': '[REDACTED TEXT SCALAR]', 'after': '[SAME TEXT SCALAR, QUOTED]' if kind == 'QUOTE_TEXT_SCALAR' else '[REDACTED REVIEWED CANDIDATE]'}
         if kind == 'ADD_WAVE_ID':
             preview = {'field': 'wave_id', 'before': None, 'after': load_yaml(replacement.decode('utf-8-sig'))['wave_id']}
+        elif kind == 'TASK_INSPECT_TYPED_TARGET_V1':
+            preview = {'field': 'inspect', 'before': 'legacy structured target', 'after': 'typed type/target; expect preserved'}
         entries.append({
             'source_path': relative, 'repair_type': kind,
             'before_fingerprint': digest(path.read_bytes()), 'after_fingerprint': digest(replacement),

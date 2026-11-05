@@ -24,6 +24,7 @@ Falls die Datei nicht existiert: bestehende Defaults beibehalten.
 - `.mxagile/policies/safety-rules.md` — Universelle Safety Rules
 - `.mxagile/policies/ui-element-selection.md` — Intent-driven widget selection: pattern before widget, Data Grid 2 fit check, read-only display contract, escalation ladder
 - `.mxagile/policies/ui-parity.md` — Multi-dimensional parity contract (7 dimensions, statuses, aggregation, legacy evidence upgrade)
+- `.mxagile/policies/implementation-control.md` — model-bound UserRole identity vs. business capability
 - `.mxagile/policies/observe-before-mutate.md` — Enforceable lifecycle: observe and analyse BEFORE any mutation; mutation eligibility gate; evidence enablement exception
 - `.mxagile/policies/mockup-lifecycle.md` — Source mockup vs. active target mockup, provenance, version history
 - `.mxagile/policies/capability-discovery.md` — Builder capability is separate from the HTML-first project setting

@@ -10,6 +10,7 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/implementation-control.md` — Wave-Schnitt, Change Significance, Architecture Drift Guard
 - `.mxagile/policies/operating-mode.md` — Betriebsmodus-Erkennung (PFLICHT vor erster Modell-Mutation)
 - `.mxagile/policies/consistency-check.md` — CE0066-Handling
+- `.mxagile/policies/implementation-control.md` — Security-Timing and model-bound UserRole identity guidance
 - `.mxagile/policies/development-runtime.md` — Warm Local Development Loop
 - `.mxagile/policies/local-runtime-profile.md` — project-pinned mxcli and runtime profile resolution
 - `.mxagile/policies/tool-instruction-conflict.md` — resolve conflicting technical instructions and tool capabilities
@@ -144,7 +145,9 @@ The Builder Agent returns its Mendix Artifact Report as a bounded handoff, not a
 contract. The Main Agent must account for required Entities/Associations, Access/Security,
 JS Actions, Microflows/Nanoflows, Pages/Widgets, Source Files, blockers, open Studio Pro tasks,
 and Integration Verification. Main Agent retains lifecycle, scope, model/security authority,
-and verification. HTML/JS is not a second business or security authority. Builder source follows
+and verification. HTML/JS is not a second business or security authority. The same UserRole
+identity rule applies to Builder Kit output and every other implementation route; keep business
+capability, scope, and lifecycle conditions separate. Builder source follows
 `themesource/<module>/public/<feature>/`.
 
 ## Ablauf
@@ -200,7 +203,9 @@ sondern wird mit deren bestehenden Gates kombiniert.
 Pro Checklisten-Item:
 
 1. MDL-Script erstellen (unter `mdlsource/`)
-2. Betriebsmodus vor der Toolauswahl beachten. In LIVE-SP-CURRENT keine mxcli-Modellmutation
+2. Betriebsmodus vor der Toolauswahl beachten. `tool_authority.user_interaction` aus dem
+   aktuellen C2-Ergebnis konsumieren: bei `mode_choice_required: false` keine Modusauswahl oder
+   Bestaetigungsfrage stellen und die erkannte Route verwenden. In LIVE-SP-CURRENT keine mxcli-Modellmutation
    ausfuehren; Studio-Pro-MCP hat Vorrang, Concord MCP ist nur der bestaetigte Fallback.
    Wenn keine dieser Routen nachweislich gesund und an dieses Projekt gebunden ist, das
    Item blockieren statt mxcli zu versuchen. In CLOSED-AUTONOM/LIVE-SP-OTHER:

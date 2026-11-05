@@ -151,6 +151,34 @@ Repair eine architektur-signifikante Schuld oder ein Ownership-Problem aufdeckt.
 - Betriebsmodus (CLOSED-AUTONOM / LIVE-SP-CURRENT / LIVE-SP-OTHER / AMBIGUOUS-SP-STATE)
   bestimmt die verfuegbaren Werkzeuge — Erkennungsalgorithmus: `policies/operating-mode.md`
 
+## Mendix UserRole Identity in XPath
+
+When XPath logic refers to a concrete application-level Mendix User Role, use Mendix's
+documented role system variable rather than comparing `System.UserRole.Name` to free text.
+Mendix documents these equivalent role-membership forms:
+
+```xpath
+[System.UserRoles = '[%UserRole_Developer%]']
+[System.UserRoles/System.UserRole[id = '[%UserRole_Developer%]']]
+```
+
+The role token is generated for a User Role that exists in the app. Before authoring or repairing
+one, inspect the actual role with the project-selected `mxcli describe -p <project.mpr> userrole <RoleName>` and
+verify the token against the actual Mendix model/version. Never use wildcard, `contains()`,
+substring, prefix, or suffix matching for role identity. `mxcli GRANT` binds a Module Role in
+security metadata; it is not a substitute for checking an application User Role in XPath.
+
+The documented token syntax does not, by itself, guarantee rename-aware refactoring in every
+Studio Pro or mxcli version. After a User Role rename, re-inspect the role, update/rebind the token
+as supported, and run the project's actual model/consistency validation. Do not claim `mxcli check`
+validates embedded XPath unless that exact version demonstrably does so. An unresolved role token
+or mismatch is a validation failure, never a fallback to string matching.
+
+UserRole identity is not business capability. A capability such as `CanEditRegions` may depend on
+the role plus organizational scope, KnowledgeContext, lifecycle, record status, or other approved
+business rules. Keep those conditions explicit; replacing a role-name comparison must not remove
+scope or lifecycle checks, nor trigger a blanket conversion to Entity Access.
+
 ## Security-Timing (D48)
 
 | Zeitpunkt | Aktion | Grund |

@@ -95,6 +95,8 @@ RULES = (
          ('test-runtime-strategy.ps1',)),
         (('.mxagile/policies/verification-layers.md', '.mxagile/policies/gap-verification-repair.md'), 2,
          ('test_project_status.py', 'test-ui-parity.ps1', 'test-verification-lifecycle.ps1')),
+        (('.mxagile/policies/implementation-control.md', 'products/MxMocketeer/knowledge/mendix-design-guide.txt',
+            'products/MxMocketeer/system-prompt.md'), 1, ('test-role-access-semantics.ps1', 'test-mocketeer-validation.ps1')),
     (('.mxagile/policies/runtime-dependency-recovery.md',), 1,
      ('test-gradle-stall-diagnosis.ps1',)),
     (('.mxagile/policies/runtime-configuration-reconciliation.md',), 2,

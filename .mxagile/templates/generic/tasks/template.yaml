@@ -25,9 +25,13 @@ test:
 
 # Optional: model inspection via mxcli
 # inspect:
-#   entity: Module.EntityName
+#   type: entity
+#   target: Module.EntityName
 #   expect: "[Expected model structure or logic]"
-# Or target a microflow instead:
+# Supported types: entity, microflow, association, rule, snippet, page.
+# `expect` may be omitted only when no authoritative semantic expectation exists;
+# acceptance then records target existence only and remains NOT_VERIFIED.
 # inspect:
-#   microflow: Module.SUB_FlowName
+#   type: microflow
+#   target: Module.SUB_FlowName
 #   expect: "[Expected model structure or logic]"

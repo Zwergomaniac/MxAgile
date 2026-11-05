@@ -967,9 +967,14 @@ function renderCompatibility() {
   const summary = node("summary", "view-title");
   summary.append(node("strong", "", "Project compatibility"), stateBadge(report.compatibility));
   const blocking = report.diagnostics.filter((item) => item.blocking).length;
-  summary.append(node("small", "", `${blocking} blocking · ${actionable.length} diagnostics`));
+  const inspectMigrationCount = new Set(report.diagnostics
+    .filter((item) => item.proposed_repair_type === "TASK_INSPECT_TYPED_TARGET_V1")
+    .map((item) => item.source_path)).size;
+  const inspectMigrationSummary = inspectMigrationCount
+    ? `${inspectMigrationCount} tasks require task-inspect compatibility migration · ` : "";
+  summary.append(node("small", "", `${inspectMigrationSummary}${blocking} blocking · ${actionable.length} diagnostics`));
   panel.append(summary);
-  panel.open = blocking > 0;
+  panel.open = false;
   for (const [type, counts] of Object.entries(report.coverage)) {
     panel.append(node("p", "muted", `${type}: ${counts.recognized} recognized · ${counts.invalid} invalid · ${counts.unassigned} unassigned`));
   }

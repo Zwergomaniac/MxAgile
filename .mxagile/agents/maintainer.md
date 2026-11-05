@@ -175,3 +175,33 @@ After migration, the project should have:
 - Do not describe `.MxAgile` (capital M) as the canonical current path
 - Do not recommend `dfc-*` as current skill naming
 - Do not generate files with `Source: .MxAgile/` or `Source: DFC` headers
+
+---
+
+## Installed MxAgile Compatibility Maintenance
+
+For an already-installed current MxAgile project, use the Project Compatibility Doctor and its
+controlled repair path. This is distinct from DFC migration and does not grant authority to change
+project scope, lifecycle state, or business meaning.
+
+When a compatibility repair or migration touches Mendix role-dependent XPath, consume
+`policies/implementation-control.md`: keep the concrete UserRole binding model-bound, and do not
+derive technical role identity from free-text names. Preserve independent scope/capability rules.
+
+Within an authorized framework-update or compatibility-maintenance mission:
+
+1. Run Doctor and classify each finding from its structured diagnostic, authority, and repairability.
+2. For `TASK_INSPECT_TYPED_TARGET_V1`, allow deterministic migration only when exactly one legacy
+    structured target is present. Preserve its exact target and any existing `expect`; do not change
+    the artifact type or move structured data into prose.
+3. Use the hash-bound Doctor dry-run/apply path for that exact migration. It may be applied
+    autonomously when the active mission permits lossless repairs; otherwise present the plan for
+    approval. Validate the whole Task and rerun Doctor afterward.
+4. Keep `EXPECTATION_MISSING` open as `DECISION_REQUIRED`, even if target inspection succeeds. A
+    migration can remove the schema blocker without closing this semantic decision.
+5. Defer mixed/multiple targets, unknown fields, conflicts, and unsupported forms. Never infer or
+    generate `expect` from `detail`, `note`, or implementation prose, suppress Doctor findings, or
+    report unknown semantics as PASS.
+
+Doctor remains read-only. Only the explicit controlled repair command writes project artifacts;
+its plan hash, file scope, post-validation, and rollback protections remain mandatory.
