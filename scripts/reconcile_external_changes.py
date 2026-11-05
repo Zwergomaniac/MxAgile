@@ -360,6 +360,7 @@ def build_report(project_root: str | Path, *, project_status: dict[str, Any] | N
         report["commit_range"] = {
             "from_commit": watermark["last_reconciled_commit"],
             "to_commit": report["head"],
+            "branch_ref": report.get("branch_ref"),
             **commit_range,
         }
         changed_paths = [
@@ -446,7 +447,16 @@ def build_report(project_root: str | Path, *, project_status: dict[str, Any] | N
         else:
             report["finding_assessment_status"] = "COMPLETE"
     else:
-        report["commit_range"] = {"status": "BASELINE_REQUIRED", "commits": [], "spans": []}
+        # A missing watermark does not make HEAD unknown: expose the observed HEAD/branch
+        # so the Board never renders "HEAD UNKNOWN" for a known repository state (BRD-F-02).
+        report["commit_range"] = {
+            "status": "BASELINE_REQUIRED",
+            "from_commit": None,
+            "to_commit": report.get("head"),
+            "branch_ref": report.get("branch_ref"),
+            "commits": [],
+            "spans": [],
+        }
         report["finding_assessment_status"] = "BASELINE_REQUIRED"
         report["active_references"] = []
     report["finding_impacts"] = finding_impacts

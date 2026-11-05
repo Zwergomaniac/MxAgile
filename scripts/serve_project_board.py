@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 import yaml
 
 from build_project_status import ProjectUiConfigError, build_status, build_status_summary, resolve_project_ui_settings
-from project_compatibility import safe_file
+from project_compatibility import is_standalone_interaction_artifact, safe_file
 from reconcile_external_changes import build_report
 
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
@@ -99,6 +99,46 @@ def _windows_change_time(path: Path) -> int | None:
         return int(info.ChangeTime)
     finally:
         close_handle(handle)
+
+
+def git_head_and_branch(project_root: Path) -> tuple[str | None, str | None]:
+    """Cheap observed HEAD and branch (one git process); never a reconciliation claim."""
+    try:
+        result = subprocess.run(
+            ["git", "--no-optional-locks", "-C", str(project_root), "rev-parse", "HEAD",
+             "--symbolic-full-name", "HEAD"],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None, None
+    if result.returncode:
+        return None, None
+    lines = result.stdout.decode("utf-8", errors="replace").split()
+    head = lines[0] if lines and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", lines[0]) else None
+    branch = lines[1] if len(lines) > 1 and lines[1].startswith("refs/heads/") else None
+    return head, branch
+
+
+def select_latest_run(runs: list[dict]) -> dict | None:
+    """Single latest-run rule: current runs win over historical ones; newest capture wins."""
+    current = [run for run in runs if not run.get("historical")]
+    candidates = current or runs
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda run: (
+            max((capture.get("captured_at") or "" for capture in run.get("captures", [])), default=""),
+            str(run.get("entry_id") or ""),
+            str(run.get("run_id") or ""),
+        ),
+    )
+
+
+def run_key(run: dict) -> dict:
+    return {"entry_id": run.get("entry_id"), "run_id": run.get("run_id"), "manifest_path": run.get("manifest_path")}
 
 
 def _emit_board_timing(event: str, **fields: object) -> None:
@@ -368,11 +408,23 @@ class ProjectStatusCache:
                     self._full_status = None
                     self._gallery_cache.clear()
                 raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_GALLERY_BUILD")
+            items = status.get("verification", {}).get("gallery", [])
+            latest_runs = {}
+            for page_id in sorted({run.get("screen_id") for run in items if isinstance(run.get("screen_id"), str)}):
+                page_runs = [run for run in items if run.get("screen_id") == page_id]
+                latest = select_latest_run(page_runs)
+                if latest is not None:
+                    latest_runs[page_id] = {
+                        **run_key(latest),
+                        "stale": not any(not run.get("historical") for run in page_runs),
+                    }
             result = {
                 "source_fingerprint": status.get("source_fingerprint"),
                 "gallery_state": status.get("verification", {}).get("gallery_state", "available"),
                 "screen_id": screen_id,
-                "items": status.get("verification", {}).get("gallery", []),
+                "items": items,
+                # Server-side latest-run decision; the client must not re-derive it (BRD-F-08).
+                "latest_runs": latest_runs,
             }
             with self._condition:
                 if expected_signature is not None and after == expected_signature:
@@ -551,6 +603,9 @@ def build_page_previews(project_root: Path, status: dict) -> dict:
     for path in sorted(inventory_root.glob("*.yaml")):
         if path.is_symlink():
             continue
+        # Standalone interaction records are not Pages; the status projection excludes them too (BRD-F-05).
+        if is_standalone_interaction_artifact(path.relative_to(project_root).as_posix()):
+            continue
         try:
             page = yaml.safe_load(path.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError):
@@ -578,12 +633,7 @@ def build_page_previews(project_root: Path, status: dict) -> dict:
 
         page_runs = [run for run in gallery if run.get("screen_id") == page_id]
         current_runs = [run for run in page_runs if not run.get("historical")]
-        relevant_runs = current_runs or page_runs
-        latest_run = max(
-            relevant_runs,
-            key=lambda run: max((capture.get("captured_at", "") for capture in run.get("captures", [])), default=""),
-            default=None,
-        )
+        latest_run = select_latest_run(page_runs)
         parity_status = latest_run.get("parity_result", "NOT_VERIFIED") if latest_run else ("NOT_VERIFIED" if gallery_loaded else "NOT_LOADED")
         if page_runs and not current_runs:
             parity_status = "STALE"
@@ -801,7 +851,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
         except OSError:
             return None
 
-    def _status(self) -> dict:
+    def _status(self, *, include_git_head: bool = False) -> dict:
         status = dict(self.server.status_cache.get_summary())  # type: ignore[attr-defined]
         try:
             status["ui_settings"] = {
@@ -821,6 +871,10 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             "external_reference_candidates": [],
             "impact_resolution": {"status": "NOT_LOADED", "candidates": []},
         }
+        if include_git_head:
+            # Observed repository facts are cheap and known before reconciliation loads (BRD-F-01).
+            head, branch = git_head_and_branch(self.project_root)
+            status["reconciliation"]["commit_range"].update({"to_commit": head, "branch_ref": branch})
         return status
 
     def do_GET(self) -> None:
@@ -831,7 +885,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/status":
             try:
-                payload = json.dumps(self._status(), ensure_ascii=False, sort_keys=True).encode("utf-8")
+                payload = json.dumps(self._status(include_git_head=True), ensure_ascii=False, sort_keys=True).encode("utf-8")
             except Exception as exc:
                 self.log_error("STATUS_BUILD_FAILED: %s", type(exc).__name__)
                 payload = json.dumps({"error": "status_unavailable", "reason": type(exc).__name__}).encode("utf-8")

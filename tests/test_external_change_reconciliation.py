@@ -167,6 +167,16 @@ class ReconciliationBaselineTests(unittest.TestCase):
         self.assertFalse(Path(report["state_path"]).exists())
         self.assertEqual(self.git("status", "--porcelain"), "")
 
+    def test_report_without_baseline_still_exposes_observed_head(self) -> None:
+        # 001-board-redesign CS-1 / BRD-F-02: a missing watermark never makes HEAD unknown.
+        report = reconciliation.build_report(self.root)
+        commit_range = report["commit_range"]
+        self.assertEqual(commit_range["status"], "BASELINE_REQUIRED")
+        self.assertIsNone(commit_range["from_commit"])
+        self.assertEqual(commit_range["to_commit"], self.git("rev-parse", "HEAD"))
+        self.assertEqual(commit_range["branch_ref"], self.git("symbolic-ref", "HEAD"))
+        self.assertEqual((commit_range["commits"], commit_range["spans"]), ([], []))
+
     def test_adoption_requires_explicit_confirmation(self) -> None:
         result = reconciliation.adopt_baseline(self.root)
         self.assertEqual(result["status"], "BASELINE_CONFIRMATION_REQUIRED")

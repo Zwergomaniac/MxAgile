@@ -163,12 +163,34 @@ function renderProjectDrift() {
     return;
   }
   const range = reconciliation.commit_range || {};
-  const watermark = range.from_commit || "BASELINE REQUIRED";
-  const head = range.to_commit || "UNKNOWN";
+  const head = range.to_commit ? range.to_commit.slice(0, 12) : "NICHT ERMITTELT";
+  const branch = range.branch_ref ? range.branch_ref.replace(/^refs\/heads\//, "") : "NICHT ERMITTELT";
+  // Not loaded / loading is a transient projection state, never a project fact (BRD-F-01).
+  if (reconciliation.availability === "not_loaded") {
+    stateLabel.textContent = status.reconciliation_loading ? "LÄDT …" : "NICHT GELADEN";
+    for (const [label, value] of [
+      ["CURRENT HEAD", head],
+      ["BRANCH", branch],
+      ["LAST RECONCILED", "lädt …"],
+      ["UNRECONCILED COMMITS", "lädt …"],
+    ]) facts.append(countItem(label, value, ""));
+    return;
+  }
+  if (reconciliation.availability === "unavailable") {
+    stateLabel.textContent = "RECONCILIATION NICHT VERFÜGBAR";
+    for (const [label, value] of [
+      ["CURRENT HEAD", head],
+      ["BRANCH", branch],
+      ["GRUND", "Reconciliation-Bericht konnte nicht erstellt werden"],
+    ]) facts.append(countItem(label, value, ""));
+    return;
+  }
+  const watermark = range.from_commit || (range.status === "BASELINE_REQUIRED" ? "BASELINE REQUIRED" : "NICHT ERMITTELT");
   const commits = Array.isArray(range.commits) ? range.commits : [];
   const externalCommitCount = commits.filter((commit) => ["EXTERNAL_CHANGE", "MIXED", "AMBIGUOUS"].includes(commit.classification)).length;
   const externalPathCount = commits.reduce((total, commit) => total + (commit.paths || []).filter((path) => ["EXTERNAL_CHANGE", "AMBIGUOUS"].includes(path.classification)).length, 0);
   stateLabel.textContent = String(range.status || reconciliation.status || "UNKNOWN").replaceAll("_", " ");
+  facts.append(countItem("BRANCH", branch, ""));
   for (const [label, value] of [
     ["LAST RECONCILED", watermark],
     ["CURRENT HEAD", head],
@@ -557,10 +579,14 @@ function renderUiPages() {
     card.append(heading);
 
     const facts = node("dl", "page-preview-facts");
+    // Parity is only shown once evidence data is loaded; until then no value is implied (BRD-F-06).
+    const parityLabel = page.parity_status === "NOT_LOADED"
+      ? (status.gallery_errors?.["*"] ? "NICHT VERFÜGBAR" : (status.gallery_loading?.["*"] ? "LÄDT …" : "NICHT GELADEN"))
+      : (page.parity_status || "NOT_VERIFIED");
     for (const [label, value] of [
       ["IMPLEMENTATION", page.implementation_mode],
       ["MOCKUP MODE", page.mockup_driven?.effective || "UNKNOWN"],
-      ["PARITY", page.parity_status || "NOT_VERIFIED"],
+      ["PARITY", parityLabel],
       ["RUNTIME (RECORDED)", page.runtime_status?.state || "NOT_RECORDED"],
     ]) {
       const pair = node("div");
@@ -606,6 +632,7 @@ function renderUiPages() {
     pageGrid.append(card);
   }
   root.append(pageGrid);
+  if (!status.all_gallery && !status.gallery_errors?.["*"]) void loadGallery();
 }
 
 async function loadPagePreviews() {
@@ -615,6 +642,11 @@ async function loadPagePreviews() {
     const response = await fetch("/api/page-previews", { cache: "no-store" });
     if (!response.ok) throw new Error("Page preview metadata unavailable");
     status.page_previews = await response.json();
+    if (status.all_gallery) {
+      for (const page of status.page_previews.items || []) {
+        updatePageEvidence(page.page_id, status.all_gallery, status.all_gallery_latest || {});
+      }
+    }
   } catch {
     status.page_previews = { availability: "unavailable", items: [] };
   } finally {
@@ -636,13 +668,15 @@ async function loadGallery(screenId = null) {
     const response = await fetch(`/api/gallery${query}`, { cache: "no-store" });
     if (!response.ok) throw new Error("Parity gallery unavailable");
     const result = await response.json();
+    const latestRuns = result.latest_runs || {};
     if (screenId) {
       status.page_galleries[screenId] = result.items || [];
-      updatePageEvidence(screenId, result.items || []);
+      updatePageEvidence(screenId, result.items || [], latestRuns);
     } else {
       status.all_gallery = result.items || [];
+      status.all_gallery_latest = latestRuns;
       for (const page of status.page_previews?.items || []) {
-        updatePageEvidence(page.page_id, result.items || []);
+        updatePageEvidence(page.page_id, result.items || [], latestRuns);
       }
     }
     delete status.gallery_errors[cacheKey];
@@ -651,20 +685,21 @@ async function loadGallery(screenId = null) {
   } finally {
     status.gallery_loading[cacheKey] = false;
     const parts = routeParts();
-    if ((screenId && parts[0] === "page" && parts[1] === screenId) || (!screenId && parts[0] === "gallery")) {
+    if ((screenId && parts[0] === "page" && parts[1] === screenId) || (!screenId && ["gallery", "ui-pages"].includes(parts[0]))) {
       renderView();
     }
   }
 }
 
-function updatePageEvidence(pageId, runs) {
+function updatePageEvidence(pageId, runs, latestRuns) {
   const page = status.page_previews?.items?.find((item) => item.page_id === pageId);
   if (!page) return;
-  const pageRuns = runs.filter((run) => run.screen_id === pageId);
-  const currentRuns = pageRuns.filter((run) => !run.historical);
-  const relevantRuns = currentRuns.length ? currentRuns : pageRuns;
-  const latestRun = relevantRuns.at(-1);
-  page.parity_status = latestRun?.historical ? "STALE" : (latestRun?.parity_result || "NOT_VERIFIED");
+  // The latest-run decision is made once on the server; the client only looks it up (BRD-F-08).
+  const key = latestRuns[pageId];
+  const latestRun = key
+    ? runs.find((run) => run.screen_id === pageId && run.entry_id === key.entry_id && run.run_id === key.run_id && run.manifest_path === key.manifest_path)
+    : null;
+  page.parity_status = !latestRun ? "NOT_VERIFIED" : (key.stale ? "STALE" : (latestRun.parity_result || "NOT_VERIFIED"));
   if (!latestRun) {
     page.last_verification_evidence = null;
     return;
@@ -684,15 +719,19 @@ function updatePageEvidence(pageId, runs) {
 async function loadReconciliation() {
   if (!status || status.reconciliation?.availability !== "not_loaded" || status.reconciliation_loading) return;
   status.reconciliation_loading = true;
+  renderProjectDrift();
+  // Observed HEAD/branch from the summary stay visible even if the report fails.
+  const observedRange = { ...(status.reconciliation.commit_range || {}), status: "UNAVAILABLE", commits: [], spans: [] };
   try {
     const response = await fetch("/api/reconciliation", { cache: "no-store" });
     if (!response.ok) throw new Error("Project reconciliation unavailable");
     const result = await response.json();
-    status.reconciliation = result.reconciliation || { status: "UNKNOWN", availability: "unavailable" };
+    status.reconciliation = result.reconciliation || { status: "UNAVAILABLE", availability: "unavailable", commit_range: observedRange };
   } catch {
-    status.reconciliation = { status: "UNKNOWN", availability: "unavailable" };
+    status.reconciliation = { status: "UNAVAILABLE", availability: "unavailable", commit_range: observedRange };
   } finally {
     status.reconciliation_loading = false;
+    renderProjectDrift();
     if (routeParts()[0] === "overview") renderView();
   }
 }
@@ -788,7 +827,9 @@ function renderDetail(parts) {
     const facts = root.lastChild;
     facts.append(countItem("CHECKLIST", wave.checklist_progress.total, wave.checklist_progress.availability === "available" ? `${wave.checklist_progress.done} done` : "UNKNOWN"));
     facts.append(countItem("TASKS", wave.task_progress.total, `${wave.task_progress.status_counts.done ?? "UNKNOWN"} done`));
-    facts.append(countItem("MISSION BLOCKERS", status.mission.status === "blocked" ? status.mission.blocker_count : 0, status.mission.availability));
+    // No count without a source: an absent mission state is "not recorded", never 0 (BRD-F-04).
+    const missionRecorded = status.mission.availability !== "unavailable" && status.mission.blocker_count !== null && status.mission.blocker_count !== undefined;
+    facts.append(countItem("MISSION BLOCKERS (MISSIONSWEIT)", missionRecorded ? status.mission.blocker_count : "NICHT ERFASST", missionRecorded ? "aus mission-state.yaml" : "keine Mission-State-Quelle"));
     root.append(node("h3", "plain-section", "Requirements"));
     for (const reqId of wave.requirement_ids) root.append(internalLink(reqId, `requirement/${encodeURIComponent(reqId)}`));
     renderTaskList(tasks);
@@ -861,9 +902,11 @@ function renderDetail(parts) {
     return;
   }
   if (kind === "finding") {
-    const finding = status.findings.items.find((item) => item.id === id);
+    // Terminal findings live in history; their links must resolve as well (BRD-F-03).
+    const finding = status.findings.items.find((item) => item.id === id)
+      || (status.findings.history || []).find((item) => item.id === id);
     if (!finding) return root.append(empty("Finding unavailable"));
-    root.append(sectionTitle(`${finding.id} · ${finding.title}`, finding.lifecycle_status || "UNKNOWN"));
+    root.append(sectionTitle(`${finding.id} · ${finding.title || "Historical finding"}`, finding.lifecycle_status || "UNKNOWN"));
     root.append(stateBadge(finding.lifecycle_status || "UNKNOWN"));
     root.append(sourceLink("finding", finding.id));
     root.append(node("div", "detail-fields"));

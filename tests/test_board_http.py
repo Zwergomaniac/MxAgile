@@ -354,5 +354,195 @@ class BoardHttpTests(unittest.TestCase):
                 thread.join(timeout=5)
 
 
+BOARD_FIXTURE_FILES = {
+    # Embedded CS-1 fixture (001-board-redesign T005). Kept inside this mapped test module so the
+    # fixture does not introduce unmapped impact paths.
+    "mxagile-project.yaml": "name: Board Redesign Fixture\n",
+    ".mxagile/version.yaml": 'version: "1.10.0"\n',
+    "planning/lifecycle/process-state.yaml": (
+        "waves:\n"
+        "  W1:\n    phase: done\n    gates:\n"
+        "      gate_to_refinement: {result: passed, evaluated: '2026-10-01'}\n"
+        "      gate_to_ready: {result: passed, evaluated: '2026-10-02'}\n"
+        "  W2:\n    phase: implementing\n    gates:\n"
+        "      gate_to_refinement: {result: passed, evaluated: '2026-10-20'}\n"
+        "      gate_to_ready: {result: passed, evaluated: '2026-10-21'}\n"
+    ),
+    "requirements/REQ-001.yml": "ID: REQ-001\ntitle: Fixture requirement 1\ndescription: Fixture.\nstatus: accepted\n",
+    "requirements/REQ-002.yml": "ID: REQ-002\ntitle: Fixture requirement 2\ndescription: Fixture.\nstatus: accepted\n",
+    "specs/SPEC-001.yml": "ID: SPEC-001\ntitle: Fixture spec\ndescription: Fixture.\nrequirements: [REQ-001, REQ-002]\n",
+    "planning/tasks/TASK-001.yml": "ID: TASK-001\nspec: SPEC-001\nreq: [REQ-001]\nwave_id: W1\naction: Done work\nstatus: done\n",
+    "planning/tasks/TASK-002.yml": "ID: TASK-002\nspec: SPEC-001\nreq: [REQ-001]\nwave_id: W1\naction: Legacy open item\nstatus: pending\n",
+    "planning/findings/FIND-001.yml": (
+        "ID: FIND-001\ntitle: Fixture verified finding\ngap_type: CONTENT_GAP\nseverity: COSMETIC\n"
+        "lifecycle_status: VERIFIED\nobservation: Label differed.\nwave_id: W1\nrequirement_ids: [REQ-001]\n"
+        "source_artifacts:\n  - {source_type: requirement, canonical_path: requirements/REQ-001.yml, artifact_id: REQ-001}\n"
+    ),
+    "planning/ui-inventory/PAGE-001.yaml": "page_id: PAGE-001\npage_name: Fixture Main\nsource_mockup: input-resources/ui-ux/main.html\n",
+    "planning/ui-inventory/PAGE-002.yaml": (
+        "page_id: PAGE-002\npage_name: Fixture Page2\nsource_mockup: input-resources/ui-ux/main.html\n"
+        "html_source: themesource/fixture/public/page2/Page2.html\n"
+    ),
+    # Mirrors CapTrack PAGE-INTERACTION-STATES-REV5: has a page_id but is not a Page (BRD-F-05).
+    "planning/ui-inventory/PAGE-INTERACTION-STATES-REV1.yaml": (
+        "page_id: PAGE-INTERACTION-STATES-REV1\nsource_mockup: input-resources/ui-ux/main.html\n"
+        "interaction_states:\n  - {id: STATE-001, description: Standalone legacy interaction record}\n"
+    ),
+    # Parity report without comparison identity and without manifest binding (BRD-F-07).
+    "planning/parity/SCN-FIXTURE-PAGE2.yaml": (
+        "page_id: PAGE-002\nscenario_id: SCN-FIXTURE-PAGE2\nverified_at: '2026-10-25'\nevidence_level: legacy\n"
+        "overall_result: PARTIAL\ndimensions:\n"
+        "  visual: {result: LEGACY_EVIDENCE}\n  content: {result: LEGACY_EVIDENCE}\n  structure: {result: LEGACY_EVIDENCE}\n"
+        "  state: {result: NOT_VERIFIED}\n  interaction: {result: NOT_VERIFIED}\n"
+        "  responsive: {result: NOT_VERIFIED}\n  role: {result: NOT_VERIFIED}\n"
+    ),
+    "input-resources/ui-ux/main.html": "<!doctype html><title>Fixture Main Mockup</title>\n",
+    "themesource/fixture/public/page2/Page2.html": "<!doctype html><title>Fixture Page2</title>\n",
+}
+
+
+def write_board_fixture(root: Path) -> None:
+    for relative, content in BOARD_FIXTURE_FILES.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8", newline="\n")
+
+
+def git_fixture(root: Path, *args: str) -> str:
+    import subprocess
+    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout.strip()
+
+
+class BoardCorrectnessCs1Tests(unittest.TestCase):
+    """001-board-redesign CS-1: the Board must not display false or misleading values."""
+
+    start_server = BoardHttpTests.start_server
+    stop_server = BoardHttpTests.stop_server
+
+    def test_reconciliation_placeholder_carries_observed_head_and_branch(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-cs1-head-", ignore_cleanup_errors=True) as temporary:
+            root = Path(temporary)
+            write_board_fixture(root)
+            git_fixture(root, "init", "--quiet")
+            git_fixture(root, "config", "user.name", "Fixture")
+            git_fixture(root, "config", "user.email", "fixture@example.invalid")
+            git_fixture(root, "symbolic-ref", "HEAD", "refs/heads/main")
+            git_fixture(root, "add", "--all")
+            git_fixture(root, "commit", "--quiet", "-m", "Fixture baseline")
+            head = git_fixture(root, "rev-parse", "HEAD")
+            server, thread = self.start_server(root)
+            try:
+                with urlopen(f"http://127.0.0.1:{server.server_port}/api/status") as response:
+                    payload = json.loads(response.read())
+            finally:
+                self.stop_server(server, thread)
+        reconciliation = payload["reconciliation"]
+        self.assertEqual(reconciliation["availability"], "not_loaded")
+        self.assertEqual(reconciliation["commit_range"]["status"], "NOT_LOADED")
+        self.assertEqual(reconciliation["commit_range"]["to_commit"], head)
+        self.assertEqual(reconciliation["commit_range"]["branch_ref"], "refs/heads/main")
+
+    def test_placeholder_without_git_reports_no_head_instead_of_failing(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-cs1-nogit-") as temporary:
+            root = Path(temporary)
+            with patch.object(serve_project_board, "git_head_and_branch", return_value=(None, None)) as probe:
+                server, thread = self.start_server(root)
+                server.status_cache.get_summary = Mock(return_value={"verification": {}})
+                try:
+                    with urlopen(f"http://127.0.0.1:{server.server_port}/api/status") as response:
+                        payload = json.loads(response.read())
+                    with self.assertRaises(HTTPError) as missing:
+                        urlopen(f"http://127.0.0.1:{server.server_port}/source/planning/unknown.yml")
+                    missing.exception.close()
+                finally:
+                    self.stop_server(server, thread)
+            # The cheap HEAD probe belongs to /api/status only, never to asset requests.
+            self.assertEqual(probe.call_count, 1)
+        self.assertIsNone(payload["reconciliation"]["commit_range"]["to_commit"])
+        self.assertIsNone(payload["reconciliation"]["commit_range"]["branch_ref"])
+
+    def test_page_previews_exclude_standalone_interaction_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-cs1-pages-") as temporary:
+            root = Path(temporary)
+            write_board_fixture(root)
+            status = build_project_status.build_status_summary(root)
+            previews = serve_project_board.build_page_previews(root, status)
+        page_ids = [item["page_id"] for item in previews["items"]]
+        self.assertEqual(page_ids, ["PAGE-001", "PAGE-002"])
+        self.assertNotIn("PAGE-INTERACTION-STATES-REV1", page_ids)
+
+    def test_parity_report_without_manifest_binding_is_a_linkable_source(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-cs1-parity-source-") as temporary:
+            root = Path(temporary)
+            write_board_fixture(root)
+            server, thread = self.start_server(root)
+            try:
+                with urlopen(f"http://127.0.0.1:{server.server_port}/api/status") as response:
+                    payload = json.loads(response.read())
+                with urlopen(
+                    f"http://127.0.0.1:{server.server_port}/source/planning/parity/SCN-FIXTURE-PAGE2.yaml"
+                ) as response:
+                    body = response.read().decode("utf-8")
+            finally:
+                self.stop_server(server, thread)
+        references = [item for item in payload["source_references"]["items"] if item["source_type"] == "parity_report"]
+        self.assertEqual([(item["canonical_path"], item["artifact_id"]) for item in references],
+                         [("planning/parity/SCN-FIXTURE-PAGE2.yaml", "SCN-FIXTURE-PAGE2")])
+        self.assertIn("scenario_id: SCN-FIXTURE-PAGE2", body)
+
+    def test_latest_run_rule_is_single_and_server_side(self) -> None:
+        def run(entry: str, run_id: str, captured_at: str, *, historical: bool = False) -> dict:
+            return {
+                "screen_id": "PAGE-001", "entry_id": entry, "run_id": run_id, "manifest_path": "m.yaml",
+                "reference_path": "input-resources/ui-ux/main.html", "revision": "REV-001",
+                "historical": historical, "parity_result": "PASS" if not historical else "FAIL",
+                "captures": [{"captured_at": captured_at}],
+            }
+        old_current = run("E1", "R1", "2026-11-01T10:00:00Z")
+        new_current = run("E2", "R2", "2026-11-03T10:00:00Z")
+        newest_historical = run("E3", "R3", "2026-11-04T10:00:00Z", historical=True)
+        self.assertIs(serve_project_board.select_latest_run([old_current, newest_historical, new_current]), new_current)
+        self.assertIs(serve_project_board.select_latest_run([newest_historical]), newest_historical)
+        self.assertIsNone(serve_project_board.select_latest_run([]))
+
+        cache = serve_project_board.ProjectStatusCache(ROOT)
+        with patch.object(cache, "get_summary", return_value={}), \
+                patch.object(serve_project_board, "source_metadata_signature", return_value=None), \
+                patch.object(serve_project_board, "build_status", return_value={
+                    "source_fingerprint": "sha256:test",
+                    "verification": {"gallery_state": "available", "gallery": [old_current, newest_historical, new_current]},
+                }):
+            gallery = cache.get_gallery()
+        self.assertEqual(gallery["latest_runs"]["PAGE-001"],
+                         {"entry_id": "E2", "run_id": "R2", "manifest_path": "m.yaml", "stale": False})
+
+        status = {
+            "project": {"active_targets": {"items": []}},
+            "verification": {"gallery_state": "available", "gallery": [old_current, newest_historical, new_current]},
+            "findings": {"availability": "available", "items": []},
+            "runtime": {"recorded_readiness": None},
+        }
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-cs1-latest-") as temporary:
+            root = Path(temporary)
+            write_board_fixture(root)
+            previews = serve_project_board.build_page_previews(root, status)
+        page = next(item for item in previews["items"] if item["page_id"] == "PAGE-001")
+        self.assertEqual((page["last_verification_evidence"]["entry_id"], page["parity_status"]), ("E2", "PASS"))
+
+    def test_board_client_contract_for_cs1_corrections(self) -> None:
+        source = (ROOT / ".mxagile/board/board.js").read_text(encoding="utf-8")
+        drift = source[source.index("function renderProjectDrift"):source.index("function renderAttention")]
+        # BRD-F-01: not-loaded is handled before any watermark/BASELINE mapping.
+        self.assertLess(drift.index('availability === "not_loaded"'), drift.index("BASELINE REQUIRED"))
+        self.assertNotIn('range.to_commit || "UNKNOWN"', drift)
+        # BRD-F-03: terminal findings resolve from history.
+        self.assertIn("(status.findings.history || []).find((item) => item.id === id)", source)
+        # BRD-F-04: no fabricated zero for mission blockers.
+        self.assertNotIn('status.mission.status === "blocked" ? status.mission.blocker_count : 0', source)
+        # BRD-F-08: the client uses the server latest-run decision instead of re-deriving it.
+        self.assertIn("result.latest_runs", source)
+        self.assertNotIn("relevantRuns.at(-1)", source)
+
+
 if __name__ == "__main__":
     unittest.main()

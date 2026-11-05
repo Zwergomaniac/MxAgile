@@ -1323,6 +1323,8 @@ def build_source_references(
             artifact_id = record.get("ID")
             if artifact_id is None and source_type == "evidence_manifest":
                 artifact_id = record.get("manifest_id")
+            if artifact_id is None and source_type == "parity_report":
+                artifact_id = record.get("scenario_id")
             add(source_type, path, artifact_id if isinstance(artifact_id, str) else None)
 
     checklists = root / "planning/checklists"
@@ -1620,7 +1622,7 @@ def _build_status(
                         manifests=len(manifests), hashed_sources=len(hashes))
 
     stage_started = time.perf_counter()
-    read_collection(root, "planning/parity", "*.yaml", "", hashes, gaps, parsed_documents)
+    _parity_state, parity_records, parity_paths = read_collection(root, "planning/parity", "*.yaml", "", hashes, gaps, parsed_documents)
     revision_state, revisions, revision_paths = read_collection(
         root, "planning/target-mockups", "*/_history/REV-*/revision.yaml", "revision_id", hashes, gaps, parsed_documents
     )
@@ -1972,6 +1974,8 @@ def _build_status(
             ("test_contract", contracts, contract_paths),
             ("verification_plan", plans, plan_paths),
             ("evidence_manifest", manifests, manifest_paths),
+            # Parity reports are evidence sources in their own right, even without a manifest binding (BRD-F-07).
+            ("parity_report", parity_records, parity_paths),
         ],
         manifests,
         manifest_paths,
