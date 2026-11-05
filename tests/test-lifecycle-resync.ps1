@@ -180,6 +180,21 @@ Assert-FileContains "lifecycle-resync.md: checklist is authoritative for resume 
 Assert-FileContains "orchestrator.md: startup re-sync section present" `
     $orchestratorMd 'Startup Re-Sync'
 
+Assert-FileContains "lifecycle-resync.md: reconstructs the complete planned Wave inventory" `
+    $resyncPolicyPath '(?s)planning/execution-waves\.md.*geplante Waves'
+
+Assert-FileContains "lifecycle-resync.md: reconciles mission scope and active Wave" `
+    $resyncPolicyPath '(?s)mission-state\.yaml.*waves_in_scope.*active_wave'
+
+Assert-FileContains "lifecycle-resync.md: derives completion only from phase and evidence" `
+    $resyncPolicyPath 'COMPLETE.*Kanonische Phase.*done.*Acceptance-Evidence'
+
+Assert-FileContains "lifecycle-resync.md: distinguishes blocked and not-started Waves" `
+    $resyncPolicyPath '(?s)BLOCKED.*NOT_STARTED.*Process-State'
+
+Assert-FileContains "lifecycle-resync.md: does not persist a competing Wave status" `
+    $resyncPolicyPath 'ohne einen neuen persistierten Status'
+
 Write-Host ""
 
 # =========================================================================

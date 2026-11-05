@@ -70,6 +70,13 @@ $DecTemplate = Join-Path $RepoRoot '.mxagile/templates/generic/decisions/templat
 $DepMatrix   = Join-Path $RepoRoot 'planning/dependency-matrix.md'
 $PlanReadme  = Join-Path $RepoRoot 'planning/README.md'
 $LifecycleYaml = Join-Path $RepoRoot '.mxagile/lifecycle.yaml'
+$DelegationPolicy = Join-Path $RepoRoot '.mxagile/policies/agent-delegation.md'
+$TestWorkflow = Join-Path $RepoRoot '.mxagile/policies/test-workflow.md'
+$TaskSchema = Join-Path $RepoRoot '.mxagile/schemas/task.schema.json'
+$MissionCompletion = Join-Path $RepoRoot '.mxagile/policies/mission-completion.md'
+$AcceptanceCampaign = Join-Path $RepoRoot '.mxagile/policies/acceptance-campaign.md'
+$RealityReport = Join-Path $RepoRoot 'docs/context-architecture-baseline.md'
+$TaskSchemaData = Get-Content -LiteralPath $TaskSchema -Raw | ConvertFrom-Json
 
 Write-Host ""
 Write-Host "=== Architecture Drift Prevention Tests ===" -ForegroundColor White
@@ -197,6 +204,54 @@ Assert-FileContains "P4: dependency-matrix is marked OPTIONAL" $DepMatrix "OPTIO
 Assert-FileContains "P5: planning/README reflects dependency-matrix as optional" $PlanReadme "OPTIONAL"
 Assert-FileContains "P6: Sprint remains external Board construct" $ImplControl "keine lokalen Sprints|not a local sprint"
 Assert-FileContains "P7: Wave remains unit of progression in lifecycle" $LifecycleYaml "unit_of_progression: wave"
+
+# =============================================================================
+# SCENARIO J: Tasks stay together unless a Wave boundary adds value
+# =============================================================================
+Write-Host ""
+Write-Host "SCENARIO J: Task/Wave semantics -> minimal useful Waves" -ForegroundColor Cyan
+
+Assert-FileContains "J1: Task is a concrete action using existing task/checklist artifacts" `
+    $ImplControl 'Task` already has concrete semantics'
+Assert-FileContains "J2: Task has no separate lifecycle, gate, or recovery strategy" `
+    $ImplControl 'has no separate lifecycle'
+Assert-FileContains "J3: Wave bundles Tasks by outcome and recovery value" `
+    $ImplControl 'A `Wave` groups one or more related Tasks'
+Assert-FileContains "J4: splitting requires a useful independent result or recovery point" `
+    $ImplControl 'Add a Wave only when a meaningful split creates a useful independent outcome'
+Assert-FileContains "J5: task count is only a soft signal, never a threshold" `
+    $ImplControl 'Task count is only a soft decomposition check, never a threshold'
+Assert-FileContains "J5b: task count has no fixed threshold" `
+    $ImplControl 'Schwellenwert'
+Assert-FileContains "J6: files, tools, skills, tests and subagents alone do not split Waves" `
+    $ImplControl 'Do not split just for multiple'
+Assert-FileContains "J7: routine decomposition stays with the agent" `
+    $ImplControl 'routine choice belongs'
+Assert-FileContains "J8: accepted in-scope Requirements must be assigned before Ready" `
+    $GateReady "(?s)alle akzeptierten.*Requirements.*zugeordnet"
+Assert-FileContains "J9: small cohesive change remains one Task/Wave" `
+    $ImplControl 'One Task in one Wave'
+Assert-FileContains "J10: substantial cohesive recovery may remain one Wave" `
+    $RealityReport "(?s)CapTrack's undo/recovery remains a valid conceptual \*\*single Wave\*\*"
+Assert-FileContains "J11: uncertainty can justify a separate Wave when it creates a gate" `
+    $ImplControl '(?s)Investigation that must decide whether implementation can proceed.*own useful gate/recovery point'
+Assert-FileContains "J11b: independent feature outcomes split only when useful alone" `
+    $ImplControl '(?s)Feature with independently completable outcomes.*Split only when completing a Wave is useful on its own'
+Assert-FileContains "J11c: parallel outcomes do not split solely for delegation" `
+    $ImplControl '(?s)Independent, separately verifiable outcomes.*possible delegation alone is not a split reason'
+Assert-FileContains "J12: Mission remains the user objective/completion boundary" `
+    $MissionCompletion "Mission.*completion criteria|Mission bezeichnet Nutzerziel|USER_MISSION_COMPLETE"
+Assert-FileContains "J13: Campaign remains wave-scoped verification, not a planning level" `
+    $AcceptanceCampaign "planning/acceptance-campaigns/<wave>|one test contract.*requirement"
+Assert-True "J14: wave_id and workpackage_id remain optional Task links" `
+    (($null -ne $TaskSchemaData.properties.wave_id) -and ($null -ne $TaskSchemaData.properties.workpackage_id) -and @($TaskSchemaData.required) -notcontains 'wave_id' -and @($TaskSchemaData.required) -notcontains 'workpackage_id') `
+    "Task link fields became required"
+Assert-FileContains "J15: planning and state use the existing lifecycle artifacts" `
+    $ImplControl "(?s)execution-waves\.md.*process-state\.yaml.*mission-state\.yaml.*reports/campaigns"
+Assert-FileContains "J16: Wave completion does not require a Full Suite by itself" `
+    $TestWorkflow "(?s)Eine Wave ist eine Grenze.*nicht automatisch fuer einen breiten Framework-Testlauf"
+Assert-FileContains "J17: delegation remains separate from Wave decomposition" `
+    $DelegationPolicy "Do not equate one Wave with one subagent"
 
 # =============================================================================
 # SUMMARY

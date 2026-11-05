@@ -46,6 +46,13 @@ projections/adapters.
 Changes to injected Agent behavior should normally originate from the canonical source,
 not individual platform projections.
 
+## Collaboration Updates
+
+For multi-step work, keep a concise VS Code TODO/task list and update its statuses as work
+progresses. Give brief progress updates at meaningful transitions, especially before edits
+and while longer checks run. Skip a task list for trivial one-step requests; when the user
+asks for status, answer directly and continue unless asked to pause.
+
 ## Company Layers
 
 Company Layers are external extensions of MxAgile Core.

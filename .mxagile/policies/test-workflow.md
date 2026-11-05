@@ -52,6 +52,16 @@ betroffene Suite gezielt erneut ausfuehren, Root Cause beheben und danach den Im
 neu konsultieren. Ein weiterer Broad-Lauf ist nur zulaessig, wenn die aktuelle Gate-Authority
 ihn nach der Aenderung weiterhin verlangt und sich relevante Evidence/Codebasis geaendert hat.
 
+### Wave-Grenzen und Verifikation
+
+Eine Wave ist eine Grenze fuer die vorgeschriebenen Requirement-, Acceptance- und
+Evidence-Gates, nicht automatisch fuer einen breiten Framework-Testlauf. Waehren der
+Wave werden geaenderte Items gezielt geprueft. Beim Wave-Abschluss sind die fuer ihren
+Scope vorgeschriebenen Gates und Evidence-Artefakte erforderlich; zusaetzliche
+Integration/Regression folgt dem aktuellen Impact-Plan und den nachweisbaren
+Abhaengigkeiten. Ein Full-Suite- oder Full-Release-Lauf ist nur erforderlich, wenn die
+aktuelle Gate-Authority oder ein konkreter Aenderungsimpact ihn verlangt.
+
 ### Broad-Run Preflight
 
 Vor jedem `BROAD/EXPENSIVE`-Lauf intern beantworten:

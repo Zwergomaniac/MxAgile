@@ -161,6 +161,8 @@ try {
         (($policy -match '87 requirements') -and ($policy -match '52 decisions') -and ($policy -match 'one subagent per file or requirement')) 'Anti-amplification fixture missing'
     Assert-True 'R7 main agent retains lifecycle and final planning authority' `
         (($policy -match 'ACTIVE_TARGET') -and ($policy -match 'gate decisions') -and ($policy -match 'planning decisions')) 'Authority contract incomplete'
+    Assert-True 'Wave boundaries inform delegation without forcing one subagent per Wave' `
+        (($policy -match 'Use the authorized Wave plan') -and ($policy -match 'Do not equate one Wave with one subagent') -and ($policy -match 'dependencies and shared-state risks')) 'Wave-aware delegation contract missing'
     Assert-True 'Resume and Context Mode reuse are freshness- and mission-bounded' `
         (($policy -match 'active mission') -and ($policy -match 'fingerprints') -and ($policy -match 'do not automatically')) 'Resume/retrieval rules missing'
     Assert-True 'R11/R12 UI parity defaults MID and planning defaults HIGH' `

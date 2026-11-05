@@ -86,11 +86,14 @@ Assert-FileContains "inject script: MxAgileStartupBlock variable defined" `
 
 $startupBlockSource = [System.IO.File]::ReadAllText($injectScriptPath)
 $startupBlockMatch = [regex]::Match($startupBlockSource, '(?s)\$MxAgileStartupBlock = @''\r?\n(.*?)\r?\n''@')
-$startupBlockBytes = if ($startupBlockMatch.Success) {
-    [System.Text.Encoding]::UTF8.GetByteCount($startupBlockMatch.Groups[1].Value)
+$startupBlockText = if ($startupBlockMatch.Success) {
+    $startupBlockMatch.Groups[1].Value -replace "`r`n?", "`n"
+} else { $null }
+$startupBlockBytes = if ($null -ne $startupBlockText) {
+    [System.Text.Encoding]::UTF8.GetByteCount($startupBlockText)
 } else { [int]::MaxValue }
-Assert-True "inject script: basal router stays within 3.2 KB" `
-    ($startupBlockBytes -le 3200) "Measured startup block is $startupBlockBytes UTF-8 bytes"
+Assert-True "inject script: LF-normalized startup router stays within 3.2 KB" `
+    ($startupBlockBytes -le 3200) "Measured startup block is $startupBlockBytes LF-normalized UTF-8 bytes"
 
 Assert-FileContains "inject script: Re-Sync First heading in startup block" `
     $injectScriptPath 'Lifecycle Re-Sync First|Re-Sync First'

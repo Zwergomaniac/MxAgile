@@ -346,24 +346,20 @@ index guard before Git-derived drift analysis or mutations; a blocked guard does
 reading canonical lifecycle contracts.
 
 1. **Lifecycle Re-Sync FIRST** — check `.mxagile/` and `.concord/scratch/process-state.yaml`;
-    for an existing MxAgile project, read
-    `.mxagile/policies/lifecycle-resync.md` and reconstruct the delivery position before Brain,
-    Git history, or generic orientation. Git history is not lifecycle state; do not run `git log`
-    to reconstruct delivery position.
+    read `.mxagile/policies/lifecycle-resync.md` and reconstruct delivery position before Brain or
+    generic orientation. Git history is not lifecycle state; do not run `git log` to infer delivery position.
 2. **Tool authority before commands** — Before any CLI/MCP/tool command or external/tool-provided skill,
     read `.mxagile/policies/tool-instruction-conflict.md`. For Mendix, consume current C2; do not
     redetect or infer health. Never choose by PATH or skill load order, or fall back from
     LIVE-SP-CURRENT after MCP failure. Use the current session's discovered tool interface.
-    Consume `tool_authority.user_interaction`: when `mode_choice_required` is false, the detected
-    mode is final — do not show a CLOSED-AUTONOM / LIVE-SP / Other choice or ask the user to confirm
-    a merely recommended mode. For ambiguous results, continue safe work and honor only the
-    mutation-boundary-after-recheck question policy.
+    Honor C2 `tool_authority.user_interaction`; do not show a CLOSED-AUTONOM / LIVE-SP / Other choice
+    or confirm mode when `mode_choice_required` is false. Ask on ambiguity only after recheck if
+    `question_policy` permits.
 3. **External changes** — after Re-Sync, if `.mxagile/policies/external-change-reconciliation.md`
     is installed, use its read-only report and bounded impact route. Missing baseline means
     `BASELINE_REQUIRED`, not automatic history scanning or baseline adoption.
-4. **Project Brain after Re-Sync** — Brain is supplementary, not lifecycle state. Empty Brain does
-    NOT require Git history; continue from canonical project artifacts. Do not inspect parents,
-    sibling repositories, or `project-templates/`.
+4. **Project Brain after Re-Sync** — Brain is supplementary, not lifecycle state. Empty Brain:
+    continue from canonical project artifacts.
 5. **New project or orientation** — use `.mxagile/policies/user-orientation.md`; orientation never
     blocks the user's substantive request.
 6. **Mandatory bounded-semantic routing gate** — before substantive semantic analysis, read
@@ -374,10 +370,10 @@ reading canonical lifecycle contracts.
     never at startup. Installed does not mean usable; never assume health; query only that capability.
     Unavailable capability never blocks the normal path.
 
-8. **Install/update** — follow `.mxagile/policies/update-contract.md`; re-read
-    `.mxagile/state/last-update-result.json`. Report framework and compatibility separately.
-    Say `CONTRACTS_RE_SYNCED` only after re-reads; otherwise `UPDATE_INSTALLED_RESTART_REQUIRED`
-    and compatibility `NOT_VERIFIED`. Say `korrekt aktualisiert` only when permitted, without another question.
+8. **Install/update** — follow `.mxagile/policies/update-contract.md` without another question; read
+    `.mxagile/state/last-update-result.json`. Report framework and compatibility separately; use
+    `CONTRACTS_RE_SYNCED` only after re-reads; otherwise `UPDATE_INSTALLED_RESTART_REQUIRED` /
+    `NOT_VERIFIED`. Say `korrekt aktualisiert` only when permitted.
 9. **Finding-linked work** — consume active canonical Findings and their current Project Status
     disposition. `FINDINGS.md` is narrative, never the sole authority.
 

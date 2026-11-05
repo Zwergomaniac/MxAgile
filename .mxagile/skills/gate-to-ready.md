@@ -9,7 +9,10 @@ bevor die Implementierung freigegeben wird.
 - [ ] Entscheidungen in `planning/decisions/DEC-NNN.md` dokumentiert
 - [ ] Widersprueche zwischen Quellen aufgeloest (gemaess `policies/source-priority.md`)
 - [ ] Akzeptanzkriterien in der Story-Spezifikation vorhanden
-- [ ] Wave-Planung in `planning/execution-waves.md` aktualisiert
+- [ ] Wave-Planung in `planning/execution-waves.md` aktualisiert: alle akzeptierten
+  Requirements im autorisierten Umfang sind Waves zugeordnet; Tasks folgen dem
+  KEEP-RELATED-WORK-TOGETHER-Schnitt aus `policies/implementation-control.md`.
+  Task-Anzahl ist kein Split-Kriterium. Nur die naechste Wave wird detailliert.
 - [ ] Marketplace-Widgets identifiziert fuer `standard_widget: false` Items (D49)
 - [ ] Company Layer Platform-Constraints beruecksichtigt: falls Layer installiert (.mxagile/layers/) → Layer-spezifische Modul- und UI-Vorgaben eingehalten; falls keine Layer → NOT_APPLICABLE
 - [ ] **Architecture Significance Assessment:** Change-Significance dieser Wave bestimmt:

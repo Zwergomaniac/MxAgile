@@ -495,7 +495,7 @@ foreach ($decision in @('START', 'REUSE', 'WATCH/RELOAD', 'RESTART', 'LEAVE_RUNN
 }
 
 Assert-FileContains "Q.1 successful visual verification defaults to LEAVE_RUNNING" `
-    $policyPath '(?is)LEAVE_RUNNING.*Default after successful Runtime/Visual Verification'
+    $policyPath '(?is)Successful visual verification defaults to `LEAVE_RUNNING`'
 
 Assert-FileContains "Q.2 unknown reload capability is not treated as hot reload" `
     $policyPath '(?is)Unknown reload behavior is not a hot-reload guarantee'

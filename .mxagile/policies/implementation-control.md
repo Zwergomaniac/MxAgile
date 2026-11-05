@@ -13,6 +13,52 @@ und loest normalerweise kein neues `CE0066` aus.
 Alle Waves werden grob als Roadmap geplant; nur die naechste Wave wird vollstaendig
 detailliert und umgesetzt.
 
+## Task/Wave Decomposition
+
+`Task` already has concrete semantics in `.mxagile/schemas/task.schema.json`: one bounded
+action/change with `action`, status, optional `depends_on` and task-specific `test`. A Task
+uses the existing checklist/task artifact and has no separate lifecycle, gate, or recovery
+strategy. Verify it with the targeted check appropriate to that action.
+
+A `Wave` groups one or more related Tasks into the smallest coherent, meaningfully
+completable/recoverable outcome. **KEEP RELATED WORK TOGETHER.** The routine choice belongs
+to the agent; do not ask the user whether ordinary work should be one Wave or two.
+
+1. Derive concrete Tasks from the authorized work using existing checklist/task artifacts.
+2. Group Tasks that share an outcome, context/dependencies, execution sequence, and compatible
+  completion/verification in the same Wave.
+3. Add a Wave only when a meaningful split creates a useful independent outcome or recovery
+  point. A real dependency/gate, uncertainty result, checkpoint/recovery need, independent
+  parallel outcome, or materially separate context/verification can justify that boundary.
+4. Ask: "Would completing this split leave a useful intermediate result or recovery point?"
+  If not, keep the Tasks in the same Wave.
+
+Task count is only a soft decomposition check, never a threshold. Do not split just for multiple
+files, tools, skills, tests, elapsed time, token use, or a possible subagent. Task/Wave boundaries
+may inform delegation and verification but do not determine them; the existing delegation and
+proportional test-workflow contracts remain authoritative. Escalate only when the choice affects
+user-owned scope, acceptance meaning, destructive risk, or release strategy.
+
+| Work shape | Default decomposition |
+|---|---|
+| Small policy/configuration change plus its direct test | One Task in one Wave. |
+| Several restore/reconcile/consistency Tasks with one intended state | One Wave is valid, regardless of Task count. |
+| Investigation that must decide whether implementation can proceed | Separate Waves when the investigation is its own useful gate/recovery point. |
+| Feature with independently completable outcomes and a real dependency/acceptance boundary | Split only when completing a Wave is useful on its own. |
+| Independent, separately verifiable outcomes | Separate Waves may support parallel work; possible delegation alone is not a split reason. |
+
+Use only current sources: `execution-waves.md` for planned scope/dependencies, Tasks/checklists for
+action and status, `process-state.yaml` for Wave phase/gates, `mission-state.yaml` for mission
+criteria/blockers, and existing reports/campaigns for evidence. Mission remains the durable user
+objective and may span Waves; an Acceptance Campaign groups verification within a Wave; optional
+`workpackage_id`/delegation work packages are grouping or handoff details, not required planning
+levels. Do not add a parallel Wave metadata store.
+
+After interruption, use the existing lifecycle re-sync and evidence to reconstruct Wave progress;
+do not invent another state model (`policies/lifecycle-resync.md`). A Wave completes only through
+its existing implementation, verification, and acceptance lifecycle. A Wave by itself never
+requires a Full Suite (`policies/test-workflow.md`).
+
 ## Change Significance Classification
 
 Bevor eine Wave in die Ready-Phase eintritt, klassifiziert der Agent den Aenderungsumfang.

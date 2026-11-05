@@ -46,6 +46,13 @@ Routing order:
 4. If any delegation condition is not met, persist `MAIN_AGENT` or `FALLBACK` with the exact reason and continue fail-soft. Context Mode must never suppress this second semantic routing decision.
 5. The main agent performs final integration, conflict resolution, lifecycle/gate decisions, and user decisions.
 
+Use the authorized Wave plan as one input to semantic work-package boundaries: scope,
+dependencies, and verification/exit obligations can make work independently reviewable
+or unsafe to parallelize. Do not equate one Wave with one subagent. A Wave may remain
+with the main agent or contain multiple bounded packages; work in separate Waves may
+run in parallel only when their dependencies and shared-state risks permit it. The main
+agent retains integration and all lifecycle/gate authority.
+
 For `DELEGATE`, persist the decision first, then invoke the harness-native named-agent,
 subagent, or fork operation actually exposed by the current session. Use only its
 observed tool name and supported parameters. Pass the bounded handoff, requested

@@ -1238,7 +1238,68 @@ Only the three `PARTIALLY_FIXED` and one `STILL_OPEN` finding remain in the plan
 No additional detector, parity, fixture, or finding resolver is planned. The planned Full Release
 Gate was interrupted and remains `INCOMPLETE`; no summary or partial output upgrades it to PASS.
 
-Der mxcli-SessionStart-/Provisioning-Fund bleibt separat **REAL ISSUE / FOLLOW-UP**,
-geparkt und unimplementiert. Der Maintainer hat einen reproduzierbaren lokalen
-Checkpoint-Commit autorisiert, keinen Push. Die vorherigen Checkpoints bleiben
-unveraendert; kein Amend, History Rewrite oder Gate-Ergebnis-Rewrite.
+Historischer Status am 2026-11-03: Der mxcli-SessionStart-/Provisioning-Fund war ein
+separates **REAL ISSUE / FOLLOW-UP**, geparkt und unimplementiert. Der aktuelle
+Implementierungsstand ist im folgenden Reality Finding vom 2026-11-05 nachgetragen.
+Der damalige Checkpoint blieb lokal; kein Push, Amend oder History Rewrite.
+
+## Wave Lifecycle Reality Finding (2026-11-05)
+
+**Framework state:** inspected at `6b5091d` after the recent commits. Waves are already
+the lifecycle progression unit: `execution-waves.md` plans scope, `process-state.yaml`
+records phase/gates per Wave, checklists/tasks carry implementation work, mission state
+records active/in-scope Waves and blockers, and acceptance/wave reports carry completion
+evidence. This is a lifecycle/execution primitive, not reporting metadata. The contracts
+already require Wave-level verification and phase-boundary continuation.
+
+**CapTrack evidence:** the read-only status report in this document records installed
+Core `1.10.0` / commit `f62c57b`, `BLOCKED`, and six `WAVE_ASSIGNMENT_MISSING`
+diagnostics among 159. This proves missing canonical Wave assignments for the diagnosed
+artifacts, not that no Wave plan existed. No CapTrack `execution-waves.md`, process-state,
+task/checklist inventory, or run transcript establishing Wave references/order was
+available in this repository. Creation, use during implementation, and alignment of
+verification with CapTrack Waves are therefore **NOT_OBSERVABLE**; do not infer them.
+
+**Confirmed framework gap and correction:** Ready previously required only that the Wave
+plan be “updated”; it did not specify semantic Task/Wave split criteria or require all
+accepted in-scope Requirements to be assigned. Existing contracts now state those
+boundaries using current artifacts. No Wave schema, Board surface, mandatory full-suite
+run, or per-Wave subagent rule was added.
+
+**Existing finding status (current framework contracts):** test-cost awareness —
+`IMPLEMENTED`; proactive runtime/UI verification — `IMPLEMENTED` (consumer execution is
+not inferred); local mxcli/database recipe — `IMPLEMENTED` in current Core, while stale
+CapTrack installation remains a separate update/recheck; HTML-first/Builder discovery —
+`IMPLEMENTED` (actual consumer availability remains session-attested); spawn/model routing
+— `PARTIALLY IMPLEMENTED` (actual child-model attestation remains open/unobservable);
+LIVE-SP/CLOSED-AUTONOM routing — `IMPLEMENTED`; lifecycle interrupt/resume semantics —
+`IMPLEMENTED` as policy/helpers, with context-hook invocation still configuration/runtime-dependent;
+SessionStart provisioning normalization — `IMPLEMENTED` (the structural installer normalizer
+removes known mxcli provisioning hooks; native mxcli suppression remains unverified without a
+pinned project binary); dependency/Core-update management — `IMPLEMENTED` in `update-contract.md`,
+without implying automatic provisioning or consumer update.
+
+**Board interface note:** current project-status inventory uses both Wave plan and process
+state, but planned scope is narrative/partial and state has no canonical update timestamp.
+Any future Wave view should project a stable Wave ID and objective/scope, requirement/task
+links, dependencies, phase/gates, explicit blockers/findings, verification references,
+completion evidence, and freshness/provenance from those existing authorities. This
+finding does not change Board UX or its API.
+
+## Task/Wave Clarification (2026-11-05)
+
+The current Task schema already represents a concrete action (`action`, `status`, optional
+`depends_on` and `test`); optional `wave_id` and `workpackage_id` add links, not lifecycle.
+A Wave groups the smallest useful set of related Tasks around one completion/recovery outcome.
+The deterministic default is **KEEP RELATED WORK TOGETHER**; split only when an independent
+outcome, dependency/gate, uncertainty result, recovery checkpoint, parallel path, or materially
+separate context/verification makes the split useful. Task count is only a sanity signal.
+
+CapTrack's undo/recovery remains a valid conceptual **single Wave**: multiple Tasks inspect,
+reconcile/restore, check consistency, and verify the shared outcome “CapTrack restored to the
+intended state.” This is semantic grouping, not an instruction that every Task be a persisted
+Task artifact for that historical operation.
+
+Terminology is unchanged: Mission is the durable user objective/scope/completion boundary;
+Acceptance Campaign is a Wave-scoped verification grouping; work packages remain optional Task
+grouping or delegation handoff. None is added as a required intermediate planning level.

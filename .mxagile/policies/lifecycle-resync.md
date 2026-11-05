@@ -183,15 +183,34 @@ Beim Uebernehmen eines bestehenden Projekts oder nach einer Session-Pause:
 0. **Projektroot bestimmen** — Marker-Erkennung (siehe oben). Alle nachfolgenden
    Pfade sind relativ zu diesem Root. Nicht ausserhalb suchen.
 1. `<projektroot>/.mxagile/lifecycle.yaml` lesen — gueltige Phasen und Gate-Definitionen
-2. `planning/lifecycle/process-state.yaml` lesen — Wave, Phase, Gate-Ergebnisse (kanonisch, Git-tracked)
+2. `planning/execution-waves.md` lesen — geplante Waves, Outcome/Scope und Abhaengigkeiten.
+3. `planning/mission/mission-state.yaml` lesen, falls vorhanden — Missionsumfang,
+   `waves_in_scope`, `active_wave` und Blocker.
+4. `planning/lifecycle/process-state.yaml` lesen — Phase und Gate-Ergebnisse je Wave (kanonisch, Git-tracked)
    Fallback: `.concord/scratch/process-state.yaml` wenn `planning/lifecycle/` nicht existiert
    (Legacy-Projekt oder erste Session nach Core-Update ohne Migration)
-3. Process-State validieren (siehe Zustandsvalidierung unten)
-4. `planning/checklists/W*-implementation-checklist.yaml` lesen — abgeschlossene vs. verbleibende Items
-5. `sprints/decisions.md` lesen — offene Entscheidungen und Blocker
-6. `planning/stories/` lesen — aktuelle Story-Spezifikationen
-7. `input-resources/` inventarisieren — aktuelle Projekteingaben, auf Aenderungen pruefen
-8. Rekonstruieren: frueheste betroffene Phase, naechste empfohlene Aktion
+5. Process-State validieren (siehe Zustandsvalidierung unten)
+6. `planning/checklists/W*-implementation-checklist.yaml` und kanonische Tasks lesen —
+   abgeschlossene, verbleibende, blockierte und Wave-zugeordnete Arbeit
+7. `sprints/decisions.md` lesen — offene Entscheidungen und Blocker
+8. `planning/stories/`, Requirements und vorhandene Wave-Reports/Acceptance-Evidence lesen
+9. `input-resources/` inventarisieren — aktuelle Projekteingaben, auf Aenderungen pruefen
+10. Rekonstruieren: Status jeder in-scope Wave, frueheste betroffene Phase und naechste Aktion
+
+Die Re-Sync-Ausgabe bildet fuer jede geplante/in-scope Wave eine temporaere Uebersicht,
+ohne einen neuen persistierten Status oder ein weiteres Schema einzufuehren:
+
+| Re-Sync-Status | Evidenzregel |
+|---|---|
+| `COMPLETE` | Kanonische Phase `done` und passende Wave-Abschluss-/Acceptance-Evidence; historische Faelle zusaetzlich nach `legacy-completion-reconciliation.md` pruefen. |
+| `ACTIVE` | Gueltige nichtterminale Phase, durch Checkliste/Artefakte bestaetigt, ohne ungelosten Scope-Konflikt. |
+| `BLOCKED` | Ein expliziter missions-/waveweiter Blocker verhindert die verbleibende Wave-Arbeit. Die Lifecycle-Phase bleibt unveraendert; ein blockiertes Checklist-Item allein blockiert nicht automatisch die ganze Wave. |
+| `NOT_STARTED` | Wave ist geplant und autorisiert, aber es gibt weder Prozessfortschritt noch Checkliste/ausgefuehrte Arbeit. Fehlender Process-State allein reicht nicht. |
+| `UNKNOWN` / `CONFLICT` | Quellen fehlen oder widersprechen sich; nicht aus Konversation, Board-Projektion oder veraltetem Cache raten. Konflikte melden und betroffene Arbeit bis zur Klaerung nicht als abgeschlossen behandeln. |
+
+`execution-waves.md`, Mission-State, Process-State, Checklisten/Tasks und Abschluss-Evidence
+werden gegeneinander geprueft. Kein einzelnes Statusfeld und keine Board-Projektion beweist
+allein, dass eine Wave korrekt geplant, ausgefuehrt oder abgeschlossen wurde.
 
 Abgeschlossene Lifecycle-Phasen werden NICHT erneut durchlaufen, nur weil eine neue
 Agent-Session gestartet wurde.
