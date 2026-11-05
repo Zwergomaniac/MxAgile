@@ -1,3 +1,62 @@
+### Implementation Follow-through (2026-11-05)
+
+**Fixed in this run:** Task Inspect v2 now supports the six evidence-backed typed targets and a
+lossless Doctor migration; `expect` may be absent/blank without schema invalidation, but Doctor
+keeps semantic acceptance at `EXPECTATION_MISSING` / `DECISION_REQUIRED`. The C2 route now emits
+structured `user_interaction`; the orchestrator and always-on router suppress a mode choice for
+conclusive results and defer ambiguity questions to the rechecked mutation boundary. The Mercedes
+flavor-transition UPDATE path now has direct regression coverage. Generic Mendix UserRole identity
+guidance was committed across Implementation, UI, Acceptance, Maintainer, Brownfield, Builder Kit,
+and Mocketeer producers. No Role.Name string, wildcard, or substring fallback is allowed.
+
+**Consumer evidence (read-only):** CapTrack reports installed Core version `1.10.0` / commit
+`f62c57b10df2edd51f630aa96aef8ae8922c42df`. This predates commits `ff78c99`, `e3a535c`, and
+`6717daa`; its installed Task schema/Doctor therefore remain stale until a normal Core update.
+Board `/api/status` returned `BLOCKED` with 159 diagnostics (123 `UNASSIGNED`, 13 `SCHEMA_ERROR`,
+9 `LEGACY_VARIANT`, 6 `WAVE_ASSIGNMENT_MISSING`, 4 `UNSUPPORTED_VARIANT`, 3 `MISSING`, 1
+`FRESHNESS_UNKNOWN`); 13 Task schema errors align with the stale pre-Inspect contract. The same
+read-only endpoint alternated between HTTP 200 and 503 `status_unavailable` / `RuntimeError`; no
+server log exposing the underlying exception was available. Historical `/api/reference`,
+`/api/capture`, `/api/diagnostic-source` paths return 404 because current Core routes are
+`/reference/`, `/capture/`, and `/diagnostic-source/`. CapTrack was not modified. Its Findings
+directory is absent, so the Board's `findings: unavailable` / zero items is expected, not a
+reproduced projection defect.
+
+**Remaining blockers:**
+
+- UserRole Identity is implemented as a framework contract and regression, but no project MPR is
+  available here to run Mendix model validation for an invalid `%UserRole_<Name>%` token or a Role
+  rename. This remains `PARTIALLY_FIXED` until a project-owned MPR/version check proves R1/R2.
+- Board Runtime remains `PARTIALLY_FIXED`: Core route/cache contracts pass, but the live consumer
+  status endpoint intermittently returns a generic 503 RuntimeError and no diagnostic server log
+  is available. The stale consumer needs its normal Core update before a meaningful after-update
+  comparison.
+- Workspace root pollution remains `PARTIALLY_FIXED`: current helpers/policies route known
+  screenshots and temporary workcopies to `.concord`/Temp and focused cleanup suites pass, but no
+  current consumer run with traceable output paths reproduced the reported root-level artifacts.
+- Child Model Runtime Reality remains `STILL_OPEN`: the current VS Code Copilot child interface
+  exposes no host-attested actual child model/profile. The read-only Explore child spawned for this
+  work had no requested model/profile and returned no runtime model metadata; requested/actual
+  child model is `NOT_OBSERVABLE`, not inferred.
+- Synthetic verification fixture vs. canonical domain authority remains `FIXED_CURRENT_MAIN`:
+  existing Mocketeer and representative-fixture contracts distinguish design/mock data from
+  business authority; no new schema was added.
+
+**Focused verification:** `test-operating-mode-detection.ps1` 77/77; `test-capabilities-resolver.ps1`
+38/38; `test-core-provenance.ps1` 75/75; `test_project_status.py` 85/85;
+`test-role-access-semantics.ps1` 48/48; `test-injection-contract.ps1` 81/81;
+`test-mocketeer-validation.ps1` 203/203; `test-documentation-consistency.ps1` 59/59;
+`test-workcopy-hygiene.ps1` 50/50; `test-project-knowledge.ps1` 42/42;
+`test_board_http.py` 13/13; and `test_board_performance.py -k p7` 3/3. The Full Release Gate was
+interrupted during the earlier implementation sequence; its aggregate status remains
+`INCOMPLETE`, not PASS, and no partial suite output is used as release evidence.
+
+**Commits created:** `ff78c99` (typed Task Inspect and Role Identity contracts), `e3a535c`
+(C2 zero-question consumer contract), and `6717daa` (Mercedes flavor update provenance regression).
+The baseline/reconciliation update is a separate documentation change. No unresolved Child Model,
+Board runtime, or root-pollution finding is included in a completed implementation commit.
+
+No additional detector, parity, fixture, or finding resolver is planned.
 # Context Architecture Baseline
 
 **Status:** `CONTEXT_ARCHITECTURE_BASELINE_COMPLETE = JA`
@@ -538,12 +597,33 @@ The original plan placed C0 first and C2 as a precondition for C1. The repositor
 | Wave | Priority and causal overhead in this benchmark | Existing regression candidates (not run) |
 |---|---|---|
 | **C0 Instrumentation** | First. Persist source/projection/load events, exact bytes, file-read hashes/counts, Context Mode output sizes, handoff/result sizes, compaction IDs/tokens, requested-vs-actual model and manual override provenance. This session could be measured only because local Claude logs happened to exist. | `test-injection-contract.ps1`, `test-managed-block.ps1`, `test-platform-portability.ps1`, `test-agent-delegation.ps1`; add focused telemetry fixtures only after approval. |
-| **C2 minimal Operating Mode authority** | Precondition to C1: consumers currently interpret process detection and tool routing from prose; ensure `LIVE-SP-CURRENT` cannot fall back to mxcli after MCP failure. | `test-operating-mode-detection.ps1`, `test-capability-discovery-routing.ps1`, `test-agent-delegation.ps1`. |
+| **C2 minimal Operating Mode authority** | IMPLEMENTED as the C2 resolver; retain a planned consumer-integration follow-up for the redundant mode-choice dialog. When target identity is known and detection conclusively says the project is not open, consume `CLOSED-AUTONOM` as final and continue without asking the user to select the same state. Escalate only on ambiguity, conflict, or an explicit user override. | Extend `test-operating-mode-detection.ps1` with a coordinator/dialog contract asserting zero questions for known-target + Studio-Pro-closed, and one precise question only for ambiguous/conflicting evidence; retain `test-capability-discovery-routing.ps1` and `test-agent-delegation.ps1`. |
+**C2 Operating-Mode Dialogue Reality Fund (planned follow-up; no ad-hoc resolver):** the detector
+already emits `CLOSED-AUTONOM` when the target project identity is known and a successful lookup
+finds no matching Studio Pro project. The reported consumer dialog nevertheless asks the user to
+choose `CLOSED-AUTONOM` / `LIVE-SP` / `Other`, treating the detected result as only a recommendation.
+The next C2 consumer-integration change must make that result terminal for the mode decision and
+continue autonomously with zero user questions. Ask only when Studio Pro exists but target identity
+is unknown, multiple candidate instances exist, detector/lock/project evidence conflicts, or an
+explicit user instruction contradicts detection. Keep this as C2 dialogue-consumer work; do not add
+a second detector or mode resolver.
+
+**Acceptance:** target identity known + successful closed-project detection ⇒ effective
+`CLOSED-AUTONOM` ⇒ autonomous continuation and zero user questions. Ambiguous/conflicting cases
+remain non-autonomous at the relevant mutation boundary and ask one precise question. A passing
+detector check alone does not satisfy this regression; verify the consumer dialogue/orchestration.
+
 | **C1 Runtime Recipe** | IMPLEMENTED: opt-in composer consumes explicit C2, selected binary version/help, project profile, runtime purpose, and required checks; emits complete args and explicit blockers. CLI spellings remain help-dependent. No automatic startup probing or layer scan. Company Layer runtime defaults have no supported structured source and are not inferred. | Focused `test-mxcli-runtime-resolution.ps1` / `test_runtime_recipe.py`; runtime orchestration semantics remain separately owned by its contracts. |
 | **C3 Lifecycle/Mission** | After C0/C2: startup block and long prose describe phase/mission completion alongside lifecycle, mission and context schemas; reduce repeated Re-Sync/continuation logic. | `test-startup-priority.ps1`, `test-session-bootstrap.ps1`, `test-context-epoch-schema.ps1`, `test-context-lifecycle-operational.ps1`, `test-context-transition-coordinator.ps1`, `test-legacy-completion-reconciliation.ps1`. |
 | **C4 Verification decisions** | IMPLEMENTED: schema v3 and `build_project_status.resolve_parity_status` distinguish SMOKE / REFERENCE_VS_MODEL / LIVE_PARITY; compute from required dimensions, per-matrix typed evidence, verified contract-source hashes, freshness and identity; expose provenance/blockers; unresolved precedence is AMBIGUOUS. Board and UI-Agent consume the same authority. | Focused `test_project_status.py` resolver/Board fixtures and `test-ui-parity.ps1`, including Regions smoke-only and no-live-runtime coverage. |
 | **C5 Source authority / Finding / Impact** | Reduce per-agent reconstruction of source-priority and repeated observe/classify/reconcile stages; retain authorization boundaries. | `test-impact-resolver.ps1`, `test-project-knowledge.ps1`, `test-legacy-completion-reconciliation.ps1`, `test-reconciliation-board.ps1`, `test_external_change_reconciliation.py`. |
 | **C6 Policy deduplication / compaction** | Last, after resolvers establish authority and behavioral fixtures; shorten startup kernel, preserve procedures on demand, reconcile duplicate context docs and evidence-layer vocabulary. | `test-injection-contract.ps1`, `test-managed-block.ps1`, `test-platform-portability.ps1`, `test-context-lifecycle-golden-scenarios.ps1`, `test-verification-economics-regression.ps1`. |
+
+**Bounded C6 input, not completion of C6 — Mendix UserRole Identity Reality Fund:** the generic
+role-identity kernel, agent/skill guidance and R1–R3 regression are now in `HEAD` (`ff78c99`).
+Project-specific Mendix compilation and Role rename/refactoring behavior remain unverified without
+an MPR, so this is not a blanket rename-safety claim. Broader C6 policy deduplication still waits
+for the listed resolvers.
 
 Risks: changing layer vocabulary may invalidate existing VPLs; runtime DB option names vary by mxcli version; compaction/session hooks differ by harness; source authority can be project/Company-specific; legacy completion and legacy artifact classification are separate; forks can defeat bounded context even when their task prompt is compact; generated projection drift must be tested without treating projections as authorities.
 
@@ -1079,6 +1159,84 @@ allgemeine Framework-Gate-Semantik und ist keine Produktions-/Release-Freigabe.
 Weitere Gate-/Host-Diagnose und Framework-Optimierungen werden vor dem naechsten
 Reality-Test nicht begonnen. Der naechste Arbeitsstrang ist der Reality-Test im realen
 Projekt und wird durch diesen Checkpoint nicht automatisch gestartet.
+
+## Historical Reality Reconciliation (2026-11-05)
+
+### Baseline and Method
+
+The initial reconciliation baseline was `f62c57b10df2`, and reviewed the commits from
+2026-11-03 through 2026-11-05 (`953ac4f`, `964033e`, `c3d4a76`, `a1e0f9d`, `828aa02`,
+`f62c57b`). The subsequent implementation follow-through created `ff78c99`, `e3a535c`, and
+`6717daa`; the final classifications and Wave Plan below reflect code at `6717daa`, not only
+the initial snapshot.
+Items 1–2 and 25–29 in the supplied reconciliation note are method/decision instructions,
+not additional findings.
+
+At reconciliation start, Task Inspect v2 and Mendix UserRole identity were uncommitted overlays;
+they were then committed in the follow-through above. CapTrack was not modified as part of this
+work. The report itself is documentation-only relative to `6717daa`.
+
+Keep these evidence stages distinct: `documented`, `configured`, `installed`, `projected`,
+`discoverable`, `resolved`, `executed`, and `runtime-attested` are not synonyms. A policy or
+adapter declaration alone does not establish consumer execution. Missing consumer evidence is
+recorded as `NOT_OBSERVABLE`, not inferred as fixed or broken.
+
+| Fund | Current-main evidence and reconciliation | Classification | Action |
+|---|---|---|---|
+| 3. Local Runtime Recipe | C1 resolves the project-local binary, selected-version help, backend/DB identity and complete argv; `mxcli_runtime_recipe.py` and the selected-binary resolver own construction. `test_runtime_recipe.py` covers the default DB recipe. | `FIXED_CURRENT_MAIN` | Keep historical recipe-loss regression; do not add more policy examples. |
+| 4. Runtime Recipe Propagation | Runtime orchestration consumes the resolved recipe and readiness checks; tests cover exact invocation/handoff and do not reconstruct flags from prose. | `FIXED_CURRENT_MAIN` | Keep propagation regression; consumer runtime after later updates remains a separate evidence question. |
+| 5. mxcli Skill / MxAgile Authority Overlap | `tool-instruction-conflict`, C1 recipe contracts, and orchestration tests separate mission/evidence authority, resolver recipe, syntax help, and execution. No second orchestration authority is present. | `FIXED_CURRENT_MAIN` | Preserve the route-consumption regression; no parallel skill workflow. |
+| 6. Operating-Mode redundant user gate | C2 now emits `tool_authority.user_interaction` from the final effective mode; the orchestrator and always-on startup router consume it. Known-target closed detection returns `CLOSED-AUTONOM` / `NONE`; an MCP identity conflict becomes ambiguous and defers one question to the rechecked mutation boundary. | `FIXED_CURRENT_MAIN` | Keep `test-operating-mode-detection.ps1` L14–L16 and conflict L11a. No detector refactor. |
+| 7. CLOSED-AUTONOM vs AMBIGUOUS-SP-STATE / user authority | C2 treats mode as a technical fact; `execution-intent.md` permits user preferences only among routes already allowed. Ambiguity is rechecked at the mutation boundary and cannot be converted to autonomous model mutation by a mode selection. `test-execution-intent.ps1` covers the boundary. | `FIXED_CURRENT_MAIN` | Retain the explicit-user-vs-unsafe-route regression; no second state machine. |
+| 8. Builder Kit Capability Refresh | Capability, installed/projected agent presence, current-session discoverability, and delegability are separate. A stale loaded session requires the existing restart/re-sync outcome; fresh-session discovery is the expected path. Resolver and update-routing suites cover this distinction. | `SUPERSEDED` | Do not add same-session refresh; keep restart-required semantics. |
+| 9. Demo User Switcher / Role Verification | C1 recipe and test-identity/credential policies resolve the declared role-switch helper before credential discovery; runtime recipes carry the demo-user-switch requirement. Focused credential/runtime suites cover ordering. | `FIXED_CURRENT_MAIN` | Preserve the resolved-route-before-credentials regression; no new credential search path. |
+| 10. UserRole Identity | Current main documents Mendix's `[%UserRole_<RoleName>%]` XPath system variable and ID-association form across Implementation, UI, Acceptance, Maintainer, Brownfield, Builder Kit, and Mocketeer producers. `mxcli v0.20.0 describe --help` exposes `userrole`; official Mendix XPath docs confirm the token forms. R1–R3 regression forbids free-text/fuzzy matching and separates identity from capability. | `PARTIALLY_FIXED` | No Mendix MPR is available here to run the wrong-role CE1613 compile check or rename/refactoring test. Do not claim automatic rename support; validate the token against each target project/version before implementing. |
+| 11. Parity Smoke Promotion | C4 `resolve_parity_status` keeps `SMOKE` distinct and does not allow smoke-only evidence to promote full parity. Resolver tests cover missing dimensions. | `FIXED_CURRENT_MAIN` | Keep the historical smoke-only regression. |
+| 12. Screenshot / Visual Promotion | C4 requires a bound comparison identity, reviewed paired captures, and an actual whole-screen comparison result consistent with the visual matrix; screenshot existence alone is insufficient. | `FIXED_CURRENT_MAIN` | Keep no-comparison and mismatch regressions; no screenshot-only PASS. |
+| 13. Parity Aggregator | The existing Project Status resolver deterministically accounts for required dimensions, evidence sufficiency, identity, freshness, and ambiguity; no second aggregator is needed. | `FIXED_CURRENT_MAIN` | Preserve V1–V3 resolver/Board regressions. |
+| 14. Authority Disposition Persistence | Canonical Findings persist revisioned authority/source fingerprints and allowed/prohibited actions; Project Status rejects stale dispositions. V4–V6 tests cover later-consumer gating. | `FIXED_CURRENT_MAIN` | Preserve the existing persisted-disposition regressions. |
+| 15. Representative Fixture States | `representative-fixture-contract.md`, role-coverage schema and scope-aware tests distinguish identity, role, scope, representative state, positive/negative scenarios, and `FIXTURE_BLOCKED`. | `FIXED_CURRENT_MAIN` | Retain the fixture-state regression inventory; no second fixture model. |
+| 16. Synthetic Verification Data vs Canonical Domain Authority | Mocketeer marks mock data and forbids deriving business rules from sample data; representative fixtures are project-owned verification preconditions, not requirement authority. The boundary exists across current guidance/tests; no separate domain fixture schema is justified by this evidence. | `FIXED_CURRENT_MAIN` | Keep the sample-data/non-authority regression; do not add a parallel fixture contract. |
+| 17. Reconciliation Watermark / jsonschema | Core distributes `.mxagile/tools/requirements.txt`; the Doctor detects missing `jsonschema` and fails closed. A read-only CapTrack `/api/status` request successfully produced schema diagnostics without a validator-unavailable diagnostic, demonstrating the dependency was available for that request. | `FIXED_CURRENT_MAIN` | Preserve fail-closed missing-dependency coverage; do not claim installer auto-provisioning. |
+| 18. Board Runtime Reality | Current Board uses `/reference/`, `/capture/`, and `/diagnostic-source/`; historical `/api/reference`, `/api/capture`, and `/api/diagnostic-source` paths are not current contracts. `test_board_http.py` verifies current routes and `test_board_performance.py -k p7` verifies snapshot/cache reuse. Read-only CapTrack status returned HTTP 200 once and intermittent 503 `status_unavailable` / `RuntimeError`; successful status was BLOCKED with 159 diagnostics, including 13 schema errors. Installed Core was 1.10.0 / commit `f62c57b`; its Task schema/Doctor predate the now-committed Task Inspect fix. | `PARTIALLY_FIXED` | No CapTrack writes. Consumer still needs the normal Core update, then an authorized route/status/performance recheck. The 503 cause is not exposed by the endpoint or available server log. |
+| 19. HTTP Client Disconnect | `serve_project_board.py` catches expected reset/abort/broken-pipe exceptions and emits compact `CLIENT_DISCONNECT`; Board HTTP tests cover each exception and next-request survival. | `FIXED_CURRENT_MAIN` | Retain the disconnect regression; no further handler change. |
+| 20. Findings Projection | Project Status reads canonical `planning/findings/*.yml`, projects lifecycle/counts, and Board renders available records. Read-only CapTrack status reports Findings unavailable/zero items; direct directory inventory found no `planning/findings/` directory, so no canonical records existed to project. | `FIXED_CURRENT_MAIN` | Keep the canonical projection and explicit unavailable-state behavior; no second Finding store. |
+| 21. Flavor Change Provenance | Mercedes setup uses the canonical `.mxagile/lifecycle.yaml` marker to select UPDATE and passes `-IsUpdate $coreInstalled` at both Core call sites. Core provenance retains the prior commit/version/install timestamp. New focused C4–C9 assertions cover this cross-flavor update path. | `FIXED_CURRENT_MAIN` | Keep the regression; no `previous_flavor` field is warranted by the current contract. |
+| 22. Workspace Root Pollution | Test-workcopy/temp cleanup, harness cleanup policy, `.concord`/canonical evidence locations, and cleanup regressions cover known test-owned outputs. There is no single runtime-level inventory proving every mxcli/Playwright/Concord failure artifact is confined for every consumer route. | `PARTIALLY_FIXED` | Keep existing cleanup gates. Only add a targeted output-path regression if the current consumer reproduces root writes; do not add blanket cleanup or ignore rules. |
+| 23. Child Model Runtime Reality | Handoff/result schemas and adapters record requested/static resolution, not independently observed actual child model. The Explore audit found no VS Code Copilot child-model return field; `profile_resolution: unknown` remains authoritative. The spawned Explore task had no requested model/profile and its tool result exposed no actual model metadata. | `STILL_OPEN` | Host API/telemetry attestation is unavailable in this environment. Keep actual child model/profile `NOT_OBSERVABLE`; do not add a schema field populated from adapter declarations or child self-report. |
+| 24. Context-Cost Benchmark | The benchmark explicitly records Main model changes as `USER_CONTROLLED`; it is not evidence for automatic model routing. Current policy/telemetry guidance preserves requested-vs-actual provenance and cost attribution caveats. | `SUPERSEDED` | Retain as historical benchmark evidence only; do not create routing work from it. |
+
+### Classification Summary
+
+| Classification | Count |
+|---|---:|
+| `FIXED_CURRENT_MAIN` | 16 |
+| `PARTIALLY_FIXED` | 3 |
+| `CONTRACT_FIXED_BUT_CONSUMER_STALE` | 0 |
+| `IMPLEMENTED_BUT_NOT_PROJECTED` | 0 |
+| `IMPLEMENTED_BUT_NOT_USED` | 0 |
+| `TEST_OR_FIXTURE_ONLY` | 0 |
+| `SUPERSEDED` | 2 |
+| `STILL_OPEN` | 1 |
+| `UNKNOWN` | 0 |
+| **Total Reality Funds** | **22** |
+
+`FIXED_CURRENT_MAIN` means current code/contracts and focused regressions establish the fix; it does
+not assert a fresh runtime pass in CapTrack. The incomplete Full Release Gate is not used as PASS.
+
+### Updated Wave Plan
+
+Only the three `PARTIALLY_FIXED` and one `STILL_OPEN` finding remain in the plan:
+
+| Existing workstream | Remaining bounded work | Findings |
+|---|---|---|
+| C0 / delegation evidence | Add actual child-model attestation to the existing result path only when the harness supplies it; otherwise retain `NOT_OBSERVABLE`. Do not infer routing from adapters or cost benchmarks. | 23 `STILL_OPEN` |
+| UserRole Identity validation | The generic model-bound policy and producers are committed. A project-owned MPR and Studio Pro/mxcli validation are still required to prove CE1613 on an invalid token and rename/refactoring behavior. | 10 `PARTIALLY_FIXED` |
+| Board / consumer verification | Core route/cache behavior is tested. CapTrack returned both status 200 and intermittent 503 `RuntimeError`; after normal Core update, recheck status, diagnostics, and route/cache timings with server logs available. No CapTrack writes in this run. | 18 `PARTIALLY_FIXED` |
+| Output hygiene | Existing cleanup contracts stay. Reproduce current root pollution with source/path evidence before any cleanup change; no blanket deletion/ignore rule. | 22 `PARTIALLY_FIXED` |
+
+No additional detector, parity, fixture, or finding resolver is planned. The planned Full Release
+Gate was interrupted and remains `INCOMPLETE`; no summary or partial output upgrades it to PASS.
 
 Der mxcli-SessionStart-/Provisioning-Fund bleibt separat **REAL ISSUE / FOLLOW-UP**,
 geparkt und unimplementiert. Der Maintainer hat einen reproduzierbaren lokalen
