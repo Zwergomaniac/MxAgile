@@ -1,0 +1,40 @@
+{
+  "version": "1.3.2.dev0",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "claude",
+    "codex",
+    "opencode",
+    "grok",
+    "copilot",
+    "hermes"
+  ],
+  "integration_settings": {
+    "claude": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "codex": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "opencode": {
+      "script": "ps",
+      "invoke_separator": "."
+    },
+    "grok": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "copilot": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "hermes": {
+      "script": "ps",
+      "invoke_separator": "-"
+    }
+  },
+  "integration": "claude",
+  "default_integration": "claude"
+}
