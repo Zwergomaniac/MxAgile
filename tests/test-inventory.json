@@ -1527,5 +1527,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
     "Reason": "Harness-neutral telemetry model and Claude JSONL collector with synthetic Copilot NOT_OBSERVABLE, fork inheritance, model provenance, size accounting, and content-redaction fixtures."
+  },
+  {
+    "File": "test-board-smoke.ps1",
+    "Tier": 1,
+    "FastGate": false,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": true,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": false,
+    "Reason": "Opt-in Board smoke (CS-7): isolated temporary fixture projects, OS-assigned loopback ports, isolated Board cache, headless browser when available (UNAVAILABLE otherwise), process and cleanup checks, Doctor exit semantics."
   }
 ]

@@ -1109,6 +1109,41 @@ def apply_repair(root: Path, expected_hash: str, candidate_dir: Path | None = No
         raise RepairFailure('SCOPED_ROLLBACK_COMPLETED') from None
 
 
+BOARD_SMOKE_FAILING_RESULTS = ('FAIL', 'TIMEOUT', 'ERROR')
+BOARD_SMOKE_EXIT_CODE = 4
+
+
+def run_board_smoke(root: Path) -> dict:
+    """Run the opt-in Board smoke in its own process; never raises, never changes the Doctor report."""
+    import subprocess
+    script = Path(__file__).resolve().parent / 'board_smoke.py'
+    if not script.is_file():
+        return {'check': 'board_smoke', 'result': 'UNAVAILABLE', 'reason': 'BOARD_SMOKE_SCRIPT_MISSING', 'duration_seconds': 0.0}
+    try:
+        completed = subprocess.run(
+            [sys.executable, '-B', str(script), '--project-root', str(root), '--format', 'json'],
+            capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=90, check=False,
+        )
+        result = json.loads(completed.stdout)
+        if not isinstance(result, dict) or 'result' not in result:
+            raise ValueError('board smoke returned no result object')
+        return result
+    except subprocess.TimeoutExpired:
+        return {'check': 'board_smoke', 'result': 'TIMEOUT', 'reason': 'BOARD_SMOKE_PROCESS_TIMEOUT', 'duration_seconds': 90.0}
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        return {'check': 'board_smoke', 'result': 'ERROR', 'reason': f'BOARD_SMOKE_NOT_EXECUTABLE: {type(exc).__name__}', 'duration_seconds': 0.0}
+
+
+def board_smoke_exit_code(doctor_code: int, smoke: dict | None, *, required: bool) -> int:
+    """Doctor exit codes 0/1/2 stay unchanged; 4 is reachable only when the smoke was explicitly requested."""
+    if smoke is None:
+        return doctor_code
+    result = smoke.get('result')
+    if result in BOARD_SMOKE_FAILING_RESULTS or (required and result == 'UNAVAILABLE'):
+        return BOARD_SMOKE_EXIT_CODE
+    return doctor_code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Read-only project compatibility Doctor.')
     parser.add_argument('command', choices=['doctor', 'repair'], nargs='?', default='doctor')
@@ -1119,11 +1154,18 @@ def main() -> int:
     mode.add_argument('--apply', action='store_true')
     parser.add_argument('--plan-hash')
     parser.add_argument('--candidate-dir', type=Path)
+    parser.add_argument('--board-smoke', action='store_true',
+                        help='after the Doctor run, also run the bounded Board smoke (opt-in; Doctor exit codes 0/1/2 are kept, exit 4 on a failed smoke)')
+    parser.add_argument('--require-board-smoke', action='store_true',
+                        help='like --board-smoke, but an UNAVAILABLE smoke (no browser) also exits 4')
     args = parser.parse_args()
     from build_project_status import build_status
     root = args.project_root.resolve()
     if args.command == 'doctor' and (args.apply or args.plan_hash or args.candidate_dir):
         parser.error('doctor is read-only; repair arguments require repair.')
+    if args.command == 'repair' and (args.board_smoke or args.require_board_smoke):
+        parser.error('the Board smoke is a Doctor option; it cannot be combined with repair.')
+    run_smoke = args.board_smoke or args.require_board_smoke
     try:
         report = build_status(root)['compatibility']
         if args.command == 'repair':
@@ -1141,8 +1183,12 @@ def main() -> int:
     except (OSError, ValueError, yaml.YAMLError):
         print(json.dumps({'error': 'COMPATIBILITY_OPERATION_FAILED', 'action': 'Rerun Doctor and review the scoped repair plan.'}), file=sys.stderr)
         return 3
+    smoke = run_board_smoke(root) if run_smoke else None
     if args.format == 'json':
-        print(json.dumps(report, sort_keys=True, indent=2))
+        printable = dict(report)
+        if smoke is not None:
+            printable['board_smoke'] = smoke
+        print(json.dumps(printable, sort_keys=True, indent=2))
     else:
         print(f"PROJECT_COMPATIBILITY_CHECKED: {report['compatibility']} (read-only)")
         for item in report['diagnostics']:
@@ -1150,7 +1196,15 @@ def main() -> int:
             if item['line'] is not None:
                 location += f":{item['line']}:{item['column']}"
             print(f"{item['severity']} {item['category']} {location} [{item['repairability']}]")
-    return {'COMPATIBLE': 0, 'PARTIAL': 1, 'BLOCKED': 2}[report['compatibility']]
+        if smoke is not None:
+            print(f"BOARD_SMOKE: {smoke.get('result')} ({smoke.get('duration_seconds')} s)"
+                  + (f" - {smoke.get('reason')}" if smoke.get('reason') else ''))
+            for failure in smoke.get('failures', [])[:5]:
+                print(f"  FAILURE [{failure.get('stage')}] {failure.get('kind')}: {failure.get('message')}")
+            for warning in smoke.get('warnings', []):
+                print(f"  WARNING: {warning}")
+    code = {'COMPATIBLE': 0, 'PARTIAL': 1, 'BLOCKED': 2}[report['compatibility']]
+    return board_smoke_exit_code(code, smoke, required=args.require_board_smoke)
 
 
 if __name__ == '__main__':

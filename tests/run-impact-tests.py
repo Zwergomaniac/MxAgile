@@ -38,6 +38,10 @@ RULES = (
     ((".mxagile/board/*", "scripts/*project_status.py", "scripts/serve_project_board.py", "tests/test_parity_gallery.py", "tests/test-parity-gallery.ps1", "tests/test_board_performance.py", "docs/project-status-inventory.md", ".mxagile/policies/gap-verification-repair.md", ".mxagile/policies/project-compatibility.md"),
      1, ("test_project_status.py", "test_parity_gallery.py", "test_board_performance.py", "test-board-authority.ps1")),
     (("scripts/serve_project_board.py", "tests/test_board_http.py"), 1, ("test_board_http.py",)),
+    # CS-7: changes to the opt-in Board smoke select its own tests; Board/Doctor changes stay narrow and are
+    # covered by the Full Release Gate wrapper (test-board-smoke.ps1).
+    (("scripts/board_smoke.py", "tests/test_board_smoke.py", "tests/test-board-smoke.ps1"), 2,
+     ("test_board_smoke.py", "test-capability-discovery-routing.ps1")),
     (("*parity*", "*evidence*"), 2,
      ("test_project_status.py", "test-ui-parity.ps1", "test-verification-lifecycle.ps1")),
     (("scripts/install-core.ps1", "scripts/*setup*", "mxagile-setup*", ".mxagile/policies/update-contract.md"),

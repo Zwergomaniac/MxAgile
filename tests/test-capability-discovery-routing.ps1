@@ -179,6 +179,10 @@ Assert-True 'provenance lists project-distributed detector' (@($prov.distributio
 Assert-True 'provenance lists project-distributed status builder' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/build_project_status.py') 'provenance missing status builder entry'
 Assert-True 'provenance lists project-distributed board server' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/serve_project_board.py') 'provenance missing board server entry'
 Assert-True 'provenance lists Doctor' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/project_compatibility.py') 'provenance missing Doctor entry'
+Assert-True 'provenance lists opt-in Board smoke' (@($prov.distribution.project_distributed) -contains '.mxagile/tools/board_smoke.py') 'provenance missing Board smoke entry'
+$installedBoardSmoke = Join-Path $proj '.mxagile/tools/board_smoke.py'
+Assert-True 'fresh install distributes the Board smoke unchanged' ((Test-Path $installedBoardSmoke) -and ((Get-FileHash $installedBoardSmoke).Hash -eq (Get-FileHash (Join-Path $Scripts 'board_smoke.py')).Hash)) 'board_smoke.py missing or different'
+Assert-True 'fresh install neither runs nor offers the Board smoke' (($freshOutput -join "`n") -notmatch 'Board Smoke:') 'smoke mentioned on first install'
 
 # installed agent reaches resolver (default project root = installed project) and gets guidance
 $bin = New-TempDir
@@ -214,6 +218,7 @@ Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content $statusBuilder '# tampered' -Encoding UTF8
 Set-Content $boardServer '# tampered' -Encoding UTF8
+Set-Content $installedBoardSmoke '# tampered' -Encoding UTF8
 Set-Content $doctor '# tampered' -Encoding UTF8
 Set-Content $contextAdapter '# tampered' -Encoding UTF8
 Set-Content $contextIntegration '# tampered' -Encoding UTF8
@@ -321,6 +326,28 @@ $installerAst = [System.Management.Automation.Language.Parser]::ParseFile($Insta
 if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
 $completionFunction = $installerAst.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-PostUpdateCompatibility' }, $true)
 . ([scriptblock]::Create($completionFunction.Extent.Text))
+
+# --- CS-7: opt-in Board smoke offer (never automatic, never in CI, never changes the installer outcome) ---
+Assert-True 'U9 update restores the distributed Board smoke' ((Get-FileHash $installedBoardSmoke).Hash -eq (Get-FileHash (Join-Path $Scripts 'board_smoke.py')).Hash) 'tampered board_smoke.py not restored'
+Assert-True 'U9 non-interactive update reports the smoke as not run and does not execute it' (($visibleOutput -match 'Board Smoke: NOT RUN \(non-interactive\)') -and ($visibleOutput -notmatch 'Board Smoke: (PASS|FAIL|UNAVAILABLE|TIMEOUT|ERROR)')) 'unexpected smoke behaviour in a non-interactive update'
+$offerFunction = $installerAst.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-BoardSmokeOffer' }, $true)
+Assert-True 'U9 installer defines the Board smoke offer' ($null -ne $offerFunction) 'Invoke-BoardSmokeOffer missing'
+. ([scriptblock]::Create($offerFunction.Extent.Text))
+$offerEnvironment = @{}
+foreach ($name in 'CI', 'MXAGILE_BOARD_SMOKE_BROWSER') { $offerEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
+try {
+    $toolsDir = Join-Path $proj '.mxagile/tools'
+    [Environment]::SetEnvironmentVariable('CI', 'true')
+    $ciOutput = (@(Invoke-BoardSmokeOffer -Root $proj -ToolsDir $toolsDir -Requested $false -IsUpdateRun $true 6>&1) -join "`n")
+    Assert-True 'U9 CI run is never prompted and never runs the smoke' (($ciOutput -match 'Board Smoke: NOT RUN \(non-interactive\)') -and ($ciOutput -notmatch 'Board Smoke: (PASS|FAIL|UNAVAILABLE)')) $ciOutput
+    $noUpdateOutput = (@(Invoke-BoardSmokeOffer -Root $proj -ToolsDir $toolsDir -Requested $false -IsUpdateRun $false 6>&1) -join "`n")
+    Assert-True 'U9 first install is not offered the smoke' ([string]::IsNullOrWhiteSpace($noUpdateOutput)) $noUpdateOutput
+    [Environment]::SetEnvironmentVariable('MXAGILE_BOARD_SMOKE_BROWSER', 'none')
+    $explicitOutput = (@(Invoke-BoardSmokeOffer -Root $proj -ToolsDir $toolsDir -Requested $true -IsUpdateRun $false 6>&1) -join "`n")
+    Assert-True 'U9 explicit opt-in runs the smoke; missing browser is UNAVAILABLE and does not fail the installer' (($explicitOutput -match 'Board Smoke: UNAVAILABLE') -and ($LASTEXITCODE -eq 2 -or $LASTEXITCODE -eq 0)) $explicitOutput
+} finally {
+    foreach ($name in $offerEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $offerEnvironment[$name]) }
+}
 
 Set-Content $taskPath $taskBase -Encoding UTF8
 $unassigned = Invoke-FixtureUpdate $proj 'U3' -CompletionOnly

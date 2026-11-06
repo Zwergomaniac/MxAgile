@@ -19,7 +19,10 @@ param (
     [string]$ProvenanceCoreSourceType = "",
     [string]$ProvenanceCoreRef        = "",
     [string]$ProvenanceCoreSubdir     = "",
-    [string]$ProvenanceCoreCommit     = ""
+    [string]$ProvenanceCoreCommit     = "",
+
+    # Explicit opt-in: run the bounded Board smoke after the Doctor handoff (never implied by CI or updates).
+    [switch]$BoardSmoke
 )
 
 $ErrorActionPreference = "Stop"
@@ -149,6 +152,53 @@ function Invoke-PostUpdateCompatibility {
         if ($key -ne 'report') { $summary.doctor[$key] = $doctor[$key] }
     }
     Write-Output ($summary | ConvertTo-Json -Depth 10 -Compress)
+}
+
+function Invoke-BoardSmokeOffer {
+    # Optional and advisory: the smoke result never changes the installer exit code.
+    # Offered only after a Core update, only interactively, never in CI; -BoardSmoke is the explicit opt-in.
+    param([string]$Root, [string]$ToolsDir, [bool]$Requested, [bool]$IsUpdateRun)
+
+    $ciVariables = @('CI', 'TF_BUILD', 'GITHUB_ACTIONS', 'GITLAB_CI', 'JENKINS_URL', 'BUILD_BUILDID', 'TEAMCITY_VERSION')
+    $inCi = @($ciVariables | Where-Object { -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($_)) }).Count -gt 0
+    $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected -and -not $inCi
+
+    if (-not $Requested) {
+        if (-not $IsUpdateRun) { return }
+        if (-not $interactive) {
+            Write-Host 'Board Smoke: NOT RUN (non-interactive)'
+            return
+        }
+    }
+    $smokeScript = Join-Path $ToolsDir 'board_smoke.py'
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCommand) { $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+    if (-not $pythonCommand) {
+        Write-Host 'Board Smoke: UNAVAILABLE (Python not found)'
+        return
+    }
+    if (-not (Test-Path -LiteralPath $smokeScript -PathType Leaf)) {
+        Write-Host 'Board Smoke: UNAVAILABLE (board_smoke.py not installed)'
+        return
+    }
+    if (-not $Requested) {
+        $answer = Read-Host 'Run the bounded Board smoke check now? It starts the Board locally for a few seconds (opt-in) [y/N]'
+        if ($answer -notmatch '^(y|yes|j|ja)$') {
+            Write-Host 'Board Smoke: NOT RUN (declined)'
+            return
+        }
+    }
+    $PSNativeCommandUseErrorActionPreference = $false
+    $smokeOutput = & $pythonCommand.Source -B $smokeScript --project-root $Root --format json 2>$null
+    $smokeExit = $LASTEXITCODE
+    try {
+        $smoke = ($smokeOutput -join "`n") | ConvertFrom-Json
+        Write-Host "Board Smoke: $($smoke.result) ($($smoke.duration_seconds) s; exit $smokeExit; reported separately from Doctor)"
+        foreach ($warning in @($smoke.warnings)) { if ($warning) { Write-Host "  WARNING: $warning" } }
+        foreach ($failure in @($smoke.failures | Select-Object -First 3)) { Write-Host "  FAILURE [$($failure.stage)] $($failure.kind): $($failure.message)" }
+    } catch {
+        Write-Host "Board Smoke: ERROR (no parsable result; exit $smokeExit)"
+    }
 }
 
 function Add-ContextModeRuntimeGitIgnore {
@@ -648,6 +698,13 @@ try {
     Copy-Item -LiteralPath $projectBoardServerSource -Destination (Join-Path $destToolsDir "serve_project_board.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/serve_project_board.py (loopback only)."
 
+    $boardSmokeSource = Join-Path $PSScriptRoot "board_smoke.py"
+    if (-not (Test-Path -LiteralPath $boardSmokeSource -PathType Leaf)) {
+        throw "board_smoke.py not found in script directory: $boardSmokeSource"
+    }
+    Copy-Item -LiteralPath $boardSmokeSource -Destination (Join-Path $destToolsDir "board_smoke.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/board_smoke.py (opt-in bounded Board smoke; never runs automatically)."
+
     $doctorSource = Join-Path $PSScriptRoot "project_compatibility.py"
     if (-not (Test-Path -LiteralPath $doctorSource -PathType Leaf)) {
         throw "project_compatibility.py not found in script directory."
@@ -736,6 +793,7 @@ try {
                 ".mxagile/tools/reconciliation_git.py",
                 ".mxagile/tools/resolve_impact.py",
                 ".mxagile/tools/serve_project_board.py",
+                ".mxagile/tools/board_smoke.py",
                 ".mxagile/tools/project_compatibility.py",
                 ".mxagile/tools/git_index_integrity.py",
                 ".mxagile/tools/requirements.txt"
@@ -986,6 +1044,7 @@ try {
     Write-Host "FRAMEWORK_INSTALLED (project compatibility is checked separately)."
 
     Invoke-PostUpdateCompatibility -Root $ProjectRoot -ToolsDir $destToolsDir -CoreProvenance $coreProv
+    Invoke-BoardSmokeOffer -Root $ProjectRoot -ToolsDir $destToolsDir -Requested ([bool]$BoardSmoke) -IsUpdateRun ([bool]$IsUpdate)
 
     Write-Host ""
     Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray

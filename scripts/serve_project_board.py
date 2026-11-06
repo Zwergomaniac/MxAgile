@@ -1383,7 +1383,7 @@ def default_project_root() -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Serve the read-only MxAgile project board on loopback.")
     parser.add_argument("--project-root", type=Path, default=default_project_root())
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=8765, help="loopback port; 0 lets the operating system choose a free port (printed in the ready line)")
     args = parser.parse_args()
     root = args.project_root.resolve()
     ui_root = root / ".mxagile" / "board"
@@ -1395,7 +1395,8 @@ def main() -> int:
     except OSError as exc:
         print(f"Project board could not bind to loopback ({type(exc).__name__})", file=sys.stderr)
         return 2
-    print(f"MxAgile Board: http://127.0.0.1:{server.server_port}/")
+    # flush: a parent process reading the pipe (Board smoke, --port 0) must see the ready line immediately
+    print(f"MxAgile Board: http://127.0.0.1:{server.server_port}/", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
