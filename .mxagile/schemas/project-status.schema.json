@@ -78,6 +78,8 @@
     "schema_version": { "type": "integer", "enum": [2, 3] },
     "projection": { "type": "boolean", "const": true },
     "health": { "$ref": "#/definitions/health" },
+    "current_work": { "$ref": "#/definitions/current_work" },
+    "waves_trust": { "type": "array", "items": { "$ref": "#/definitions/wave_trust" } },
     "projection_state": {
       "type": "object",
       "description": "Server-side state of this disposable projection snapshot (Board only). Never project authority; STALE or BUILDING means the served snapshot may lag canonical sources.",
@@ -182,6 +184,7 @@
       "required": ["availability", "id", "name", "core_version", "active_targets", "lifecycle"],
       "additionalProperties": false,
       "properties": {
+        "revision_ledger": { "$ref": "#/definitions/revision_ledger" },
         "availability": { "$ref": "#/definitions/availability" },
         "id": { "type": ["string", "null"] },
         "name": { "type": ["string", "null"] },
@@ -237,7 +240,12 @@
             "SCOPE_EXCEEDED": { "$ref": "#/definitions/nullable_count" },
             "OTHER": { "$ref": "#/definitions/nullable_count" }
           }
-        }
+        },
+        "objective": { "type": ["string", "null"] },
+        "progress": { "type": ["object", "null"], "additionalProperties": { "type": "string" } },
+        "blockers": { "type": "array", "items": { "$ref": "#/definitions/blocker_detail" } },
+        "checkpoint_commits": { "type": "array", "items": { "type": "string" } },
+        "terminal_guard_result": { "type": ["string", "null"] }
       }
     },
     "delivery": {
@@ -345,6 +353,13 @@
             "source": { "type": ["string", "null"] }
           }
         },
+        "noncanonical_checklists": {
+          "type": "object",
+          "description": "Checklists that exist as source files but are not canonicalized into Tasks (visible as such).",
+          "required": ["observation_state", "items"],
+          "additionalProperties": false,
+          "properties": { "observation_state": { "$ref": "#/definitions/observation_state" }, "items": { "type": "array", "items": { "type": "string" } } }
+        },
         "workpackages": {
           "type": "object",
           "required": ["availability", "items", "unmapped_task_count"],
@@ -401,6 +416,7 @@
               "id": { "type": "string" },
               "title": { "type": ["string", "null"] },
               "status": { "type": ["string", "null"], "enum": ["draft", "accepted", "deferred", "superseded", null] },
+              "delivery_assessment": { "$ref": "#/definitions/delivery_assessment" },
               "canonical_path": { "type": "string" },
               "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
             }
@@ -449,6 +465,11 @@
               "title": { "type": ["string", "null"] },
               "status": { "type": ["string", "null"], "enum": ["PROPOSED", "CONFIRMED", "REJECTED", "SUPERSEDED", null] },
               "affected_requirements": { "type": "array", "items": { "type": "string" } },
+              "created_at": { "type": ["string", "null"] },
+              "confirmed_at": { "type": ["string", "null"] },
+              "rationale_excerpt": { "type": ["string", "null"] },
+              "affected_screens": { "type": "array", "items": { "type": "string" } },
+              "affected_mockup_revisions": { "type": "array", "items": { "type": "string" } },
               "canonical_path": { "type": "string" },
               "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
             }
@@ -472,6 +493,7 @@
       "properties": {
         "gallery": {"type": "array", "items": {"$ref": "#/definitions/gallery_run"}},
         "gallery_state": {"type": "string", "enum": ["available", "not_loaded"]},
+        "parity_reports": { "type": "array", "items": { "$ref": "#/definitions/parity_report_state" } },
         "test_contracts": {
           "type": "object",
           "required": ["availability", "status_counts", "items"],
@@ -744,7 +766,8 @@
         "epoch_id": { "type": ["string", "null"] },
         "phase": { "$ref": "#/definitions/nullable_phase" },
         "mode": { "type": ["string", "null"] },
-        "pressure": { "type": ["string", "null"], "enum": ["UNKNOWN", "NORMAL", "PRESSURE", "ROLLOVER_RECOMMENDED", "ROLLOVER_REQUIRED", null] }
+        "pressure": { "type": ["string", "null"], "enum": ["UNKNOWN", "NORMAL", "PRESSURE", "ROLLOVER_RECOMMENDED", "ROLLOVER_REQUIRED", null] },
+        "next_action": { "$ref": "#/definitions/next_action_view" }
       }
     },
     "sources": {
@@ -849,6 +872,157 @@
         "role": {"type": "string"}, "run_id": {"type": "string"}, "captured_at": {"type": "string"},
         "screenshot_path": {"type": "string"}, "runtime_url": {"type": ["string", "null"]},
         "cleanliness_state": {"const": "clean"}, "freshness": {"type": "string"}, "evidence_status": {"type": "string"}
+      }
+    },
+    "blocker_detail": {
+      "type": "object",
+      "required": ["type", "description", "blast_radius", "work_that_can_continue"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": ["string", "null"] }, "description": { "type": ["string", "null"] },
+        "blast_radius": { "type": ["string", "null"] }, "work_that_can_continue": { "type": ["string", "null"] }
+      }
+    },
+    "next_action_view": {
+      "type": ["object", "null"],
+      "required": ["description", "safe_to_run", "prerequisites"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" }, "safe_to_run": { "type": ["boolean", "null"] },
+        "prerequisites": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "evidence_ref": {
+      "type": "object", "required": ["type", "id"], "additionalProperties": false,
+      "properties": { "type": { "type": "string" }, "id": { "type": "string" } }
+    },
+    "delivery_assessment": {
+      "type": "object",
+      "description": "DERIVED (delivery-assessment/v1). Never written back; each level carries evidence references or a reason.",
+      "required": ["requirement_id", "rule_version", "label", "levels", "derived"],
+      "additionalProperties": false,
+      "properties": {
+        "requirement_id": { "type": "string" },
+        "rule_version": { "const": "delivery-assessment/v1" },
+        "label": { "enum": ["NOT_STARTED", "IN_PROGRESS", "IMPLEMENTED", "VERIFIED", "BLOCKED"] },
+        "derived": { "const": true },
+        "levels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["level", "state", "evidence_refs", "reasons"],
+            "additionalProperties": false,
+            "properties": {
+              "level": { "enum": ["implementation", "verification", "freshness", "blocker"] },
+              "state": { "enum": ["MET", "PARTIAL", "NOT_MET", "NOT_OBSERVABLE"] },
+              "evidence_refs": { "type": "array", "items": { "$ref": "#/definitions/evidence_ref" } },
+              "reasons": { "type": "array", "items": { "type": "object", "required": ["code", "text"], "additionalProperties": false, "properties": { "code": { "type": "string" }, "text": { "type": "string" } } } }
+            }
+          }
+        }
+      }
+    },
+    "current_work": {
+      "type": "object",
+      "description": "DERIVED, never stored. Cascade: Mission -> registered active Wave -> next registered Wave -> none. Observed Git activity is reported, never attributed.",
+      "required": ["derived", "state", "source", "reason", "mission", "wave", "requirement_ids", "tasks_in_progress", "blockers", "next_action", "next_step", "latest_activity", "design_authority", "unattributed_activity", "waves_registered", "waves_done"],
+      "additionalProperties": false,
+      "properties": {
+        "derived": { "const": true },
+        "state": { "enum": ["ACTIVE", "BLOCKED", "NOT_STARTED", "NONE", "CONFLICT"] },
+        "source": { "enum": ["mission_state", "process_state", "none"] },
+        "reason": { "type": "string" },
+        "mission": { "type": ["object", "null"], "additionalProperties": true },
+        "wave": { "type": ["object", "null"], "additionalProperties": true },
+        "requirement_ids": { "type": "array", "items": { "type": "string" } },
+        "tasks_in_progress": { "type": "array", "items": { "type": "string" } },
+        "blockers": { "type": "array", "items": { "$ref": "#/definitions/blocker_detail" } },
+        "conflict": { "type": "object", "additionalProperties": true },
+        "next_action": { "$ref": "#/definitions/next_action_view" },
+        "next_step": { "type": "object", "additionalProperties": true },
+        "latest_activity": { "type": ["object", "null"], "additionalProperties": true },
+        "design_authority": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "unattributed_activity": {
+          "type": "object",
+          "required": ["observed", "since_commit", "commit_count", "observation_state"],
+          "additionalProperties": false,
+          "properties": {
+            "observed": { "type": ["boolean", "null"] }, "since_commit": { "type": ["string", "null"] },
+            "commit_count": { "type": ["integer", "null"] }, "observation_state": { "enum": ["AVAILABLE", "NOT_OBSERVABLE", "NOT_APPLICABLE"] }
+          }
+        },
+        "last_completed": {
+          "type": ["object", "null"],
+          "description": "Wave(s) whose phase changed to done in the most recent DONE transition (observed from the process-state history).",
+          "additionalProperties": false,
+          "properties": {
+            "commit": { "type": ["string", "null"] }, "committed_at": { "type": ["integer", "null"] },
+            "wave_ids": { "type": "array", "items": { "type": "string" } },
+            "task_count": { "type": "integer", "minimum": 0 }, "tasks_done": { "type": "integer", "minimum": 0 },
+            "requirement_ids": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "waves_registered": { "type": "integer", "minimum": 0 },
+        "waves_done": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "wave_trust": {
+      "type": "object",
+      "description": "Trust in DONE. Historical lifecycle completion is separate from present evidence confidence.",
+      "required": ["wave_id", "phase", "historical_state", "done_basis", "open_tasks_superseded", "open_tasks_unexplained", "later_findings", "changes_after_done", "present_confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "wave_id": { "type": "string" }, "phase": { "type": ["string", "null"] }, "historical_state": { "type": "string" },
+        "done_basis": {
+          "type": "object", "required": ["state", "gate_result", "evidence"], "additionalProperties": false,
+          "properties": { "state": { "enum": ["RECORDED", "NOT_RECORDED", "LEGACY"] }, "gate_result": { "type": ["string", "null"] }, "evidence": { "type": "array", "items": { "type": "string" } } }
+        },
+        "open_tasks_superseded": { "type": "array", "items": { "type": "string" } },
+        "open_tasks_unexplained": { "type": "array", "items": { "type": "string" } },
+        "later_findings": { "type": "array", "items": { "type": "string" } },
+        "changes_after_done": { "type": "object", "required": ["observation_state", "commit_count"], "additionalProperties": false, "properties": { "observation_state": { "$ref": "#/definitions/observation_state" }, "commit_count": { "type": ["integer", "null"] } } },
+        "present_confidence": {
+          "type": "object", "required": ["level", "requirement_labels", "freshness", "reasons"], "additionalProperties": false,
+          "properties": {
+            "level": { "enum": ["EVIDENCED", "NOT_EVIDENCED", "NOT_OBSERVABLE"] },
+            "requirement_labels": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "freshness": { "$ref": "#/definitions/observation_state" },
+            "reasons": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "revision_ledger": {
+      "type": "object",
+      "required": ["observation_state", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "observation_state": { "$ref": "#/definitions/observation_state" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["revision_id", "active_target", "status", "artifact_path", "screens", "acceptance_decisions", "authority_source", "canonical_path"],
+            "additionalProperties": false,
+            "properties": {
+              "revision_id": { "type": "string" }, "active_target": { "type": "boolean" }, "status": { "type": ["string", "null"] },
+              "artifact_path": { "type": ["string", "null"] }, "screens": { "type": "array", "items": { "type": "string" } },
+              "acceptance_decisions": { "type": "array", "items": { "type": "string" } },
+              "authority_source": { "const": "revision_ledger" }, "canonical_path": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "parity_report_state": {
+      "type": "object",
+      "required": ["report_path", "page_id", "scenario_id", "reported_result", "computed_result", "state", "verified_at", "reasons"],
+      "additionalProperties": false,
+      "properties": {
+        "report_path": { "type": "string" }, "page_id": { "type": ["string", "null"] }, "scenario_id": { "type": ["string", "null"] },
+        "reported_result": { "type": ["string", "null"] }, "computed_result": { "type": ["string", "null"] },
+        "state": { "enum": ["COMPUTED", "REPORTED_UNBOUND", "STALE", "NOT_VERIFIED"] },
+        "verified_at": { "type": ["string", "null"] }, "reasons": { "type": "array", "items": { "type": "string" } }
       }
     },
     "observation_state": {

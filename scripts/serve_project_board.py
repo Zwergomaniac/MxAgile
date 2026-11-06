@@ -878,6 +878,18 @@ def build_page_previews(project_root: Path, status: dict) -> dict:
         source_location = _html_source_location(project_root, page)
         html_source = page.get("html_source") if source_location else None
         source_exists = bool(source_location and resolve_design_preview_file(project_root, page_id))
+        intent_mode = (
+            "HTML_FIRST" if html_setting.get("effective") is True else
+            "MENDIX_NATIVE" if html_setting.get("effective") is False else "UNKNOWN"
+        )
+        fact_state = "available" if source_exists else ("missing" if html_source else "not_configured")
+        # Intent (settings) and fact (resolvable HTML source) are shown separately; only a contradiction is flagged (FR-067).
+        implementation = {
+            "intent": {"mode": intent_mode, "scope": html_setting.get("scope")},
+            "fact": {"html_source_path": html_source, "html_source_availability": fact_state},
+            "mismatch": True if intent_mode == "HTML_FIRST" and fact_state != "available" else (None if intent_mode == "UNKNOWN" else False),
+            "mismatch_reason": "HTML_FIRST is configured but no resolvable HTML source exists." if intent_mode == "HTML_FIRST" and fact_state != "available" else None,
+        }
         pages.append({
             "page_id": page_id,
             "page_name": page.get("page_name") or page.get("title") or page_id,
@@ -887,6 +899,7 @@ def build_page_previews(project_root: Path, status: dict) -> dict:
             ),
             "html_first": html_setting,
             "mockup_driven": mockup_setting,
+            "implementation": implementation,
             "reference": {
                 "path": reference_path,
                 "availability": "available" if reference_available else "unknown",

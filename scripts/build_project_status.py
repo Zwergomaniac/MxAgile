@@ -1396,6 +1396,7 @@ def mission_projection(
         return {
             "availability": "unavailable", "id": None, "status": None,
             "blocker_count": None, "blocker_types": empty_types,
+            "objective": None, "progress": None, "blockers": [], "checkpoint_commits": [], "terminal_guard_result": None,
         }, None
 
     progress = mission_doc.get("progress") if isinstance(mission_doc.get("progress"), dict) else {}
@@ -1416,9 +1417,23 @@ def mission_projection(
         availability = "partial"
     mission_id = mission_doc.get("mission_id") if isinstance(mission_doc.get("mission_id"), str) else None
     active_wave = mission_doc.get("active_wave") if isinstance(mission_doc.get("active_wave"), str) else None
+    def text(value: Any, limit: int = 240) -> str | None:
+        return value.strip()[:limit] if isinstance(value, str) and value.strip() else None
+
+    blocker_details = [
+        {"type": text(item.get("type"), 60), "description": text(item.get("description")),
+         "blast_radius": text(item.get("blast_radius")), "work_that_can_continue": text(item.get("work_that_can_continue"))}
+        for item in (blockers if isinstance(blockers, list) else []) if isinstance(item, dict)
+    ][:10]
+    checkpoints = mission_doc.get("checkpoint_commits")
     return {
         "availability": availability, "id": mission_id, "status": status,
         "blocker_count": blocker_count, "blocker_types": blocker_types,
+        "objective": text(mission_doc.get("objective"), 400),
+        "progress": {key: value for key, value in progress.items() if isinstance(value, str)} or None,
+        "blockers": blocker_details,
+        "checkpoint_commits": [str(item)[:64] for item in checkpoints][:10] if isinstance(checkpoints, list) else [],
+        "terminal_guard_result": text(mission_doc.get("terminal_guard_result"), 120),
     }, active_wave
 
 
@@ -1646,6 +1661,9 @@ def attach_observation_states(result: dict[str, Any], hashes: dict[str, str]) ->
         "NOT_OBSERVABLE" if verification["evidence"]["model_freshness"] == "unknown" else "AVAILABLE"
     )
     states["runtime"] = runtime["observation_state"]
+    for name, holder, key in (("project.revision_ledger", project, "revision_ledger"), ("delivery.noncanonical_checklists", delivery, "noncanonical_checklists")):
+        if isinstance(holder.get(key), dict) and holder[key].get("observation_state"):
+            states[name] = holder[key]["observation_state"]
     states["runtime.operating_mode"] = "NOT_OBSERVABLE"
     states["verification.model_freshness"] = verification["evidence"]["model_freshness_observation_state"]
     return states
@@ -1683,6 +1701,456 @@ def build_health(status: dict[str, Any], *, include_diagnostics: bool = False) -
     if include_diagnostics:
         health["diagnostics"] = listed
     return health
+
+
+DELIVERY_ASSESSMENT_RULE = "delivery-assessment/v1"
+WAVE_PHASE_ORDER = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
+_NEXT_GATE = {"discovery": "gate_to_refinement", "refinement": "gate_to_ready", "ready": None,
+              "implementing": None, "verifying": "acceptance_gate"}
+_ACTIVITY_PATH_CLASSES = {"MENDIX_MODEL", "REFERENCE", "PROJECT_CODE"}
+_DELIVERY_ACTIVITY_CACHE: dict[tuple[str, str], dict[str, Any]] = {}
+_DONE_ADDED = re.compile(r"^\+\s+phase:\s*['\"]?done\b", re.MULTILINE)
+
+
+def _git_text(root: Path, *args: str, timeout: float = 20.0) -> str | None:
+    import subprocess
+    try:
+        done = subprocess.run(
+            ["git", "--no-optional-locks", "-c", "core.quotepath=false", "-C", str(root), *args],
+            capture_output=True, timeout=timeout, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return done.stdout.decode("utf-8", "replace") if done.returncode == 0 else None
+
+
+def _is_delivery_path(path: str) -> bool:
+    from reconciliation_git import classify_path
+    kind = classify_path(path)
+    if kind in _ACTIVITY_PATH_CLASSES:
+        return True
+    # Unclassified project paths (application source, theme, ...) count; dot-files and tooling do not.
+    return kind == "UNKNOWN" and not path.startswith(".") and "/." not in path
+
+
+def _newly_done_waves(root: Path, commit: str, path: str) -> set[str]:
+    """Waves whose phase is done at `commit` but was not done at its parent (one git process)."""
+    import subprocess
+    try:
+        done = subprocess.run(
+            ["git", "--no-optional-locks", "-C", str(root), "cat-file", "--batch"],
+            input=f"{commit}:{path}\n{commit}^:{path}\n".encode("utf-8"), capture_output=True, timeout=20, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    data, blobs, position = done.stdout, [], 0
+    for _ in range(2):
+        end = data.find(b"\n", position)
+        if end < 0:
+            blobs.append(None)
+            break
+        header = data[position:end].split()
+        if len(header) == 3 and header[1] == b"blob" and header[2].isdigit():
+            size = int(header[2])
+            blobs.append(data[end + 1:end + 1 + size])
+            position = end + 1 + size + 1
+        else:
+            blobs.append(None)
+            position = end + 1
+
+    def waves_done(blob: bytes | None) -> set[str]:
+        try:
+            document = yaml.safe_load(blob.decode("utf-8-sig")) if blob else None
+        except (yaml.YAMLError, UnicodeError):
+            return set()
+        waves = document.get("waves") if isinstance(document, dict) else None
+        if not isinstance(waves, dict):
+            return set()
+        return {str(key) for key, value in waves.items() if isinstance(value, dict) and value.get("phase") == "done"}
+
+    while len(blobs) < 2:
+        blobs.append(None)
+    return waves_done(blobs[0]) - waves_done(blobs[1])
+
+
+def observe_delivery_activity(root: Path) -> dict[str, Any]:
+    """Existence-only Git observation (R-10): never assigns commits to a Wave, Mission or Task."""
+    unavailable = {"observation_state": "NOT_OBSERVABLE", "head": None, "latest_commit": None,
+                   "last_done_transition": None, "commits_after_done": None, "observed": None, "reason": "NO_GIT_HISTORY"}
+    info = _git_text(root, "log", "-1", "--format=%H%x00%ct%x00%s")
+    if not info or info.count("\x00") < 2:
+        return unavailable
+    head, stamp, subject = info.rstrip("\n").split("\x00", 2)
+    cache_key = (str(root), head)
+    cached = _DELIVERY_ACTIVITY_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    latest = {"commit": head[:12], "committed_at": int(stamp) if stamp.isdigit() else None, "subject": subject[:120]}
+    result: dict[str, Any] = {**unavailable, "head": head[:12], "latest_commit": latest, "reason": "NO_DONE_TRANSITION_IN_WINDOW"}
+    history = _git_text(root, "log", "-n", "200", "-p", "--unified=0", "--format=%x01%H%x00%ct", "--", "planning/lifecycle/process-state.yaml")
+    done_commit = None
+    for chunk in (history or "").split("\x01"):
+        if not chunk.strip():
+            continue
+        header, _, patch = chunk.partition("\n")
+        if _DONE_ADDED.search(patch):
+            sha, _, stamp = header.partition("\x00")
+            done_commit = {"commit": sha[:12], "full": sha, "committed_at": int(stamp) if stamp.strip().isdigit() else None}
+            break
+    if done_commit is not None:
+        listing = None if done_commit["full"] == head else _git_text(root, "log", "-n", "500", "--name-only", "--format=%x01%H", f"{done_commit['full']}..HEAD")
+        count = 0
+        for chunk in (listing or "").split("\x01"):
+            names = [line for line in chunk.split("\n")[1:] if line.strip()]
+            if any(_is_delivery_path(name) for name in names):
+                count += 1
+        path = "planning/lifecycle/process-state.yaml"
+        newly_done = sorted(_newly_done_waves(root, done_commit["full"], path))
+        result.update({
+            "observation_state": "AVAILABLE", "reason": None,
+            "last_done_transition": {"commit": done_commit["commit"], "committed_at": done_commit["committed_at"], "waves": newly_done[:6]},
+            "commits_after_done": count, "observed": count > 0,
+        })
+    if len(_DELIVERY_ACTIVITY_CACHE) > 16:
+        _DELIVERY_ACTIVITY_CACHE.clear()
+    _DELIVERY_ACTIVITY_CACHE[cache_key] = result
+    return result
+
+
+def derive_current_work(
+    mission: dict[str, Any], active_wave_id: str | None, waves: list[dict[str, Any]],
+    tasks: list[dict[str, Any]], activity: dict[str, Any], next_action: dict[str, Any] | None,
+    active_targets: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Derived, never stored: Mission -> registered active/blocked Wave -> next registered Wave -> none (FR-060)."""
+    wave_by_id = {wave["wave_id"]: wave for wave in waves}
+
+    def wave_view(wave: dict[str, Any]) -> dict[str, Any]:
+        return {"wave_id": wave["wave_id"], "phase": wave["phase"], "gates": wave["gates"]}
+
+    def tasks_in_progress(wave_id: str) -> list[str]:
+        return sorted(task["id"] for task in tasks if task.get("wave_id") == wave_id and task.get("status") == "in_progress")[:12]
+
+    def requirements_of(wave_id: str) -> list[str]:
+        wave = wave_by_id.get(wave_id) or {}
+        return list(wave.get("requirement_ids") or [])[:20]
+
+    def next_step(phase: str | None) -> dict[str, Any]:
+        if phase in WAVE_PHASE_ORDER and phase != "done":
+            target = WAVE_PHASE_ORDER[WAVE_PHASE_ORDER.index(phase) + 1]
+            return {"kind": "LIFECYCLE_TRANSITION", "from_phase": phase, "to_phase": target, "requires": _NEXT_GATE.get(phase)}
+        return {"kind": "UNKNOWN"}
+
+    work: dict[str, Any] = {
+        "derived": True, "state": "NONE", "source": "none", "reason": "NO_REGISTERED_ACTIVE_OR_PLANNED_WAVE",
+        "mission": None, "wave": None, "requirement_ids": [], "tasks_in_progress": [], "blockers": [],
+        "next_action": next_action, "next_step": {"kind": "REGISTER_WAVE"},
+        "latest_activity": activity.get("latest_commit"),
+        "design_authority": [
+            {"reference_id": item.get("reference_id"), "mockup_name": item.get("mockup_name"), "revision_id": item.get("revision_id")}
+            for item in active_targets[:3]
+        ],
+        "unattributed_activity": {"observed": None, "since_commit": None, "commit_count": None, "observation_state": "NOT_APPLICABLE"},
+        "last_completed": None,
+        "waves_registered": len(waves), "waves_done": sum(1 for wave in waves if wave["phase"] == "done"),
+    }
+    mission_open = mission.get("availability") != "unavailable" and mission.get("status") in ("active", "blocked")
+    non_done = [wave for wave in waves if wave["phase"] != "done"]
+    if mission_open:
+        work["source"] = "mission_state"
+        work["mission"] = {"id": mission.get("id"), "objective": mission.get("objective"), "status": mission.get("status"),
+                           "progress": mission.get("progress")}
+        work["blockers"] = list(mission.get("blockers") or [])
+        blocked = mission.get("status") == "blocked" or bool(work["blockers"])
+        work["state"], work["reason"] = ("BLOCKED" if blocked else "ACTIVE"), "MISSION_STATE"
+        if active_wave_id:
+            wave = wave_by_id.get(active_wave_id)
+            if wave is None:
+                work["state"], work["reason"] = "CONFLICT", "ACTIVE_WAVE_NOT_REGISTERED"
+                work["conflict"] = {"active_wave": active_wave_id}
+            elif wave["phase"] == "done":
+                work["state"], work["reason"] = "CONFLICT", "ACTIVE_WAVE_IS_DONE"
+                work["conflict"] = {"active_wave": active_wave_id}
+            else:
+                work["wave"] = wave_view(wave)
+                work["requirement_ids"] = requirements_of(active_wave_id)
+                work["tasks_in_progress"] = tasks_in_progress(active_wave_id)
+                work["next_step"] = next_step(wave["phase"])
+        else:
+            work["next_step"] = {"kind": "UNKNOWN"}
+        return work
+    running = [wave for wave in non_done if wave["phase"] in ("implementing", "verifying")]
+    if len(running) > 1:
+        work.update({"state": "CONFLICT", "source": "process_state", "reason": "MULTIPLE_ACTIVE_WAVES",
+                     "conflict": {"waves": [wave["wave_id"] for wave in running]}})
+        return work
+    if running:
+        wave = running[0]
+        blocked = any(task.get("wave_id") == wave["wave_id"] and task.get("status") == "blocked" for task in tasks)
+        work.update({"state": "BLOCKED" if blocked else "ACTIVE", "source": "process_state", "reason": "REGISTERED_WAVE",
+                     "wave": wave_view(wave), "requirement_ids": requirements_of(wave["wave_id"]),
+                     "tasks_in_progress": tasks_in_progress(wave["wave_id"]), "next_step": next_step(wave["phase"])})
+        return work
+    if non_done:
+        wave = non_done[0]
+        work.update({"state": "NOT_STARTED", "source": "process_state", "reason": "NEXT_REGISTERED_WAVE",
+                     "wave": wave_view(wave), "requirement_ids": requirements_of(wave["wave_id"]),
+                     "next_step": next_step(wave["phase"])})
+        return work
+    # No active canonical work: report observed activity exists, but never attribute it.
+    done_transition = activity.get("last_done_transition") or {}
+    if done_transition.get("waves"):
+        completed_ids = [wave_id for wave_id in done_transition["waves"] if wave_id in wave_by_id]
+        wave_tasks = [task for task in tasks if task.get("wave_id") in completed_ids]
+        work["last_completed"] = {
+            "commit": done_transition.get("commit"), "committed_at": done_transition.get("committed_at"),
+            "wave_ids": completed_ids,
+            "task_count": len(wave_tasks), "tasks_done": sum(1 for task in wave_tasks if task.get("status") == "done"),
+            "requirement_ids": sorted({req for wave_id in completed_ids for req in (wave_by_id[wave_id].get("requirement_ids") or [])})[:20],
+        }
+    work["unattributed_activity"] = {
+        "observed": activity.get("observed"), "since_commit": done_transition.get("commit"),
+        "commit_count": activity.get("commits_after_done"), "observation_state": activity.get("observation_state", "NOT_OBSERVABLE"),
+    }
+    return work
+
+
+def _terminal_status(task: dict[str, Any]) -> str | None:
+    return task.get("status")
+
+
+def build_delivery_assessments(
+    requirements: list[dict[str, Any]], tasks: list[dict[str, Any]], contracts: list[dict[str, Any]],
+    evidence_entries: list[dict[str, Any]], findings: list[dict[str, Any]], decisions: list[dict[str, Any]],
+    *, findings_observation: str, target_freshness: str, model_freshness: str,
+) -> None:
+    """Attach `delivery_assessment` (delivery-assessment/v1) to each requirement item; derived, never written back."""
+    tasks_by_req: dict[str, list[dict[str, Any]]] = {}
+    for task in tasks:
+        for req_id in task.get("requirement_ids") or []:
+            tasks_by_req.setdefault(req_id, []).append(task)
+    contracts_by_req: dict[str, list[dict[str, Any]]] = {}
+    for contract in contracts:
+        for req_id in contract.get("requirement_ids") or []:
+            contracts_by_req.setdefault(req_id, []).append(contract)
+    evidence_by_req: dict[str, list[dict[str, Any]]] = {}
+    for entry in evidence_entries:
+        for req_id in entry.get("requirement_ids") or []:
+            evidence_by_req.setdefault(req_id, []).append(entry)
+    blocking_by_req: dict[str, list[str]] = {}
+    for finding in findings:
+        if finding.get("blocking"):
+            for req_id in finding.get("requirement_ids") or []:
+                blocking_by_req.setdefault(req_id, []).append(finding["id"])
+    proposed_by_req: dict[str, list[str]] = {}
+    for decision in decisions:
+        if decision.get("status") == "PROPOSED":
+            for req_id in decision.get("affected_requirements") or []:
+                proposed_by_req.setdefault(req_id, []).append(decision["id"])
+
+    def level(name: str, state: str, refs: list[dict[str, str]], reasons: list[tuple[str, str]]) -> dict[str, Any]:
+        return {"level": name, "state": state, "evidence_refs": refs[:8],
+                "reasons": [{"code": code, "text": text} for code, text in reasons][:6]}
+
+    for item in requirements:
+        req_id = item["id"]
+        linked = tasks_by_req.get(req_id, [])
+        done = [task for task in linked if task.get("status") == "done"]
+        refs = [{"type": "task", "id": task["id"]} for task in linked]
+        if not linked:
+            implementation = level("implementation", "NOT_MET", [], [("NO_TASK_LINKED", "No Task references this Requirement.")])
+        elif len(done) == len(linked):
+            implementation = level("implementation", "MET", [{"type": "task", "id": task["id"]} for task in done], [])
+        else:
+            open_tasks = [task for task in linked if task.get("status") != "done"]
+            reasons = [("OPEN_TASKS", f"{len(open_tasks)} of {len(linked)} Tasks are not done: " + ", ".join(task["id"] for task in open_tasks[:4]))]
+            if any(task.get("status") in ("blocked", "deferred") for task in open_tasks):
+                reasons.append(("TASK_BLOCKED_OR_DEFERRED", "At least one open Task is blocked or deferred."))
+            implementation = level("implementation", "PARTIAL" if done else "NOT_MET", refs, reasons)
+
+        linked_contracts = contracts_by_req.get(req_id, [])
+        entries = evidence_by_req.get(req_id, [])
+        passing = [entry for entry in entries if entry.get("parity_result") == "PASS"]
+        failing = [entry for entry in entries if entry.get("parity_result") in ("FAIL", "STALE")]
+        evidence_refs = [{"type": "evidence", "id": entry["entry_id"]} for entry in entries]
+        if not linked_contracts:
+            verification = level("verification", "NOT_OBSERVABLE", [], [("NO_TEST_CONTRACT", "No Test Contract is linked, so no verification target is defined.")])
+        elif passing and not failing and len(passing) == len(entries):
+            verification = level("verification", "MET", evidence_refs, [])
+        elif passing:
+            verification = level("verification", "PARTIAL", evidence_refs, [("EVIDENCE_NOT_ALL_PASS", f"{len(passing)} of {len(entries)} evidence entries passed.")])
+        else:
+            verification = level("verification", "NOT_MET", [{"type": "test_contract", "id": contract["id"]} for contract in linked_contracts],
+                                 [("NO_PASSING_EVIDENCE", "Test Contract exists but no bound, passing evidence is recorded. Reported parity results do not count (REPORTED_UNBOUND).")])
+
+        if model_freshness == "unknown":
+            freshness = level("freshness", "NOT_OBSERVABLE", [], [("MODEL_FRESHNESS_NOT_OBSERVABLE", "The current Mendix model state is not observable, so evidence currency cannot be confirmed.")])
+        else:
+            freshness = level("freshness", "PARTIAL", [], [("FRESHNESS_PARTIAL", f"Target freshness: {target_freshness}.")])
+        if failing:
+            freshness = level("freshness", "NOT_MET", evidence_refs, [("EVIDENCE_STALE_OR_FAILED", "At least one evidence entry is stale or failed.")])
+
+        blockers = blocking_by_req.get(req_id, []) + proposed_by_req.get(req_id, [])
+        if blockers:
+            blocker = level("blocker", "NOT_MET", [{"type": "finding" if ref.startswith("FIND") else "decision", "id": ref} for ref in blockers],
+                            [("OPEN_BLOCKER", "Blocking Finding or proposed Decision affects this Requirement: " + ", ".join(blockers[:4]))])
+        elif findings_observation not in ("AVAILABLE", "EMPTY"):
+            blocker = level("blocker", "NOT_OBSERVABLE", [], [("FINDINGS_NOT_OBSERVABLE", f"Findings are {findings_observation.replace('_', ' ').lower()}, so absence of blockers cannot be asserted.")])
+        else:
+            blocker = level("blocker", "MET", [], [])
+
+        levels = [implementation, verification, freshness, blocker]
+        if blocker["state"] == "NOT_MET":
+            label = "BLOCKED"
+        elif implementation["state"] == "MET" and verification["state"] == "MET" and freshness["state"] != "NOT_MET":
+            label = "VERIFIED"
+        elif implementation["state"] == "MET":
+            label = "IMPLEMENTED"
+        elif implementation["state"] == "PARTIAL" or any(task.get("status") == "in_progress" for task in linked):
+            label = "IN_PROGRESS"
+        else:
+            label = "NOT_STARTED"
+        for entry_level in levels:
+            if not entry_level["evidence_refs"] and not entry_level["reasons"]:
+                entry_level["reasons"] = [{"code": "CONDITION_MET_NO_RECORD", "text": "Condition satisfied; no record needs to be cited."}]
+        item["delivery_assessment"] = {
+            "requirement_id": req_id, "rule_version": DELIVERY_ASSESSMENT_RULE, "label": label,
+            "levels": levels, "derived": True,
+        }
+
+
+def build_waves_trust(
+    waves: list[dict[str, Any]], process_doc: dict[str, Any] | None, tasks: list[dict[str, Any]],
+    requirements: list[dict[str, Any]], findings: list[dict[str, Any]], activity: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """'Trust in DONE' per Wave (K.5): historical DONE stays DONE; present confidence is reported separately."""
+    waves_doc = process_doc.get("waves") if isinstance(process_doc, dict) and isinstance(process_doc.get("waves"), dict) else {}
+    assessment_by_req = {item["id"]: item.get("delivery_assessment") for item in requirements}
+    trust: list[dict[str, Any]] = []
+    for wave in waves:
+        wave_id = wave["wave_id"]
+        raw = waves_doc.get(wave_id) if isinstance(waves_doc.get(wave_id), dict) else {}
+        gates = raw.get("gates") if isinstance(raw.get("gates"), dict) else {}
+        acceptance = gates.get("acceptance_gate") if isinstance(gates.get("acceptance_gate"), dict) else None
+        legacy_text = " ".join(str(value) for value in (raw.get("resume_from"), (gates.get("gate_to_refinement") or {}).get("note") if isinstance(gates.get("gate_to_refinement"), dict) else None) if value)
+        is_legacy = "legacy" in legacy_text.lower() or "completion_override" in raw
+        result = acceptance.get("result") if acceptance else None
+        if acceptance and result in ("passed", "failed", "pending"):
+            basis_state = "RECORDED"
+        elif is_legacy:
+            basis_state = "LEGACY"
+        else:
+            basis_state = "NOT_RECORDED"
+        evidence = acceptance.get("evidence") if acceptance and isinstance(acceptance.get("evidence"), list) else []
+        wave_tasks = [task for task in tasks if task.get("wave_id") == wave_id]
+        open_tasks = sorted(task["id"] for task in wave_tasks if task.get("status") not in ("done", "deferred"))
+        done_wave = wave["phase"] == "done"
+        explained = basis_state in ("RECORDED", "LEGACY")
+        wave_findings = sorted(finding["id"] for finding in findings if finding.get("wave_id") == wave_id)
+        labels: dict[str, int] = {}
+        for req_id in wave.get("requirement_ids") or []:
+            assessment = assessment_by_req.get(req_id)
+            if assessment:
+                labels[assessment["label"]] = labels.get(assessment["label"], 0) + 1
+        verified = labels.get("VERIFIED", 0)
+        if verified:
+            confidence, reasons = "EVIDENCED", ["Requirements of this Wave have bound, passing evidence."]
+        elif labels:
+            confidence, reasons = "NOT_EVIDENCED", ["None of this Wave's Requirements has bound, passing verification evidence."]
+        else:
+            confidence, reasons = "NOT_OBSERVABLE", ["No Requirement is linked to this Wave through Tasks."]
+        reasons.append("Evidence currency against the current model is not observable.")
+        trust.append({
+            "wave_id": wave_id, "phase": wave["phase"], "historical_state": "DONE" if done_wave else (wave["phase"] or "UNKNOWN").upper(),
+            "done_basis": {"state": basis_state, "gate_result": result, "evidence": [str(item) for item in evidence][:6]},
+            "open_tasks_superseded": open_tasks if done_wave and explained else [],
+            "open_tasks_unexplained": open_tasks if done_wave and not explained else [],
+            "later_findings": wave_findings[:12],
+            "changes_after_done": {"observation_state": "NOT_OBSERVABLE", "commit_count": None},
+            "present_confidence": {"level": confidence, "requirement_labels": labels, "freshness": "NOT_OBSERVABLE", "reasons": reasons},
+        })
+    return trust
+
+
+def build_revision_ledger(root: Path, hashes: dict[str, str], gaps: list, parsed_documents: dict | None) -> dict[str, Any]:
+    """Revision ledger (planning/revisions/REV-*.yaml) as design-authority source (FR-065)."""
+    if not (root / "planning/revisions").is_dir():
+        return {"observation_state": "NOT_RECORDED", "items": []}
+    state, records, paths = read_collection(root, "planning/revisions", "REV-*.yaml", "", hashes, gaps, parsed_documents)
+    items = []
+    for record, path in zip(records, paths):
+        screens = record.get("screens") if isinstance(record.get("screens"), list) else []
+        decisions = record.get("acceptance_decisions") if isinstance(record.get("acceptance_decisions"), list) else []
+        items.append({
+            "revision_id": record.get("revision_id") if isinstance(record.get("revision_id"), str) else Path(path).stem,
+            "active_target": record.get("active_target") is True,
+            "status": record.get("status") if isinstance(record.get("status"), str) else None,
+            "artifact_path": record.get("artifact_path") if isinstance(record.get("artifact_path"), str) else None,
+            "screens": [str(screen) for screen in screens][:20],
+            "acceptance_decisions": [str(decision) for decision in decisions][:10],
+            "authority_source": "revision_ledger", "canonical_path": path,
+        })
+    observation = _observed(state, count=len(items))
+    return {"observation_state": observation, "items": items}
+
+
+def build_parity_report_states(parity_records: list[dict[str, Any]], parity_paths: list[str]) -> list[dict[str, Any]]:
+    """Parity reports without bound evidence are 'reported, not proven' (FR-066)."""
+    reports = []
+    for record, path in list(zip(parity_records, parity_paths))[:200]:
+        if not isinstance(record, dict):
+            continue
+        resolution = resolve_parity_status(record)
+        reported = record.get("overall_result") if isinstance(record.get("overall_result"), str) else None
+        status = resolution.get("status")
+        if status == "RESOLVED":
+            state = "COMPUTED"
+        elif status == "STALE":
+            state = "STALE"
+        elif reported in (None, "NOT_VERIFIED"):
+            state = "NOT_VERIFIED"
+        else:
+            state = "REPORTED_UNBOUND"
+        reports.append({
+            "report_path": path, "page_id": record.get("page_id") if isinstance(record.get("page_id"), str) else None,
+            "scenario_id": record.get("scenario_id") if isinstance(record.get("scenario_id"), str) else None,
+            "reported_result": reported, "computed_result": resolution.get("computed_overall_result"),
+            "state": state, "verified_at": str(record.get("verified_at")) if record.get("verified_at") is not None else None,
+            "reasons": [blocker.get("code") for blocker in (resolution.get("blockers") or []) if isinstance(blocker, dict) and blocker.get("code")][:4],
+        })
+    return reports
+
+
+def attach_cs4_projections(
+    result: dict[str, Any], *, root: Path, process_doc: dict[str, Any] | None, tasks: list[dict[str, Any]],
+    parity_records: list[dict[str, Any]], parity_paths: list[str], checklist_paths: list[str],
+    task_records: list[dict[str, Any]], hashes: dict[str, str], gaps: list, parsed_documents: dict | None,
+    active_wave_id: str | None, next_action: dict[str, Any] | None,
+) -> None:
+    findings_observation = _observed(result["findings"]["availability"], missing="!missing-directory:planning/findings" in hashes,
+                                     count=len(result["findings"]["items"]))
+    evidence = result["verification"]["evidence"]
+    build_delivery_assessments(
+        result["requirements"]["items"], result["delivery"]["tasks"]["items"], result["verification"]["test_contracts"]["items"],
+        evidence["entries"], result["findings"]["items"], result["decisions"]["items"],
+        findings_observation=findings_observation, target_freshness=evidence["target_freshness"], model_freshness=evidence["model_freshness"],
+    )
+    activity = observe_delivery_activity(root)
+    result["current_work"] = derive_current_work(
+        result["mission"], active_wave_id, result["delivery"]["waves"]["items"], result["delivery"]["tasks"]["items"],
+        activity, next_action, result["project"]["active_targets"]["items"],
+    )
+    result["waves_trust"] = build_waves_trust(
+        result["delivery"]["waves"]["items"], process_doc, result["delivery"]["tasks"]["items"],
+        result["requirements"]["items"], result["findings"]["items"], activity,
+    )
+    result["project"]["revision_ledger"] = build_revision_ledger(root, hashes, gaps, parsed_documents)
+    result["verification"]["parity_reports"] = build_parity_report_states(parity_records, parity_paths)
+    migrated = {task.get("migrated_from") for task in task_records}
+    result["delivery"]["noncanonical_checklists"] = {
+        "observation_state": "AVAILABLE" if checklist_paths else "EMPTY",
+        "items": [path for path in checklist_paths if path not in migrated][:40],
+    }
 
 
 def _build_status(
@@ -1836,6 +2304,15 @@ def _build_status(
             "affected_requirements": sorted({
                 req_id for req_id in record.get("affected_requirements", []) if isinstance(req_id, str)
             }) if isinstance(record.get("affected_requirements", []), list) else [],
+            "created_at": str(record["created_at"]) if record.get("created_at") is not None else None,
+            "confirmed_at": str(record["confirmed_at"]) if record.get("confirmed_at") is not None else None,
+            "rationale_excerpt": record["rationale"].strip()[:240] if isinstance(record.get("rationale"), str) and record["rationale"].strip() else None,
+            "affected_screens": sorted({
+                item for item in record.get("affected_screens", []) if isinstance(item, str)
+            })[:20] if isinstance(record.get("affected_screens", []), list) else [],
+            "affected_mockup_revisions": sorted({
+                item for item in record.get("affected_mockup_revisions", []) if isinstance(item, str)
+            })[:20] if isinstance(record.get("affected_mockup_revisions", []), list) else [],
             "canonical_path": path,
             "content_hash": f"sha256:{hashes[path]}" if hashes.get(path) else None,
         }
@@ -2058,7 +2535,7 @@ def _build_status(
     add_gap(gaps, "CONTEXT_SESSION_STATE_UNAVAILABLE", "Context Mode session", "Current context mode and pressure are not durable project status.")
     add_gap(gaps, "MULTI_SOURCE_UNAVAILABLE", None, "Core has no canonical source or agent-session registry.")
 
-    context_status = {"availability": "unavailable", "epoch_id": None, "phase": None, "mode": None, "pressure": None}
+    context_status = {"availability": "unavailable", "epoch_id": None, "phase": None, "mode": None, "pressure": None, "next_action": None}
     if context_state == "available":
         context_meta = context_doc.get("context") if isinstance(context_doc, dict) else None
         lifecycle_meta = context_doc.get("lifecycle") if isinstance(context_doc, dict) else None
@@ -2072,6 +2549,14 @@ def _build_status(
                 "phase": phase if phase in ("discovery", "refinement", "ready", "implementing", "verifying", "done") else None,
                 "pressure": pressure if pressure in ("UNKNOWN", "NORMAL", "PRESSURE", "ROLLOVER_RECOMMENDED", "ROLLOVER_REQUIRED") else None,
             })
+            action = context_doc.get("next_action") if isinstance(context_doc, dict) else None
+            if isinstance(action, dict) and isinstance(action.get("description"), str):
+                prerequisites = action.get("prerequisites")
+                context_status["next_action"] = {
+                    "description": action["description"].strip()[:300],
+                    "safe_to_run": action.get("safe_to_run") if isinstance(action.get("safe_to_run"), bool) else None,
+                    "prerequisites": [str(item)[:160] for item in prerequisites][:6] if isinstance(prerequisites, list) else [],
+                }
     else:
         add_gap(gaps, "CONTEXT_EPOCH_UNAVAILABLE", "planning/lifecycle/context-epoch.yaml", "No canonical context handoff is available in this project snapshot.")
 
@@ -2251,6 +2736,12 @@ def _build_status(
         and item["affected_board_area"] == "decisions"
     ]
     result["source_fingerprint"] = result["compatibility"]["source_fingerprint"]
+    attach_cs4_projections(
+        result, root=root, process_doc=process_doc if process_state == "available" else None,
+        tasks=result["delivery"]["tasks"]["items"], parity_records=parity_records, parity_paths=parity_paths,
+        checklist_paths=checklist_paths, task_records=tasks, hashes=hashes, gaps=gaps,
+        parsed_documents=parsed_documents, active_wave_id=active_wave_id, next_action=context_status.get("next_action"),
+    )
     result["health"] = {"observation_states": attach_observation_states(result, hashes)}
     result["health"] = build_health(result)
     _emit_project_stage("compatibility_and_fingerprint", stage_started,

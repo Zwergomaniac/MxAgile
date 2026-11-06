@@ -168,8 +168,9 @@ function renderHeader() {
   $("#core-version").textContent = project.core_version || "unknown";
   $("#fingerprint-short").textContent = status.source_fingerprint ? status.source_fingerprint.slice(0, 15) : "";
   $("#source-fingerprint").textContent = status.source_fingerprint || "SOURCE FINGERPRINT UNKNOWN";
+  const idle = status.current_work && status.current_work.state === "NONE";
   $("#active-wave").textContent = project.lifecycle.active_wave_id || "—";
-  $("#active-phase").textContent = project.lifecycle.phase || obsLabel(project.lifecycle);
+  $("#active-phase").textContent = idle ? "keine aktive Wave" : (project.lifecycle.phase || obsLabel(project.lifecycle));
   const phase = project.lifecycle.phase || obsLabel(project.lifecycle).replaceAll(" ", "_");
   const phasePill = $("#lifecycle-pill");
   phasePill.textContent = phase.toUpperCase().replaceAll("_", " ");
@@ -326,6 +327,8 @@ function renderOverview() {
   grid.append(wavesSection, rightSection);
   root.append(grid);
 
+  renderTrustInDone(root);
+  renderRevisionLedger(root);
   root.append(sectionTitle("Requirements", `${valueText(status.requirements.total, status.requirements)} total`));
   renderRequirementTable(root, status.requirements.items.slice(0, 6));
 }
@@ -363,7 +366,7 @@ function renderRequirementTable(container, requirements) {
   const table = node("table", "data-table");
   const head = document.createElement("thead");
   const header = document.createElement("tr");
-  for (const label of ["Requirement", "Status", "Wave / Workpackage", "Source"]) header.append(node("th", "", label));
+  for (const label of ["Requirement", "Status", "Assessment (abgeleitet)", "Wave / Workpackage", "Source"]) header.append(node("th", "", label));
   head.append(header);
   const body = document.createElement("tbody");
   for (const req of requirements) {
@@ -375,9 +378,11 @@ function renderRequirementTable(container, requirements) {
     const statusCell = document.createElement("td");
     statusCell.append(stateBadge(req.status || "UNKNOWN"));
     const assignCell = node("td", "count-pair", assignments.length ? assignments.join(", ") : "UNMAPPED");
+    const assessmentCell = document.createElement("td");
+    if (req.delivery_assessment) assessmentCell.append(stateBadge(req.delivery_assessment.label));
     const sourceCell = document.createElement("td");
     sourceCell.append(sourceLink("requirement", req.id));
-    row.append(idCell, statusCell, assignCell, sourceCell);
+    row.append(idCell, statusCell, assessmentCell, assignCell, sourceCell);
     body.append(row);
   }
   table.append(head, body);
@@ -468,6 +473,7 @@ function renderVerification() {
   } else {
     root.append(empty("Evidence manifests unavailable"));
   }
+  renderParityReports();
   renderReferenceList(root, ["test_contract", "verification_plan", "evidence_manifest", "evidence_artifact", "parity_report"]);
 }
 
@@ -633,7 +639,8 @@ function renderUiPages() {
       ? (status.gallery_errors?.["*"] ? "NICHT VERFÜGBAR" : (status.gallery_loading?.["*"] ? "LÄDT …" : "NICHT GELADEN"))
       : (page.parity_status || "NOT_VERIFIED");
     for (const [label, value] of [
-      ["IMPLEMENTATION", page.implementation_mode],
+      ["IMPLEMENTATION (ABSICHT)", page.implementation_mode],
+      ...(page.implementation && page.implementation.mismatch ? [["ABSICHT ≠ FAKT", page.implementation.mismatch_reason]] : []),
       ["MOCKUP MODE", page.mockup_driven?.effective || "UNKNOWN"],
       ["PARITY", parityLabel],
       ["RUNTIME (RECORDED)", page.runtime_status?.state || "NOT_RECORDED"],
@@ -879,6 +886,7 @@ function renderDetail(parts) {
     // No count without a source: an absent mission state is "not recorded", never 0 (BRD-F-04).
     const missionRecorded = status.mission.availability !== "unavailable" && status.mission.blocker_count !== null && status.mission.blocker_count !== undefined;
     facts.append(countItem("MISSION BLOCKERS (MISSIONSWEIT)", missionRecorded ? status.mission.blocker_count : "NICHT ERFASST", missionRecorded ? "aus mission-state.yaml" : "keine Mission-State-Quelle"));
+    renderWaveTrustBlock(wave.wave_id);
     root.append(node("h3", "plain-section", "Requirements"));
     for (const reqId of wave.requirement_ids) root.append(internalLink(reqId, `requirement/${encodeURIComponent(reqId)}`));
     renderTaskList(tasks);
@@ -918,6 +926,7 @@ function renderDetail(parts) {
     root.append(sectionTitle(`${requirement.id} · ${requirement.title || "Untitled"}`, requirement.status || "UNKNOWN"));
     root.append(stateBadge(requirement.status || "UNKNOWN"));
     root.append(sourceLink("requirement", requirement.id));
+    renderAssessmentBlock(requirement);
     const relatedTasks = status.delivery.tasks.items.filter((task) => task.requirement_ids.includes(id));
     renderTaskList(relatedTasks);
     root.append(node("h3", "plain-section", "Verification / Proof Points"));
@@ -944,6 +953,7 @@ function renderDetail(parts) {
     if (!decision) return root.append(empty("Decision unavailable"));
     root.append(sectionTitle(`${decision.id} · ${decision.title || "Untitled"}`, decision.status || "UNKNOWN"));
     root.append(stateBadge(decision.status || "UNKNOWN"), sourceLink("decision", decision.id));
+    renderDecisionFacts(decision);
     for (const reqId of decision.affected_requirements) root.append(internalLink(reqId, `requirement/${encodeURIComponent(reqId)}`));
     root.append(node("h3", "plain-section", "Related Findings"));
     renderFindingCards(status.findings.items.filter((finding) => finding.decision_ids.includes(id)));
@@ -1093,6 +1103,298 @@ function renderCompatibility() {
   }
   panel.append(list);
   root.append(panel);
+}
+
+function ago(epochSeconds) {
+  if (typeof epochSeconds !== "number") return null;
+  const seconds = Math.max(0, Date.now() / 1000 - epochSeconds);
+  if (seconds < 3600) return `vor ${Math.max(1, Math.round(seconds / 60))} min`;
+  if (seconds < 172800) return `vor ${Math.round(seconds / 3600)} h`;
+  return `vor ${Math.round(seconds / 86400)} Tagen`;
+}
+
+const WORK_STATE_TEXT = {
+  ACTIVE: "ACTIVE", BLOCKED: "BLOCKED", NOT_STARTED: "NOT STARTED", NONE: "KEINE AKTIVE ARBEIT", CONFLICT: "CONFLICT",
+};
+const ASSESSMENT_TEXT = {
+  NOT_STARTED: "NOT STARTED", IN_PROGRESS: "IN PROGRESS", IMPLEMENTED: "IMPLEMENTED", VERIFIED: "VERIFIED", BLOCKED: "BLOCKED",
+};
+const LEVEL_TEXT = { implementation: "Implementation", verification: "Verification", freshness: "Freshness", blocker: "Blocker" };
+const LEVEL_STATE_TEXT = { MET: "MET", PARTIAL: "PARTIAL", NOT_MET: "NOT MET", NOT_OBSERVABLE: "NOT OBSERVABLE" };
+
+function derivedBadge() {
+  const badge = node("span", "derived-badge", "ABGELEITET");
+  badge.title = "Berechnet aus kanonischen Artefakten. Wird nie gespeichert oder zurückgeschrieben.";
+  return badge;
+}
+
+function workHeadline(work) {
+  if (work.state === "ACTIVE" || work.state === "BLOCKED") {
+    const where = work.wave ? `Wave ${work.wave.wave_id} · Phase ${work.wave.phase || "?"}` : "Mission ohne benannte aktive Wave";
+    return `${work.state === "BLOCKED" ? "Blockiert: " : "Aktiv: "}${where}`;
+  }
+  if (work.state === "NOT_STARTED") return `Nächste registrierte Wave: ${work.wave.wave_id} (Phase ${work.wave.phase}) – noch nicht begonnen`;
+  if (work.state === "CONFLICT") {
+    return work.reason === "MULTIPLE_ACTIVE_WAVES" ? "Widerspruch: mehrere Waves sind gleichzeitig aktiv"
+      : work.reason === "ACTIVE_WAVE_IS_DONE" ? "Widerspruch: die Mission nennt eine bereits abgeschlossene Wave als aktiv"
+      : "Widerspruch: die Mission nennt eine nicht registrierte Wave als aktiv";
+  }
+  return work.waves_registered ? "Keine aktive kanonische Arbeit" : "Keine aktive kanonische Arbeit – es sind keine Waves registriert";
+}
+
+function outsideLifecycleNote(work) {
+  if (work.state !== "NONE") return null;
+  const activity = work.unattributed_activity;
+  if (activity.observation_state !== "AVAILABLE") return { tone: "muted", text: "Git-Aktivität nach dem letzten DONE-Übergang ist nicht beobachtbar (kein Git-Verlauf oder kein DONE-Übergang im Beobachtungsfenster)." };
+  if (activity.observed) return {
+    tone: "warn",
+    text: `Arbeit außerhalb des kanonischen Lifecycles beobachtet: ${activity.commit_count} Commit(s) auf Projekt-/Modellpfaden seit dem letzten DONE-Übergang (${activity.since_commit}). Sie sind keiner Wave, Task oder Mission zugeordnet.`,
+  };
+  return { tone: "muted", text: `Seit dem letzten DONE-Übergang (${activity.since_commit}) wurden keine Commits auf Projekt-/Modellpfaden beobachtet.` };
+}
+
+function workRow(label, content) {
+  const row = node("div", "cw-row");
+  row.append(node("span", "cw-label", label));
+  const value = node("div", "cw-value");
+  if (content instanceof Node) value.append(content);
+  else value.textContent = content;
+  row.append(value);
+  return row;
+}
+
+function assessmentSummary(requirementIds) {
+  const labels = {};
+  for (const id of requirementIds) {
+    const item = status.requirements.items.find((entry) => entry.id === id);
+    const label = item && item.delivery_assessment ? item.delivery_assessment.label : null;
+    if (label) labels[label] = (labels[label] || 0) + 1;
+  }
+  return Object.entries(labels).map(([label, count]) => `${count} ${ASSESSMENT_TEXT[label] || label}`).join(" · ");
+}
+
+function renderCurrentWork() {
+  const container = $("#current-work");
+  if (!container) return;
+  clear(container);
+  const work = status.current_work;
+  container.hidden = !work;
+  if (!work) return;
+  container.className = `current-work ${work.state.toLowerCase()}`;
+  const head = node("div", "cw-head");
+  head.append(node("span", "eyebrow", "CURRENT WORK"), stateBadge(WORK_STATE_TEXT[work.state] || work.state), derivedBadge());
+  container.append(head, node("h2", "cw-headline", workHeadline(work)));
+  const note = outsideLifecycleNote(work);
+  if (note) container.append(node("p", `cw-note ${note.tone}`, note.text));
+
+  const rows = node("div", "cw-rows");
+  if (work.mission) {
+    const mission = node("span", "", `${work.mission.id || "Mission"} · ${work.mission.status || ""}${work.mission.objective ? ` – ${work.mission.objective}` : ""}`);
+    rows.append(workRow("Mission", mission));
+  } else {
+    rows.append(workRow("Mission", `nicht erfasst (${obsLabel(status.mission, "keine Mission")})`));
+  }
+  if (work.wave) {
+    const link = internalLink(`${work.wave.wave_id} · ${work.wave.phase || "?"}`, `wave/${encodeURIComponent(work.wave.wave_id)}`);
+    rows.append(workRow("Wave / Phase", link));
+  }
+  if (work.requirement_ids.length) {
+    const wrapper = node("span", "");
+    work.requirement_ids.slice(0, 6).forEach((id, index) => {
+      if (index) wrapper.append(document.createTextNode(", "));
+      wrapper.append(internalLink(id, `requirement/${encodeURIComponent(id)}`));
+    });
+    if (work.requirement_ids.length > 6) wrapper.append(document.createTextNode(` … (+${work.requirement_ids.length - 6})`));
+    rows.append(workRow("Requirements", wrapper));
+    const summary = assessmentSummary(work.requirement_ids);
+    if (summary) rows.append(workRow("Verification-Stand", `${summary} (abgeleitet)`));
+  }
+  if (work.tasks_in_progress.length) rows.append(workRow("Tasks in Arbeit", work.tasks_in_progress.join(", ")));
+  if (work.blockers.length) {
+    const first = work.blockers[0];
+    rows.append(workRow("Blocker", `${work.blockers.length} · ${first.type || "OTHER"}${first.description ? ` – ${first.description}` : ""}`));
+  }
+  if (work.last_completed && work.last_completed.wave_ids.length) {
+    const wrapper = node("span", "");
+    work.last_completed.wave_ids.forEach((id, index) => {
+      if (index) wrapper.append(document.createTextNode(", "));
+      wrapper.append(internalLink(id, `wave/${encodeURIComponent(id)}`));
+    });
+    const stamp = ago(work.last_completed.committed_at);
+    const summary = assessmentSummary(work.last_completed.requirement_ids);
+    wrapper.append(document.createTextNode(` (done${stamp ? `, ${stamp}` : ""}) · ${work.last_completed.tasks_done}/${work.last_completed.task_count} Tasks done${summary ? ` · Requirements: ${summary} (abgeleitet)` : ""}`));
+    rows.append(workRow("Zuletzt abgeschlossen", wrapper));
+  }
+  if (work.latest_activity) {
+    const stamp = ago(work.latest_activity.committed_at);
+    rows.append(workRow("Letzte Git-Aktivität", `${work.latest_activity.commit}${stamp ? ` · ${stamp}` : ""} · ${work.latest_activity.subject} (nicht zugeordnet)`));
+  }
+  if (work.design_authority.length) {
+    rows.append(workRow("Design Authority", `${work.design_authority.length} aktive Referenz(en), projektweit – keiner Wave zugeordnet`));
+  }
+  const step = work.next_step || {};
+  if (work.next_action) {
+    rows.append(workRow("Nächster Schritt", `${work.next_action.description}${work.next_action.safe_to_run === false ? " (nicht automatisch ausführbar)" : ""}`));
+  } else if (step.kind === "LIFECYCLE_TRANSITION") {
+    rows.append(workRow("Nächster Lifecycle-Schritt", `${step.from_phase} → ${step.to_phase}${step.requires ? ` · erfordert ${step.requires}` : ""}`));
+  } else if (step.kind === "REGISTER_WAVE") {
+    rows.append(workRow("Nächster Schritt", "Neue oder nachträgliche Arbeit braucht eine neu registrierte Wave (bei Autorisierung in process-state.yaml eintragen)"));
+  }
+  container.append(rows);
+}
+
+function trustCounts() {
+  const trust = status.waves_trust || [];
+  const done = trust.filter((item) => item.historical_state === "DONE");
+  const count = (predicate) => done.filter(predicate).length;
+  return {
+    total: trust.length, done: done.length,
+    recorded: count((item) => item.done_basis.state === "RECORDED"),
+    legacy: count((item) => item.done_basis.state === "LEGACY"),
+    missing: count((item) => item.done_basis.state === "NOT_RECORDED"),
+    superseded: done.reduce((sum, item) => sum + item.open_tasks_superseded.length, 0),
+    unexplained: done.reduce((sum, item) => sum + item.open_tasks_unexplained.length, 0),
+    evidenced: count((item) => item.present_confidence.level === "EVIDENCED"),
+    notEvidenced: count((item) => item.present_confidence.level === "NOT_EVIDENCED"),
+  };
+}
+
+function trustWaveRows(items) {
+  const list = node("div", "plain-list");
+  for (const item of items) {
+    const row = node("div", "plain-item");
+    const main = node("div", "item-main");
+    main.append(internalLink(item.wave_id, `wave/${encodeURIComponent(item.wave_id)}`));
+    const parts = [`DONE-Grundlage: ${item.done_basis.state === "NOT_RECORDED" ? "nicht erfasst" : item.done_basis.state === "LEGACY" ? "Legacy" : "erfasst"}`];
+    if (item.open_tasks_superseded.length) parts.push(`${item.open_tasks_superseded.length} offene Tasks durch Acceptance überholt`);
+    if (item.open_tasks_unexplained.length) parts.push(`${item.open_tasks_unexplained.length} offene Tasks ohne Grundlage`);
+    if (item.later_findings.length) parts.push(`${item.later_findings.length} Findings gegen diese Wave`);
+    main.append(node("small", "", parts.join(" · ")));
+    const confidence = item.present_confidence.level === "EVIDENCED" ? "EVIDENCED" : item.present_confidence.level === "NOT_EVIDENCED" ? "NOT EVIDENCED" : "NOT OBSERVABLE";
+    row.append(main, stateBadge(item.historical_state), stateBadge(confidence.replaceAll(" ", "_")));
+    list.append(row);
+  }
+  return list;
+}
+
+function renderTrustInDone(container) {
+  if (!status.waves_trust || !status.waves_trust.length) return;
+  const counts = trustCounts();
+  const section = node("section", "plain-section trust-card");
+  const title = node("div", "cw-head");
+  title.append(node("h3", "", "Vertrauen in DONE"), derivedBadge());
+  section.append(title);
+  section.append(node("p", "", `${counts.done} von ${counts.total} Waves sind abgeschlossen (done). DONE bleibt historisch gültig – es sagt nur, dass das Acceptance-Gate damals für den Scope der Wave bestanden wurde.`));
+  const facts = node("div", "plain-list");
+  for (const [label, value] of [
+    ["DONE-Grundlage erfasst", counts.recorded],
+    ["Legacy-DONE (ohne Gate-Protokoll)", counts.legacy],
+    ["Historische DONE-Grundlage nicht erfasst", `${counts.missing} (Hinweis, keine aktive Blockade)`],
+    ["Offene Tasks durch Acceptance überholt", counts.superseded],
+    ["Offene Tasks ohne Grundlage", counts.unexplained],
+    ["Waves mit belegter Verifikations-Evidenz", counts.evidenced],
+    ["Waves ohne belegte Evidenz", counts.notEvidenced],
+  ]) {
+    const row = node("div", "plain-item");
+    row.append(node("div", "item-main", label), node("span", "count-pair", String(value)));
+    facts.append(row);
+  }
+  section.append(facts);
+  section.append(node("p", "muted", "Aktualität der Evidenz gegenüber dem aktuellen Modell ist nicht beobachtbar (Details unter Health & Diagnostics)."));
+  const details = node("details", "trust-waves");
+  details.append(node("summary", "", `Pro Wave (${counts.total})`), trustWaveRows(status.waves_trust));
+  section.append(details);
+  container.append(section);
+}
+
+function renderAssessmentBlock(requirement) {
+  const assessment = requirement.delivery_assessment;
+  if (!assessment) return;
+  const section = node("section", "plain-section assessment");
+  const head = node("div", "cw-head");
+  head.append(node("h3", "", "Delivery assessment"), stateBadge(assessment.label), derivedBadge(), node("small", "muted", assessment.rule_version));
+  section.append(head);
+  const met = assessment.levels.filter((level) => level.state === "MET").map((level) => LEVEL_TEXT[level.level]);
+  const open = assessment.levels.filter((level) => level.state !== "MET").map((level) => LEVEL_TEXT[level.level]);
+  section.append(node("p", "", `Warum gilt das als erreicht? ${met.length ? met.join(", ") + " erfüllt." : "Noch keine Stufe erfüllt."}`));
+  section.append(node("p", "", `Warum ist Abschluss nicht belegt? ${open.length ? open.join(", ") + " nicht (vollständig) belegt." : "Alle Stufen sind belegt."}`));
+  const list = node("div", "plain-list");
+  for (const level of assessment.levels) {
+    const row = node("div", "plain-item");
+    const main = node("div", "item-main");
+    main.append(node("strong", "", LEVEL_TEXT[level.level]));
+    for (const reason of level.reasons) main.append(node("p", "muted", reason.text));
+    if (level.evidence_refs.length) {
+      const refs = node("small", "");
+      level.evidence_refs.forEach((ref, index) => {
+        if (index) refs.append(document.createTextNode(", "));
+        if (ref.type === "decision") refs.append(internalLink(ref.id, `decision/${encodeURIComponent(ref.id)}`));
+        else if (ref.type === "finding") refs.append(internalLink(ref.id, `finding/${encodeURIComponent(ref.id)}`));
+        else refs.append(document.createTextNode(ref.id));
+      });
+      main.append(refs);
+    }
+    row.append(main, stateBadge((LEVEL_STATE_TEXT[level.state] || level.state).replaceAll(" ", "_")));
+    list.append(row);
+  }
+  section.append(list);
+  root.append(section);
+}
+
+function renderWaveTrustBlock(waveId) {
+  const item = (status.waves_trust || []).find((entry) => entry.wave_id === waveId);
+  if (!item) return;
+  root.append(node("h3", "plain-section", "Vertrauen in DONE"));
+  root.append(trustWaveRows([item]));
+  const reasons = node("div", "plain-list");
+  for (const reason of item.present_confidence.reasons) reasons.append(node("p", "muted", reason));
+  root.append(reasons);
+}
+
+function renderRevisionLedger(container) {
+  const ledger = status.project && status.project.revision_ledger;
+  if (!ledger || ledger.observation_state === "NOT_RECORDED" || !ledger.items.length) return;
+  const section = node("section", "plain-section");
+  const head = node("div", "cw-head");
+  head.append(node("h3", "", "Revision ledger"), node("small", "muted", "Design-Authority-Quelle · planning/revisions"));
+  section.append(head);
+  const list = node("div", "plain-list");
+  for (const item of ledger.items) {
+    const row = node("div", "plain-item");
+    const main = node("div", "item-main");
+    main.append(node("strong", "", item.revision_id));
+    main.append(node("small", "muted", `${item.artifact_path || "kein Artefakt"} · ${item.screens.length} Screen(s)${item.acceptance_decisions.length ? ` · ${item.acceptance_decisions.join(", ")}` : ""}`));
+    row.append(main, stateBadge(item.active_target ? "ACTIVE_TARGET" : (item.status || "NOT_ACTIVE")));
+    list.append(row);
+  }
+  section.append(list);
+  container.append(section);
+}
+
+function renderParityReports() {
+  const reports = status.verification && status.verification.parity_reports;
+  if (!reports || !reports.length) return;
+  const labels = { COMPUTED: "COMPUTED", REPORTED_UNBOUND: "BERICHTET, NICHT BELEGT", STALE: "STALE", NOT_VERIFIED: "NOT VERIFIED" };
+  root.append(sectionTitle("Parity reports", `${reports.length} Report(s) · ein berichtetes Ergebnis ohne gebundene Evidenz zählt nicht als Verifikation`));
+  const list = node("div", "plain-list");
+  for (const report of reports) {
+    const row = node("div", "plain-item");
+    const main = node("div", "item-main");
+    main.append(node("strong", "", `${report.page_id || "—"} · ${report.scenario_id || report.report_path}`));
+    main.append(node("small", "muted", `berichtet: ${report.reported_result || "—"} · berechnet: ${report.computed_result || "—"} · ${report.verified_at || "ohne Datum"}`));
+    row.append(main, stateBadge(labels[report.state] || report.state), sourceLinkPath(report.report_path, "Report ↗"));
+    list.append(row);
+  }
+  root.append(list);
+}
+
+function renderDecisionFacts(decision) {
+  const facts = node("div", "detail-fields");
+  facts.append(countItem("ERSTELLT", decision.created_at || "NICHT ERFASST", ""), countItem("BESTÄTIGT", decision.confirmed_at || (decision.status === "CONFIRMED" ? "NICHT ERFASST" : "noch nicht"), ""));
+  root.append(facts);
+  if (decision.rationale_excerpt) root.append(node("p", "", decision.rationale_excerpt));
+  const lists = [["Screens", decision.affected_screens], ["Mockup-Revisionen", decision.affected_mockup_revisions]];
+  for (const [label, values] of lists) if (values && values.length) root.append(node("p", "muted", `${label}: ${values.join(", ")}`));
 }
 
 function healthChipInfo() {
@@ -1251,6 +1553,7 @@ async function load() {
     if (!response.ok) throw new Error("Status unavailable");
     status = await response.json();
     renderHeader();
+    renderCurrentWork();
     renderAttention();
     renderMetrics();
     updateHealthChip();

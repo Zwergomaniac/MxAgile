@@ -2572,6 +2572,14 @@ class ObservationStateTests(unittest.TestCase):
         legacy = copy.deepcopy(status)
         legacy["schema_version"] = 2
         legacy.pop("health")
+        # CS-4 additive projections do not exist in a v2-shaped projection.
+        for key in ("current_work", "waves_trust"):
+            legacy.pop(key)
+        legacy["project"].pop("revision_ledger")
+        legacy["delivery"].pop("noncanonical_checklists")
+        legacy["verification"].pop("parity_reports")
+        for item in legacy["requirements"]["items"]:
+            item.pop("delivery_assessment")
 
         def strip(value):
             if isinstance(value, dict):
@@ -2637,6 +2645,268 @@ class ObservationStateTests(unittest.TestCase):
         second = self.status()["source_fingerprint"]
         after = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*"))
         self.assertEqual((first, before), (second, after))
+
+
+class CurrentWorkAndAssessmentTests(unittest.TestCase):
+    """001-board-redesign CS-4: derived Current Work, DONE trust, delivery assessment, canonical projections."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory(prefix="mxagile-status-")
+        self.root = Path(self.temp.name) / "fixture"
+        self.root.mkdir()
+        fixture(self.root)
+        build_project_status._DELIVERY_ACTIVITY_CACHE.clear()
+
+    def tearDown(self) -> None:
+        cleanup_temporary_directory(self.temp, expected_prefix="mxagile-status-")
+
+    def status(self) -> dict:
+        return build_project_status.build_status(self.root)
+
+    def set_waves(self, waves: dict) -> None:
+        write_file(self.root, "planning/lifecycle/process-state.yaml", project_compatibility.yaml.safe_dump({"waves": waves}))
+
+    def set_mission(self, status: str | None, active_wave: str | None, blockers: str = "[]") -> None:
+        if status is None:
+            (self.root / "planning/mission/mission-state.yaml").unlink()
+            return
+        write_file(self.root, "planning/mission/mission-state.yaml",
+                   f"schema_version: 1\nmission_id: MISSION-X\ncreated_at: '2026-10-30'\nobjective: Ship the thing.\n"
+                   f"completion_boundary: USER_MISSION_COMPLETE\ncriteria:\n  lifecycle_derived: {{}}\n"
+                   + (f"active_wave: {active_wave}\n" if active_wave else "")
+                   + f"progress:\n  mission: {status}\nblockers: {blockers}\ncheckpoint_commits: [abc123]\n")
+
+    @staticmethod
+    def wave(phase: str) -> dict:
+        return {"phase": phase, "gates": {"gate_to_refinement": {"result": "passed"}, "gate_to_ready": {"result": "passed"}}}
+
+    def git(self, *args: str) -> None:
+        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
+                       check=True, capture_output=True)
+
+    # ------------------------------------------------------------------ Current Work cascade (FR-060)
+    def test_cascade_prefers_an_open_mission_and_its_registered_active_wave(self) -> None:
+        self.set_waves({"W01": self.wave("implementing"), "W02": self.wave("done")})
+        self.set_mission("active", "W01")
+        work = self.status()["current_work"]
+        self.assertEqual((work["state"], work["source"], work["derived"]), ("ACTIVE", "mission_state", True))
+        self.assertEqual(work["wave"]["wave_id"], "W01")
+        self.assertEqual(work["mission"]["objective"], "Ship the thing.")
+        self.assertEqual(work["next_step"]["to_phase"], "verifying")
+
+    def test_blocked_mission_and_blockers_are_projected(self) -> None:
+        self.set_waves({"W01": self.wave("implementing")})
+        self.set_mission("blocked", "W01", "[{type: DECISION_REQUIRED, description: Needs owner, blast_radius: REQUIREMENT}]")
+        status = self.status()
+        self.assertEqual(status["current_work"]["state"], "BLOCKED")
+        self.assertEqual(status["mission"]["blockers"][0]["description"], "Needs owner")
+        self.assertEqual(status["mission"]["checkpoint_commits"], ["abc123"])
+
+    def test_conflict_when_mission_points_to_a_done_or_unregistered_wave(self) -> None:
+        self.set_waves({"W01": self.wave("done")})
+        self.set_mission("active", "W01")
+        self.assertEqual(self.status()["current_work"]["reason"], "ACTIVE_WAVE_IS_DONE")
+        self.set_mission("active", "W99")
+        work = self.status()["current_work"]
+        self.assertEqual((work["state"], work["reason"]), ("CONFLICT", "ACTIVE_WAVE_NOT_REGISTERED"))
+
+    def test_registered_waves_without_mission_follow_the_cascade(self) -> None:
+        self.set_mission(None, None)
+        self.set_waves({"W01": self.wave("verifying"), "W02": self.wave("done")})
+        work = self.status()["current_work"]
+        self.assertEqual((work["state"], work["source"], work["wave"]["wave_id"]), ("ACTIVE", "process_state", "W01"))
+        self.set_waves({"W01": self.wave("implementing"), "W02": self.wave("implementing")})
+        self.assertEqual(self.status()["current_work"]["state"], "CONFLICT")
+        self.set_waves({"W01": self.wave("done"), "W02": self.wave("discovery")})
+        work = self.status()["current_work"]
+        self.assertEqual((work["state"], work["wave"]["wave_id"], work["reason"]), ("NOT_STARTED", "W02", "NEXT_REGISTERED_WAVE"))
+
+    def test_no_registered_open_work_is_none_and_never_stored(self) -> None:
+        self.set_mission(None, None)
+        self.set_waves({"W01": self.wave("done")})
+        before = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*"))
+        work = self.status()["current_work"]
+        self.assertEqual((work["state"], work["wave"], work["source"]), ("NONE", None, "none"))
+        self.assertEqual(work["next_step"]["kind"], "REGISTER_WAVE")
+        self.assertEqual(before, sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*")))
+
+    # ------------------------------------------------------------------ work outside the lifecycle (FR-061)
+    def test_commits_after_the_last_done_transition_are_reported_but_never_assigned(self) -> None:
+        self.set_mission(None, None)
+        self.set_waves({"W01": self.wave("implementing")})
+        self.git("init", "-q")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "start")
+        self.set_waves({"W01": self.wave("done")})
+        self.git("add", "-A")
+        self.git("commit", "-qm", "W01 done")
+        write_file(self.root, "scripts/app.py", "print('later work')\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "feat: more work for W01 [TASK-001]")
+        work = self.status()["current_work"]
+        activity = work["unattributed_activity"]
+        self.assertEqual(work["state"], "NONE")
+        self.assertEqual((activity["observed"], activity["commit_count"], activity["observation_state"]), (True, 1, "AVAILABLE"))
+        self.assertEqual(work["last_completed"]["wave_ids"], ["W01"])
+        # No Wave, Task or Mission is derived from the commit message, timing or file names.
+        self.assertIsNone(work["wave"])
+        self.assertIsNone(work["mission"])
+        self.assertEqual(work["tasks_in_progress"], [])
+        self.assertEqual(work["requirement_ids"], [])
+
+    def test_activity_that_only_touches_canonical_planning_files_is_not_delivery_activity(self) -> None:
+        self.set_mission(None, None)
+        self.set_waves({"W01": self.wave("done")})
+        self.git("init", "-q")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "W01 done")
+        write_file(self.root, "planning/decisions/DEC-050.yml", "ID: DEC-050\ntitle: x\nstatus: PROPOSED\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "decision")
+        activity = self.status()["current_work"]["unattributed_activity"]
+        self.assertEqual((activity["observed"], activity["commit_count"]), (False, 0))
+
+    def test_without_git_activity_is_not_observable_not_absent(self) -> None:
+        self.set_mission(None, None)
+        self.set_waves({"W01": self.wave("done")})
+        activity = self.status()["current_work"]["unattributed_activity"]
+        self.assertEqual((activity["observed"], activity["observation_state"]), (None, "NOT_OBSERVABLE"))
+
+    # ------------------------------------------------------------------ DONE trust (FR-063, K.5)
+    def test_done_wave_without_recorded_basis_stays_done_and_is_not_an_active_problem(self) -> None:
+        write_task(self.root, "TASK-010", "pending", wave_id="W02", requirement_ids=("REQ-001",))
+        status = self.status()
+        trust = {item["wave_id"]: item for item in status["waves_trust"]}
+        self.assertEqual(trust["W02"]["historical_state"], "DONE")
+        self.assertEqual(trust["W02"]["done_basis"]["state"], "NOT_RECORDED")
+        self.assertEqual(trust["W02"]["open_tasks_unexplained"], ["TASK-010"])
+        self.assertEqual(trust["W02"]["open_tasks_superseded"], [])
+        self.assertEqual(trust["W02"]["present_confidence"]["freshness"], "NOT_OBSERVABLE")
+        group = {item["category"]: item["diagnostic_group"] for item in status["compatibility"]["diagnostics"]}
+        self.assertEqual(group.get("DONE_BASIS_NOT_RECORDED"), "framework_compat")
+        self.assertNotIn("DONE_BASIS_NOT_RECORDED", [item["category"] for item in status["compatibility"]["diagnostics"] if item["diagnostic_group"] == "project_attention"])
+
+    def test_open_tasks_are_superseded_only_with_a_recorded_or_legacy_basis(self) -> None:
+        write_task(self.root, "TASK-010", "pending", wave_id="W02")
+        write_task(self.root, "TASK-011", "pending", wave_id="W03")
+        write_task(self.root, "TASK-012", "pending", wave_id="W04")
+        self.set_waves({
+            "W02": {**self.wave("done"), "gates": {**self.wave("done")["gates"], "acceptance_gate": {"result": "passed", "evidence": ["planning/evidence/x.yaml"]}}},
+            "W03": {**self.wave("done"), "resume_from": "LEGACY COMPLETE 2026-10-09"},
+            "W04": self.wave("done"),
+        })
+        trust = {item["wave_id"]: item for item in self.status()["waves_trust"]}
+        self.assertEqual(trust["W02"]["done_basis"]["state"], "RECORDED")
+        self.assertEqual(trust["W02"]["open_tasks_superseded"], ["TASK-010"])
+        self.assertEqual(trust["W03"]["done_basis"]["state"], "LEGACY")
+        self.assertEqual(trust["W03"]["open_tasks_superseded"], ["TASK-011"])
+        self.assertEqual(trust["W04"]["open_tasks_unexplained"], ["TASK-012"])
+
+    # ------------------------------------------------------------------ delivery assessment (FR-062, OD-1)
+    def assessment(self, status: dict, requirement_id: str = "REQ-001") -> dict:
+        return next(item for item in status["requirements"]["items"] if item["id"] == requirement_id)["delivery_assessment"]
+
+    def test_every_assessment_is_derived_versioned_and_each_level_has_evidence_or_reason(self) -> None:
+        status = self.status()
+        for item in status["requirements"]["items"]:
+            result = item["delivery_assessment"]
+            self.assertEqual((result["rule_version"], result["derived"]), ("delivery-assessment/v1", True))
+            self.assertEqual([entry["level"] for entry in result["levels"]], ["implementation", "verification", "freshness", "blocker"])
+            for entry in result["levels"]:
+                self.assertTrue(entry["evidence_refs"] or entry["reasons"], entry)
+
+    def test_done_tasks_alone_are_implemented_not_verified_and_say_why(self) -> None:
+        write_file(self.root, "requirements/REQ-050.yml", "ID: REQ-050\ntitle: Isolated\ndescription: x\nstatus: accepted\n")
+        write_task(self.root, "TASK-020", "done", wave_id="W01", requirement_ids=("REQ-050",))
+        assessment = self.assessment(self.status(), "REQ-050")
+        levels = {entry["level"]: entry for entry in assessment["levels"]}
+        self.assertEqual(assessment["label"], "IMPLEMENTED")
+        self.assertEqual(levels["implementation"]["state"], "MET")
+        self.assertNotEqual(levels["verification"]["state"], "MET")
+        self.assertEqual(levels["freshness"]["state"], "NOT_OBSERVABLE")
+        self.assertIn("MODEL_FRESHNESS_NOT_OBSERVABLE", [reason["code"] for reason in levels["freshness"]["reasons"]])
+
+    def test_unrecorded_findings_never_assert_absence_of_blockers(self) -> None:
+        write_file(self.root, "requirements/REQ-050.yml", "ID: REQ-050\ntitle: Isolated\ndescription: x\nstatus: accepted\n")
+        levels = {entry["level"]: entry for entry in self.assessment(self.status(), "REQ-050")["levels"]}
+        self.assertEqual(levels["blocker"]["state"], "NOT_OBSERVABLE")
+        write_finding(self.root, "FIND-001", "OPEN", "CRITICAL", requirement_ids=("REQ-050",))
+        status = self.status()
+        finding = next(item for item in status["findings"]["items"] if item["id"] == "FIND-001")
+        self.assertTrue(finding["blocking"])
+        levels = {entry["level"]: entry for entry in self.assessment(status, "REQ-050")["levels"]}
+        self.assertEqual(levels["blocker"]["state"], "NOT_MET")
+        self.assertEqual(self.assessment(status, "REQ-050")["label"], "BLOCKED")
+
+    def test_proposed_decision_blocks_a_requirement(self) -> None:
+        write_file(self.root, "planning/decisions/DEC-077.yml",
+                   "ID: DEC-077\ntitle: Open question\nstatus: PROPOSED\naffected_requirements: [REQ-001]\n")
+        self.assertEqual(self.assessment(self.status())["label"], "BLOCKED")
+
+    def test_reported_unbound_parity_never_satisfies_verification(self) -> None:
+        write_file(self.root, "planning/parity/SCN-REPORT.yaml",
+                   "page_id: PAGE-1\nscenario_id: SCN-REPORT\nverified_at: '2026-11-05'\nevidence_level: browser\n"
+                   "dimensions: {}\noverall_result: PASS\n")
+        status = self.status()
+        report = next(item for item in status["verification"]["parity_reports"] if item["scenario_id"] == "SCN-REPORT")
+        self.assertEqual((report["state"], report["reported_result"]), ("REPORTED_UNBOUND", "PASS"))
+        self.assertNotEqual(report["computed_result"], "PASS")
+        self.assertNotEqual(self.assessment(status)["label"], "VERIFIED")
+
+    # ------------------------------------------------------------------ canonical projections (FR-064..069)
+    def test_decisions_expose_dates_rationale_and_affected_artifacts(self) -> None:
+        write_file(self.root, "planning/decisions/DEC-088.yml",
+                   "ID: DEC-088\ntitle: Choice\nstatus: CONFIRMED\ncreated_at: '2026-11-01'\nconfirmed_at: '2026-11-02'\n"
+                   "rationale: Because the mockup shows it.\naffected_requirements: [REQ-001]\n"
+                   "affected_screens: [PAGE-1]\naffected_mockup_revisions: [REV-002]\n")
+        item = next(item for item in self.status()["decisions"]["items"] if item["id"] == "DEC-088")
+        self.assertEqual((item["created_at"], item["confirmed_at"]), ("2026-11-01", "2026-11-02"))
+        self.assertEqual(item["rationale_excerpt"], "Because the mockup shows it.")
+        self.assertEqual((item["affected_screens"], item["affected_mockup_revisions"]), (["PAGE-1"], ["REV-002"]))
+
+    def test_revision_ledger_is_projected_as_design_authority_and_absent_without_directory(self) -> None:
+        self.assertEqual(self.status()["project"]["revision_ledger"], {"observation_state": "NOT_RECORDED", "items": []})
+        write_file(self.root, "planning/revisions/REV-037.yaml",
+                   "revision_id: REV-037\nactive_target: true\nstatus: ACTIVE_TARGET\nartifact_path: input-resources/ui-ux/x.html\n"
+                   "screens: [PAGE-1]\nacceptance_decisions: [DEC-053]\n")
+        ledger = self.status()["project"]["revision_ledger"]
+        self.assertEqual(ledger["observation_state"], "AVAILABLE")
+        self.assertEqual((ledger["items"][0]["revision_id"], ledger["items"][0]["active_target"], ledger["items"][0]["authority_source"]),
+                         ("REV-037", True, "revision_ledger"))
+
+    def test_non_canonicalized_checklists_are_listed_as_such(self) -> None:
+        write_file(self.root, "planning/checklists/W07-implementation-checklist.yaml", "items: []\n")
+        listed = self.status()["delivery"]["noncanonical_checklists"]
+        self.assertIn("planning/checklists/W07-implementation-checklist.yaml", listed["items"])
+
+    def test_context_next_action_is_projected_when_recorded(self) -> None:
+        text = (self.root / "planning/lifecycle/context-epoch.yaml").read_text(encoding="utf-8")
+        write_file(self.root, "planning/lifecycle/context-epoch.yaml",
+                   text + "next_action:\n  description: Run visual parity.\n  prerequisites: [Runtime up]\n")
+        action = self.status()["context"]["next_action"]
+        self.assertEqual((action["description"], action["prerequisites"]), ("Run visual parity.", ["Runtime up"]))
+
+    def test_implementation_intent_and_fact_are_separate_and_a_contradiction_is_flagged(self) -> None:
+        write_page(self.root, "PAGE-1", "Board", "REV-002")
+        status = self.status()
+        with patch.object(build_project_status, "_read_project_ui_config",
+                          return_value={"ui": {"implementation": {"html_first": True}}}):
+            pages = serve_project_board.build_page_previews(self.root, status)["items"]
+        implementation = next(page for page in pages if page["page_id"] == "PAGE-1")["implementation"]
+        self.assertEqual(implementation["intent"]["mode"], "HTML_FIRST")
+        self.assertEqual(implementation["fact"]["html_source_availability"], "not_configured")
+        self.assertTrue(implementation["mismatch"])
+        with patch.object(build_project_status, "_read_project_ui_config", return_value={}):
+            native = next(page for page in serve_project_board.build_page_previews(self.root, status)["items"]
+                          if page["page_id"] == "PAGE-1")["implementation"]
+        self.assertIs(native["mismatch"], False)
+
+    def test_cs4_projection_validates_against_the_status_schema(self) -> None:
+        self.set_waves({"W01": self.wave("implementing")})
+        self.set_mission("active", "W01")
+        write_file(self.root, "planning/revisions/REV-037.yaml", "revision_id: REV-037\nactive_target: true\n")
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
+        self.assertEqual([error.message for error in Draft7Validator(schema).iter_errors(self.status())], [])
 
 
 if __name__ == "__main__":
