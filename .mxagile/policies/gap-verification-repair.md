@@ -297,7 +297,15 @@ recent child result or conversation history.
 
 ## Relation to Acceptance Gate
 
-A GAP repair does NOT generate a new wave. It is part of the current wave's verification cycle.
+While the affected wave is not `done`, a GAP repair does NOT generate a new wave. It is part of
+that wave's verification cycle.
+
+After the affected wave is `done`, it is never reopened for remediation: the repair Task belongs
+to a new wave (`Significance: LOCAL` is sufficient). Provenance stays in the existing records
+instead of rewritten history: `Finding.wave_id` names the affected (original) wave,
+`Finding.repair_task_id` names the repair Task, and `Task.wave_id` names the executing (new) wave.
+If new evidence contradicts a single DONE claim, record only that scoped override
+(`policies/legacy-completion-reconciliation.md`); do not reopen the wave or alter its lifecycle state.
 
 The acceptance gate may pass when:
 - All CRITICAL and MATERIAL GAPs are in state VERIFIED.

@@ -100,6 +100,64 @@ terms:
         MxAgile lifecycle, not by Board existence. Wave entries for significant scope
         include Significance, Capability, Domain, Module Ownership, and Architecture
         Decision fields. See policies/implementation-control.md for Wave Entry Format.
+        A Wave is DONE when the acceptance gate for that Wave's scope was satisfied at that point
+        in time. DONE does not mean every historical Task is done, that no later regression can
+        occur, that evidence is still fresh, or that later work belongs to that Wave. A DONE Wave
+        is never reopened for later work: new delivery or remediation work belongs to a new Wave.
+    Mission:
+      category: Planning
+      description: >
+        Authorized unit of intent/work stated by the developer or product authority. A Mission
+        may be decomposed into one or more Implementation Waves before the first affected Wave
+        is ready. Durable state: planning/mission/mission-state.yaml (when the mission spans
+        more than one checklist cycle).
+      agent_hint: >
+        A Mission is not a Board story and not a lifecycle phase. Phases and gates belong to its
+        Waves. See policies/mission-completion.md and policies/implementation-control.md.
+    Workpackage:
+      category: Planning
+      description: >
+        Optional, project-defined organizational label (workpackage_id on a Task or Finding)
+        that groups records for readers and reports.
+      agent_hint: >
+        A Workpackage is NOT a lifecycle container: it has no phase, no gates and no file. Never
+        create or infer one from titles, order or filenames. Its absence is optional metadata,
+        not a defect.
+    Acceptance_Campaign:
+      category: Verification
+      description: >
+        A structured acceptance-verification run (REQUIREMENT, ROLE or RISK_CHANGE_IMPACT)
+        executed inside the verifying phase of a Wave. Results live under
+        planning/acceptance-campaigns/<wave>/ and feed the acceptance gate.
+      agent_hint: >
+        A Campaign is not a generic work container and not a way to deliver work. Delivery and
+        remediation work belongs to Waves and Tasks. See policies/acceptance-campaign.md.
+    GAP:
+      category: Verification
+      description: >
+        A verified deviation from the confirmed design contract. Its canonical record is a
+        Finding (planning/findings/FIND-*.yml), tracked through the GAP lifecycle.
+      agent_hint: >
+        A GAP is a Finding: not a requirement and not a work container. Its remediation is a
+        repair Task. See policies/gap-verification-repair.md.
+    Repair_Task:
+      category: Planning
+      description: >
+        A Task with type: repair that remediates one or more GAPs (Findings). It belongs to the
+        Wave that executes it (Task.wave_id); the originating Finding keeps Finding.wave_id (the
+        affected Wave) and repair_task_id.
+      agent_hint: >
+        Work after a Wave is DONE belongs to a new Wave. Preserve provenance through
+        Finding.wave_id, repair_task_id and Task.wave_id; do not reopen or rewrite the DONE Wave.
+    Change_Set:
+      category: Provenance
+      description: >
+        Tracked provenance record (planning/reconciliation/change-sets/CS-*.json, validated by
+        change-set.schema.json) referenced by MxAgile-* commit trailers; it attests which paths a
+        commit changed.
+      agent_hint: >
+        A Change-Set is provenance for changes/commits: not a work container, not a campaign log
+        and not an authorization of scope. See policies/external-change-reconciliation.md.
     ASSUMPTION:
       category: Decision status
       description: A statement not confirmed by a source or stakeholder.

@@ -410,6 +410,126 @@ def wave_review_authority(task: dict, documents: dict[str, dict], waves: set[str
     return sorted(next(iter(candidates.values())))[0] if len(candidates) == 1 else None
 
 
+CHANGE_SET_DIRECTORY = 'planning/reconciliation/change-sets'
+CHANGE_SET_SCAN_LIMIT = 500
+CHANGE_SET_MAX_BYTES = 1024 * 1024
+DONE_BASIS_LISTED_WAVES = 8
+
+
+def _lifecycle_clarity_diagnostics(root: Path, parsed_documents: dict, add: Any) -> None:
+    """Informative CS-0 lifecycle diagnostics. Read-only: no repair, no migration, no registry writes,
+    and no Markdown parsing of execution-waves.md. None of them is blocking."""
+    _done_basis_diagnostic(parsed_documents, add)
+    _change_set_diagnostics(root, add)
+    _active_revision_diagnostics(root, parsed_documents, add)
+
+
+def _done_basis_diagnostic(parsed_documents: dict, add: Any) -> None:
+    """DONE_BASIS_NOT_RECORDED: a done wave without a structured acceptance_gate record.
+    Reported once per project (INFO). It never reopens a wave and never invents a basis."""
+    snapshot = parsed_documents.get('planning/lifecycle/process-state.yaml') or {}
+    value = snapshot.get('value') if snapshot.get('state') == 'available' else None
+    waves = value.get('waves') if isinstance(value, dict) else None
+    if not isinstance(waves, dict):
+        return
+    unrecorded = []
+    for wave_id, block in sorted(waves.items(), key=lambda item: str(item[0])):
+        if not isinstance(block, dict) or block.get('phase') != 'done':
+            continue
+        gates = block.get('gates')
+        gate = gates.get('acceptance_gate') if isinstance(gates, dict) else None
+        result = gate.get('result') if isinstance(gate, dict) else None
+        if result in (None, 'not_recorded'):
+            unrecorded.append(str(wave_id))
+    if unrecorded:
+        listed = ', '.join(unrecorded[:DONE_BASIS_LISTED_WAVES])
+        if len(unrecorded) > DONE_BASIS_LISTED_WAVES:
+            listed += f' (+{len(unrecorded) - DONE_BASIS_LISTED_WAVES} more)'
+        add('DONE_BASIS_NOT_RECORDED', 'planning/lifecycle/process-state.yaml', 'lifecycle',
+            f'{len(unrecorded)} done wave(s) carry no structured acceptance_gate record ({listed}). '
+            'Done stays valid and is not reopened; the acceptance basis is simply not recorded in process-state.yaml.',
+            repairability='UNSUPPORTED', severity='INFO', authority='.mxagile/policies/lifecycle-resync.md')
+
+
+def _change_set_diagnostics(root: Path, add: Any) -> None:
+    """CHANGE_SET_SCHEMA_INVALID: a Change-Set record violates change-set.schema.json (for example a
+    campaign-log style record with fields the provenance contract does not allow)."""
+    base = root / CHANGE_SET_DIRECTORY
+    if jsonschema is None or not base.is_dir() or base.is_symlink():
+        return
+    try:
+        validator = jsonschema.Draft7Validator(json.loads((SCHEMA_ROOT / 'change-set.schema.json').read_text(encoding='utf-8-sig')))
+    except (OSError, ValueError):
+        return  # without the contract no judgement is made
+    for path in sorted(base.glob('*.json'))[:CHANGE_SET_SCAN_LIMIT]:
+        relative = path.relative_to(root).as_posix()
+        safe = safe_file(root, relative)
+        if safe is None:
+            continue
+        try:
+            if safe.stat().st_size > CHANGE_SET_MAX_BYTES:
+                problem = 'is larger than the allowed size'
+            else:
+                value = json.loads(safe.read_text(encoding='utf-8-sig'))
+                errors = sorted(validator.iter_errors(value), key=lambda error: [str(part) for part in error.path])
+                if not errors:
+                    continue
+                first = errors[0]
+                where = '/'.join(str(part) for part in first.path) or '<root>'
+                problem = f'violates the Change-Set contract ({len(errors)} violation(s); first at {where}: {first.message[:140]})'
+        except (OSError, UnicodeError):
+            problem = 'could not be read'
+        except ValueError:
+            problem = 'is not valid JSON'
+        add('CHANGE_SET_SCHEMA_INVALID', relative, 'provenance',
+            f'Change-Set {problem}. A Change-Set is commit provenance, not a work container or campaign log; '
+            'it is not used as an attribution source until it is valid.',
+            repairability='DECISION_REQUIRED', severity='WARNING', authority='.mxagile/schemas/change-set.schema.json')
+
+
+def _active_revision_diagnostics(root: Path, parsed_documents: dict, add: Any) -> None:
+    """ACTIVE_REVISION_UNBOUND: a ledger revision marked active_target that no Page in the UI inventory
+    binds (target_revision, target_mockup or source_mockup). Pages bound to an older reference are not
+    reported here; only a revision without any Page binding."""
+    base = root / 'planning/revisions'
+    if not base.is_dir() or base.is_symlink():
+        return
+    pages = []
+    for relative, snapshot in parsed_documents.items():
+        value = snapshot.get('value') if isinstance(snapshot, dict) else None
+        if (relative.startswith('planning/ui-inventory/') and snapshot.get('state') == 'available' and isinstance(value, dict)
+                and not is_standalone_interaction_artifact(relative)):
+            pages.append(value)
+
+    def normalized(value: Any) -> str | None:
+        return value.replace(chr(92), '/').strip() if isinstance(value, str) and value.strip() else None
+
+    for path in sorted(base.glob('REV-*.yaml')):
+        relative = path.relative_to(root).as_posix()
+        safe = safe_file(root, relative)
+        if safe is None:
+            continue
+        try:
+            value = load_yaml(safe.read_bytes().decode('utf-8-sig'))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            continue
+        if not isinstance(value, dict) or value.get('active_target') is not True:
+            continue
+        revision_id = normalized(value.get('revision_id')) or path.stem
+        identities = {identity for identity in (revision_id, normalized(value.get('revision'))) if identity}
+        artifact = normalized(value.get('artifact_path'))
+        bound = any(
+            normalized(page.get('target_revision')) in identities
+            or (artifact is not None and artifact in (normalized(page.get('target_mockup')), normalized(page.get('source_mockup'))))
+            for page in pages
+        )
+        if not bound:
+            add('ACTIVE_REVISION_UNBOUND', relative, 'references',
+                f'Revision {revision_id} is marked active_target but no Page in planning/ui-inventory binds it '
+                '(target_revision, target_mockup or source_mockup). The Board and Doctor cannot show where it applies.',
+                repairability='DECISION_REQUIRED', severity='WARNING', authority='ACTIVE_TARGET')
+
+
 DOCUMENT_RESULT_RULE_VERSION = 1
 _DOCUMENT_RESULT_CACHE_LIMIT = 8192
 _DOCUMENT_RESULT_CACHE: dict[tuple, dict] = {}
@@ -826,6 +946,8 @@ def compatibility_report(
         if isinstance(drift, dict) and drift.get('state') == 'mismatch':
             add('STALE', source, 'references', 'UI inventory refers to a different target revision.',
                 repairability='DECISION_REQUIRED', authority='ACTIVE_TARGET')
+
+    _lifecycle_clarity_diagnostics(root, parsed_documents, add)
 
     diagnostics.sort(key=lambda item: (item['source_path'] or '', item['category'], item['diagnostic_id']))
     for item in diagnostics:

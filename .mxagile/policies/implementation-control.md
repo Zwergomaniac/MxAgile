@@ -59,6 +59,27 @@ do not invent another state model (`policies/lifecycle-resync.md`). A Wave compl
 its existing implementation, verification, and acceptance lifecycle. A Wave by itself never
 requires a Full Suite (`policies/test-workflow.md`).
 
+### Waves after DONE and Wave registration
+
+A Wave whose `process-state.yaml` phase is `done` is never reopened for later work. New or changed
+authorized scope, a new revision and remediation after DONE are planned as a new Wave;
+`Significance: LOCAL` is sufficient. Provenance to the older Wave stays in the existing records
+(`Finding.wave_id` = affected Wave, `repair_task_id`, `Task.wave_id` = executing Wave); do not
+rewrite the DONE Wave. While the affected Wave is not yet `done`, GAP repair stays part of its
+verification cycle (`policies/gap-verification-repair.md`).
+
+When a Wave is authorized (its entry in `execution-waves.md`), register it in the same step in the
+canonical `planning/lifecycle/process-state.yaml` as a complete Wave block: `phase: discovery` and
+`gate_to_refinement` / `gate_to_ready` with `result: not_recorded`. The optional `testability_gate`
+and `acceptance_gate` are written when those gates run (`acceptance_gate.result` may be `pending`,
+see `policies/autonomous-remediation.md`). `process-state.yaml` is then the complete
+machine-readable Wave register and `execution-waves.md` stays the human plan. Do not add a second
+Wave metadata store and do not register Waves retroactively from commits, timestamps or names.
+
+If work is observed outside every registered Wave (for example all Waves are `done` and no Mission
+is active), report that fact. Do not assign that work to a Wave from timestamps, Git proximity or
+naming similarity.
+
 ## Change Significance Classification
 
 Bevor eine Wave in die Ready-Phase eintritt, klassifiziert der Agent den Aenderungsumfang.

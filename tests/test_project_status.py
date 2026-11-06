@@ -1694,6 +1694,208 @@ class ProjectStatusTests(unittest.TestCase):
         subprocess.run([executable, "-NoProfile", "-Command", command], check=True, capture_output=True, text=True)
 
 
+PROCESS_STATE_SCHEMA = ROOT / ".mxagile" / "schemas" / "process-state.schema.json"
+VALID_CHANGE_SET = {
+    "schema_version": 1, "change_set_id": "CS-FIXTURE-OK", "mission_id": "MISSION-FIXTURE",
+    "parent_commits": ["a" * 40],
+    "paths": [{"path": "planning/tasks/TASK-001.yml", "status": "A", "before_blob": None, "after_blob": "b" * 40}],
+    "reconciliation": {"status": "COMPLETE", "outcome": "NO_IMPACT", "project_fingerprint": "sha256:" + "0" * 64, "references": []},
+}
+
+
+def wave_block(phase: str, **gates: dict) -> dict:
+    block = {"phase": phase, "gates": {"gate_to_refinement": {"result": "passed"}, "gate_to_ready": {"result": "passed"}}}
+    block["gates"].update(gates)
+    return block
+
+
+class LifecycleClarityTests(unittest.TestCase):
+    """001-board-redesign CS-0 (OD-3): optional gate schema and informative lifecycle diagnostics."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory(prefix="mxagile-status-")
+        self.root = Path(self.temp.name) / "fixture"
+        self.root.mkdir()
+        fixture(self.root)
+        self.validator = Draft7Validator(json.loads(PROCESS_STATE_SCHEMA.read_text(encoding="utf-8-sig")))
+
+    def tearDown(self) -> None:
+        cleanup_temporary_directory(self.temp, expected_prefix="mxagile-status-")
+
+    def errors(self, waves: dict) -> list[str]:
+        return [error.message for error in self.validator.iter_errors({"waves": waves})]
+
+    def doctor(self) -> dict:
+        return build_project_status.build_status(self.root)["compatibility"]
+
+    def diagnostics(self, category: str) -> list[dict]:
+        return [item for item in self.doctor()["diagnostics"] if item["category"] == category]
+
+    # ------------------------------------------------------------------ schema (R4)
+    def test_existing_process_state_without_new_gates_stays_valid(self) -> None:
+        legacy = {"W1a": {"phase": "done", "resume_from": "LEGACY COMPLETE 2026-10-09",
+                          "gates": {"gate_to_refinement": {"result": "not_recorded", "note": "Pre-gate-protocol wave"},
+                                    "gate_to_ready": {"result": "not_recorded"}}}}
+        self.assertEqual(self.errors(legacy), [])
+        import yaml
+        fixture_state = yaml.safe_load((self.root / "planning/lifecycle/process-state.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(self.errors(fixture_state["waves"]), [])
+
+    def test_optional_testability_and_acceptance_gates_are_valid(self) -> None:
+        for result in ("not_recorded", "passed", "failed", "pending"):
+            with self.subTest(acceptance=result):
+                self.assertEqual(self.errors({"W1": wave_block("verifying", acceptance_gate={"result": result})}), [])
+        self.assertEqual(self.errors({"W1": wave_block("done",
+            testability_gate={"result": "passed", "evaluated": "2026-11-06"},
+            acceptance_gate={"result": "passed", "evaluated": "2026-11-06",
+                             "evidence": {"wave_report": "planning/wave-reports/W1.md"}})}), [])
+        self.assertEqual(self.errors({"W2": wave_block("verifying", acceptance_gate={
+            "result": "pending", "pending_decisions": [{"id": "DEC-009", "text": "Business rule open"}]})}), [])
+
+    def test_gate_contract_stays_strict_where_it_was_strict(self) -> None:
+        self.assertTrue(self.errors({"W1": wave_block("ready", gate_to_ready={"result": "pending"})}),
+                        "pending is only an acceptance-gate result")
+        self.assertTrue(self.errors({"W1": wave_block("ready", testability_gate={"result": "pending"})}))
+        self.assertTrue(self.errors({"W1": wave_block("verifying", acceptance_gate="passed")}),
+                        "the acceptance gate is an object with `result`, not a scalar")
+        self.assertTrue(self.errors({"W1": wave_block("verifying", acceptance_gate={"result": "pending",
+                        "pending_decisions": [{"id": "DEC-009"}]})}))
+        self.assertTrue(self.errors({"W1": wave_block("verifying", surprise_gate={"result": "passed"})}))
+        self.assertTrue(self.errors({"W1": {"phase": "ready", "gates": {"gate_to_refinement": {"result": "passed"}}}}),
+                        "gate_to_ready stays a required key")
+
+    # ------------------------------------------------------------------ DONE_BASIS_NOT_RECORDED
+    def test_done_wave_without_acceptance_gate_is_one_informative_diagnostic(self) -> None:
+        found = self.diagnostics("DONE_BASIS_NOT_RECORDED")
+        self.assertEqual(len(found), 1)
+        item = found[0]
+        self.assertEqual((item["severity"], item["blocking"], item["repairability"]), ("INFO", False, "UNSUPPORTED"))
+        self.assertIsNone(item["proposed_repair_type"])
+        self.assertIn("W02", item["message"])
+        self.assertEqual(item["source_path"], "planning/lifecycle/process-state.yaml")
+
+    def test_recorded_acceptance_basis_silences_the_diagnostic_and_not_recorded_does_not(self) -> None:
+        write_file(self.root, "planning/lifecycle/process-state.yaml", json.dumps({"waves": {
+            "W01": wave_block("verifying"),
+            "W02": wave_block("done", acceptance_gate={"result": "passed", "evaluated": "2026-11-06"}),
+            "W03": wave_block("done", acceptance_gate={"result": "not_recorded"}),
+        }}))
+        found = self.diagnostics("DONE_BASIS_NOT_RECORDED")
+        self.assertEqual(len(found), 1)
+        self.assertIn("W03", found[0]["message"])
+        self.assertNotIn("W02", found[0]["message"])
+        self.assertNotIn("W01", found[0]["message"], "only done waves are considered")
+
+    def test_many_done_waves_are_aggregated_into_a_single_diagnostic(self) -> None:
+        write_file(self.root, "planning/lifecycle/process-state.yaml", json.dumps({"waves": {
+            f"W{index:02d}": wave_block("done") for index in range(1, 16)}}))
+        found = self.diagnostics("DONE_BASIS_NOT_RECORDED")
+        self.assertEqual(len(found), 1)
+        self.assertIn("15 done wave(s)", found[0]["message"])
+        self.assertIn("(+7 more)", found[0]["message"])
+
+    # ------------------------------------------------------------------ CHANGE_SET_SCHEMA_INVALID
+    def test_change_set_diagnostics_cover_invalid_campaign_log_style_and_broken_json(self) -> None:
+        directory = "planning/reconciliation/change-sets"
+        write_file(self.root, f"{directory}/CS-FIXTURE-OK.json", json.dumps(VALID_CHANGE_SET))
+        campaign_log = dict(VALID_CHANGE_SET, change_set_id="CS-FIXTURE-LOG", final_result="PARTIAL_PASS",
+                            gap_classification="mixed", updated_at="2026-11-02T10:00:00Z")
+        write_file(self.root, f"{directory}/CS-FIXTURE-LOG.json", json.dumps(campaign_log))
+        write_file(self.root, f"{directory}/CS-FIXTURE-BROKEN.json", "{ not json")
+        found = {item["source_path"]: item for item in self.diagnostics("CHANGE_SET_SCHEMA_INVALID")}
+        self.assertEqual(sorted(found), [f"{directory}/CS-FIXTURE-BROKEN.json", f"{directory}/CS-FIXTURE-LOG.json"])
+        log = found[f"{directory}/CS-FIXTURE-LOG.json"]
+        self.assertEqual((log["severity"], log["blocking"], log["repairability"]), ("WARNING", False, "DECISION_REQUIRED"))
+        self.assertIn("not a work container", log["message"])
+        self.assertIn("violation(s)", log["message"])
+        self.assertIn("not valid JSON", found[f"{directory}/CS-FIXTURE-BROKEN.json"]["message"])
+
+    def test_new_diagnostics_never_make_the_project_blocked_or_change_the_source_fingerprint(self) -> None:
+        baseline = self.doctor()
+        directory = "planning/reconciliation/change-sets"
+        write_file(self.root, f"{directory}/CS-FIXTURE-LOG.json", json.dumps(dict(VALID_CHANGE_SET, final_result="PARTIAL_PASS")))
+        write_file(self.root, "planning/revisions/REV-099.yaml", "revision_id: REV-099\nactive_target: true\nartifact_path: input-resources/ui-ux/none.html\n")
+        after = self.doctor()
+        new = [item for item in after["diagnostics"] if item["category"] in ("CHANGE_SET_SCHEMA_INVALID", "ACTIVE_REVISION_UNBOUND")]
+        self.assertEqual(len(new), 2)
+        self.assertFalse(any(item["blocking"] for item in new))
+        if baseline["compatibility"] != "BLOCKED":
+            self.assertNotEqual(after["compatibility"], "BLOCKED")
+        self.assertEqual(after["source_fingerprint"], baseline["source_fingerprint"],
+                         "informative lifecycle diagnostics must not enter the source fingerprint")
+
+    # ------------------------------------------------------------------ ACTIVE_REVISION_UNBOUND
+    def test_active_ledger_revision_without_any_page_binding_is_reported(self) -> None:
+        write_file(self.root, "planning/revisions/REV-037.yaml", """
+            revision_id: REV-037
+            revision: 37
+            active_target: true
+            artifact_path: input-resources/ui-ux/rev37.html
+        """)
+        write_file(self.root, "planning/revisions/REV-005.yaml", "revision_id: REV-005\nactive_target: false\nartifact_path: input-resources/ui-ux/rev5.html\n")
+        found = self.diagnostics("ACTIVE_REVISION_UNBOUND")
+        self.assertEqual([item["source_path"] for item in found], ["planning/revisions/REV-037.yaml"])
+        item = found[0]
+        self.assertEqual((item["severity"], item["blocking"], item["repairability"]), ("WARNING", False, "DECISION_REQUIRED"))
+        self.assertIn("REV-037", item["message"])
+
+    def test_page_bindings_by_target_mockup_source_mockup_or_target_revision_clear_the_diagnostic(self) -> None:
+        write_file(self.root, "planning/revisions/REV-037.yaml",
+                   "revision_id: REV-037\nrevision: 37\nactive_target: true\nartifact_path: input-resources/ui-ux/rev37.html\n")
+        for index, page_fields in enumerate((
+            "source_mockup: input-resources/ui-ux/other.html\ntarget_mockup: input-resources/ui-ux/rev37.html",
+            "source_mockup: input-resources/ui-ux/rev37.html",
+            "source_mockup: input-resources/ui-ux/other.html\ntarget_revision: REV-037",
+        )):
+            with self.subTest(binding=page_fields):
+                path = self.root / f"planning/ui-inventory/PAGE-BIND-{index}.yaml"
+                write_file(self.root, f"planning/ui-inventory/PAGE-BIND-{index}.yaml",
+                           f"page_id: PAGE-BIND-{index}\n{page_fields}\n")
+                self.assertEqual(self.diagnostics("ACTIVE_REVISION_UNBOUND"), [])
+                path.unlink()
+
+    def test_standalone_interaction_artifact_does_not_bind_a_revision(self) -> None:
+        write_file(self.root, "planning/revisions/REV-037.yaml",
+                   "revision_id: REV-037\nactive_target: true\nartifact_path: input-resources/ui-ux/rev37.html\n")
+        write_file(self.root, "planning/ui-inventory/PAGE-INTERACTION-STATES-REV37.yaml",
+                   "page_id: PAGE-INTERACTION-STATES-REV37\ntarget_mockup: input-resources/ui-ux/rev37.html\n")
+        self.assertEqual(len(self.diagnostics("ACTIVE_REVISION_UNBOUND")), 1)
+
+    def test_status_projection_with_all_new_diagnostics_validates_against_the_status_schema(self) -> None:
+        write_file(self.root, "planning/reconciliation/change-sets/CS-FIXTURE-LOG.json", json.dumps(dict(VALID_CHANGE_SET, final_result="X")))
+        write_file(self.root, "planning/revisions/REV-099.yaml", "revision_id: REV-099\nactive_target: true\nartifact_path: input-resources/ui-ux/none.html\n")
+        status = build_project_status.build_status(self.root)
+        categories = {item["category"] for item in status["compatibility"]["diagnostics"]}
+        self.assertTrue({"DONE_BASIS_NOT_RECORDED", "CHANGE_SET_SCHEMA_INVALID", "ACTIVE_REVISION_UNBOUND"} <= categories)
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
+        self.assertEqual([error.message for error in Draft7Validator(schema).iter_errors(status)], [])
+
+    # ------------------------------------------------------------------ boundaries
+    def test_doctor_stays_read_only_and_never_creates_waves_findings_or_tasks(self) -> None:
+        write_file(self.root, "planning/execution-waves.md", "## W99 - Authorized but unregistered wave\n\nREQ-001\n")
+        write_file(self.root, "planning/reconciliation/change-sets/CS-FIXTURE-LOG.json", json.dumps(dict(VALID_CHANGE_SET, final_result="X")))
+        before = tree_fingerprint(self.root)
+        first = self.doctor()
+        second = self.doctor()
+        self.assertEqual(first, second)
+        self.assertEqual(before, tree_fingerprint(self.root), "Doctor must not write, register or migrate anything")
+        self.assertFalse((self.root / "planning/findings").exists())
+        self.assertNotIn("W99", json.dumps(first), "execution-waves.md is not parsed by the Doctor")
+        import yaml
+        state = yaml.safe_load((self.root / "planning/lifecycle/process-state.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(state["waves"]), ["W01", "W02"])
+
+    def test_exit_code_contract_is_unchanged_by_the_new_diagnostics(self) -> None:
+        write_file(self.root, "planning/reconciliation/change-sets/CS-FIXTURE-LOG.json", json.dumps(dict(VALID_CHANGE_SET, final_result="X")))
+        output = StringIO()
+        with patch.object(sys, "argv", ["project_compatibility.py", "doctor", "--project-root", str(self.root), "--format", "json"]):
+            with redirect_stdout(output):
+                exit_code = project_compatibility.main()
+        report = json.loads(output.getvalue())
+        self.assertEqual(exit_code, {"COMPATIBLE": 0, "PARTIAL": 1, "BLOCKED": 2}[report["compatibility"]])
+        self.assertIn(exit_code, (0, 1, 2))
+
+
 class ParityStatusResolverTests(unittest.TestCase):
   CONTRACT_SOURCE_PATH = "requirements/REQ-001.yml"
   CONTRACT_SOURCE_CONTENT = (

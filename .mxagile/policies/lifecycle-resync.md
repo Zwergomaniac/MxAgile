@@ -205,7 +205,7 @@ ohne einen neuen persistierten Status oder ein weiteres Schema einzufuehren:
 | `COMPLETE` | Kanonische Phase `done` und passende Wave-Abschluss-/Acceptance-Evidence; historische Faelle zusaetzlich nach `legacy-completion-reconciliation.md` pruefen. |
 | `ACTIVE` | Gueltige nichtterminale Phase, durch Checkliste/Artefakte bestaetigt, ohne ungelosten Scope-Konflikt. |
 | `BLOCKED` | Ein expliziter missions-/waveweiter Blocker verhindert die verbleibende Wave-Arbeit. Die Lifecycle-Phase bleibt unveraendert; ein blockiertes Checklist-Item allein blockiert nicht automatisch die ganze Wave. |
-| `NOT_STARTED` | Wave ist geplant und autorisiert, aber es gibt weder Prozessfortschritt noch Checkliste/ausgefuehrte Arbeit. Fehlender Process-State allein reicht nicht. |
+| `NOT_STARTED` | Wave ist geplant und autorisiert, aber es gibt weder Prozessfortschritt noch Checkliste/ausgefuehrte Arbeit. Fehlender Process-State allein reicht nicht; eine bei der Autorisierung registrierte Wave (Block mit `phase: discovery`, Gates `not_recorded`, `implementation-control.md`) ohne Checkliste/Tasks ist `NOT_STARTED`. Eine in `execution-waves.md` autorisierte, aber nicht registrierte Wave wird als Registrierungsluecke gemeldet; der Re-Sync registriert sie nicht selbst und raet nicht. |
 | `UNKNOWN` / `CONFLICT` | Quellen fehlen oder widersprechen sich; nicht aus Konversation, Board-Projektion oder veraltetem Cache raten. Konflikte melden und betroffene Arbeit bis zur Klaerung nicht als abgeschlossen behandeln. |
 
 `execution-waves.md`, Mission-State, Process-State, Checklisten/Tasks und Abschluss-Evidence
@@ -214,6 +214,25 @@ allein, dass eine Wave korrekt geplant, ausgefuehrt oder abgeschlossen wurde.
 
 Abgeschlossene Lifecycle-Phasen werden NICHT erneut durchlaufen, nur weil eine neue
 Agent-Session gestartet wurde.
+
+### DONE-Semantik und neue Arbeit
+
+`phase: done` bedeutet: Das Acceptance-Gate fuer den Scope dieser Wave war zum damaligen
+Zeitpunkt erfuellt (Wave-Report/Campaign-Evidence; strukturiert optional in
+`gates.acceptance_gate`). DONE bedeutet NICHT, dass jede historische Task `done` ist, dass
+spaetere Regressionen ausgeschlossen sind, dass Evidence heute noch frisch ist oder dass spaetere
+bzw. neue Arbeit zu dieser Wave gehoert.
+
+Eine `done`-Wave wird nicht wiedereroeffnet: weder fuer spaetere Arbeit noch wegen eines
+Re-Syncs oder einer Quelle, die einen offenen Punkt zeigt. Widerlegt neue Evidenz eine einzelne
+Aussage, wird nur dieser Umfang als `completion_override` bzw. Finding erfasst
+(`legacy-completion-reconciliation.md`). Die Behebung und jede neue Lieferung laufen in einer
+neuen Wave; die Herkunft bleibt ueber `Finding.wave_id` (betroffene Wave), `repair_task_id` und
+`Task.wave_id` (ausfuehrende Wave) nachvollziehbar (`implementation-control.md`).
+
+Wird Arbeit ausserhalb jeder registrierten Wave beobachtet (alle Waves `done`, keine aktive
+Mission), wird dies als solches gemeldet. Sie wird nicht anhand von Zeitstempeln, Git-Naehe oder
+Namen einer Wave zugeordnet.
 
 Fuer den Implementing-Resume gilt: das Implementierungs-Fortschritt ist aus der
 `implementation-checklist.yaml` direkt ablesbar (status: done/pending/blocked/failed).

@@ -32,7 +32,9 @@
           "additionalProperties": false,
           "properties": {
             "gate_to_refinement": { "$ref": "#/definitions/gate_result" },
-            "gate_to_ready": { "$ref": "#/definitions/gate_result" }
+            "gate_to_ready": { "$ref": "#/definitions/gate_result" },
+            "testability_gate": { "$ref": "#/definitions/gate_result" },
+            "acceptance_gate": { "$ref": "#/definitions/acceptance_gate_result" }
           }
         },
         "paused_at": {
@@ -260,6 +262,63 @@
           "type": "object",
           "description": "Key-value evidence supporting the gate result. Any structure allowed.",
           "additionalProperties": true
+        },
+        "blockers_open": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "text"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" }
+            }
+          }
+        },
+        "note": {
+          "type": "string"
+        },
+        "passed_conditions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "failure_reason": {
+          "type": "string"
+        }
+      }
+    },
+    "acceptance_gate_result": {
+      "type": "object",
+      "required": ["result"],
+      "additionalProperties": false,
+      "description": "Result of the Acceptance Gate (verifying exit, lifecycle.yaml). Optional per wave; its absence on an older wave is valid and means only that the DONE basis is not structurally recorded. A wave is done when the acceptance gate for that wave scope was satisfied at that point in time; done does not imply that every historical task is done, that no later regression can occur or that evidence is still fresh, and a done wave is never reopened for later work (new work belongs to a new wave).",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": ["not_recorded", "passed", "failed", "pending"],
+          "description": "not_recorded is only valid before the gate has been run for this wave. pending: the gate is waiting for open decisions (see pending_decisions)."
+        },
+        "evaluated": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) of evaluation"
+        },
+        "evidence": {
+          "type": "object",
+          "description": "References to the durable acceptance evidence, e.g. the wave report and the acceptance campaign results. Any structure allowed.",
+          "additionalProperties": true
+        },
+        "pending_decisions": {
+          "type": "array",
+          "description": "Open DECISION_REQUIRED items that keep the acceptance gate from passing (autonomous-remediation.md).",
+          "items": {
+            "type": "object",
+            "required": ["id", "text"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" }
+            }
+          }
         },
         "blockers_open": {
           "type": "array",

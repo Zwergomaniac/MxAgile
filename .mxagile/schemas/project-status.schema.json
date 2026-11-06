@@ -58,7 +58,7 @@
             "properties": {
               "diagnostic_id": { "type": "string", "pattern": "^DX-[0-9a-f]{16}$" },
               "severity": { "enum": ["INFO", "WARNING", "ERROR"] },
-              "category": { "enum": ["SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "REFERENCE_MISSING", "REFERENCE_AMBIGUOUS", "WAVE_ASSIGNMENT_MISSING", "LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DUPLICATE_ID", "AUTHORITY_CONFLICT", "FRESHNESS_UNKNOWN", "MISSING", "UNASSIGNED", "STALE"] },
+              "category": { "enum": ["SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "REFERENCE_MISSING", "REFERENCE_AMBIGUOUS", "WAVE_ASSIGNMENT_MISSING", "LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DUPLICATE_ID", "AUTHORITY_CONFLICT", "FRESHNESS_UNKNOWN", "MISSING", "UNASSIGNED", "STALE", "DONE_BASIS_NOT_RECORDED", "CHANGE_SET_SCHEMA_INVALID", "ACTIVE_REVISION_UNBOUND"] },
               "source_path": { "type": ["string", "null"] },
               "line": { "type": ["integer", "null"], "minimum": 1 },
               "column": { "type": ["integer", "null"], "minimum": 1 },

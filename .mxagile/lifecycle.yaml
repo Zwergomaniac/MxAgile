@@ -2,7 +2,8 @@ schema_version: 1
 
 # Canonical machine-readable lifecycle definition for MxAgile.
 # Narrative expansion: .mxagile/orchestrator.md
-# State tracking: .concord/scratch/process-state.yaml (per-wave, gitignored)
+# State tracking: planning/lifecycle/process-state.yaml (per-wave, Git-tracked, canonical);
+# .concord/scratch/process-state.yaml is only a supplementary local session cache.
 
 unit_of_progression: wave
 
@@ -255,15 +256,19 @@ lifecycle:
         note: "Defect classified as APPLICATION_DEFECT routes to Implementing. Scoped to failed proof points only."
 
   state_tracking:
-    file: ".concord/scratch/process-state.yaml"
+    file: "planning/lifecycle/process-state.yaml"
+    local_cache: ".concord/scratch/process-state.yaml"
     schema: ".mxagile/schemas/process-state.schema.json"
-    gitignored: true
+    gitignored: false
     scope: per_wave
+    # Schema: gate_to_refinement and gate_to_ready are required keys of a wave block;
+    # testability_gate and acceptance_gate are optional keys (older waves stay valid) but
+    # are recorded by this lifecycle whenever the gate runs. Each gate is an object with `result`.
     required_gate_keys:
-      - "waves.<wave>.gates.gate_to_refinement: not_recorded | passed | failed"
-      - "waves.<wave>.gates.gate_to_ready: not_recorded | passed | failed"
-      - "waves.<wave>.gates.testability_gate: not_recorded | passed | failed"
-      - "waves.<wave>.gates.acceptance_gate: not_recorded | passed | failed | pending"
+      - "waves.<wave>.gates.gate_to_refinement.result: not_recorded | passed | failed"
+      - "waves.<wave>.gates.gate_to_ready.result: not_recorded | passed | failed"
+      - "waves.<wave>.gates.testability_gate.result: not_recorded | passed | failed"
+      - "waves.<wave>.gates.acceptance_gate.result: not_recorded | passed | failed | pending"
     canonical_update_rule: >
       Always write the COMPLETE wave block when updating process-state.yaml.
       Never append individual keys into an existing block.
@@ -274,3 +279,6 @@ lifecycle:
       Gates write results in the same work step they run.
       not_recorded is only valid before a gate has been executed for a wave.
       Drift between file and reality must be actively reported by the agent.
+      A wave is registered here when it is authorized (phase: discovery, gates not_recorded).
+      phase: done records that the acceptance gate for that wave scope was satisfied at that
+      point in time; a done wave is never reopened for later work (new work belongs to a new wave).
