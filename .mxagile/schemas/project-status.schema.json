@@ -76,6 +76,20 @@
     },
     "schema_version": { "type": "integer", "const": 2 },
     "projection": { "type": "boolean", "const": true },
+    "projection_state": {
+      "type": "object",
+      "description": "Server-side state of this disposable projection snapshot (Board only). Never project authority; STALE or BUILDING means the served snapshot may lag canonical sources.",
+      "required": ["state", "age_seconds", "validated_age_seconds", "reason", "built_at_head", "rebuilding"],
+      "additionalProperties": false,
+      "properties": {
+        "state": { "type": "string", "enum": ["FRESH", "STALE", "BUILDING", "PROJECTION_ERROR"] },
+        "age_seconds": { "type": ["number", "null"], "minimum": 0 },
+        "validated_age_seconds": { "type": ["number", "null"], "minimum": 0 },
+        "reason": { "type": ["string", "null"], "enum": [null, "STARTUP_LAST_GOOD", "SOURCES_CHURNING"] },
+        "built_at_head": { "type": ["string", "null"] },
+        "rebuilding": { "type": "boolean" }
+      }
+    },
     "authority": { "type": "string", "const": "mxagile_canonical_artifacts" },
     "source_fingerprint": {
       "type": "string",

@@ -862,5 +862,172 @@ class ReconciliationBaselineTests(unittest.TestCase):
             )
 
 
+def build_reconciliation_history_fixture(root: Path) -> dict[str, str]:
+    """Deterministic synthetic history for 001-board-redesign (T006, kept in this mapped module).
+
+    Covers: root commit, linear edits, mode-only change, deletion, merge with resolution delta,
+    MxAgile trailer + schema-valid Change-Set, schema-invalid Change-Set without trailers,
+    model-only commit and a message that merely mentions an artifact ID.
+    """
+    import os
+
+    environment = {
+        **dict(os.environ),
+        "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+    clock = [1_790_000_000]
+
+    def git(*args: str, input_text: str | None = None) -> str:
+        clock[0] += 60
+        env = {**environment, "GIT_AUTHOR_DATE": f"{clock[0]} +0000", "GIT_COMMITTER_DATE": f"{clock[0]} +0000"}
+        return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True,
+                              input=input_text, env=env).stdout.strip()
+
+    def write(relative: str, content: str) -> None:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8", newline="\n")
+
+    commits: dict[str, str] = {}
+    git("init", "--quiet")
+    git("config", "core.autocrlf", "false")
+    git("config", "core.filemode", "true")
+    git("symbolic-ref", "HEAD", "refs/heads/main")
+    write(".gitignore", ".mxagile/state/\n")
+    (root / ".mxagile/schemas").mkdir(parents=True, exist_ok=True)
+    for schema_name in ("project-reconciliation-state.schema.json", "change-set.schema.json"):
+        (root / ".mxagile/schemas" / schema_name).write_bytes((ROOT / ".mxagile/schemas" / schema_name).read_bytes())
+    write("mxagile-project.yaml", "name: Reconciliation history fixture\n")
+    write("requirements/REQ-001.yml", "ID: REQ-001\ntitle: First\nstatus: accepted\n")
+    write("scripts/tool.sh", "echo fixture\n")
+    write("docs/old.md", "obsolete\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Root commit")
+    commits["root"] = git("rev-parse", "HEAD")
+
+    write("requirements/REQ-001.yml", "ID: REQ-001\ntitle: First edited\nstatus: accepted\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Edit requirement")
+    commits["edit"] = git("rev-parse", "HEAD")
+
+    git("update-index", "--chmod=+x", "scripts/tool.sh")
+    git("commit", "--quiet", "-m", "Mode-only change")
+    commits["mode"] = git("rev-parse", "HEAD")
+
+    git("rm", "--quiet", "docs/old.md")
+    git("commit", "--quiet", "-m", "Delete document")
+    commits["delete"] = git("rev-parse", "HEAD")
+
+    git("checkout", "--quiet", "-b", "feature")
+    write("planning/decisions/DEC-001.yml", "ID: DEC-001\ntitle: Feature decision\nstatus: PROPOSED\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Feature decision")
+    git("checkout", "--quiet", "main")
+    write("requirements/REQ-002.yml", "ID: REQ-002\ntitle: Main line\nstatus: accepted\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Main line requirement")
+    git("merge", "--quiet", "--no-ff", "--no-commit", "feature")
+    write("requirements/REQ-002.yml", "ID: REQ-002\ntitle: Resolved during merge\nstatus: accepted\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Merge feature with resolution delta")
+    commits["merge"] = git("rev-parse", "HEAD")
+
+    git("checkout", "--quiet", "-b", "feature2")
+    write("docs/clean-merge.md", "clean merge content\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Feature two")
+    git("checkout", "--quiet", "main")
+    git("merge", "--quiet", "--no-ff", "-m", "Clean merge without resolution delta", "feature2")
+    commits["inherited_merge"] = git("rev-parse", "HEAD")
+
+    write("planning/tasks/TASK-001.yml", "ID: TASK-001\nspec: SPEC-001\naction: Attributed\nstatus: done\n")
+    git("add", "--all")
+    prepared = git_reconciliation.prepare_change_set(
+        root, change_set_id="CS-FIXTURE-001", mission_id="MISSION-FIXTURE",
+        project_fingerprint="sha256:" + "0" * 64, outcome="NO_IMPACT",
+    )
+    git("add", "--", prepared["path"])
+    git("commit", "--quiet", "-F", "-", input_text="Attributed task change\n\n" + "\n".join(prepared["trailers"]) + "\n")
+    commits["attributed"] = git("rev-parse", "HEAD")
+
+    write("planning/reconciliation/change-sets/CS-FIXTURE-BAD.json",
+          json.dumps({"schema_version": 1, "change_set_id": "CS-FIXTURE-BAD", "final_result": "PARTIAL"}) + "\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Campaign log without trailers")
+    commits["invalid_change_set"] = git("rev-parse", "HEAD")
+
+    write("mprcontents/aa/bb/unit.mxunit", "model unit\n")
+    write("Fixture.mpr", "model\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Model-only change")
+    commits["model"] = git("rev-parse", "HEAD")
+
+    write("scripts/tool.sh", "echo fixture changed\n")
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "Adjust tooling (mentions REQ-001 only in the message)")
+    commits["mention"] = git("rev-parse", "HEAD")
+    return commits
+
+
+class ReconciliationBatchingEquivalenceTests(unittest.TestCase):
+    """001-board-redesign CS-2 (T028): batched classification equals the per-path lookup."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory(prefix="mxagile-reconcile-")
+        self.root = Path(self.temporary.name)
+        self.commits = build_reconciliation_history_fixture(self.root)
+
+    def tearDown(self) -> None:
+        cleanup_temporary_directory(self.temporary, expected_prefix="mxagile-reconcile-")
+
+    def legacy_range(self) -> dict:
+        def legacy_trailers(root: Path, commit: str, message: bytes | None = None):
+            raw = git_reconciliation._git(root, "show", "-s", "--format=%B", commit)
+            parsed = git_reconciliation._run_git(root, "interpret-trailers", "--parse", input_bytes=raw)
+            values: dict[str, list[str]] = {}
+            for line in parsed.stdout.splitlines():
+                if b":" in line:
+                    key, value = line.split(b":", 1)
+                    key_text = key.decode("utf-8", errors="replace").strip().casefold()
+                    if key_text.startswith("mxagile-"):
+                        values.setdefault(key_text, []).append(value.decode("utf-8", errors="replace").strip())
+            return values, bool(values)
+
+        with patch.object(git_reconciliation, "_commit_changes", git_reconciliation._commit_changes_by_tree_lookup), \
+             patch.object(git_reconciliation, "_trailers", legacy_trailers), \
+             patch.object(git_reconciliation, "_batched_parents",
+                          lambda root, commits: {commit: git_reconciliation._commit_parents(root, commit) for commit in commits}), \
+             patch.object(git_reconciliation, "_batched_messages", lambda root, commits: {commit: None for commit in commits}):
+            return git_reconciliation.analyze_commit_range(self.root, self.commits["root"], self.commits["mention"])
+
+    def test_batched_range_is_identical_to_per_path_lookup_and_spawns_fewer_processes(self) -> None:
+        original = git_reconciliation._run_git
+        calls: list[tuple[str, ...]] = []
+
+        def counting(root: Path, *args: str, input_bytes: bytes | None = None):
+            calls.append(args)
+            return original(root, *args, input_bytes=input_bytes)
+
+        with patch.object(git_reconciliation, "_run_git", side_effect=counting):
+            legacy = self.legacy_range()
+            legacy_calls = len(calls)
+            calls.clear()
+            batched = git_reconciliation.analyze_commit_range(self.root, self.commits["root"], self.commits["mention"])
+            batched_calls = len(calls)
+        self.assertEqual(json.dumps(batched, sort_keys=True), json.dumps(legacy, sort_keys=True))
+        classifications = {commit["commit"]: commit["classification"] for commit in batched["commits"]}
+        self.assertEqual(classifications[self.commits["attributed"]], "MXAGILE_ATTRIBUTED_CHANGE")
+        self.assertEqual(classifications[self.commits["inherited_merge"]], "INHERITED_MERGE")
+        self.assertEqual(classifications[self.commits["merge"]], "AMBIGUOUS")
+        merge = next(commit for commit in batched["commits"] if commit["commit"] == self.commits["merge"])
+        self.assertEqual([path["path"] for path in merge["paths"]], ["requirements/REQ-002.yml"])
+        self.assertEqual(classifications[self.commits["invalid_change_set"]], "AMBIGUOUS")
+        self.assertEqual(classifications[self.commits["mention"]], "EXTERNAL_CHANGE")
+        mode_change = next(commit for commit in batched["commits"] if commit["commit"] == self.commits["mode"])
+        self.assertEqual([(path["path"], path["status"]) for path in mode_change["paths"]], [("scripts/tool.sh", "M")])
+        self.assertLess(batched_calls, legacy_calls / 2, (batched_calls, legacy_calls))
+
+
 if __name__ == "__main__":
     unittest.main()

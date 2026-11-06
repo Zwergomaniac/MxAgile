@@ -136,6 +136,79 @@ def _diff_paths(root: Path, parent: str | None, commit: str) -> dict[str, str]:
     return _raw_changes(raw)
 
 
+def _raw_entries(raw: bytes) -> dict[str, tuple[dict[str, str] | None, dict[str, str] | None]]:
+    """Parse `diff-tree --raw -z --no-abbrev` into (before, after) tree entries per path."""
+    parts = raw.split(b"\0")
+    entries: dict[str, tuple[dict[str, str] | None, dict[str, str] | None]] = {}
+    index = 0
+    while index < len(parts):
+        record = parts[index]
+        if not record:
+            index += 1
+            continue
+        if b"\t" in record:
+            metadata, raw_path = record.split(b"\t", 1)
+            index += 1
+        else:
+            if index + 1 >= len(parts):
+                break
+            metadata, raw_path = record, parts[index + 1]
+            index += 2
+        if not metadata.startswith(b":") or not raw_path:
+            continue
+        fields = metadata[1:].decode("ascii", errors="strict").split()
+        if len(fields) != 5 or len(fields[4]) != 1:
+            raise GitReconciliationError("RENAME_OR_COPY_STATUS_UNEXPECTED")
+        old_mode, new_mode, old_oid, new_oid, _status = fields
+
+        def entry(mode: str, oid: str) -> dict[str, str] | None:
+            if set(mode) == {"0"}:
+                return None
+            object_type = "commit" if mode == "160000" else "tree" if mode == "040000" else "blob"
+            return {"mode": mode, "type": object_type, "oid": oid}
+
+        entries[os.fsdecode(raw_path)] = (entry(old_mode, old_oid), entry(new_mode, new_oid))
+    return entries
+
+
+def _batched_parents(root: Path, commits: list[str]) -> dict[str, list[str]]:
+    """Parents for many commits in one git process."""
+    if not commits:
+        return {}
+    raw = _run_git(root, "rev-list", "--no-walk=unsorted", "--parents", "--stdin",
+                   input_bytes=("\n".join(commits) + "\n").encode("ascii"))
+    if raw.returncode:
+        raise GitReconciliationError("COMMIT_PARENT_QUERY_FAILED")
+    result: dict[str, list[str]] = {}
+    for line in raw.stdout.decode("ascii", errors="strict").splitlines():
+        fields = line.split()
+        if fields:
+            result[fields[0]] = fields[1:]
+    if set(result) != set(commits):
+        raise GitReconciliationError("COMMIT_PARENT_QUERY_FAILED")
+    return result
+
+
+def _batched_messages(root: Path, commits: list[str]) -> dict[str, bytes]:
+    """Raw commit messages for many commits in one git process."""
+    if not commits:
+        return {}
+    raw = _run_git(root, "log", "--no-walk=unsorted", "--stdin", "--format=%H%x00%B%x00%x01",
+                   input_bytes=("\n".join(commits) + "\n").encode("ascii"))
+    if raw.returncode:
+        raise GitReconciliationError("COMMIT_MESSAGE_QUERY_FAILED")
+    result: dict[str, bytes] = {}
+    for record in raw.stdout.split(b"\x00\x01"):
+        record = record.lstrip(b"\n")
+        if not record:
+            continue
+        commit, _, message = record.partition(b"\x00")
+        result[commit.decode("ascii").strip()] = message
+    if set(result) != set(commits):
+        raise GitReconciliationError("COMMIT_MESSAGE_QUERY_FAILED")
+    return result
+
+
 def _semantic_status(before: dict[str, str] | None, after: dict[str, str] | None) -> str | None:
     if before == after:
         return None
@@ -147,6 +220,40 @@ def _semantic_status(before: dict[str, str] | None, after: dict[str, str] | None
 
 
 def _commit_changes(root: Path, commit: str, parents: list[str]) -> dict[str, dict[str, Any]]:
+    if len(parents) <= 1:
+        # diff-tree already reports the exact before/after tree entries for root and
+        # single-parent commits; no per-path ls-tree lookups are required.
+        if parents:
+            raw = _git(root, "diff-tree", "--raw", "-z", "--no-renames", "--no-abbrev", "-r", parents[0], commit, "--")
+        else:
+            raw = _git(root, "diff-tree", "--root", "--raw", "-z", "--no-renames", "--no-abbrev", "-r", commit, "--")
+        result: dict[str, dict[str, Any]] = {}
+        for path, (before, after) in sorted(_raw_entries(raw).items()):
+            status = _semantic_status(before, after)
+            if status is not None:
+                result[path] = {"status": status, "before": before, "after": after}
+        return result
+    # Merge commit: one diff-tree per parent already reports the exact before/after entries.
+    # A path absent from a parent's diff is unchanged relative to that parent, so that parent's
+    # entry equals the commit's entry (the "inherited" case, which is skipped as before).
+    per_parent = [
+        _raw_entries(_git(root, "diff-tree", "--raw", "-z", "--no-renames", "--no-abbrev", "-r", parent, commit, "--"))
+        for parent in parents
+    ]
+    result = {}
+    for path in sorted({path for diff in per_parent for path in diff}):
+        after = next((diff[path][1] for diff in per_parent if path in diff), None)
+        parent_entries = [diff[path][0] if path in diff else after for diff in per_parent]
+        if after in parent_entries:
+            continue
+        before = parent_entries[0]
+        status = _semantic_status(before, after)
+        if status is not None:
+            result[path] = {"status": status, "before": before, "after": after}
+    return result
+
+
+def _commit_changes_by_tree_lookup(root: Path, commit: str, parents: list[str]) -> dict[str, dict[str, Any]]:
     if not parents:
         paths = _diff_paths(root, None, commit)
     elif len(parents) == 1:
@@ -173,8 +280,12 @@ def _commit_changes(root: Path, commit: str, parents: list[str]) -> dict[str, di
     return result
 
 
-def _trailers(root: Path, commit: str) -> tuple[dict[str, list[str]], bool]:
-    message = _git(root, "show", "-s", "--format=%B", commit)
+def _trailers(root: Path, commit: str, message: bytes | None = None) -> tuple[dict[str, list[str]], bool]:
+    if message is None:
+        message = _git(root, "show", "-s", "--format=%B", commit)
+    if b"mxagile-" not in message.lower():
+        # interpret-trailers can only yield mxagile-* keys that appear in the message.
+        return {}, False
     parsed = _run_git(root, "interpret-trailers", "--parse", input_bytes=message)
     if parsed.returncode:
         raise GitReconciliationError("COMMIT_TRAILERS_UNREADABLE")
@@ -293,10 +404,17 @@ def classify_path(path: str) -> str:
     return "UNKNOWN"
 
 
-def _classify_commit(root: Path, commit: str) -> dict[str, Any]:
-    parents = _commit_parents(root, commit)
+def _classify_commit(
+    root: Path,
+    commit: str,
+    *,
+    parents: list[str] | None = None,
+    message: bytes | None = None,
+) -> dict[str, Any]:
+    if parents is None:
+        parents = _commit_parents(root, commit)
     changes = _commit_changes(root, commit, parents)
-    trailers, has_mxagile_trailers = _trailers(root, commit)
+    trailers, has_mxagile_trailers = _trailers(root, commit, message)
     change_set_files = [path for path in changes if path.startswith(CHANGE_SET_DIRECTORY + "/") and path.endswith(".json")]
     path_classes: dict[str, str] = {}
     attribution = "EXTERNAL_CHANGE"
@@ -510,7 +628,12 @@ def analyze_commit_range(root: Path, watermark: str, head: str, *, shallow: bool
         return {"status": "NO_COMMITTED_DELTA", "commits": [], "spans": []}
     raw = _git(root, "rev-list", "--topo-order", "--reverse", f"{watermark}..{head}")
     commit_ids = [os.fsdecode(line) for line in raw.splitlines() if line]
-    commits = [_classify_commit(root, commit) for commit in commit_ids]
+    parents = _batched_parents(root, commit_ids)
+    messages = _batched_messages(root, commit_ids)
+    commits = [
+        _classify_commit(root, commit, parents=parents[commit], message=messages[commit])
+        for commit in commit_ids
+    ]
     spans = _group_spans(commits)
     classes = {commit["classification"] for commit in commits}
     if "AMBIGUOUS" in classes:

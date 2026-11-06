@@ -1044,6 +1044,34 @@ function renderCompatibility() {
   root.append(panel);
 }
 
+function renderProjectionState() {
+  // A stale or rebuilding projection must never look current (CS-2).
+  const projection = status.projection_state || null;
+  const read = `READ ${new Date().toLocaleTimeString()}`;
+  const connection = document.querySelector(".connection");
+  if (connection && connection.lastChild && connection.dataset.base === undefined) connection.dataset.base = connection.lastChild.textContent;
+  if (!projection) {
+    $("#updated-label").textContent = read;
+    return;
+  }
+  const seconds = (value) => (value === null || value === undefined ? "?" : `${Math.round(value)} s`);
+  const reasons = { STARTUP_LAST_GOOD: "letzter gespeicherter Stand", SOURCES_CHURNING: "Quellen ändern sich gerade" };
+  let label;
+  if (projection.state === "FRESH") {
+    label = `PROJEKTION AKTUELL · geprüft vor ${seconds(projection.validated_age_seconds)}`;
+  } else if (projection.state === "STALE") {
+    label = `PROJEKTION VERALTET · ${reasons[projection.reason] || projection.reason || "unbekannter Grund"} · Stand vor ${seconds(projection.age_seconds)}${projection.rebuilding ? " · wird neu aufgebaut" : ""}`;
+  } else {
+    label = `PROJEKTION ${projection.state}`;
+  }
+  $("#updated-label").textContent = `${read} · ${label}`;
+  if (connection && connection.dataset.base !== undefined) {
+    connection.lastChild.textContent = projection.state === "FRESH"
+      ? connection.dataset.base
+      : `${connection.dataset.base} · ${projection.state}`;
+  }
+}
+
 async function load() {
   const button = $("#refresh");
   button.disabled = true;
@@ -1057,7 +1085,7 @@ async function load() {
     $("#load-state").hidden = true;
     $("#board").hidden = false;
     renderView();
-    $("#updated-label").textContent = `READ ${new Date().toLocaleTimeString()}`;
+    renderProjectionState();
     void loadReconciliation();
   } catch {
     $("#load-state").textContent = "Project status unavailable. The board did not infer missing state.";

@@ -408,6 +408,9 @@ class BoardPerformanceTests(unittest.TestCase):
                     statuses = [future.result(timeout=10) for future in futures]
             self.assertEqual(calls, 1)
             self.assertEqual(server.status_cache.build_count, 1)
+            # projection_state carries per-response ages by design; the projection content must be identical.
+            states = [status.pop("projection_state") for status in statuses]
+            self.assertTrue(all(state["state"] == "FRESH" for state in states))
             self.assertTrue(all(status is statuses[0] or status == statuses[0] for status in statuses))
         finally:
             release.set()
@@ -474,6 +477,220 @@ class BoardPerformanceTests(unittest.TestCase):
         schema = json.loads((ROOT / ".mxagile/schemas/project-status.schema.json").read_text(encoding="utf-8"))
         errors = list(Draft7Validator(schema).iter_errors(status))
         self.assertEqual(errors, [])
+
+
+def project_tree_state(root: Path) -> dict[str, tuple[int, int]]:
+    state = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and ".git" not in path.relative_to(root).parts:
+            stat = path.stat()
+            state[path.relative_to(root).as_posix()] = (stat.st_size, stat.st_mtime_ns)
+    return state
+
+
+class BoardCs2SnapshotServingTests(unittest.TestCase):
+    """001-board-redesign CS-2: interactive requests use derived projections, not repeated scans."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory(prefix="mxagile-board-perf-")
+        self.root = Path(self.temporary.name) / "project"
+        self.root.mkdir()
+        build_performance_fixture(self.root)
+        self.cache_root = Path(self.temporary.name) / "board-cache"
+        self.environment = patch.dict(os.environ, {"MXAGILE_BOARD_CACHE_DIR": str(self.cache_root)})
+        self.environment.start()
+        self.no_backoff = patch.object(serve_project_board, "SOURCE_CHURN_BACKOFF_SECONDS", (0.0, 0.0, 0.0))
+        self.no_backoff.start()
+
+    def tearDown(self) -> None:
+        self.no_backoff.stop()
+        self.environment.stop()
+        cleanup_temporary_directory(self.temporary, expected_prefix="mxagile-board-perf-")
+
+    def start_server(self, **options):
+        ui_root = self.root / ".mxagile/board"
+        ui_root.mkdir(parents=True, exist_ok=True)
+        server = serve_project_board.ProjectBoardServer(self.root, ui_root, 0, **options)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server, thread
+
+    @staticmethod
+    def stop_server(server, thread) -> None:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    def test_asset_and_status_requests_reuse_validated_snapshot_without_signature(self) -> None:
+        target = self.root / "planning/target-mockups/Reference-001.html"
+        server, thread = self.start_server()
+        try:
+            base = f"http://127.0.0.1:{server.server_port}"
+            with urlopen(f"{base}/api/status") as response:
+                first = json.loads(response.read())
+            self.assertEqual(first["projection_state"]["state"], "FRESH")
+            original = serve_project_board.source_metadata_signature
+            calls = []
+            with patch.object(serve_project_board, "source_metadata_signature",
+                              side_effect=lambda root: calls.append(root) or original(root)):
+                for _ in range(3):
+                    with urlopen(f"{base}/reference/planning/target-mockups/Reference-001.html") as response:
+                        self.assertIn(b"Accepted target 1", response.read())
+                    with urlopen(f"{base}/api/status") as response:
+                        response.read()
+            self.assertTrue(target.is_file())
+            self.assertEqual(calls, [], "interactive requests inside the validation window must not rescan")
+            self.assertEqual(server.status_cache.build_count, 1)
+        finally:
+            self.stop_server(server, thread)
+
+    def test_background_revalidation_detects_same_mtime_edit(self) -> None:
+        cache = serve_project_board.ProjectStatusCache(self.root)
+        cache.request_window = 60.0
+        with patch.object(serve_project_board, "build_status_summary", side_effect=lambda root: {"schema_version": 2}):
+            cache.get_summary()
+            path = self.root / "requirements/REQ-002.yml"
+            before = path.stat()
+            original = path.read_text(encoding="utf-8")
+            path.write_text(original.replace("Requirement 2", "Requirement Y"), encoding="utf-8")
+            os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+            cache.get_summary()  # inside the window: served from snapshot, no rescan
+            self.assertEqual(cache.build_count, 1)
+            cache.revalidate()  # the background tick detects the change and rebuilds
+        self.assertEqual(cache.build_count, 2)
+        self.assertEqual(cache.projection_info()["state"], "FRESH")
+
+    def test_model_folder_is_not_walked_inside_git_but_still_invalidates_via_git(self) -> None:
+        import subprocess
+        model_file = self.root / "mprcontents/aa/bb/unit.mxunit"
+        model_file.parent.mkdir(parents=True)
+        model_file.write_bytes(b"model unit a")
+        for args in (["init", "-q"], ["config", "user.name", "F"], ["config", "user.email", "f@example.invalid"],
+                     ["add", "--all"], ["commit", "-q", "-m", "fixture"]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+        original_record = serve_project_board._metadata_record
+        visited = []
+        with patch.object(serve_project_board, "_metadata_record",
+                          side_effect=lambda root, path: visited.append(path) or original_record(root, path)):
+            first = serve_project_board.source_metadata_signature(self.root)
+        self.assertIsNotNone(first)
+        self.assertFalse([path for path in visited if "aa" in Path(path).parts],
+                         "files below mprcontents must not be walked in a Git work tree")
+        model_file.write_bytes(b"model unit b")
+        self.assertNotEqual(serve_project_board.source_metadata_signature(self.root), first)
+        with patch.dict(os.environ, {"MXAGILE_BOARD_LEGACY_CACHE": "1"}):
+            visited.clear()
+            with patch.object(serve_project_board, "_metadata_record",
+                              side_effect=lambda root, path: visited.append(path) or original_record(root, path)):
+                serve_project_board.source_metadata_signature(self.root)
+            self.assertTrue([path for path in visited if "aa" in Path(path).parts], "legacy mode keeps the full walk")
+
+    def test_source_churn_during_build_retries_and_never_returns_503_with_a_previous_projection(self) -> None:
+        path = self.root / "requirements/REQ-003.yml"
+        builds = 0
+
+        def churning_builder(root: Path) -> dict:
+            nonlocal builds
+            builds += 1
+            if builds >= 2:  # every rebuild races with a parallel writer
+                path.write_text(path.read_text(encoding="utf-8") + f"\n# churn {builds}\n", encoding="utf-8")
+            return {"schema_version": 2, "build": builds}
+
+        cache = serve_project_board.ProjectStatusCache(self.root)
+        with patch.object(serve_project_board, "build_status_summary", side_effect=churning_builder):
+            first = cache.get_summary()
+            path.write_text(path.read_text(encoding="utf-8") + "\n# external edit\n", encoding="utf-8")
+            served = cache.get_summary()
+        self.assertIs(served, first)
+        self.assertEqual(cache.projection_info()["state"], "STALE")
+        self.assertEqual(cache.projection_info()["reason"], "SOURCES_CHURNING")
+        self.assertEqual(builds, 1 + 1 + len(serve_project_board.SOURCE_CHURN_BACKOFF_SECONDS))
+
+    def test_single_source_change_during_build_is_absorbed_by_retry(self) -> None:
+        path = self.root / "requirements/REQ-004.yml"
+        builds = 0
+
+        def builder(root: Path) -> dict:
+            nonlocal builds
+            builds += 1
+            if builds == 1:
+                path.write_text(path.read_text(encoding="utf-8") + "\n# one parallel write\n", encoding="utf-8")
+            return {"schema_version": 2, "build": builds}
+
+        cache = serve_project_board.ProjectStatusCache(self.root)
+        with patch.object(serve_project_board, "build_status_summary", side_effect=builder):
+            status = cache.get_summary()
+        self.assertEqual(status["build"], 2)
+        self.assertEqual(cache.projection_info()["state"], "FRESH")
+
+    def test_churn_without_any_projection_remains_a_visible_error(self) -> None:
+        path = self.root / "requirements/REQ-005.yml"
+
+        def always_churning(root: Path) -> dict:
+            path.write_text(path.read_text(encoding="utf-8") + "\n# churn\n", encoding="utf-8")
+            return {"schema_version": 2}
+
+        cache = serve_project_board.ProjectStatusCache(self.root)
+        with patch.object(serve_project_board, "build_status_summary", side_effect=always_churning):
+            with self.assertRaisesRegex(RuntimeError, "SOURCES_CHANGED_DURING_BUILD"):
+                cache.get_summary()
+        self.assertEqual(cache.projection_info()["state"], "PROJECTION_ERROR")
+
+    def test_persistent_last_good_is_disposable_outside_project_and_marked_stale_at_startup(self) -> None:
+        before_tree = project_tree_state(self.root)
+        server, thread = self.start_server(persist_cache=True)
+        try:
+            with urlopen(f"http://127.0.0.1:{server.server_port}/api/status") as response:
+                fresh = json.loads(response.read())
+        finally:
+            self.stop_server(server, thread)
+        stored = list(self.cache_root.rglob("last-good-summary.json"))
+        self.assertEqual(len(stored), 1)
+        self.assertNotIn(self.root.resolve(), stored[0].resolve().parents)
+
+        restarted = serve_project_board.ProjectStatusCache(self.root, persist=True)
+        restarted.request_window = 5.0
+        gate = threading.Event()
+        real_builder = serve_project_board.build_status_summary
+
+        def slow_builder(root: Path) -> dict:
+            gate.wait(timeout=10)
+            return real_builder(root)
+
+        with patch.object(serve_project_board, "build_status_summary", side_effect=slow_builder):
+            served = restarted.get_summary()
+            info = restarted.projection_info()
+            self.assertEqual((info["state"], info["reason"]), ("STALE", "STARTUP_LAST_GOOD"))
+            gate.set()
+            restarted._background_build.join(timeout=20)
+        self.assertEqual(restarted.projection_info()["state"], "FRESH")
+        rebuilt = restarted.get_summary()
+        fresh.pop("projection_state")
+        for volatile in ("ui_settings", "reconciliation"):
+            fresh.pop(volatile, None)
+        self.assertEqual(served["source_fingerprint"], fresh["source_fingerprint"])
+        self.assertEqual(rebuilt["source_fingerprint"], fresh["source_fingerprint"])
+
+        # Deleting the disposable cache destroys no canonical information and rebuilds deterministically.
+        import shutil
+        shutil.rmtree(self.cache_root)
+        recreated = serve_project_board.ProjectStatusCache(self.root, persist=True).get_summary()
+        self.assertEqual(json.dumps(recreated, sort_keys=True), json.dumps(rebuilt, sort_keys=True))
+        self.assertEqual(project_tree_state(self.root), before_tree, "the Board must never write into the project")
+
+    def test_cache_directory_inside_project_is_refused(self) -> None:
+        with patch.dict(os.environ, {"MXAGILE_BOARD_CACHE_DIR": str(self.root / ".board-cache")}):
+            self.assertIsNone(serve_project_board.board_cache_dir(self.root))
+
+    def test_legacy_mode_restores_per_request_validation(self) -> None:
+        with patch.dict(os.environ, {"MXAGILE_BOARD_LEGACY_CACHE": "1"}):
+            server, thread = self.start_server(background_refresh=True, persist_cache=True)
+            try:
+                self.assertEqual(server.status_cache.request_window, 0.0)
+                self.assertIsNone(server._refresh_thread)
+                self.assertFalse(server.status_cache.persist)
+            finally:
+                self.stop_server(server, thread)
 
 
 if __name__ == "__main__":

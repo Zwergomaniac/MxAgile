@@ -204,6 +204,32 @@ def _reference_candidates(committed_paths: list[dict[str, Any]], working_changes
     return [result[path] for path in sorted(result)]
 
 
+_MXCLI_PROBE_CACHE: dict[tuple, tuple[list[str], str] | None] = {}
+
+
+def _mxcli_probe(root: Path, binary: Path) -> tuple[list[str], str] | None:
+    """Capability probe cached per exact binary identity (path, size, mtime, ctime)."""
+    try:
+        stat = binary.stat()
+    except OSError:
+        return None
+    key = (str(binary.resolve()), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    if key in _MXCLI_PROBE_CACHE:
+        return _MXCLI_PROBE_CACHE[key]
+    try:
+        version_result = subprocess.run([str(binary), "--version"], cwd=root, capture_output=True, text=True, timeout=10, check=False)
+        help_result = subprocess.run([str(binary), "--help"], cwd=root, capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None  # probe failures are not cached; the next report retries
+    if version_result.returncode or help_result.returncode:
+        return None
+    help_text = (help_result.stdout + "\n" + help_result.stderr).casefold()
+    capabilities = [name for name in ("inspect", "diff", "compare") if re.search(rf"\b{name}\b", help_text)]
+    version = next((line.strip()[:120] for line in version_result.stdout.splitlines() if line.strip()), "UNKNOWN")
+    _MXCLI_PROBE_CACHE[key] = (capabilities, version)
+    return capabilities, version
+
+
 def _model_semantic_capability(root: Path, changed_paths: list[str]) -> dict[str, Any]:
     model_paths = sorted({
         path for path in changed_paths
@@ -217,16 +243,10 @@ def _model_semantic_capability(root: Path, changed_paths: list[str]) -> dict[str
     binary = root / binary_name
     if not binary.is_file() or binary.is_symlink() or not binary.resolve().is_relative_to(root.resolve()):
         return {"status": "SEMANTIC_REVIEW_REQUIRED", "reason": "PROJECT_LOCAL_MXCLI_NOT_FOUND", "model_paths": model_paths, "capabilities": []}
-    try:
-        version_result = subprocess.run([str(binary), "--version"], cwd=root, capture_output=True, text=True, timeout=10, check=False)
-        help_result = subprocess.run([str(binary), "--help"], cwd=root, capture_output=True, text=True, timeout=10, check=False)
-    except (OSError, subprocess.SubprocessError):
+    probe = _mxcli_probe(root, binary)
+    if probe is None:
         return {"status": "SEMANTIC_REVIEW_REQUIRED", "reason": "PROJECT_LOCAL_MXCLI_PROBE_FAILED", "model_paths": model_paths, "capabilities": []}
-    if version_result.returncode or help_result.returncode:
-        return {"status": "SEMANTIC_REVIEW_REQUIRED", "reason": "PROJECT_LOCAL_MXCLI_PROBE_FAILED", "model_paths": model_paths, "capabilities": []}
-    help_text = (help_result.stdout + "\n" + help_result.stderr).casefold()
-    capabilities = [name for name in ("inspect", "diff", "compare") if re.search(rf"\b{name}\b", help_text)]
-    version = next((line.strip()[:120] for line in version_result.stdout.splitlines() if line.strip()), "UNKNOWN")
+    capabilities, version = probe
     reason = "SEMANTIC_MODEL_DIFF_NOT_VERIFIED" if not any(name in capabilities for name in ("diff", "compare")) else "MODEL_DIFF_COMMAND_SEMANTICS_UNVERIFIED"
     return {
         "status": "SEMANTIC_REVIEW_REQUIRED",

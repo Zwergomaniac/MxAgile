@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -148,15 +149,54 @@ def _emit_board_timing(event: str, **fields: object) -> None:
     sys.stderr.write("BOARD_TIMING " + json.dumps(payload, ensure_ascii=True, sort_keys=True) + "\n")
 
 
+VALIDATION_WINDOW_SECONDS = 5.0
+BACKGROUND_REFRESH_SECONDS = 2.0
+SOURCE_CHURN_BACKOFF_SECONDS = (0.5, 1.0, 2.0)
+LAST_GOOD_FORMAT = 1
+MODEL_ROOT = "mprcontents"
+
+
+def legacy_cache_mode() -> bool:
+    """One-release rollback switch to the pre-CS-2 per-request full signature behaviour."""
+    return os.environ.get("MXAGILE_BOARD_LEGACY_CACHE") == "1"
+
+
+def board_cache_dir(project_root: Path) -> Path | None:
+    """Disposable projection cache location; never inside the project tree."""
+    override = os.environ.get("MXAGILE_BOARD_CACHE_DIR")
+    if override:
+        base = Path(override)
+    elif os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData/Local")) / "mxagile" / "board-cache"
+    else:
+        base = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "mxagile" / "board-cache"
+    root = project_root.resolve()
+    try:
+        base.resolve().relative_to(root)
+        return None  # a cache inside the project would violate the read-only contract
+    except (OSError, ValueError):
+        pass
+    identity = str(root).casefold() if os.name == "nt" else str(root)
+    _, branch = git_head_and_branch(root)
+    project_key = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:32]
+    branch_key = hashlib.sha256((branch or "NO_BRANCH").encode("utf-8")).hexdigest()[:16]
+    return base / project_key / branch_key
+
+
 def source_metadata_signature(project_root: Path) -> str | None:
     started = time.perf_counter()
-    result = _source_metadata_signature(project_root)
+    result = _source_metadata_signature(project_root, include_model_walk=legacy_cache_mode())
     _emit_board_timing("source_signature", seconds=round(time.perf_counter() - started, 4), available=result is not None)
     return result
 
 
-def _source_metadata_signature(project_root: Path) -> str | None:
-    """Cheap invalidation hint; metadata is never emitted as project authority."""
+def _source_metadata_signature(project_root: Path, *, include_model_walk: bool = False) -> str | None:
+    """Cheap invalidation hint; metadata is never emitted as project authority.
+
+    In a Git work tree the Mendix model folder is covered by `git status --untracked-files=all`
+    plus HEAD, so it is not walked file by file (2k+ files in real projects). Without Git, or in
+    legacy mode, the full walk is kept.
+    """
     root = project_root.resolve()
     records: dict[str, tuple] = {}
     try:
@@ -164,6 +204,40 @@ def _source_metadata_signature(project_root: Path) -> str | None:
         if root_record is None:
             return None
         records["."] = root_record
+
+        in_git = False
+        revision = subprocess.run(
+            ["git", "--no-optional-locks", "-C", str(root), "rev-parse", "HEAD", "--symbolic-full-name", "HEAD",
+             "--git-path", "index"],
+            capture_output=True,
+            check=False,
+        )
+        if revision.returncode == 0:
+            lines = revision.stdout.decode("utf-8", errors="replace").splitlines()
+            if len(lines) < 3:
+                return None
+            head = lines[0].strip()
+            branch_ref = lines[1].strip() if lines[1].strip() != "HEAD" else "DETACHED"
+            index_path = Path(lines[2].strip())
+            if not index_path.is_absolute():
+                index_path = root / index_path
+            index_record = _metadata_record(root, index_path) if index_path.exists() else (index_path.as_posix(), "MISSING")
+            if index_record is None:
+                return None
+            git_status = subprocess.run(
+                ["git", "--no-optional-locks", "-C", str(root), "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+                capture_output=True,
+                check=False,
+            )
+            if git_status.returncode:
+                return None
+            records["!git"] = (head, branch_ref, index_record, hashlib.sha256(git_status.stdout).hexdigest())
+            in_git = True
+        elif (root / ".git").exists():
+            return None
+        else:
+            records["!git"] = ("NO_GIT",)
+
         for mpr_path in sorted(root.glob("*.mpr")):
             record = _metadata_record(root, mpr_path)
             if record is None:
@@ -183,6 +257,8 @@ def _source_metadata_signature(project_root: Path) -> str | None:
                 return None
             records[relative] = base_record
             if not base.is_dir() or base.is_symlink():
+                continue
+            if relative == MODEL_ROOT and in_git and not include_model_walk:
                 continue
 
             def onerror(error: OSError) -> None:
@@ -212,53 +288,37 @@ def _source_metadata_signature(project_root: Path) -> str | None:
                     if child_record is None:
                         return None
                     records[child.relative_to(root).as_posix()] = child_record
-
-        git = subprocess.run(
-            ["git", "--no-optional-locks", "-C", str(root), "rev-parse", "--verify", "HEAD"],
-            capture_output=True,
-            check=False,
-        )
-        if git.returncode == 0:
-            head = git.stdout.decode("ascii", errors="strict").strip()
-            branch = subprocess.run(
-                ["git", "--no-optional-locks", "-C", str(root), "symbolic-ref", "--quiet", "HEAD"],
-                capture_output=True,
-                check=False,
-            )
-            branch_ref = branch.stdout.decode("utf-8", errors="replace").strip() if branch.returncode == 0 else "DETACHED"
-            index_value = subprocess.run(
-                ["git", "--no-optional-locks", "-C", str(root), "rev-parse", "--git-path", "index"],
-                capture_output=True,
-                check=False,
-            )
-            if index_value.returncode:
-                return None
-            index_path = Path(index_value.stdout.decode("utf-8", errors="replace").strip())
-            if not index_path.is_absolute():
-                index_path = root / index_path
-            index_record = _metadata_record(root, index_path)
-            if index_record is None:
-                return None
-            git_status = subprocess.run(
-                ["git", "--no-optional-locks", "-C", str(root), "status", "--porcelain=v1", "-z", "--untracked-files=all"],
-                capture_output=True,
-                check=False,
-            )
-            if git_status.returncode:
-                return None
-            records["!git"] = (head, branch_ref, index_record, hashlib.sha256(git_status.stdout).hexdigest())
-        elif (root / ".git").exists():
-            return None
-        else:
-            records["!git"] = ("NO_GIT",)
     except (OSError, UnicodeError, ValueError, subprocess.SubprocessError):
         return None
     payload = json.dumps([records[key] for key in sorted(records)], ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _atomic_write_json(path: Path, value: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", newline="\n", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False,
+    )
+    temporary = Path(handle.name)
+    try:
+        with handle:
+            json.dump(value, handle, ensure_ascii=False, sort_keys=True)
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 class ProjectStatusCache:
-    def __init__(self, project_root: Path):
+    """Disposable, reconstructable projection cache.
+
+    Direct callers get strictly validated results (signature check per call). Server requests use
+    a bounded validation window (`request_window`): a snapshot validated within the window is
+    served without re-scanning, and while a rebuild is running the last projection is served
+    with an explicit STALE/BUILDING projection state instead of blocking or failing.
+    """
+
+    def __init__(self, project_root: Path, *, persist: bool = False, cache_dir: Path | None = None):
         self.project_root = project_root.resolve()
         self._condition = threading.Condition()
         self._building = False
@@ -271,8 +331,139 @@ class ProjectStatusCache:
         self._failure_generation = 0
         self._last_failure: Exception | None = None
         self.build_count = 0
+        self.request_window = 0.0
+        self._validated_at: float | None = None
+        self._built_at: float | None = None
+        self._built_wall: float | None = None
+        self._built_head: str | None = None
+        self._stale_reason: str | None = None
+        self.persist = persist and not legacy_cache_mode()
+        self.cache_dir = cache_dir if cache_dir is not None else None
+        self._cache_dir_resolved = cache_dir is not None
+        self._last_good_checked = False
+        self._background_build: threading.Thread | None = None
 
-    def get_summary(self) -> dict:
+    # -- projection state -------------------------------------------------
+    def _last_good_path(self) -> Path | None:
+        if not self.persist:
+            return None
+        if not self._cache_dir_resolved:
+            self.cache_dir = board_cache_dir(self.project_root)
+            self._cache_dir_resolved = True
+        return self.cache_dir / "last-good-summary.json" if self.cache_dir is not None else None
+
+    def projection_info(self) -> dict:
+        with self._condition:
+            now = time.monotonic()
+            if self._status is None:
+                state = "PROJECTION_ERROR" if self._last_failure is not None and not self._building else "BUILDING"
+            elif self._stale_reason is not None:
+                state = "STALE"
+            else:
+                state = "FRESH"
+            if self._built_at is not None:
+                age = round(now - self._built_at, 3)
+            elif self._built_wall is not None:
+                age = round(max(0.0, time.time() - self._built_wall), 3)
+            else:
+                age = None
+            return {
+                "state": state,
+                "age_seconds": age,
+                "validated_age_seconds": round(now - self._validated_at, 3) if self._validated_at is not None else None,
+                "reason": self._stale_reason,
+                "built_at_head": self._built_head,
+                "rebuilding": self._building,
+            }
+
+    def _load_last_good_locked(self) -> dict | None:
+        if self._last_good_checked:
+            return None
+        self._last_good_checked = True
+        path = self._last_good_path()
+        if path is None or not path.is_file():
+            return None
+        try:
+            stored = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        status = stored.get("status") if isinstance(stored, dict) else None
+        if (
+            stored.get("format") != LAST_GOOD_FORMAT
+            or stored.get("project_root") != str(self.project_root)
+            or not isinstance(status, dict)
+            or status.get("schema_version") != 2
+        ):
+            return None
+        self._status = status
+        self._signature = None  # never trusted as current: the next validation rebuilds
+        self._stale_reason = "STARTUP_LAST_GOOD"
+        self._built_wall = stored.get("built_wall") if isinstance(stored.get("built_wall"), (int, float)) else None
+        self._built_head = stored.get("head") if isinstance(stored.get("head"), str) else None
+        self._built_at = None
+        self._validated_at = None
+        return status
+
+    def _persist_last_good(self, status: dict, signature: str) -> None:
+        path = self._last_good_path()
+        if path is None:
+            return
+        try:
+            _atomic_write_json(path, {
+                "format": LAST_GOOD_FORMAT, "project_root": str(self.project_root), "signature": signature,
+                "built_wall": self._built_wall, "head": self._built_head, "status": status,
+            })
+        except OSError:
+            # A failed cache write never degrades the fresh in-memory projection.
+            _emit_board_timing("last_good_write_failed")
+
+    def _start_background_build_locked(self) -> None:
+        if self._building or (self._background_build is not None and self._background_build.is_alive()):
+            return
+
+        def rebuild() -> None:
+            try:
+                self._get_summary_validated()
+            except Exception as exc:  # visible through projection_info / next request
+                _emit_board_timing("background_build_failed", reason=type(exc).__name__)
+
+        self._background_build = threading.Thread(target=rebuild, name="mxagile-board-rebuild", daemon=True)
+        self._background_build.start()
+
+    # -- summary ------------------------------------------------------------
+    def get_summary(self, *, max_validation_age: float | None = None) -> dict:
+        window = self.request_window if max_validation_age is None else max_validation_age
+        if window > 0:
+            with self._condition:
+                now = time.monotonic()
+                if self._status is not None and (
+                    self._building
+                    or (self._validated_at is not None and now - self._validated_at <= window)
+                ):
+                    _emit_board_timing("status_window_hit", rebuilding=self._building)
+                    return self._status
+                if self._status is None and self.persist:
+                    last_good = self._load_last_good_locked()
+                    if last_good is not None:
+                        self._start_background_build_locked()
+                        _emit_board_timing("status_last_good_served")
+                        return last_good
+        return self._get_summary_validated()
+
+    def revalidate(self) -> None:
+        """Background check: refresh the validation timestamp or rebuild after a source change."""
+        with self._condition:
+            if self._status is None or self._building:
+                return
+            current = self._signature
+        signature = source_metadata_signature(self.project_root)
+        with self._condition:
+            if signature is not None and signature == current and self._signature == current and self._stale_reason is None:
+                self._validated_at = time.monotonic()
+                return
+        self._get_summary_validated()
+
+    def _get_summary_validated(self) -> dict:
         request_started = time.perf_counter()
         signature_started = time.perf_counter()
         signature = source_metadata_signature(self.project_root)
@@ -287,39 +478,66 @@ class ProjectStatusCache:
                 signature = source_metadata_signature(self.project_root)
                 signature_seconds += time.perf_counter() - signature_started
                 if signature is not None and signature == self._signature and self._status is not None:
-                    _emit_board_timing("status_cache_hit", seconds=round(time.perf_counter() - request_started),
+                    self._validated_at = time.monotonic()
+                    _emit_board_timing("status_cache_hit", seconds=round(time.perf_counter() - request_started, 4),
                                        signature_seconds=round(signature_seconds, 4))
                     return self._status
             if signature is not None and signature == self._signature and self._status is not None:
+                self._validated_at = time.monotonic()
                 _emit_board_timing("status_cache_hit", seconds=round(time.perf_counter() - request_started, 4),
                                    signature_seconds=round(signature_seconds, 4))
                 return self._status
             self._building = True
             self.build_count += 1
         try:
-            build_started = time.perf_counter()
-            status = build_status_summary(self.project_root)
-            build_seconds = time.perf_counter() - build_started
-            after_started = time.perf_counter()
-            after = source_metadata_signature(self.project_root)
-            after_seconds = time.perf_counter() - after_started
-            if signature is not None and after != signature:
-                raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_BUILD")
+            attempt = 0
+            while True:
+                build_started = time.perf_counter()
+                status = build_status_summary(self.project_root)
+                build_seconds = time.perf_counter() - build_started
+                after_started = time.perf_counter()
+                after = source_metadata_signature(self.project_root)
+                after_seconds = time.perf_counter() - after_started
+                if signature is None or after == signature:
+                    break
+                # Sources changed while building (e.g. a parallel agent session): retry with
+                # bounded backoff instead of failing the request (BRD-F-11).
+                if attempt >= len(SOURCE_CHURN_BACKOFF_SECONDS):
+                    with self._condition:
+                        if self._status is not None:
+                            self._stale_reason = "SOURCES_CHURNING"
+                            self._validated_at = time.monotonic()
+                            _emit_board_timing("status_churn_served_stale", attempts=attempt + 1)
+                            return self._status
+                    raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_BUILD")
+                time.sleep(SOURCE_CHURN_BACKOFF_SECONDS[attempt])
+                attempt += 1
+                signature = source_metadata_signature(self.project_root)
+                with self._condition:
+                    self.build_count += 1
+            head = git_head_and_branch(self.project_root)[0] if self.persist else None
             with self._condition:
                 if signature is not None and after == signature:
                     self._signature = signature
                     self._status = status
                     self._full_status = None
                     self._gallery_cache.clear()
+                    self._validated_at = time.monotonic()
+                    self._built_at = self._validated_at
+                    self._built_wall = time.time()
+                    self._built_head = head
+                    self._stale_reason = None
                 else:
                     self._signature = None
                     self._status = None
                     self._full_status = None
                     self._gallery_cache.clear()
+            if signature is not None and after == signature:
+                self._persist_last_good(status, signature)
             _emit_board_timing(
                 "status_cache_miss", seconds=round(time.perf_counter() - request_started, 4),
                 signature_before_seconds=round(signature_seconds, 4), build_project_status_seconds=round(build_seconds, 4),
-                signature_after_seconds=round(after_seconds, 4),
+                signature_after_seconds=round(after_seconds, 4), retries=attempt,
             )
             return status
         except Exception as exc:
@@ -337,7 +555,7 @@ class ProjectStatusCache:
         with self._condition:
             while self._reconciliation_building:
                 self._condition.wait()
-            if self._full_status is not None:
+            if self._full_status is not None and self._full_status.get("source_fingerprint") == status.get("source_fingerprint"):
                 return self._full_status
             self._reconciliation_building = True
             expected_signature = self._signature
@@ -360,10 +578,7 @@ class ProjectStatusCache:
             after_seconds = time.perf_counter() - after_started
             if expected_signature is not None and after != expected_signature:
                 with self._condition:
-                    self._signature = None
-                    self._status = None
-                    self._full_status = None
-                    self._gallery_cache.clear()
+                    self._validated_at = None  # force revalidation; keep serving the summary meanwhile
                 raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_RECONCILIATION")
             with self._condition:
                 if expected_signature is not None and after == expected_signature:
@@ -403,9 +618,7 @@ class ProjectStatusCache:
             after_seconds = time.perf_counter() - after_started
             if expected_signature is not None and after != expected_signature:
                 with self._condition:
-                    self._signature = None
-                    self._status = None
-                    self._full_status = None
+                    self._validated_at = None
                     self._gallery_cache.clear()
                 raise RuntimeError("PROJECT_STATUS_SOURCES_CHANGED_DURING_GALLERY_BUILD")
             items = status.get("verification", {}).get("gallery", [])
@@ -885,7 +1098,10 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/status":
             try:
-                payload = json.dumps(self._status(include_git_head=True), ensure_ascii=False, sort_keys=True).encode("utf-8")
+                status = self._status(include_git_head=True)
+                # Projection state is explicit: a stale or rebuilding projection never looks current.
+                status["projection_state"] = self.server.status_cache.projection_info()  # type: ignore[attr-defined]
+                payload = json.dumps(status, ensure_ascii=False, sort_keys=True).encode("utf-8")
             except Exception as exc:
                 self.log_error("STATUS_BUILD_FAILED: %s", type(exc).__name__)
                 payload = json.dumps({"error": "status_unavailable", "reason": type(exc).__name__}).encode("utf-8")
@@ -1115,15 +1331,45 @@ class ProjectBoardServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
 
-    def __init__(self, project_root: Path, ui_root: Path, port: int):
+    def __init__(
+        self,
+        project_root: Path,
+        ui_root: Path,
+        port: int,
+        *,
+        background_refresh: bool = False,
+        persist_cache: bool = False,
+    ):
         started = time.perf_counter()
         self.project_root = project_root.resolve()
         self.ui_root = ui_root.resolve()
-        self.status_cache = ProjectStatusCache(self.project_root)
+        self.status_cache = ProjectStatusCache(self.project_root, persist=persist_cache)
+        # Requests trust a snapshot validated within this window; legacy mode keeps per-request validation.
+        self.status_cache.request_window = 0.0 if legacy_cache_mode() else VALIDATION_WINDOW_SECONDS
+        self._refresh_stop = threading.Event()
+        self._refresh_thread: threading.Thread | None = None
         super().__init__(("127.0.0.1", port), ProjectBoardHandler)
         self.created_at = time.perf_counter()
         self.startup_seconds = self.created_at - started
+        if background_refresh and not legacy_cache_mode():
+            self._refresh_thread = threading.Thread(target=self._refresh_loop, name="mxagile-board-revalidate", daemon=True)
+            self._refresh_thread.start()
         _emit_board_timing("server_bound", seconds=round(self.startup_seconds, 4), port=self.server_port)
+
+    def _refresh_loop(self) -> None:
+        interval = BACKGROUND_REFRESH_SECONDS
+        while not self._refresh_stop.wait(interval):
+            started = time.perf_counter()
+            try:
+                self.status_cache.revalidate()
+            except Exception as exc:  # surfaced via projection_info on the next request
+                _emit_board_timing("background_revalidate_failed", reason=type(exc).__name__)
+            # Adaptive pacing bounds idle CPU: at most ~1/3 of wall time is spent on validation.
+            interval = max(BACKGROUND_REFRESH_SECONDS, 3 * (time.perf_counter() - started))
+
+    def server_close(self) -> None:
+        self._refresh_stop.set()
+        super().server_close()
 
 
 def default_project_root() -> Path:
@@ -1145,7 +1391,7 @@ def main() -> int:
         print("Project board payload unavailable", file=sys.stderr)
         return 2
     try:
-        server = ProjectBoardServer(root, ui_root, args.port)
+        server = ProjectBoardServer(root, ui_root, args.port, background_refresh=True, persist_cache=True)
     except OSError as exc:
         print(f"Project board could not bind to loopback ({type(exc).__name__})", file=sys.stderr)
         return 2

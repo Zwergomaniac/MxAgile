@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -409,6 +410,67 @@ def wave_review_authority(task: dict, documents: dict[str, dict], waves: set[str
     return sorted(next(iter(candidates.values())))[0] if len(candidates) == 1 else None
 
 
+DOCUMENT_RESULT_RULE_VERSION = 1
+_DOCUMENT_RESULT_CACHE_LIMIT = 8192
+_DOCUMENT_RESULT_CACHE: dict[tuple, dict] = {}
+_DOCUMENT_RESULT_LOCK = threading.Lock()
+
+
+def _document_result(relative: str, value: dict, contract: tuple[str, str]) -> dict:
+    """Pure per-document compatibility result; depends only on path, content and schemas."""
+    calls: list[tuple[tuple, dict]] = []
+
+    def add(*args: Any, **kwargs: Any) -> None:
+        calls.append((args, kwargs))
+
+    projected, projection_rules, projection_conflicts = compatibility_projection(relative, value)
+    if projection_conflicts:
+        for fields in projection_conflicts:
+            add('AUTHORITY_CONFLICT', relative, contract[1],
+                'Legacy and current fields disagree; no compatibility projection was applied.',
+                blocking=True, repairability='DECISION_REQUIRED', authority=fields)
+    projection_valid = not projection_conflicts and not raw_schema_errors(relative, projected)
+    document = projected if projection_valid else value
+    if projection_rules and projection_valid:
+        for rule in projection_rules:
+            add('LEGACY_VARIANT', relative, contract[1],
+                'Legacy Task inspect target can be migrated losslessly to the typed contract; source bytes are unchanged.'
+                if rule == 'task_inspect_typed_target_v1'
+                else 'Known legacy shape is projected read-only to the current contract; source bytes are unchanged.',
+                repairability='SAFE_DETERMINISTIC',
+                repair='TASK_INSPECT_TYPED_TARGET_V1' if rule == 'task_inspect_typed_target_v1' else rule,
+                authority='.mxagile/policies/project-compatibility.md', severity='INFO')
+    errors = schema_errors(relative, value)
+    if errors:
+        issues = [] if any(error in ('SCHEMA_UNAVAILABLE', 'VALIDATOR_UNAVAILABLE') for error in errors) else schema_diagnostics(relative, value)
+        if not issues:
+            issues = [('Schema validation unavailable: ' + ', '.join(errors) + '.', 'UNSUPPORTED',
+                       f'.mxagile/schemas/{contract[0]}.schema.json')]
+        for message, repairability, authority in issues:
+            add('SCHEMA_ERROR', relative, contract[1], message,
+                blocking=True, repairability=repairability, authority=authority)
+    return {"calls": tuple(calls), "invalid": bool(errors), "document": copy.deepcopy(document)}
+
+
+def _store_document_result(key: tuple, result: dict) -> None:
+    # Unavailable validators are an environment state, never a cacheable content result.
+    if any(call[0][0] == 'SCHEMA_ERROR' and str(call[0][3]).startswith('Schema validation unavailable') for call in result["calls"]):
+        return
+    with _DOCUMENT_RESULT_LOCK:
+        if len(_DOCUMENT_RESULT_CACHE) >= _DOCUMENT_RESULT_CACHE_LIMIT:
+            _DOCUMENT_RESULT_CACHE.pop(next(iter(_DOCUMENT_RESULT_CACHE)))
+        _DOCUMENT_RESULT_CACHE[key] = result
+
+
+def _replay_document_result(result: dict, counts: dict, documents: dict, relative: str, add: Any) -> None:
+    counts['parsed'] += 1
+    documents[relative] = copy.deepcopy(result["document"])
+    for args, kwargs in result["calls"]:
+        add(*args, **kwargs)
+    if result["invalid"]:
+        counts['invalid'] += 1
+
+
 def compatibility_report(
     root: Path,
     status: dict,
@@ -485,6 +547,12 @@ def compatibility_report(
         add('UNSUPPORTED_VARIANT', None, 'schemas', 'JSON Schema validator unavailable; install the distributed requirements before retrying.', blocking=True)
 
     paths = sorted(path for path in hashes if not path.startswith('!') and contract_for(path))
+    schema_context = _SCHEMA_CONTEXT.get()
+    schema_key = (
+        DOCUMENT_RESULT_RULE_VERSION,
+        jsonschema is not None,
+        schema_context["signatures"] if schema_context is not None else _schema_signatures(SCHEMA_ROOT),
+    )
     for relative in paths:
         contract = contract_for(relative)
         counts = coverage.setdefault(contract[0], {'recognized': 0, 'parsed': 0, 'invalid': 0, 'unassigned': 0})
@@ -503,12 +571,20 @@ def compatibility_report(
             if hashlib.sha256(raw).hexdigest() != hashes[relative]:
                 add('AUTHORITY_CONFLICT', relative, contract[1], 'Source changed during diagnosis; rerun Doctor.', blocking=True)
                 continue
+            cached = _DOCUMENT_RESULT_CACHE.get((relative, hashes[relative], schema_key))
+            if cached is not None:
+                _replay_document_result(cached, counts, documents, relative, add)
+                continue
             value = copy.deepcopy(value)
         else:
             try:
                 raw = path.read_bytes()
                 if hashlib.sha256(raw).hexdigest() != hashes[relative]:
                     add('AUTHORITY_CONFLICT', relative, contract[1], 'Source changed during diagnosis; rerun Doctor.', blocking=True)
+                    continue
+                cached = _DOCUMENT_RESULT_CACHE.get((relative, hashes[relative], schema_key))
+                if cached is not None:
+                    _replay_document_result(cached, counts, documents, relative, add)
                     continue
                 value = json.loads(raw.decode('utf-8-sig')) if path.suffix == '.json' else load_yaml(raw.decode('utf-8-sig'))
             except (OSError, UnicodeError, ValueError, yaml.YAMLError):
@@ -517,34 +593,9 @@ def compatibility_report(
         if not isinstance(value, dict):
             counts['invalid'] += 1
             continue
-        counts['parsed'] += 1
-        projected, projection_rules, projection_conflicts = compatibility_projection(relative, value)
-        if projection_conflicts:
-            for fields in projection_conflicts:
-                add('AUTHORITY_CONFLICT', relative, contract[1],
-                    'Legacy and current fields disagree; no compatibility projection was applied.',
-                    blocking=True, repairability='DECISION_REQUIRED', authority=fields)
-        projection_valid = not projection_conflicts and not raw_schema_errors(relative, projected)
-        documents[relative] = projected if projection_valid else value
-        if projection_rules and projection_valid:
-            for rule in projection_rules:
-                add('LEGACY_VARIANT', relative, contract[1],
-                    'Legacy Task inspect target can be migrated losslessly to the typed contract; source bytes are unchanged.'
-                    if rule == 'task_inspect_typed_target_v1'
-                    else 'Known legacy shape is projected read-only to the current contract; source bytes are unchanged.',
-                    repairability='SAFE_DETERMINISTIC',
-                    repair='TASK_INSPECT_TYPED_TARGET_V1' if rule == 'task_inspect_typed_target_v1' else rule,
-                    authority='.mxagile/policies/project-compatibility.md', severity='INFO')
-        errors = schema_errors(relative, value)
-        if errors:
-            counts['invalid'] += 1
-            issues = [] if any(error in ('SCHEMA_UNAVAILABLE', 'VALIDATOR_UNAVAILABLE') for error in errors) else schema_diagnostics(relative, value)
-            if not issues:
-                issues = [('Schema validation unavailable: ' + ', '.join(errors) + '.', 'UNSUPPORTED',
-                           f'.mxagile/schemas/{contract[0]}.schema.json')]
-            for message, repairability, authority in issues:
-                add('SCHEMA_ERROR', relative, contract[1], message,
-                    blocking=True, repairability=repairability, authority=authority)
+        result = _document_result(relative, value, contract)
+        _store_document_result((relative, hashes[relative], schema_key), result)
+        _replay_document_result(result, counts, documents, relative, add)
 
     identities: dict[str, list[str]] = {}
     for relative, value in documents.items():
