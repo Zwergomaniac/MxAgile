@@ -15,6 +15,7 @@
       <span><strong>MxAgile</strong><small>MISSION CONTROL</small></span>
     </a>
     <div class="topbar-right">
+      <a id="health-chip" class="health-chip" href="#health" hidden>HEALTH</a>
       <a class="portfolio-link" href="#portfolio">Portfolio</a>
       <span class="connection"><i></i> LOCAL · READ ONLY</span>
       <button id="refresh" class="refresh" type="button" title="Status aktualisieren" aria-label="Status aktualisieren">↻</button>
@@ -38,6 +39,7 @@
         <button data-route="ui-pages" data-short="UI" type="button">UI &amp; Pages</button>
         <button data-route="findings" data-short="FG" type="button">Findings</button>
         <button data-route="decisions" data-short="DC" type="button">Decisions</button>
+        <button data-route="health" data-short="HL" type="button">Health &amp; Diagnostics</button>
       </nav>
       <div class="rail-bottom">
         <span class="framework-dot"></span>
@@ -83,7 +85,7 @@
         </section>
 
         <section class="attention-strip" aria-label="Human attention">
-          <div class="attention-title"><span class="attention-mark">!</span><div><strong>Human attention</strong><small>Nur kanonisch belegte Punkte</small></div></div>
+          <div class="attention-title"><span class="attention-mark">!</span><div><strong>Project attention</strong><small>Nur kanonisch belegte Punkte · Framework- und Gesundheitsdetails unter Health</small></div></div>
           <div id="attention-items" class="attention-items"></div>
         </section>
 
@@ -99,6 +101,7 @@
           <button data-route="ui-pages" type="button">UI &amp; Pages</button>
           <button data-route="findings" type="button">Findings</button>
           <button data-route="decisions" type="button">Decisions</button>
+          <button data-route="health" type="button">Health &amp; Diagnostics</button>
         </nav>
 
         <section id="view" class="view" aria-live="polite"></section>

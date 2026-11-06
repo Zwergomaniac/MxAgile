@@ -530,6 +530,29 @@ def _active_revision_diagnostics(root: Path, parsed_documents: dict, add: Any) -
                 repairability='DECISION_REQUIRED', severity='WARNING', authority='ACTIVE_TARGET')
 
 
+DIAGNOSTIC_GROUPS = ('project_attention', 'projection_health', 'framework_compat', 'optional_metadata')
+# CS-3 grouping: project_attention may need project-owner/developer action; framework_compat is
+# implementation, compatibility or historical-recording information that is not itself a project blockage.
+_DIAGNOSTIC_GROUP_BY_CATEGORY = {
+    'AUTHORITY_CONFLICT': 'project_attention', 'REFERENCE_AMBIGUOUS': 'project_attention',
+    'DUPLICATE_ID': 'project_attention', 'ACTIVE_REVISION_UNBOUND': 'project_attention',
+    'SYNTAX_ERROR': 'projection_health', 'SCHEMA_ERROR': 'projection_health', 'ID_MISMATCH': 'projection_health',
+    'REFERENCE_MISSING': 'projection_health', 'MISSING': 'projection_health', 'STALE': 'projection_health',
+    'FRESHNESS_UNKNOWN': 'projection_health',
+    'LEGACY_VARIANT': 'framework_compat', 'UNSUPPORTED_VARIANT': 'framework_compat',
+    'DONE_BASIS_NOT_RECORDED': 'framework_compat', 'CHANGE_SET_SCHEMA_INVALID': 'framework_compat',
+    'EXPECTATION_MISSING': 'framework_compat',
+    'UNASSIGNED': 'optional_metadata',
+}
+
+
+def diagnostic_group(category: str, blocking: bool = False) -> str:
+    """Deterministic CS-3 presentation group; never changes severity, blocking or compatibility."""
+    if category == 'WAVE_ASSIGNMENT_MISSING':
+        return 'projection_health' if blocking else 'optional_metadata'
+    return _DIAGNOSTIC_GROUP_BY_CATEGORY.get(category, 'projection_health')
+
+
 DOCUMENT_RESULT_RULE_VERSION = 1
 _DOCUMENT_RESULT_CACHE_LIMIT = 8192
 _DOCUMENT_RESULT_CACHE: dict[tuple, dict] = {}
@@ -625,6 +648,7 @@ def compatibility_report(
             'affected_board_area': area, 'message': message, 'repairability': repairability,
             'proposed_repair_type': repair, 'authority': authority,
             'blocking': blocking,
+            'diagnostic_group': diagnostic_group(category, blocking),
         }
         if not any(item['diagnostic_id'] == entry['diagnostic_id'] for item in diagnostics):
             diagnostics.append(entry)

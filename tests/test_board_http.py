@@ -261,6 +261,44 @@ class BoardHttpTests(unittest.TestCase):
             finally:
                 self.stop_server(server, thread)
 
+    def test_health_endpoint_separates_groups_and_serves_older_snapshots(self) -> None:
+        diagnostic = {"diagnostic_id": "DX-0000000000000001", "category": "DONE_BASIS_NOT_RECORDED", "severity": "INFO",
+                      "blocking": False, "diagnostic_group": "framework_compat", "source_path": None}
+        v3 = {"schema_version": 3, "source_fingerprint": "sha256:test",
+              "health": {"observation_states": {"findings": "NOT_RECORDED", "capabilities": "NOT_OBSERVABLE"}},
+              "compatibility": {"compatibility": "PARTIAL", "repair_status": "NONE", "diagnostics": [diagnostic]}}
+        v2 = {"schema_version": 2, "source_fingerprint": "sha256:test"}
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-health-api-") as temporary:
+            root = Path(temporary)
+            server, thread = self.start_server(root)
+            try:
+                server.status_cache.get_summary = Mock(return_value=v3)
+                base = f"http://127.0.0.1:{server.server_port}"
+                with urlopen(f"{base}/api/health") as response:
+                    self.assertEqual(response.headers["Cache-Control"], "no-store")
+                    payload = json.loads(response.read())
+                self.assertEqual(payload["observation_states"]["findings"], "NOT_RECORDED")
+                self.assertEqual(payload["counts"]["framework_compat"], {"total": 1, "blocking": 0})
+                self.assertEqual(payload["counts"]["project_attention"], {"total": 0, "blocking": 0})
+                self.assertEqual([item["category"] for item in payload["diagnostics_by_group"]["framework_compat"]], ["DONE_BASIS_NOT_RECORDED"])
+                self.assertEqual(payload["level"], "OK")  # NOT_RECORDED / NOT_OBSERVABLE / non-blocking framework items are not data defects
+                self.assertEqual(payload["blocking_diagnostics"], 0)
+                self.assertIn("projection", payload)
+
+                # An older cached snapshot without health still answers; it never invents states.
+                server.status_cache.get_summary = Mock(return_value=v2)
+                with urlopen(f"{base}/api/health") as response:
+                    legacy = json.loads(response.read())
+                self.assertEqual(legacy["observation_states"], {})
+                self.assertEqual(legacy["blocking_diagnostics"], 0)
+
+                with self.assertRaises(HTTPError) as response:
+                    urlopen(f"{base}/api/health?x=1")
+                self.assertEqual(response.exception.code, 400)
+                response.exception.close()
+            finally:
+                self.stop_server(server, thread)
+
     def test_gallery_endpoint_accepts_only_canonical_page_scope(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mxagile-board-gallery-api-") as temporary:
             root = Path(temporary)

@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import yaml
 
-from build_project_status import ProjectUiConfigError, build_status, build_status_summary, resolve_project_ui_settings
+from build_project_status import ProjectUiConfigError, build_health, build_status, build_status_summary, resolve_project_ui_settings
 from project_compatibility import is_standalone_interaction_artifact, safe_file
 from reconcile_external_changes import build_report
 
@@ -392,7 +392,7 @@ class ProjectStatusCache:
             stored.get("format") != LAST_GOOD_FORMAT
             or stored.get("project_root") != str(self.project_root)
             or not isinstance(status, dict)
-            or status.get("schema_version") != 2
+            or status.get("schema_version") not in (2, 3)  # v2 last-good is served STALE; the Board feature-detects health
         ):
             return None
         self._status = status
@@ -1106,6 +1106,27 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self.log_error("STATUS_BUILD_FAILED: %s", type(exc).__name__)
                 payload = json.dumps({"error": "status_unavailable", "reason": type(exc).__name__}).encode("utf-8")
                 self._send(503, payload, "application/json; charset=utf-8")
+                return
+            self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path == "/api/health":
+            # CS-3: health is a view of the same snapshot; no extra scan, no project writes.
+            try:
+                status = self._status(include_git_head=True)
+                health = build_health(status, include_diagnostics=True)
+                payload = json.dumps({
+                    "projection": self.server.status_cache.projection_info(),  # type: ignore[attr-defined]
+                    "level": health["level"],
+                    "observation_states": health["observation_states"],
+                    "diagnostics_by_group": health["diagnostics"],
+                    "counts": health["diagnostics_by_group"],
+                    "blocking_diagnostics": health["blocking_diagnostics"],
+                    "framework": health["framework"],
+                }, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            except Exception as exc:
+                self.log_error("HEALTH_BUILD_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "health_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
                 return
             self._send(200, payload, "application/json; charset=utf-8")
             return

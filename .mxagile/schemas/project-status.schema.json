@@ -58,7 +58,7 @@
             "properties": {
               "diagnostic_id": { "type": "string", "pattern": "^DX-[0-9a-f]{16}$" },
               "severity": { "enum": ["INFO", "WARNING", "ERROR"] },
-              "category": { "enum": ["SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "REFERENCE_MISSING", "REFERENCE_AMBIGUOUS", "WAVE_ASSIGNMENT_MISSING", "LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DUPLICATE_ID", "AUTHORITY_CONFLICT", "FRESHNESS_UNKNOWN", "MISSING", "UNASSIGNED", "STALE", "DONE_BASIS_NOT_RECORDED", "CHANGE_SET_SCHEMA_INVALID", "ACTIVE_REVISION_UNBOUND"] },
+              "category": { "enum": ["SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "REFERENCE_MISSING", "REFERENCE_AMBIGUOUS", "WAVE_ASSIGNMENT_MISSING", "LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DUPLICATE_ID", "AUTHORITY_CONFLICT", "FRESHNESS_UNKNOWN", "MISSING", "UNASSIGNED", "STALE", "DONE_BASIS_NOT_RECORDED", "CHANGE_SET_SCHEMA_INVALID", "ACTIVE_REVISION_UNBOUND", "EXPECTATION_MISSING"] },
               "source_path": { "type": ["string", "null"] },
               "line": { "type": ["integer", "null"], "minimum": 1 },
               "column": { "type": ["integer", "null"], "minimum": 1 },
@@ -66,7 +66,8 @@
               "affected_board_area": { "type": "string" },
               "message": { "type": "string" },
               "repairability": { "enum": ["SAFE_DETERMINISTIC", "AGENT_REPAIRABLE", "DECISION_REQUIRED", "UNSUPPORTED"] },
-              "proposed_repair_type": { "enum": ["QUOTE_TEXT_SCALAR", "ADD_WAVE_ID", null] },
+              "proposed_repair_type": { "enum": ["QUOTE_TEXT_SCALAR", "ADD_WAVE_ID", "TASK_INSPECT_TYPED_TARGET_V1", "requirement_created_v1", "requirement_created_at_yaml_date_v1", "requirement_design_contract_revision_v1", "evidence_manifest_created_v1", "evidence_manifest_created_at_yaml_date_v1", "evidence_manifest_scenarios_v1", "page_section_id_v1", "page_navigation_target_v1", null] },
+              "diagnostic_group": { "enum": ["project_attention", "projection_health", "framework_compat", "optional_metadata"] },
               "authority": { "type": ["string", "null"] },
               "blocking": { "type": "boolean" }
             }
@@ -74,8 +75,9 @@
         }
       }
     },
-    "schema_version": { "type": "integer", "const": 2 },
+    "schema_version": { "type": "integer", "enum": [2, 3] },
     "projection": { "type": "boolean", "const": true },
+    "health": { "$ref": "#/definitions/health" },
     "projection_state": {
       "type": "object",
       "description": "Server-side state of this disposable projection snapshot (Board only). Never project authority; STALE or BUILDING means the served snapshot may lag canonical sources.",
@@ -190,6 +192,7 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "items": {
               "type": "array",
               "items": { "$ref": "#/definitions/active_target_reference" }
@@ -202,6 +205,7 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "active_wave_id": { "type": ["string", "null"] },
             "phase": { "$ref": "#/definitions/nullable_phase" }
           }
@@ -214,6 +218,7 @@
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "id": { "type": ["string", "null"] },
         "status": {
           "type": ["string", "null"],
@@ -246,6 +251,7 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "items": {
               "type": "array",
               "items": {
@@ -306,6 +312,7 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "items": {
               "type": "array",
               "items": {
@@ -370,6 +377,7 @@
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "total": { "$ref": "#/definitions/nullable_count" },
         "status_counts": {
           "type": "object",
@@ -415,6 +423,7 @@
           }
         },
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "total": { "$ref": "#/definitions/nullable_count" },
         "status_counts": {
           "type": "object",
@@ -469,6 +478,7 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "status_counts": {
               "type": "object",
               "required": ["draft", "active", "stale", "impacted", "superseded", "unknown"],
@@ -507,6 +517,7 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "status_counts": {
               "type": "object",
               "required": ["active", "stale", "impacted", "deferred", "not_applicable", "unknown"],
@@ -528,6 +539,7 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "status_counts": {
               "type": "object",
               "required": ["draft", "active", "superseded", "unknown"],
@@ -547,9 +559,11 @@
           "additionalProperties": false,
           "properties": {
             "availability": { "$ref": "#/definitions/availability" },
+            "observation_state": { "$ref": "#/definitions/observation_state" },
             "freshness": { "type": "string", "enum": ["determinable", "partial", "unknown"] },
             "target_freshness": { "type": "string", "enum": ["determinable", "partial", "unknown"] },
             "model_freshness": { "type": "string", "enum": ["determinable", "partial", "unknown"] },
+            "model_freshness_observation_state": { "$ref": "#/definitions/observation_state" },
             "recorded_counts": {
               "type": "object",
               "required": ["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED", "STALE", "LEGACY_EVIDENCE", "unknown"],
@@ -605,6 +619,7 @@
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "open": { "$ref": "#/definitions/nullable_count" },
         "blocking": { "$ref": "#/definitions/nullable_count" },
         "closed": { "$ref": "#/definitions/nullable_count" },
@@ -688,6 +703,8 @@
       "additionalProperties": false,
       "properties": {
         "readiness_availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
+        "operating_mode_observation_state": { "$ref": "#/definitions/observation_state" },
         "recorded_readiness": {
           "type": "object",
           "required": ["runtime_config", "runtime_mode", "database", "mock_data", "test_identities", "runtime_pipeline_stage", "dependency_sync_state"],
@@ -712,6 +729,7 @@
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "active_count": { "$ref": "#/definitions/nullable_count" }
       }
     },
@@ -722,6 +740,7 @@
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "epoch_id": { "type": ["string", "null"] },
         "phase": { "$ref": "#/definitions/nullable_phase" },
         "mode": { "type": ["string", "null"] },
@@ -734,6 +753,7 @@
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "items": { "type": "array", "items": { "type": "object" } }
       }
     },
@@ -744,6 +764,7 @@
       "additionalProperties": false,
       "properties": {
         "availability": { "$ref": "#/definitions/availability" },
+        "observation_state": { "$ref": "#/definitions/observation_state" },
         "items": { "type": "array", "items": { "$ref": "#/definitions/source_reference" } }
       }
     },
@@ -829,6 +850,48 @@
         "screenshot_path": {"type": "string"}, "runtime_url": {"type": ["string", "null"]},
         "cleanliness_state": {"const": "clean"}, "freshness": {"type": "string"}, "evidence_status": {"type": "string"}
       }
+    },
+    "observation_state": {
+      "type": "string",
+      "description": "CS-3 closed vocabulary. NOT_RECORDED = project has not created the source; EMPTY = source readable with zero records; NOT_LOADED/LOADING = transient Board-internal; STALE = bound to an older fingerprint; INVALID = source exists but cannot be used; UNSUPPORTED = legacy/foreign form without projection rule; NOT_OBSERVABLE = structurally not determinable by the framework today; NOT_APPLICABLE = concept does not apply; AMBIGUOUS = conflicting sources; PROJECTION_ERROR = projection could not be built.",
+      "enum": ["AVAILABLE", "EMPTY", "NOT_RECORDED", "NOT_LOADED", "LOADING", "STALE", "INVALID", "UNSUPPORTED", "NOT_OBSERVABLE", "NOT_APPLICABLE", "AMBIGUOUS", "PROJECTION_ERROR"]
+    },
+    "health": {
+      "type": "object",
+      "description": "Derived projection/data health. Not project authority. Keeps project attention, projection health and framework diagnostics separate.",
+      "required": ["level", "observation_states", "diagnostics_by_group", "blocking_diagnostics", "framework"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "enum": ["OK", "DEGRADED", "BLOCKED"] },
+        "observation_states": { "type": "object", "additionalProperties": { "$ref": "#/definitions/observation_state" } },
+        "diagnostics_by_group": {
+          "type": "object",
+          "required": ["project_attention", "projection_health", "framework_compat", "optional_metadata"],
+          "additionalProperties": false,
+          "properties": {
+            "project_attention": { "$ref": "#/definitions/group_count" },
+            "projection_health": { "$ref": "#/definitions/group_count" },
+            "framework_compat": { "$ref": "#/definitions/group_count" },
+            "optional_metadata": { "$ref": "#/definitions/group_count" }
+          }
+        },
+        "blocking_diagnostics": { "type": "integer", "minimum": 0 },
+        "framework": {
+          "type": "object",
+          "required": ["compatibility", "repair_status"],
+          "additionalProperties": false,
+          "properties": {
+            "compatibility": { "type": ["string", "null"] },
+            "repair_status": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "group_count": {
+      "type": "object",
+      "required": ["total", "blocking"],
+      "additionalProperties": false,
+      "properties": { "total": { "type": "integer", "minimum": 0 }, "blocking": { "type": "integer", "minimum": 0 } }
     },
     "availability": {
       "type": "string",

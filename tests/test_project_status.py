@@ -1306,7 +1306,7 @@ class ProjectStatusTests(unittest.TestCase):
 
       with patch.object(Path, "read_text", read_without_checklist_repeat):
         status = build_project_status.build_status(self.root)
-      self.assertEqual(status["schema_version"], 2)
+      self.assertEqual(status["schema_version"], 3)
 
     def test_scoped_repair_can_reach_compatible_without_promoting_mission(self) -> None:
       for directory in ("planning/evidence/manifests", "planning/target-mockups"):
@@ -1423,7 +1423,7 @@ class ProjectStatusTests(unittest.TestCase):
         self.assertNotIn(str(self.root), first)
         self.assertEqual(status["projection"], True)
         self.assertEqual(status["authority"], "mxagile_canonical_artifacts")
-        self.assertEqual(status["schema_version"], 2)
+        self.assertEqual(status["schema_version"], 3)
         self.assertRegex(status["source_fingerprint"], r"^sha256:[0-9a-f]{64}$")
 
     def test_cli_emits_the_same_json_projection(self) -> None:
@@ -2443,6 +2443,200 @@ class ParityStatusResolverTests(unittest.TestCase):
     self.assertEqual(identity_runs[0]["parity_resolution"]["status"], "BLOCKED")
     self.assertFalse(identity_runs[0]["parity_resolution"]["promotion_allowed"])
     self.assertIn("PARITY_IDENTITY_UNBOUND", [gap["code"] for gap in identity_gaps])
+
+
+class ObservationStateTests(unittest.TestCase):
+    """001-board-redesign CS-3: closed observation vocabulary, diagnostic groups, health, additive schema v3."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory(prefix="mxagile-status-")
+        self.root = Path(self.temp.name) / "fixture"
+        self.root.mkdir()
+        fixture(self.root)
+
+    def tearDown(self) -> None:
+        cleanup_temporary_directory(self.temp, expected_prefix="mxagile-status-")
+
+    def status(self) -> dict:
+        return build_project_status.build_status(self.root)
+
+    # ------------------------------------------------------------------ vocabulary
+    def test_every_projected_area_has_exactly_one_observation_state_from_the_closed_vocabulary(self) -> None:
+        status = self.status()
+        self.assertEqual(status["schema_version"], 3)
+        states = status["health"]["observation_states"]
+        self.assertTrue(states)
+        self.assertLessEqual(set(states.values()), set(build_project_status.OBSERVATION_STATES))
+        for area in (status["mission"], status["requirements"], status["decisions"], status["findings"], status["capabilities"],
+                     status["context"], status["sources"], status["source_references"], status["delivery"]["waves"],
+                     status["delivery"]["tasks"], status["project"]["lifecycle"], status["project"]["active_targets"],
+                     status["verification"]["test_contracts"], status["verification"]["plans"], status["verification"]["evidence"]):
+            self.assertIn(area["observation_state"], build_project_status.OBSERVATION_STATES)
+        self.assertIn(status["runtime"]["observation_state"], build_project_status.OBSERVATION_STATES)
+
+    def test_missing_empty_and_all_invalid_collections_stay_distinguishable_and_keep_legacy_availability(self) -> None:
+        missing = self.status()["findings"]
+        self.assertEqual((missing["observation_state"], missing["availability"]), ("NOT_RECORDED", "unavailable"))
+
+        (self.root / "planning/findings").mkdir()
+        empty = self.status()["findings"]
+        self.assertEqual((empty["observation_state"], empty["availability"], empty["open"]), ("EMPTY", "available", 0))
+
+        write_file(self.root, "planning/findings/FIND-BAD.yml", "id: [unterminated\n")
+        invalid = self.status()["findings"]
+        self.assertEqual((invalid["observation_state"], invalid["availability"]), ("INVALID", "unavailable"))
+        # An unavailable collection is never reported as zero findings.
+        self.assertIsNone(invalid["open"])
+
+    def test_readable_process_state_without_active_wave_is_not_recorded_rather_than_invalid(self) -> None:
+        (self.root / "planning/mission/mission-state.yaml").unlink()
+        status = self.status()
+        self.assertEqual(status["mission"]["observation_state"], "NOT_RECORDED")
+        self.assertEqual(status["delivery"]["waves"]["observation_state"], "AVAILABLE")
+        self.assertNotEqual(status["project"]["lifecycle"]["observation_state"], "INVALID")
+
+    def test_structurally_unobservable_gaps_are_not_observable_and_never_project_attention(self) -> None:
+        status = self.status()
+        states = status["health"]["observation_states"]
+        for area in ("capabilities", "sources", "runtime.operating_mode", "verification.model_freshness"):
+            self.assertEqual(states[area], "NOT_OBSERVABLE", area)
+        self.assertEqual(status["verification"]["evidence"]["model_freshness_observation_state"], "NOT_OBSERVABLE")
+        for item in status["compatibility"]["diagnostics"]:
+            if item["category"] == "FRESHNESS_UNKNOWN":
+                self.assertNotEqual(item["diagnostic_group"], "project_attention")
+
+    def test_v2_availability_fields_are_still_present(self) -> None:
+        status = self.status()
+        for area in (status["mission"], status["requirements"], status["decisions"], status["findings"], status["delivery"]["tasks"]):
+            self.assertIn(area["availability"], ("available", "partial", "unavailable", "ambiguous"))
+        self.assertIn("readiness_availability", status["runtime"])
+
+    # ------------------------------------------------------------------ groups
+    def test_diagnostic_group_mapping_follows_the_contract_including_cs0_categories(self) -> None:
+        group = project_compatibility.diagnostic_group
+        for category in ("AUTHORITY_CONFLICT", "REFERENCE_AMBIGUOUS", "DUPLICATE_ID", "ACTIVE_REVISION_UNBOUND"):
+            self.assertEqual(group(category, True), "project_attention", category)
+        for category in ("SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "MISSING", "STALE", "FRESHNESS_UNKNOWN", "REFERENCE_MISSING"):
+            self.assertEqual(group(category, False), "projection_health", category)
+        for category in ("LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DONE_BASIS_NOT_RECORDED", "CHANGE_SET_SCHEMA_INVALID"):
+            self.assertEqual(group(category, False), "framework_compat", category)
+        self.assertEqual(group("UNASSIGNED", False), "optional_metadata")
+        self.assertEqual(group("WAVE_ASSIGNMENT_MISSING", False), "optional_metadata")
+        self.assertEqual(group("WAVE_ASSIGNMENT_MISSING", True), "projection_health")
+
+    def test_every_emitted_diagnostic_has_a_valid_group_and_grouping_never_changes_blocking(self) -> None:
+        status = self.status()
+        diagnostics = status["compatibility"]["diagnostics"]
+        self.assertTrue(diagnostics)
+        for item in diagnostics:
+            self.assertIn(item["diagnostic_group"], project_compatibility.DIAGNOSTIC_GROUPS)
+        counts = status["health"]["diagnostics_by_group"]
+        self.assertEqual(sum(entry["total"] for entry in counts.values()), len(diagnostics))
+        self.assertEqual(status["health"]["blocking_diagnostics"], sum(1 for item in diagnostics if item["blocking"]))
+
+    def test_cs0_diagnostics_land_in_the_requested_groups(self) -> None:
+        write_file(self.root, "planning/reconciliation/change-sets/CS-FIXTURE-LOG.json",
+                   json.dumps(dict(VALID_CHANGE_SET, final_result="X")))
+        write_file(self.root, "planning/revisions/REV-099.yaml",
+                   "revision_id: REV-099\nactive_target: true\nartifact_path: input-resources/ui-ux/none.html\n")
+        groups = {item["category"]: item["diagnostic_group"] for item in self.status()["compatibility"]["diagnostics"]}
+        self.assertEqual(groups["CHANGE_SET_SCHEMA_INVALID"], "framework_compat")
+        self.assertEqual(groups["ACTIVE_REVISION_UNBOUND"], "project_attention")
+        self.assertEqual(groups["DONE_BASIS_NOT_RECORDED"], "framework_compat")
+
+    def test_many_non_blocking_diagnostics_do_not_inflate_project_attention(self) -> None:
+        for number in range(60):
+            write_file(self.root, f"planning/tasks/TASK-L{number:03d}.yml",
+                       f"ID: TASK-L{number:03d}\naction: legacy\nstatus: open\nreq: [REQ-001]\n")
+        health = self.status()["health"]
+        self.assertEqual(health["diagnostics_by_group"]["project_attention"]["total"], 0)
+
+    def test_blocking_diagnostics_stay_visible_in_health(self) -> None:
+        write_file(self.root, "requirements/REQ-BAD.yml", "ID: [unterminated\n")
+        health = self.status()["health"]
+        self.assertEqual(health["level"], "BLOCKED")
+        self.assertGreaterEqual(health["blocking_diagnostics"], 1)
+
+    def test_health_contains_no_diagnostics_by_default_and_lists_them_for_the_api(self) -> None:
+        status = self.status()
+        self.assertNotIn("diagnostics", status["health"])
+        detailed = build_project_status.build_health(status, include_diagnostics=True)
+        self.assertEqual(sum(len(items) for items in detailed["diagnostics"].values()), len(status["compatibility"]["diagnostics"]))
+
+    # ------------------------------------------------------------------ schema (v3 additive, BRD-F-45)
+    def test_v3_projection_validates_and_v2_shaped_projection_still_validates(self) -> None:
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
+        status = self.status()
+        self.assertEqual([error.message for error in Draft7Validator(schema).iter_errors(status)], [])
+
+        legacy = copy.deepcopy(status)
+        legacy["schema_version"] = 2
+        legacy.pop("health")
+
+        def strip(value):
+            if isinstance(value, dict):
+                for key in [key for key in value if key.endswith("observation_state")]:
+                    value.pop(key)
+                for child in value.values():
+                    strip(child)
+            elif isinstance(value, list):
+                for child in value:
+                    strip(child)
+        strip(legacy)
+        for item in legacy["compatibility"]["diagnostics"]:
+            item.pop("diagnostic_group")
+        self.assertEqual([error.message for error in Draft7Validator(schema).iter_errors(legacy)], [])
+
+    def test_schema_rejects_values_outside_the_closed_vocabulary(self) -> None:
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
+        status = self.status()
+        status["findings"]["observation_state"] = "UNKNOWN"
+        self.assertTrue(list(Draft7Validator(schema).iter_errors(status)))
+
+    def test_proposed_repair_type_enum_covers_every_value_the_doctor_can_emit(self) -> None:
+        """BRD-F-45: the producer is the authority; the schema must not lag behind it."""
+        import re
+        source = (ROOT / "scripts" / "project_compatibility.py").read_text(encoding="utf-8")
+        emitted = set(re.findall(r"rules\.append\('([a-z0-9_]+)'\)", source))
+        emitted -= {"task_inspect_typed_target_v1"}
+        emitted |= {"TASK_INSPECT_TYPED_TARGET_V1", "QUOTE_TEXT_SCALAR", "ADD_WAVE_ID"}
+        self.assertGreaterEqual(len(emitted), 11)
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
+        item = schema["properties"]["compatibility"]["properties"]["diagnostics"]["items"]
+        allowed = set(item["properties"]["proposed_repair_type"]["enum"])
+        self.assertEqual(emitted - allowed, set())
+        self.assertIn(None, allowed)
+
+    def test_category_enum_covers_every_category_the_doctor_can_emit(self) -> None:
+        """Producer is the authority: a category emitted by the Doctor must be representable in the status schema."""
+        import re
+        source = (ROOT / "scripts" / "project_compatibility.py").read_text(encoding="utf-8")
+        emitted = set(re.findall(r"\badd\('([A-Z_]+)'", source))
+        emitted |= set(re.findall(r"'[A-Z_]+': '([A-Z_]+)'", source.split("gap_categories = {", 1)[1].split("}", 1)[0]))
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
+        item = schema["properties"]["compatibility"]["properties"]["diagnostics"]["items"]
+        self.assertEqual(emitted - set(item["properties"]["category"]["enum"]), set())
+        self.assertIn("EXPECTATION_MISSING", emitted)
+        # Every emitted category has an explicit group decision (no silent default).
+        self.assertEqual(emitted - set(project_compatibility._DIAGNOSTIC_GROUP_BY_CATEGORY) - {"WAVE_ASSIGNMENT_MISSING"}, set())
+
+    def test_legacy_task_inspect_projection_validates_against_the_status_schema(self) -> None:
+        write_file(self.root, "planning/tasks/TASK-009.yml",
+                   "ID: TASK-009\nspec: SPEC-001\naction: Inspect\n"
+                   "inspect:\n  entity: Module.Entity\n")
+        status = self.status()
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
+        self.assertEqual([error.message for error in Draft7Validator(schema).iter_errors(status)], [])
+        types = {item["proposed_repair_type"] for item in status["compatibility"]["diagnostics"]}
+        self.assertIn("TASK_INSPECT_TYPED_TARGET_V1", types)
+
+    # ------------------------------------------------------------------ boundaries
+    def test_observation_states_never_change_fingerprint_or_write_to_the_project(self) -> None:
+        before = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*"))
+        first = self.status()["source_fingerprint"]
+        second = self.status()["source_fingerprint"]
+        after = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*"))
+        self.assertEqual((first, before), (second, after))
 
 
 if __name__ == "__main__":

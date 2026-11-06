@@ -1571,6 +1571,120 @@ def visual_evidence_projection(root: Path, manifests: list[dict], manifest_paths
     return sorted(runs, key=lambda item: (item['historical'], item['screen_id'], item['entry_id'], item['run_id'], item['manifest_path']))
 
 
+OBSERVATION_STATES = (
+    "AVAILABLE", "EMPTY", "NOT_RECORDED", "NOT_LOADED", "LOADING", "STALE", "INVALID",
+    "UNSUPPORTED", "NOT_OBSERVABLE", "NOT_APPLICABLE", "AMBIGUOUS", "PROJECTION_ERROR",
+)
+DIAGNOSTIC_GROUP_ORDER = ("project_attention", "projection_health", "framework_compat", "optional_metadata")
+
+
+def _observed(availability: Any, *, missing: bool = False, count: int | None = None) -> str:
+    """Map a v2 availability value plus source evidence to exactly one CS-3 observation state.
+
+    Missing information is never reported as success: a missing source is NOT_RECORDED, an existing
+    but unusable one INVALID, and only a readable zero-record collection is EMPTY.
+    """
+    if missing:
+        return "NOT_RECORDED"
+    if availability == "unavailable":
+        return "INVALID"
+    if availability == "ambiguous":
+        return "AMBIGUOUS"
+    if availability in ("available", "partial"):
+        return "EMPTY" if availability == "available" and count == 0 else "AVAILABLE"
+    return "NOT_OBSERVABLE"
+
+
+def attach_observation_states(result: dict[str, Any], hashes: dict[str, str]) -> dict[str, str]:
+    """Attach `observation_state` to each projected area (additive; v2 `availability` is kept)."""
+    def directory_missing(directory: str) -> bool:
+        return f"!missing-directory:{directory}" in hashes
+
+    def file_missing(path: str) -> bool:
+        return f"!missing:{path}" in hashes
+
+    def size(area: dict[str, Any], key: str = "items") -> int | None:
+        value = area.get(key)
+        return len(value) if isinstance(value, list) else None
+
+    project, delivery, verification = result["project"], result["delivery"], result["verification"]
+    plans_total = sum(v for v in verification["plans"]["status_counts"].values() if isinstance(v, int))
+    areas: list[tuple[str, dict[str, Any], str]] = [
+        ("mission", result["mission"], _observed(result["mission"]["availability"], missing=file_missing("planning/mission/mission-state.yaml"))),
+        ("project.active_targets", project["active_targets"], _observed(project["active_targets"]["availability"], missing=directory_missing("planning/target-mockups"), count=size(project["active_targets"]))),
+        ("delivery.waves", delivery["waves"], _observed(delivery["waves"]["availability"], missing=file_missing("planning/lifecycle/process-state.yaml"), count=size(delivery["waves"]))),
+        ("delivery.tasks", delivery["tasks"], _observed(delivery["tasks"]["availability"], missing=directory_missing("planning/tasks"), count=size(delivery["tasks"]))),
+        ("requirements", result["requirements"], _observed(result["requirements"]["availability"], missing=directory_missing("requirements"), count=result["requirements"]["total"])),
+        ("decisions", result["decisions"], _observed(result["decisions"]["availability"], missing=directory_missing("planning/decisions"), count=result["decisions"]["total"])),
+        ("findings", result["findings"], _observed(result["findings"]["availability"], missing=directory_missing("planning/findings"), count=size(result["findings"]))),
+        ("verification.test_contracts", verification["test_contracts"], _observed(verification["test_contracts"]["availability"], missing=directory_missing("planning/test-contracts"), count=size(verification["test_contracts"]))),
+        ("verification.proof_points", verification["proof_points"], _observed(verification["proof_points"]["availability"], missing=directory_missing("planning/test-contracts"))),
+        ("verification.plans", verification["plans"], _observed(verification["plans"]["availability"], missing=directory_missing("planning/verification-plans"), count=plans_total)),
+        ("verification.evidence", verification["evidence"], _observed(verification["evidence"]["availability"], missing=directory_missing("planning/evidence/manifests"), count=size(verification["evidence"], "entries"))),
+        ("context", result["context"], _observed(result["context"]["availability"], missing=file_missing("planning/lifecycle/context-epoch.yaml"))),
+        ("source_references", result["source_references"], _observed(result["source_references"]["availability"], count=size(result["source_references"]))),
+        # Structurally unconditional gaps: the framework cannot observe these today (not a project defect).
+        ("capabilities", result["capabilities"], "NOT_OBSERVABLE"),
+        ("sources", result["sources"], "NOT_OBSERVABLE"),
+    ]
+    runtime = result["runtime"]
+    states: dict[str, str] = {}
+    for name, area, state in areas:
+        area["observation_state"] = state
+        states[name] = state
+    # Lifecycle: a readable process-state without an identifiable active Wave is "not recorded", not invalid.
+    lifecycle = project["lifecycle"]
+    waves_state = states["delivery.waves"]
+    lifecycle["observation_state"] = (
+        "NOT_RECORDED" if lifecycle["availability"] == "unavailable" and waves_state in ("AVAILABLE", "EMPTY")
+        else _observed(lifecycle["availability"], missing=waves_state == "NOT_RECORDED")
+    )
+    states["project.lifecycle"] = lifecycle["observation_state"]
+    runtime["observation_state"] = "NOT_RECORDED" if runtime["readiness_availability"] == "unavailable" else "AVAILABLE"
+    runtime["operating_mode_observation_state"] = "NOT_OBSERVABLE"
+    verification["evidence"]["model_freshness_observation_state"] = (
+        "NOT_OBSERVABLE" if verification["evidence"]["model_freshness"] == "unknown" else "AVAILABLE"
+    )
+    states["runtime"] = runtime["observation_state"]
+    states["runtime.operating_mode"] = "NOT_OBSERVABLE"
+    states["verification.model_freshness"] = verification["evidence"]["model_freshness_observation_state"]
+    return states
+
+
+def build_health(status: dict[str, Any], *, include_diagnostics: bool = False) -> dict[str, Any]:
+    """Projection/Data health, derived only from the projection itself (never project authority).
+
+    Attention vs. health vs. framework diagnostics: the group counts keep non-blocking framework or
+    metadata diagnostics from reading as project defects; any blocking diagnostic stays visible.
+    """
+    compatibility = status.get("compatibility") or {}
+    diagnostics = compatibility.get("diagnostics") or []
+    groups: dict[str, dict[str, int]] = {name: {"total": 0, "blocking": 0} for name in DIAGNOSTIC_GROUP_ORDER}
+    listed: dict[str, list[dict[str, Any]]] = {name: [] for name in DIAGNOSTIC_GROUP_ORDER}
+    for item in diagnostics:
+        group = item.get("diagnostic_group") if item.get("diagnostic_group") in groups else "projection_health"
+        groups[group]["total"] += 1
+        groups[group]["blocking"] += 1 if item.get("blocking") else 0
+        listed[group].append(item)
+    blocking = sum(entry["blocking"] for entry in groups.values())
+    states = status.get("health", {}).get("observation_states") or {}
+    degraded = any(state in ("INVALID", "STALE", "AMBIGUOUS", "PROJECTION_ERROR") for state in states.values())
+    level = "BLOCKED" if blocking else "DEGRADED" if degraded or groups["projection_health"]["total"] else "OK"
+    health: dict[str, Any] = {
+        "level": level,
+        "observation_states": states,
+        "diagnostics_by_group": groups,
+        "blocking_diagnostics": blocking,
+        "framework": {
+            "compatibility": compatibility.get("compatibility"),
+            "repair_status": compatibility.get("repair_status"),
+        },
+    }
+    if include_diagnostics:
+        health["diagnostics"] = listed
+    return health
+
+
 def _build_status(
     project_root: Path,
     *,
@@ -2015,7 +2129,7 @@ def _build_status(
         return canonical_reference(root, value, ("planning/checklists/",), hashes)[0]
 
     result = {
-        "schema_version": 2,
+        "schema_version": 3,
         "projection": True,
         "authority": "mxagile_canonical_artifacts",
         "source_fingerprint": source_fingerprint,
@@ -2137,6 +2251,8 @@ def _build_status(
         and item["affected_board_area"] == "decisions"
     ]
     result["source_fingerprint"] = result["compatibility"]["source_fingerprint"]
+    result["health"] = {"observation_states": attach_observation_states(result, hashes)}
+    result["health"] = build_health(result)
     _emit_project_stage("compatibility_and_fingerprint", stage_started,
                         diagnostics=len(result["compatibility"].get("diagnostics", [])), hashed_sources=len(hashes))
     return result

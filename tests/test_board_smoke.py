@@ -183,7 +183,7 @@ class BoardSmokeTests(unittest.TestCase):
         shots_before = set(shots_root.glob("*")) if shots_root.exists() else set()
         code, report, wall = run_smoke(self.project)
         self.assertEqual(report["check"], "board_smoke")
-        self.assertEqual(report["route_list_version"], 1)
+        self.assertEqual(report["route_list_version"], 2)
         if report["browser"]["available"]:
             self.assertEqual((report["result"], code), ("PASS", 0), report["failures"])
             self.assertEqual(report["routes_checked"], [route for route, _ in board_smoke.ROUTES])

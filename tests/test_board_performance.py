@@ -124,7 +124,7 @@ class BoardPerformanceTests(unittest.TestCase):
 
     def test_p1_cold_build_returns_populated_status(self) -> None:
         status = build_project_status.build_status(self.root)
-        self.assertEqual(status["schema_version"], 2)
+        self.assertEqual(status["schema_version"], 3)
         self.assertGreaterEqual(status["requirements"]["total"], 40)
         self.assertGreaterEqual(status["delivery"]["tasks"]["items"].__len__(), 98)
         self.assertGreaterEqual(status["decisions"]["total"], 24)

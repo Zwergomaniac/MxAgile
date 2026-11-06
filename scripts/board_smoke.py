@@ -38,8 +38,8 @@ from urllib.request import urlopen
 sys.dont_write_bytecode = True
 
 SCHEMA_VERSION = 1
-ROUTE_LIST_VERSION = 1
-# Versioned v1 route list: (hash route, heading that proves the view rendered).
+ROUTE_LIST_VERSION = 2
+# Versioned v2 route list (v2 adds the CS-3 health view): (hash route, heading that proves the view rendered).
 ROUTES = (
     ("portfolio", "Portfolio"),
     ("overview", "Delivery at a glance"),
@@ -50,6 +50,7 @@ ROUTES = (
     ("ui-pages", "UI & Pages"),
     ("findings", "Findings"),
     ("decisions", "Decisions"),
+    ("health", "Health & Diagnostics"),
 )
 LOADING_TOKENS = (
     "LOADING PARITY EVIDENCE", "PARITY EVIDENCE NOT LOADED",
@@ -672,6 +673,11 @@ class BoardSmoke:
             api_open = (status.get("findings") or {}).get("open")
             if open_findings:
                 self.record_consistency("findings_open", open_findings.group(1), api_open if api_open is not None else "UNKNOWN")
+            health = status.get("health")
+            if isinstance(health, dict):
+                chip = page.inner_text("#health-chip", timeout=2000)
+                level = re.search(r"HEALTH · (OK|DEGRADED|BLOCKED)", chip)
+                self.record_consistency("health_level", level.group(1) if level else chip[:40], health.get("level"))
         except SmokeTimeout:
             raise
         except Exception as error:

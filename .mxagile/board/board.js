@@ -49,11 +49,11 @@ function internalLink(label, route) {
 }
 
 function stateBadge(value, kind = "") {
-  const normalized = String(value || "UNKNOWN");
+  const normalized = value === null || value === undefined || value === "" ? "UNKNOWN" : String(value);
   let tone = "unknown";
-  if (["done", "VERIFIED", "CONFIRMED", "passed", "available", "ACTIVE_TARGET", "consistent"].includes(normalized)) tone = "good";
-  else if (["blocked", "failed", "FAIL", "STALE", "DECISION_REQUIRED", "CRITICAL", "ambiguous", "mismatch", "INVALID", "AMBIGUOUS", "BLOCKED"].includes(normalized)) tone = "bad";
-  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN", "REASSESS_REQUIRED", "SUPERSEDED", "RETIRED", "FRAMEWORK_FOLLOWUP", "REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED"].includes(normalized)) tone = "warn";
+  if (["done", "VERIFIED", "CONFIRMED", "passed", "available", "ACTIVE_TARGET", "consistent", "AVAILABLE", "OK"].includes(normalized)) tone = "good";
+  else if (["blocked", "failed", "FAIL", "STALE", "DECISION_REQUIRED", "CRITICAL", "ambiguous", "mismatch", "INVALID", "AMBIGUOUS", "BLOCKED", "PROJECTION_ERROR"].includes(normalized)) tone = "bad";
+  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN", "REASSESS_REQUIRED", "SUPERSEDED", "RETIRED", "FRAMEWORK_FOLLOWUP", "REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED", "NOT_RECORDED", "UNSUPPORTED", "DEGRADED"].includes(normalized)) tone = "warn";
   const badge = node("span", `state ${tone}`, normalized.replaceAll("_", " "));
   if (kind) badge.dataset.kind = kind;
   return badge;
@@ -62,6 +62,51 @@ function stateBadge(value, kind = "") {
 function countText(value, suffix = "") {
   return value === null || value === undefined ? "UNKNOWN" : `${value}${suffix}`;
 }
+
+const OBS_TEXT = {
+  AVAILABLE: ["", "Wert bekannt, Quelle valide."],
+  EMPTY: ["EMPTY", "Quelle ist vorhanden und lesbar, enthält aber keine Einträge."],
+  NOT_RECORDED: ["NOT RECORDED", "Das Projekt hat diese Quelle nicht angelegt. Das ist keine Aussage über den Inhalt."],
+  NOT_LOADED: ["NOT LOADED", "Noch nicht geladen. Fehlende Daten bedeuten hier nicht, dass nichts existiert."],
+  LOADING: ["LOADING", "Wird gerade geladen."],
+  STALE: ["STALE", "Wert ist an einen älteren Stand gebunden."],
+  INVALID: ["INVALID", "Quelle existiert, ist aber nicht lesbar oder schemakonform."],
+  UNSUPPORTED: ["UNSUPPORTED", "Quelle in Legacy- oder Fremdform ohne Projektionsregel."],
+  NOT_OBSERVABLE: ["NOT OBSERVABLE", "Mit dem heutigen Framework strukturell nicht ermittelbar. Kein Projektdefekt."],
+  NOT_APPLICABLE: ["NOT APPLICABLE", "Konzept trifft hier nicht zu."],
+  AMBIGUOUS: ["AMBIGUOUS", "Widersprüchliche Quellen, keine eindeutige Aussage möglich."],
+  PROJECTION_ERROR: ["PROJECTION ERROR", "Projektion konnte nicht aufgebaut werden."],
+};
+const GROUP_TEXT = {
+  project_attention: ["Project attention", "Kann Aktion von Projekteigner oder Entwickler erfordern."],
+  projection_health: ["Projection / data health", "Qualität und Lesbarkeit der projizierten Quellen."],
+  framework_compat: ["Framework diagnostics", "Implementierungs-, Kompatibilitäts- und Historieninformation. Für sich keine aktive Projektblockade."],
+  optional_metadata: ["Optional metadata", "Optionale Felder, die das Projekt nicht gesetzt hat."],
+};
+
+function obsOf(area) {
+  return area && typeof area.observation_state === "string" ? area.observation_state : null;
+}
+
+function obsLabel(area, fallback = "UNKNOWN") {
+  const state = obsOf(area);
+  return state && OBS_TEXT[state] && OBS_TEXT[state][0] ? OBS_TEXT[state][0] : fallback;
+}
+
+// A missing value is shown as its precise observation state, never as 0 or as a generic UNKNOWN (v2 snapshots fall back).
+function valueText(value, area, suffix = "") {
+  if (value !== null && value !== undefined) return `${value}${suffix}`;
+  return obsLabel(area, "UNKNOWN");
+}
+
+function obsBadge(state) {
+  const info = OBS_TEXT[state] || [String(state), ""];
+  const badge = stateBadge(state);
+  badge.textContent = info[0] || "AVAILABLE";
+  if (info[1]) badge.title = info[1];
+  return badge;
+}
+
 
 function sectionTitle(title, detail = "") {
   const wrapper = node("div", "view-title");
@@ -124,21 +169,21 @@ function renderHeader() {
   $("#fingerprint-short").textContent = status.source_fingerprint ? status.source_fingerprint.slice(0, 15) : "";
   $("#source-fingerprint").textContent = status.source_fingerprint || "SOURCE FINGERPRINT UNKNOWN";
   $("#active-wave").textContent = project.lifecycle.active_wave_id || "—";
-  $("#active-phase").textContent = project.lifecycle.phase || "UNKNOWN";
-  const phase = project.lifecycle.phase || "UNKNOWN";
+  $("#active-phase").textContent = project.lifecycle.phase || obsLabel(project.lifecycle);
+  const phase = project.lifecycle.phase || obsLabel(project.lifecycle).replaceAll(" ", "_");
   const phasePill = $("#lifecycle-pill");
-  phasePill.textContent = phase.toUpperCase();
-  phasePill.className = `pill ${phase === "done" ? "" : phase === "UNKNOWN" ? "warn" : ""}`;
+  phasePill.textContent = phase.toUpperCase().replaceAll("_", " ");
+  phasePill.className = `pill ${phase === "done" ? "" : phase === phase.toUpperCase() ? "warn" : ""}`;
   const mission = status.mission;
   $("#mission-line").textContent = mission.availability === "unavailable"
-    ? "Mission state unavailable"
-    : `${mission.id || "Mission"} · ${mission.status || "UNKNOWN"}`;
+    ? `Mission state · ${obsLabel(mission, "unavailable")}`
+    : `${mission.id || "Mission"} · ${mission.status || obsLabel(mission)}`;
 
   const targets = status.project.active_targets.items;
   const targetList = $("#target-list");
   clear(targetList);
-  $("#target-state").textContent = targets.length ? "ACTIVE TARGET AUTHORITY" : "REFERENCE UNKNOWN";
-  if (!targets.length) targetList.append(node("div", "target-unknown", "REFERENCE UNKNOWN · No canonical ACTIVE_TARGET reference available"));
+  $("#target-state").textContent = targets.length ? "ACTIVE TARGET AUTHORITY" : obsLabel(status.project.active_targets, "REFERENCE UNKNOWN");
+  if (!targets.length) targetList.append(node("div", "target-unknown", `${obsLabel(status.project.active_targets, "REFERENCE UNKNOWN")} · No canonical ACTIVE_TARGET reference available`));
   else for (const target of targets) targetList.append(targetCard(target));
   for (const candidate of status.reconciliation?.external_reference_candidates || []) {
     const card = node("article", "target-card reference-candidate");
@@ -158,8 +203,8 @@ function renderProjectDrift() {
   const facts = $("#drift-facts");
   clear(facts);
   if (!reconciliation) {
-    stateLabel.textContent = "RECONCILIATION UNKNOWN";
-    facts.append(empty("Project reconciliation state unavailable"));
+    stateLabel.textContent = "NOT LOADED";
+    facts.append(empty("Reconciliation not loaded. This does not mean that no reconciliation exists."));
     return;
   }
   const range = reconciliation.commit_range || {};
@@ -204,19 +249,24 @@ function renderAttention() {
   const container = $("#attention-items");
   clear(container);
   const values = [
-    ["BLOCKERS", status.mission.blocker_count],
-    ["BLOCKING FINDINGS", status.findings.blocking],
-    ["BLOCKED BY DECISION", status.decisions.blocked_by_decision.count],
-    ["PENDING DECISIONS", status.decisions.status_counts.PROPOSED],
-    ["STALE EVIDENCE", status.verification.evidence.current_counts.stale],
-    ["MODEL FRESHNESS", status.verification.evidence.model_freshness.toUpperCase()],
+    ["BLOCKERS", valueText(status.mission.blocker_count, status.mission)],
+    ["BLOCKING FINDINGS", valueText(status.findings.blocking, status.findings)],
+    ["BLOCKED BY DECISION", valueText(status.decisions.blocked_by_decision.count, status.mission)],
+    ["PENDING DECISIONS", valueText(status.decisions.status_counts.PROPOSED, status.decisions)],
+    ["STALE EVIDENCE", valueText(status.verification.evidence.current_counts.stale, status.verification.evidence)],
   ];
+  const health = status.health;
+  if (health) {
+    values.push(["PROJECT ATTENTION ITEMS", health.diagnostics_by_group.project_attention.total]);
+    // Blocking diagnostics stay visible on the first screen whatever their group.
+    if (health.blocking_diagnostics > 0) values.push(["BLOCKING DIAGNOSTICS", health.blocking_diagnostics]);
+  }
   if (status.reconciliation?.model_semantic_review?.status === "SEMANTIC_REVIEW_REQUIRED") {
     values.push(["MENDIX MODEL REVIEW", status.reconciliation.model_semantic_review.reason || "SEMANTIC_REVIEW_REQUIRED"]);
   }
   for (const [label, value] of values) {
     const chip = node("span", "attention-chip");
-    chip.append(node("b", "", countText(value)));
+    chip.append(node("b", "", String(value)));
     chip.append(node("span", "", label));
     container.append(chip);
   }
@@ -229,10 +279,9 @@ function renderMetrics() {
   const proposed = status.decisions.status_counts.PROPOSED;
   const evidence = status.verification.evidence.current_counts;
   const values = [
-    ["WAVES COMPLETE", countText(waves.done)],
-    ["ACTIVE MISSION", status.mission.status || "UNKNOWN"],
-    ["OPEN FINDINGS", countText(status.findings.open)],
-    ["MODEL FRESHNESS", status.verification.evidence.model_freshness.toUpperCase()],
+    ["WAVES COMPLETE", valueText(waves.done, status.delivery.waves)],
+    ["ACTIVE MISSION", status.mission.status || obsLabel(status.mission)],
+    ["OPEN FINDINGS", valueText(status.findings.open, status.findings)],
   ];
   for (const [label, value] of values) {
     const box = node("div", "metric");
@@ -243,6 +292,7 @@ function renderMetrics() {
 }
 
 function renderOverview() {
+  renderHealthSummary(root);
   root.append(sectionTitle("Delivery at a glance", "Objective counts · no weighted progress"));
   const grid = node("div", "two-column");
   const wavesSection = node("section", "plain-section");
@@ -252,7 +302,7 @@ function renderOverview() {
     const row = node("div", "plain-item");
     const main = node("div", "item-main");
     main.append(internalLink(wave.wave_id, `wave/${encodeURIComponent(wave.wave_id)}`));
-    main.append(node("small", "", `${wave.task_progress.total ?? "UNKNOWN"} tasks · ${wave.checklist_progress.availability === "available" ? `${wave.checklist_progress.done}/${wave.checklist_progress.total} checklist` : "checklist UNKNOWN"}`));
+    main.append(node("small", "", `${valueText(wave.task_progress.total, status.delivery.tasks)} tasks · ${wave.checklist_progress.availability === "available" ? `${wave.checklist_progress.done}/${wave.checklist_progress.total} checklist` : "no checklist recorded"}`));
     row.append(main, stateBadge(wave.phase || "UNKNOWN"));
     wavesList.append(row);
   }
@@ -264,20 +314,19 @@ function renderOverview() {
   const evidenceList = node("div", "plain-list");
   for (const [label, value] of [
     ["Target freshness", evidence.target_freshness],
-    ["Model freshness", evidence.model_freshness],
     ["Target stale", evidence.current_counts.stale],
     ["Unverified", evidence.current_counts.unverified],
     ["Failed", evidence.current_counts.failed],
   ]) {
     const row = node("div", "plain-item");
-    row.append(node("div", "item-main", label), stateBadge(value === null ? "UNKNOWN" : value));
+    row.append(node("div", "item-main", label), stateBadge(value === null ? obsLabel(evidence).replaceAll(" ", "_") : value));
     evidenceList.append(row);
   }
   rightSection.append(evidenceList);
   grid.append(wavesSection, rightSection);
   root.append(grid);
 
-  root.append(sectionTitle("Requirements", `${status.requirements.total ?? "UNKNOWN"} total`));
+  root.append(sectionTitle("Requirements", `${valueText(status.requirements.total, status.requirements)} total`));
   renderRequirementTable(root, status.requirements.items.slice(0, 6));
 }
 
@@ -298,7 +347,7 @@ function renderPortfolio() {
     ["ACTIVE WAVE / MISSION", `${activeWave} · ${status.mission.status || "UNKNOWN"}`],
     ["BLOCKERS", countText(status.mission.blocker_count)],
     ["PENDING DECISIONS", countText(status.decisions.status_counts.PROPOSED)],
-    ["VERIFICATION ATTENTION", `STALE ${countText(verification.stale)} · FAILED ${countText(verification.failed)} · MODEL ${status.verification.evidence.model_freshness.toUpperCase()}`],
+    ["VERIFICATION ATTENTION", `STALE ${countText(verification.stale)} · FAILED ${countText(verification.failed)}`],
   ]) facts.append(countItem(label, value, ""));
   card.append(facts);
   card.append(internalLink("Project Overview →", "overview"));
@@ -388,7 +437,7 @@ function renderVerification() {
   const evidence = status.verification.evidence;
   const banner = node("div", "attention-strip");
   banner.append(node("div", "attention-title", "Model freshness"));
-  banner.append(node("div", "attention-items", evidence.model_freshness.toUpperCase()));
+  banner.append(node("div", "attention-items", obsLabel({ observation_state: evidence.model_freshness_observation_state }, evidence.model_freshness.toUpperCase())), internalLink("Erklärung in Health & Diagnostics →", "health"));
   root.append(banner);
   const grid = node("div", "metrics");
   for (const [label, count] of [
@@ -840,7 +889,6 @@ function renderDetail(parts) {
     renderDecisionCards(status.decisions.items.filter((decision) => decision.affected_requirements.some((reqId) => requirementIds.has(reqId))));
     root.append(node("h3", "plain-section", "Evidence"));
     renderEvidenceEntries((status.verification.evidence.entries || []).filter((entry) => entry.wave_id === wave.wave_id));
-    root.append(node("h3", "plain-section", "Evidence freshness"), stateBadge(status.verification.evidence.model_freshness.toUpperCase()));
     return;
   }
   if (kind === "workpackage") {
@@ -979,11 +1027,12 @@ function renderTaskList(tasks) {
 
 function renderView() {
   clear(root);
-  renderCompatibility();
   const parts = routeParts();
   const view = parts[0] || "overview";
   const isPortfolio = view === "portfolio";
-  $("#project-context").hidden = isPortfolio;
+  // The project context block belongs to Overview and Health only (v2 snapshots keep it everywhere but Portfolio).
+  $("#project-context").hidden = isPortfolio || (Boolean(status.health) && !["overview", "health"].includes(view));
+  if (!status.health) renderCompatibility();
   $("#tabs").hidden = isPortfolio;
   for (const button of document.querySelectorAll("[data-route]")) {
     const buttonRoute = button.dataset.route;
@@ -991,6 +1040,7 @@ function renderView() {
   }
   if (isPortfolio) renderPortfolio();
   else if (view === "overview") renderOverview();
+  else if (view === "health") renderHealthView();
   else if (view === "waves") renderWaves();
   else if (view === "requirements") renderRequirements();
   else if (view === "verification") renderVerification();
@@ -1000,6 +1050,7 @@ function renderView() {
   else if (view === "findings") renderFindings();
   else if (view === "decisions") renderDecisions();
   else renderDetail(parts);
+  updateHealthChip();
 }
 
 function renderCompatibility() {
@@ -1044,6 +1095,126 @@ function renderCompatibility() {
   root.append(panel);
 }
 
+function healthChipInfo() {
+  const health = status && status.health;
+  if (!health) return null;
+  const projection = status.projection_state;
+  const projectionNote = projection && projection.state !== "FRESH" ? ` · PROJECTION ${projection.state}` : "";
+  const label = health.level === "BLOCKED" ? `HEALTH · ${health.blocking_diagnostics} BLOCKING` : `HEALTH · ${health.level}`;
+  return { level: health.level, text: label + projectionNote, stale: Boolean(projectionNote) };
+}
+
+function updateHealthChip() {
+  const chip = document.querySelector("#health-chip");
+  if (!chip) return;
+  const info = healthChipInfo();
+  chip.hidden = !info;
+  if (!info) return;
+  chip.textContent = info.text;
+  chip.className = `health-chip ${info.level === "OK" && !info.stale ? "ok" : info.level === "BLOCKED" ? "bad" : "warn"}`;
+  chip.title = "Projection / data health. Details in Health & Diagnostics.";
+}
+
+function groupCount(group) {
+  const entry = status.health && status.health.diagnostics_by_group[group];
+  return entry || { total: 0, blocking: 0 };
+}
+
+function renderHealthSummary(container) {
+  const health = status.health;
+  if (!health) return;
+  const section = node("section", "health-summary");
+  section.setAttribute("aria-label", "Attention, health and diagnostics");
+  const cards = [
+    ["project_attention", groupCount("project_attention").total ? "warn" : "ok", `${groupCount("project_attention").total} items`],
+    ["projection_health", health.level === "OK" ? "ok" : health.level === "BLOCKED" ? "bad" : "warn", `${health.level}${groupCount("projection_health").total ? ` · ${groupCount("projection_health").total} diagnostics` : ""}`],
+    ["framework_compat", groupCount("framework_compat").blocking + groupCount("optional_metadata").blocking ? "bad" : "calm",
+      `${groupCount("framework_compat").total} compatibility notes · ${groupCount("optional_metadata").total} optional metadata${groupCount("framework_compat").blocking + groupCount("optional_metadata").blocking ? ` · ${groupCount("framework_compat").blocking + groupCount("optional_metadata").blocking} blocking` : ""}`],
+  ];
+  for (const [group, tone, value] of cards) {
+    const card = node("a", `health-card ${tone}`);
+    card.href = "#health";
+    card.append(node("span", "eyebrow", GROUP_TEXT[group][0].toUpperCase()), node("strong", "", value), node("small", "muted", GROUP_TEXT[group][1]));
+    section.append(card);
+  }
+  container.append(section);
+}
+
+function diagnosticRow(item) {
+  const states = {
+    SYNTAX_ERROR: "INVALID", SCHEMA_ERROR: "INVALID", ID_MISMATCH: "INVALID", DUPLICATE_ID: "AMBIGUOUS",
+    REFERENCE_MISSING: "NOT_RECORDED", REFERENCE_AMBIGUOUS: "AMBIGUOUS", AUTHORITY_CONFLICT: "AMBIGUOUS",
+    WAVE_ASSIGNMENT_MISSING: "NOT_RECORDED", UNSUPPORTED_VARIANT: "UNSUPPORTED", LEGACY_VARIANT: "UNSUPPORTED",
+    FRESHNESS_UNKNOWN: "NOT_OBSERVABLE", MISSING: "NOT_RECORDED", UNASSIGNED: "NOT_APPLICABLE", STALE: "STALE",
+    DONE_BASIS_NOT_RECORDED: "NOT_RECORDED", CHANGE_SET_SCHEMA_INVALID: "INVALID", ACTIVE_REVISION_UNBOUND: "AMBIGUOUS",
+  };
+  const row = node("div", "plain-item diagnostic-item");
+  const description = node("div", "item-main");
+  description.append(node("strong", "", item.affected_board_area), node("p", "", item.message));
+  description.append(node("small", "muted", `${item.category} · ${item.repairability}${item.blocking ? " · BLOCKING" : ""}`));
+  if (item.source_path) {
+    const location = `${item.source_path}${item.line ? `:${item.line}:${item.column}` : ""}`;
+    description.append(externalLink(location, safePathUrl("/diagnostic-source", item.source_path)));
+  }
+  row.append(description, obsBadge(states[item.category] || "NOT_OBSERVABLE"));
+  return row;
+}
+
+function renderHealthView() {
+  const health = status.health;
+  root.append(sectionTitle("Health & Diagnostics", "Trennt Projekt-Attention, Projektions-/Datengesundheit und Framework-Diagnostik"));
+
+  const projection = status.projection_state;
+  const projectionSection = node("section", "plain-section");
+  projectionSection.append(node("h3", "", "Projection"));
+  const projectionRow = node("div", "plain-item");
+  projectionRow.append(node("div", "item-main", projection ? `Server snapshot · age ${projection.age_seconds === null ? "?" : Math.round(projection.age_seconds)} s` : "Projection state not loaded"), stateBadge(projection ? projection.state : "NOT_LOADED"));
+  projectionSection.append(projectionRow);
+  root.append(projectionSection);
+
+  const states = health.observation_states;
+  const order = Object.keys(states).sort((a, b) => (states[a] === "AVAILABLE") - (states[b] === "AVAILABLE") || a.localeCompare(b));
+  const observed = node("section", "plain-section");
+  observed.append(node("h3", "", "Observation states"), node("p", "muted", "Jeder Bereich hat genau einen Zustand. Nichts wird ausgeblendet; fehlende Information ist kein Erfolg."));
+  const list = node("div", "plain-list");
+  for (const area of order) {
+    const row = node("div", "plain-item");
+    const main = node("div", "item-main");
+    main.append(node("strong", "", area), node("small", "muted", OBS_TEXT[states[area]] ? OBS_TEXT[states[area]][1] : ""));
+    row.append(main, obsBadge(states[area]));
+    list.append(row);
+  }
+  observed.append(list);
+  root.append(observed);
+
+  const diagnostics = (status.compatibility && status.compatibility.diagnostics) || [];
+  const inspectMigrationCount = new Set(diagnostics
+    .filter((item) => item.proposed_repair_type === "TASK_INSPECT_TYPED_TARGET_V1")
+    .map((item) => item.source_path)).size;
+  for (const group of ["project_attention", "projection_health", "framework_compat", "optional_metadata"]) {
+    const items = diagnostics.filter((item) => (item.diagnostic_group || "projection_health") === group);
+    const counts = groupCount(group);
+    const panel = node("details", "plain-section compatibility-diagnostics");
+    panel.open = group === "project_attention" ? counts.total > 0 : counts.blocking > 0;
+    const summary = node("summary", "view-title");
+    summary.append(node("strong", "", GROUP_TEXT[group][0]));
+    const extra = group === "framework_compat" && inspectMigrationCount ? ` · ${inspectMigrationCount} tasks use the legacy task-inspect form (lossless migration available)` : "";
+    summary.append(node("small", "", `${counts.total} diagnostics · ${counts.blocking} blocking${extra}`));
+    panel.append(summary, node("p", "muted", GROUP_TEXT[group][1]));
+    const body = node("div", "plain-list");
+    for (const item of items) body.append(diagnosticRow(item));
+    panel.append(items.length ? body : empty("Keine Diagnosen in dieser Gruppe"));
+    root.append(panel);
+  }
+
+  const framework = node("section", "plain-section");
+  framework.append(node("h3", "", "Framework"));
+  const frameworkRow = node("div", "plain-item");
+  frameworkRow.append(node("div", "item-main", `Compatibility ${health.framework.compatibility || "UNKNOWN"} · repair ${health.framework.repair_status || "UNKNOWN"}`), stateBadge(health.framework.compatibility || "NOT_OBSERVABLE"));
+  framework.append(frameworkRow);
+  root.append(framework);
+}
+
 function renderProjectionState() {
   // A stale or rebuilding projection must never look current (CS-2).
   const projection = status.projection_state || null;
@@ -1082,6 +1253,7 @@ async function load() {
     renderHeader();
     renderAttention();
     renderMetrics();
+    updateHealthChip();
     $("#load-state").hidden = true;
     $("#board").hidden = false;
     renderView();
