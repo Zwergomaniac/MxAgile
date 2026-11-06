@@ -115,7 +115,7 @@ is wrong or the test expectation is wrong.
 ## Escalation on Refusal
 
 If a DECISION_REQUIRED raised by this policy is not answered within the same work session:
-- Record the gap in `.concord/scratch/process-state.yaml` under `waves.<W>.gates.acceptance_gate.pending_decisions`.
+- Record the gap in the canonical `planning/lifecycle/process-state.yaml` under `waves.<W>.gates.acceptance_gate.pending_decisions` (`{id, text}` entries; set `acceptance_gate.result: pending`).
 - Do not block unrelated proof points from proceeding.
 - The acceptance gate cannot reach `passed` while any `DECISION_REQUIRED` remains open.
 

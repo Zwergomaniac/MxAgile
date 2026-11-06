@@ -313,7 +313,8 @@ STEP 5 — Propagate to implementation tasks
     Mark as needs_re-verification: true
 
 STEP 6 — Record propagation event
-  Append entry to .concord/scratch/process-state.yaml:
+  Append entry to .concord/scratch/process-state.yaml (local cache, non-authoritative; not a lifecycle
+  gate record - lifecycle state lives in planning/lifecycle/process-state.yaml):
     revision_propagation:
       revision_id: REV-NNN
       propagated_at: <ISO datetime>

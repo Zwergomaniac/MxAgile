@@ -112,7 +112,7 @@ proof_point_results:
     evidence_reused: false       # true if reused from prior PASS
     notes: ""
 gate_outcome:
-  acceptance_gate: passed | failed | pending
+  acceptance_gate_result: passed | failed | pending  # value of waves.<W>.gates.acceptance_gate.result
   blocking_items: []
   pending_decisions: []
 ```
@@ -139,7 +139,17 @@ The acceptance gate passes when:
 - No `DECISION_REQUIRED` items remain open in `pending_decisions`
 - No proof point has unresolved `remediation_state` in {UNSPECIFIED_BUT_AVAILABLE, BUSINESS_EXPECTATION_UNKNOWN}
 
-Record in `.concord/scratch/process-state.yaml`:
+Record the structured gate result in the canonical `planning/lifecycle/process-state.yaml`
+(`acceptance_gate_result` in `schemas/process-state.schema.json`; `.concord/scratch/` is only a local cache):
 ```yaml
-waves.W01.gates.acceptance_gate: passed | failed | pending
+waves:
+  W01:
+    gates:
+      acceptance_gate:
+        result: passed | failed | pending   # not_recorded until the gate has run
+        evaluated: "<ISO datetime>"
+        evidence: []                        # campaign/evidence references
+        pending_decisions: []               # [{id, text}] while result is pending
 ```
+A `passed` result is the acceptance basis of that Wave's scope at that point in time only; the
+campaign stays an acceptance-verification run, not a work container.
