@@ -252,6 +252,12 @@ Assert-FileContains "J16: Wave completion does not require a Full Suite by itsel
     $TestWorkflow "(?s)Eine Wave ist eine Grenze.*nicht automatisch fuer einen breiten Framework-Testlauf"
 Assert-FileContains "J17: delegation remains separate from Wave decomposition" `
     $DelegationPolicy "Do not equate one Wave with one subagent"
+Assert-FileContains "J18: Wave rationale is recorded in existing plan" `
+    $ImplControl 'Record each Wave.*grouping/boundary rationale in the existing'
+Assert-FileContains "J19: Wave plan records grouping and split rationale" `
+    $ImplControl '(?s)why its Tasks belong together.*Waves are split.*meaningful outcome.*boundary.*justifies the split'
+Assert-FileContains "J20: Wave rationale is separate from lifecycle state" `
+    $ImplControl 'This is planning rationale, not lifecycle state'
 
 # =============================================================================
 # SUMMARY

@@ -117,6 +117,22 @@ Assert-FileContains "test workflow requires changed evidence for another broad r
     $TestWorkflow '(?s)Ein weiterer Broad-Lauf ist nur zulaessig.*relevante Evidence/Codebasis geaendert hat'
 Assert-FileContains "test workflow retains required coverage despite cost" `
     $TestWorkflow '(?s)Dauer darf die Reihenfolge\s+beeinflussen, aber niemals eine erforderliche Suite'
+Assert-FileContains "test workflow preserves active expensive process session" `
+    $TestWorkflow 'eigenen Terminal-/Prozess-Session'
+Assert-FileContains "test workflow forbids unrelated commands in active session" `
+    $TestWorkflow 'keine fremden Befehle\s+einschleusen'
+Assert-FileContains "silent process is not automatically hung" `
+    $TestWorkflow '(?is)Keine Ausgabe bedeutet `SILENT`, nicht `HUNG`.*beliebige Zeitspanne'
+Assert-FileContains "test workflow distinguishes pass fail blocked incomplete and unobservable" `
+    $TestWorkflow '(?is)`PASS`.*`FAIL`.*`BLOCKED`.*`INCOMPLETE`.*`NOT_OBSERVABLE`'
+Assert-FileContains "external infrastructure blocker is not product failure" `
+    $TestWorkflow 'Wenn externe Infrastruktur, Netzwerk oder Authentifizierung'
+Assert-FileContains "external blocker reports cause without claiming product failure" `
+    $TestWorkflow 'nicht als\s+Produktfehler oder PASS'
+Assert-FileContains "test workflow does not invent counts or aggregate interrupted runs" `
+    $TestWorkflow 'fehlende Testzahlen oder\s+Coverage nicht erfinden'
+Assert-FileContains "interrupted aggregate is not promoted by a separate suite" `
+    $TestWorkflow 'aggregierten Lauf\s+nicht nachtraeglich PASS'
 foreach ($consumer in @($AccAgent, $ImplAgent, $UiAgent, $Orchestrator, $QualityGate)) {
     Assert-FileContains "$(Split-Path -Leaf $consumer) references canonical test workflow" `
         $consumer 'policies/test-workflow\.md'

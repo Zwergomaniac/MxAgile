@@ -85,6 +85,29 @@ unterbrochenen Full Gate keine automatische Wiederholungsschleife starten; Einze
 gezielt diagnostizieren. Unterbrechung bleibt `INCOMPLETE`, getrennte Laeufe werden nicht
 aggregiert.
 
+### Laufende Prozesse und Ergebnissemantik
+
+Einen `BROAD/EXPENSIVE`-Lauf in einer eigenen Terminal-/Prozess-Session starten und diese
+Session bis zum Abschluss erhalten. Waehrend der Lauf aktiv ist, dort keine fremden Befehle
+einschleusen, ihn nicht ersetzen und keinen Interrupt senden. Fortschritt ueber vorhandene
+Ausgabe/Session-Status oder read-only Prozessaktivitaet beobachten; unabhaengige Diagnose in
+einem separaten Prozess/Terminal ausfuehren. Keine Ausgabe bedeutet `SILENT`, nicht `HUNG`.
+`HUNG` erst mit nicht-destruktiver Evidenz fehlender Aktivitaet/Progression klassifizieren;
+eine beliebige Zeitspanne ohne Ausgabe reicht nicht.
+
+`RUNNING` und `SILENT` beschreiben Prozessbeobachtungen, keine Testergebnisse. `PASS` gilt
+nur nach erfolgreichem Abschluss gemaess Command-Vertrag; `FAIL` nur bei nachgewiesenem
+Test-/Produktfehler. Wenn externe Infrastruktur, Netzwerk oder Authentifizierung die
+Auswertung verhindert, `BLOCKED` mit Ursache und betroffener Pruefung melden, nicht als
+Produktfehler oder PASS. Abbruch, versehentliche Prozessstoerung oder nicht abgeschlossene
+Ausfuehrung ist `INCOMPLETE`; den Unterbrecher nur benennen, wenn belegt, sonst als unbekannt.
+Kann der Status nicht aus Evidenz bestimmt werden, `NOT_OBSERVABLE` melden.
+
+Ein Exitcode bestaetigt nur den vom Command definierten Abschluss; fehlende Testzahlen oder
+Coverage nicht erfinden. Eine separate Suite macht einen unterbrochenen aggregierten Lauf
+nicht nachtraeglich PASS. Nach einem abgebrochenen Broad-Lauf gezielt diagnostizieren; kein
+automatischer Retry und kein erneuter teurer Lauf nur fuer vollstaendigere Summen.
+
 ### Dauer und Skip-Sicherheit
 
 Wenn ein Runner Suite-Dauern ausgibt, diese als beobachtete Telemetrie dokumentieren und fuer

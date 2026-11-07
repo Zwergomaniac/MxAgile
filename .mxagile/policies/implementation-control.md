@@ -54,6 +54,12 @@ objective and may span Waves; an Acceptance Campaign groups verification within 
 `workpackage_id`/delegation work packages are grouping or handoff details, not required planning
 levels. Do not add a parallel Wave metadata store.
 
+Record each Wave's intended outcome and a concise grouping/boundary rationale in the existing
+`planning/execution-waves.md`: why its Tasks belong together, and, when Waves are split, which
+meaningful outcome, dependency, gate, uncertainty, recovery, parallelism, or verification boundary
+justifies the split. This is planning rationale, not lifecycle state; derive current/active/completed
+status from the existing canonical lifecycle artifacts.
+
 After interruption, use the existing lifecycle re-sync and evidence to reconstruct Wave progress;
 do not invent another state model (`policies/lifecycle-resync.md`). A Wave completes only through
 its existing implementation, verification, and acceptance lifecycle. A Wave by itself never

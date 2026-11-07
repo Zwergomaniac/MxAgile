@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxagile.local/schemas/security-matrix.schema.json",
+  "title": "MxAgile Security Projection (security-matrix.yaml)",
+  "description": "GENERATED projection of Mendix model security. The Mendix model is the authority; this artifact is read-only evidence and must never be edited by hand. Unknown is null/absent-with-warning, never guessed. Notes: pages/microflows list every resource of the complete resource listing; an empty grants list means mxcli's security matrix reported no grant for that resource (omission-based, see policy). Nanoflow grants come from AllowedModuleRoles of each nanoflow document (BSON dump).",
+  "type": "object",
+  "required": ["schema_version", "generated", "security", "roles", "pages", "microflows", "nanoflows", "entities", "effective_access", "findings", "change_context"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "generated": {
+      "type": "object",
+      "required": ["generated_at", "generator", "source", "mxcli_version", "project_revision", "complete", "sections", "warnings", "fingerprint"],
+      "additionalProperties": false,
+      "properties": {
+        "generated_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" },
+        "generator": { "type": "string" },
+        "source": { "const": "mendix-model" },
+        "mxcli_version": { "type": ["string", "null"] },
+        "project_revision": { "type": ["string", "null"] },
+        "complete": { "type": "boolean" },
+        "sections": { "type": "object", "additionalProperties": { "enum": ["complete", "failed"] } },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "Hash of the semantic body only (security..findings); excludes generated, change_context, drift." }
+      }
+    },
+    "security": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "type": ["string", "null"] },
+        "check_security": { "type": ["boolean", "null"] },
+        "strict_mode": { "type": ["boolean", "null"] },
+        "demo_users_enabled": { "type": ["boolean", "null"] },
+        "guest_access": { "type": ["boolean", "null"] },
+        "guest_user_role": { "type": ["string", "null"] },
+        "admin_user": { "type": ["string", "null"] }
+      }
+    },
+    "roles": {
+      "type": ["object", "null"],
+      "required": ["user_roles", "module_roles"],
+      "additionalProperties": false,
+      "properties": {
+        "user_roles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["module_roles", "manage_all_roles", "check_security"],
+            "additionalProperties": false,
+            "properties": {
+              "module_roles": { "type": "array", "items": { "type": "string" } },
+              "manage_all_roles": { "type": "boolean" },
+              "check_security": { "type": ["boolean", "null"] }
+            }
+          }
+        },
+        "module_roles": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "pages": { "$ref": "#/$defs/resourceGrants" },
+    "microflows": { "$ref": "#/$defs/resourceGrants" },
+    "nanoflows": { "$ref": "#/$defs/resourceGrants" },
+    "entities": {
+      "type": ["object", "null"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["access_rules"],
+        "additionalProperties": false,
+        "properties": { "access_rules": { "type": "array", "items": { "$ref": "#/$defs/entityRule" } } }
+      }
+    },
+    "effective_access": {
+      "type": ["object", "null"],
+      "description": "Keyed by application User Role. pages/microflows/nanoflows are unions of the role's Module Role grants. Entities keep contributing rules; summary is none|unconditional|conditional (conditional = only XPath-constrained rules grant it).",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["module_roles", "pages", "microflows", "nanoflows", "entities"],
+        "additionalProperties": false,
+        "properties": {
+          "module_roles": { "type": "array", "items": { "type": "string" } },
+          "pages": { "type": "array", "items": { "type": "string" } },
+          "microflows": { "type": "array", "items": { "type": "string" } },
+          "nanoflows": { "type": "array", "items": { "type": "string" } },
+          "entities": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["summary", "rules"],
+              "additionalProperties": false,
+              "properties": {
+                "summary": {
+                  "type": "object",
+                  "required": ["create", "delete", "read", "write"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "create": { "$ref": "#/$defs/mode" },
+                    "delete": { "$ref": "#/$defs/mode" },
+                    "read": { "$ref": "#/$defs/mode" },
+                    "write": { "$ref": "#/$defs/mode" }
+                  }
+                },
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["via_module_roles", "create", "delete", "read", "write", "xpath", "default_member_access"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "via_module_roles": { "type": "array", "items": { "type": "string" } },
+                      "create": { "type": "boolean" },
+                      "delete": { "type": "boolean" },
+                      "read": { "$ref": "#/$defs/rights" },
+                      "write": { "$ref": "#/$defs/rights" },
+                      "xpath": { "type": ["string", "null"] },
+                      "default_member_access": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "subject", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^SEC-[A-Z-]+$" },
+          "severity": { "$ref": "#/$defs/severity" },
+          "subject": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "change_context": {
+      "type": "object",
+      "required": ["last_generated", "source_revision", "model_dirty", "last_model_commit", "previous_fingerprint", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "last_generated": { "type": "string" },
+        "source_revision": { "type": ["string", "null"] },
+        "model_dirty": { "type": ["boolean", "null"] },
+        "last_model_commit": { "type": ["string", "null"], "description": "Last commit touching the model directory. TECHNICAL provenance only; it is not proof that this commit changed security." },
+        "previous_fingerprint": { "type": ["string", "null"] },
+        "reason": {
+          "type": "object",
+          "required": ["type", "reference", "text"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "enum": ["requirement", "task", "decision", "finding", "unknown"] },
+            "reference": { "type": ["string", "null"] },
+            "text": { "type": ["string", "null"] }
+          },
+          "if": { "properties": { "type": { "const": "unknown" } } },
+          "then": { "properties": { "reference": { "const": null }, "text": { "const": null } } },
+          "else": { "properties": { "reference": { "type": "string", "minLength": 1 } } }
+        }
+      }
+    },
+    "drift": {
+      "type": ["object", "null"],
+      "description": "Structural drift versus previous_fingerprint's snapshot. Provenance, not part of the fingerprint.",
+      "required": ["comparable", "changes", "notes"],
+      "properties": {
+        "comparable": { "type": "boolean" },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "max_severity": { "enum": ["info", "security_relevant", "high_impact", "critical", null] },
+        "summary": { "type": "object" },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "severity", "kind", "subject", "detail"],
+            "properties": {
+              "type": { "type": "string" },
+              "severity": { "$ref": "#/$defs/severity" },
+              "kind": { "type": "string" },
+              "subject": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "severity": { "enum": ["info", "security_relevant", "high_impact", "critical"] },
+    "mode": { "enum": ["none", "unconditional", "conditional"] },
+    "rights": {
+      "type": "object",
+      "required": ["granted", "members"],
+      "additionalProperties": false,
+      "properties": {
+        "granted": { "type": "boolean" },
+        "members": { "oneOf": [{ "const": "*" }, { "type": "array", "items": { "type": "string" } }] }
+      }
+    },
+    "resourceGrants": {
+      "type": ["object", "null"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["grants"],
+        "additionalProperties": false,
+        "properties": { "grants": { "type": "array", "items": { "type": "string" } } }
+      }
+    },
+    "entityRule": {
+      "type": "object",
+      "required": ["roles", "create", "delete", "read", "write", "default_member_access", "xpath"],
+      "additionalProperties": false,
+      "properties": {
+        "roles": { "type": "array", "items": { "type": "string" } },
+        "create": { "type": "boolean" },
+        "delete": { "type": "boolean" },
+        "read": { "$ref": "#/$defs/rights" },
+        "write": { "$ref": "#/$defs/rights" },
+        "default_member_access": { "type": "string" },
+        "xpath": { "type": ["string", "null"], "description": "Verbatim from mxcli JSON (unescaped); null = no constraint." }
+      }
+    }
+  }
+}
