@@ -1450,7 +1450,7 @@ function healthBadge(code) {
 
 function authorityBadge(event) {
   const info = AUTHORITY_TEXT[event.authority_class] || [event.authority_class, ""];
-  const badge = node("span", `authority-badge ${event.authority_class === "GIT_MENTION" ? "weak" : ""}`, info[0]);
+  const badge = node("span", `authority-badge ${event.authority_class === "GIT_MENTION" ? "weak" : event.authority_class === "GIT_DERIVED" ? "quiet" : ""}`, info[0]);
   badge.title = info[1];
   return badge;
 }
@@ -1512,95 +1512,155 @@ function momentSummary(moment) {
   return Object.entries(counts).map(([label, count]) => `${count} ${label}`).join(" · ");
 }
 
-function othersLabel(moment) {
-  const labels = [];
-  const seen = new Set();
-  for (const event of moment.events.slice(1)) {
-    const primary = event.entities.find((entity) => ["decision", "requirement", "task", "finding", "page", "revision"].includes(entity.type) && entity.derivation !== "message_mention");
-    const label = primary ? primary.id : event.title.split(" · ")[0].replace(/ \d+ Dateien?$/, "");
-    if (!seen.has(label)) {
-      seen.add(label);
-      labels.push(label);
-    }
+
+const MILESTONE_PREFIXES = ["wave.registered", "wave.phase_changed", "mission.", "decision.", "authority.", "finding.", "framework.updated"];
+const EYEBROWS = [
+  ["wave.", "WAVE"], ["mission.", "MISSION"], ["decision.", "DECISION"], ["authority.", "DESIGN AUTHORITY"], ["finding.", "FINDING"],
+  ["requirement.", "REQUIREMENT"], ["task.", "TASK"], ["page.", "PAGE"], ["parity.", "VERIFIKATION"], ["evidence.", "VERIFIKATION"],
+  ["verification.", "VERIFIKATION"], ["framework.", "FRAMEWORK"], ["changeset.", "CHANGE-SET"], ["delegation.", "DELEGATION"],
+];
+
+// Presentation tier only; it never changes events, evidence classes or assignments.
+function tierOf(moment) {
+  const head = moment.events[0];
+  const evidenced = head.entities.some((entity) => entity.derivation !== "message_mention");
+  if (evidenced && MILESTONE_PREFIXES.some((prefix) => head.type.startsWith(prefix))) return "milestone";
+  if (evidenced && head.significance >= 2) return "standard";
+  return "routine";
+}
+
+function eyebrowOf(type) {
+  const found = EYEBROWS.find(([prefix]) => type.startsWith(prefix));
+  return found ? found[1] : null;
+}
+
+function withTip(element, text) {
+  element.classList.add("has-tip");
+  element.dataset.tip = text;
+  element.tabIndex = 0;
+  return element;
+}
+
+function othersTip(moment) {
+  const lines = moment.events.slice(1).map((event) => `• ${event.title}${event.lane === "unattributed" ? " (nicht zugeordnet)" : ""}`);
+  return `Im selben Commit, aber nicht diesem Ereignis zugeordnet:\n${lines.slice(0, 12).join("\n")}${lines.length > 12 ? `\n… +${lines.length - 12} weitere` : ""}`;
+}
+
+function commitTip(moment) {
+  if (!moment.commit) return moment.iso;
+  return `Commit ${moment.commit.short}\n${moment.commit.author}\n${moment.iso}`;
+}
+
+function momentDetails(moment, unattributed) {
+  const details = node("details", "moment-details");
+  details.append(node("summary", "", "Details & Beleg"));
+  details.append(node("p", "muted moment-note", "Alle Änderungen dieses Commits. Eine Zuordnung gilt nur dort, wo das Ereignis selbst Entitäten mit Beleg nennt."));
+  const list = node("div", "moment-events");
+  for (const event of moment.events) {
+    const row = node("div", "moment-event");
+    const text = node("div", "item-main");
+    text.append(node("div", "", event.title));
+    if (event.detail) text.append(node("small", "muted", event.detail));
+    const trail = node("div", "moment-entities");
+    for (const entity of event.entities.slice(0, 10)) trail.append(entityChip(entity));
+    if (event.entities.length) text.append(trail);
+    if (event.source && event.source.path) text.append(node("small", "muted mono", `${event.source.path}${event.source.field ? ` · ${event.source.field}` : ""}${event.source.before || event.source.after ? ` · ${event.source.before ?? "—"} → ${event.source.after ?? "—"}` : ""}`));
+    const badge = authorityBadge(event);
+    badge.classList.remove("quiet");
+    row.append(text, badge);
+    list.append(row);
   }
-  return labels.length > 7 ? `${labels.slice(0, 7).join(" · ")} · +${labels.length - 7} weitere` : labels.join(" · ");
+  details.append(list);
+  const provenance = [];
+  if (moment.commit) provenance.push(`Commit ${moment.commit.short} · ${moment.commit.author} · „${moment.commit.subject}"`);
+  const changeSet = moment.events.find((event) => event.change_set_id);
+  if (changeSet) provenance.push(`Change-Set ${changeSet.change_set_id}${changeSet.mission_label ? ` · Mission-Label: ${changeSet.mission_label}` : ""}`);
+  if (unattributed) provenance.push("Zuordnung: keine – Zeitnähe, Dateinamen oder Commit-Text begründen keine Beziehung.");
+  if (provenance.length) details.append(node("p", "muted mono provenance", provenance.join("  |  ")));
+  return details;
 }
 
 function momentCard(moment, { compact = false } = {}) {
+  const tier = tierOf(moment);
   const head = moment.events[0];
   const unattributed = moment.events.every((event) => event.lane === "unattributed");
-  const card = node("article", `moment ${unattributed ? "unattributed" : ""}`);
-  card.append(node("div", "moment-time", timeOf(moment.iso) || "—"));
+  const card = node("article", `moment tier-${tier} ${unattributed ? "unattributed" : ""}`);
+  card.append(withTip(node("div", "moment-time", timeOf(moment.iso) || "—"), commitTip(moment)));
   const body = node("div", "moment-body");
-  // Without an evidence-backed entity the human-written commit text is the clearest label; it stays a Git fact, not an attribution.
   const commitText = moment.commit ? moment.commit.subject : null;
-  const title = node("div", "moment-title", unattributed && commitText ? `Commit ${moment.commit.short}: ${commitText}` : head.title);
-  body.append(title);
   const rest = moment.events.length - 1;
-  if (unattributed && commitText) {
-    body.append(node("div", "moment-sub", `${moment.events.map((event) => event.title).join(" · ")} – keiner Wave, Task oder Page zugeordnet`));
-  } else if (rest > 0) {
-    body.append(node("div", "moment-sub", `Im selben Commit außerdem (keine Zuordnung zu diesem Ereignis): ${othersLabel(moment)}`));
+  if (tier === "routine") {
+    // Quiet one-liner: the human-written commit text, honest label, everything else on hover or in the details.
+    const line = node("div", "moment-line");
+    line.append(node("span", "moment-title", unattributed && commitText ? commitText : head.title));
+    if (unattributed) line.append(withTip(node("span", "unassigned-tag", "nicht zugeordnet"), `${moment.events.map((event) => event.title).join("\n")}\n\nKeiner Wave, Task oder Page zugeordnet.`));
+    for (const code of head.health) line.append(healthBadge(code));
+    body.append(line);
+  } else {
+    const eyebrow = eyebrowOf(head.type);
+    if (eyebrow) body.append(node("div", "moment-eyebrow", eyebrow));
+    body.append(node("div", "moment-title", head.title));
+    if (rest > 0) body.append(withTip(node("div", "moment-sub", `+${rest} weitere im selben Commit`), othersTip(moment)));
+    const strong = head.entities.filter((entity) => entity.derivation !== "message_mention");
+    const limit = compact ? 3 : 5;
+    const chips = node("div", "moment-entities");
+    strong.slice(0, limit).forEach((entity) => chips.append(entityChip(entity)));
+    if (strong.length > limit) chips.append(withTip(node("span", "entity-more", `+${strong.length - limit}`), strong.slice(limit).map((entity) => `${entity.type}: ${entity.id}`).join("\n")));
+    const flags = node("span", "moment-flags");
+    flags.append(authorityBadge(head));
+    for (const code of head.health) flags.append(healthBadge(code));
+    chips.append(flags);
+    body.append(chips);
   }
-  const strong = head.entities.filter((entity) => entity.derivation !== "message_mention").slice(0, compact ? 5 : 10);
-  const weak = unattributed ? head.entities.filter((entity) => entity.derivation === "message_mention").slice(0, 4) : [];
-  const chips = node("div", "moment-entities");
-  strong.forEach((entity) => chips.append(entityChip(entity)));
-  weak.forEach((entity) => chips.append(entityChip(entity)));
-  const flags = node("span", "moment-flags");
-  flags.append(authorityBadge(head));
-  if (unattributed) {
-    const badge = node("span", "lane-badge", "nicht zugeordnet");
-    badge.title = "Beobachtbar, aber ohne belegte Beziehung zu einer Wave, einem Requirement oder einer Page.";
-    flags.append(badge);
-  }
-  if (head.health.length) flags.append(healthBadge(head.health[0]));
-  chips.append(flags);
-  body.append(chips);
-  if (!compact) {
-    const details = node("details", "moment-details");
-    details.append(node("summary", "", "Details & Beleg"));
-    const list = node("div", "moment-events");
-    for (const event of moment.events) {
-      const row = node("div", "moment-event");
-      const text = node("div", "item-main");
-      text.append(node("div", "", event.title));
-      if (event.detail) text.append(node("small", "muted", event.detail));
-      const trail = node("div", "moment-entities");
-      for (const entity of event.entities.slice(0, 10)) trail.append(entityChip(entity));
-      if (event.entities.length) text.append(trail);
-      if (event.source && event.source.path) text.append(node("small", "muted mono", `${event.source.path}${event.source.field ? ` · ${event.source.field}` : ""}${event.source.before || event.source.after ? ` · ${event.source.before ?? "—"} → ${event.source.after ?? "—"}` : ""}`));
-      row.append(text, authorityBadge(event));
-      list.append(row);
-    }
-    details.append(list);
-    const provenance = [];
-    if (moment.commit) provenance.push(`Commit ${moment.commit.short} · ${moment.commit.author} · „${moment.commit.subject}"`);
-    const changeSet = moment.events.find((event) => event.change_set_id);
-    if (changeSet) provenance.push(`Change-Set ${changeSet.change_set_id}${changeSet.mission_label ? ` · Mission-Label: ${changeSet.mission_label}` : ""}`);
-    if (unattributed) provenance.push("Zuordnung: keine – Zeitnähe, Dateinamen oder Commit-Text begründen keine Beziehung.");
-    if (provenance.length) details.append(node("p", "muted mono provenance", provenance.join("  |  ")));
-    body.append(details);
-  }
+  if (!compact) body.append(momentDetails(moment, unattributed));
   card.append(body);
   return card;
 }
 
+function routineGroupSummary(run) {
+  const unattributed = run.filter((moment) => moment.events.every((event) => event.lane === "unattributed")).length;
+  const label = `${run.length} weitere Aktivitäten${unattributed ? ` (${unattributed} ohne Zuordnung)` : ""}`;
+  const previews = run.slice(0, 2).map((moment) => `„${(moment.commit ? moment.commit.subject : moment.events[0].title).slice(0, 48)}"`).join(", ");
+  return `${label} · ${timeOf(run[run.length - 1].iso)}–${timeOf(run[0].iso)} · ${previews}${run.length > 2 ? ` · +${run.length - 2}` : ""}`;
+}
+
+
 function renderMomentStream(container, moments, options = {}) {
   let currentDay = null;
   let section = null;
+  const target = () => (options.compact ? container : section);
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    if (run.length === 1 || options.compact) {
+      run.forEach((moment) => target().append(momentCard(moment, options)));
+    } else {
+      // Consecutive routine moments collapse into one honest summary row; nothing is hidden, the count and previews stay visible.
+      const group = node("details", "routine-group");
+      group.append(node("summary", "", routineGroupSummary(run)));
+      run.forEach((moment) => group.append(momentCard(moment, options)));
+      target().append(group);
+    }
+    run = [];
+  };
   for (const moment of moments) {
     const day = moment.iso.slice(0, 10);
     if (!options.compact && day !== currentDay) {
+      flush();
       currentDay = day;
       section = node("section", "day-group");
       section.append(node("h3", "day-heading", dayLabel(moment.iso)));
       container.append(section);
     }
-    (options.compact ? container : section).append(momentCard(moment, options));
+    if (tierOf(moment) === "routine") {
+      run.push(moment);
+    } else {
+      flush();
+      target().append(momentCard(moment, options));
+    }
   }
+  flush();
 }
-
 async function fetchTimeline(params) {
   const query = new URLSearchParams(params);
   const response = await fetch(`/api/timeline?${query.toString()}`, { cache: "no-store" });
@@ -1626,7 +1686,9 @@ function timelineFilterBar(params) {
     for (const [key, value] of new FormData(bar).entries()) if (String(value).trim()) next.set(key, String(value).trim());
     location.hash = `timeline${next.toString() ? `?${next.toString()}` : ""}`;
   };
-  const select = (name, label, options, value) => {
+  const primary = node("div", "filters-primary");
+  const advanced = node("details", "filters-advanced");
+  const select = (container, name, label, options, value) => {
     const wrapper = node("label", "filter");
     wrapper.append(node("span", "", label));
     const element = document.createElement("select");
@@ -1640,32 +1702,37 @@ function timelineFilterBar(params) {
     }
     element.addEventListener("change", apply);
     wrapper.append(element);
-    bar.append(wrapper);
+    container.append(wrapper);
   };
   const dayOffset = (days) => { const date = new Date(); date.setDate(date.getDate() - days); return date.toISOString().slice(0, 10); };
-  select("from", "Zeitraum", [["", "Gesamter Verlauf"], [dayOffset(1), "Seit gestern"], [dayOffset(7), "Letzte 7 Tage"], [dayOffset(30), "Letzte 30 Tage"]], params.get("from"));
-  select("group", "Bereich", Object.entries(GROUP_LABELS), params.get("group"));
-  select("lane", "Zuordnung", [["", "Alle"], ["attributed", "Zugeordnet"], ["unattributed", "Nicht zugeordnet"]], params.get("lane"));
-  select("authority", "Beleg", [["", "Alle"], ["CANONICAL_RECORD", "Kanonisch"], ["GIT_DERIVED", "Aus Git belegt"], ["COMMIT_TRAILER", "Change-Set"], ["GIT_MENTION", "Nur erwähnt"]], params.get("authority"));
-  select("min_significance", "Detailgrad", [["", "Alles"], ["2", "Wichtiges"]], params.get("min_significance"));
+  select(primary, "from", "Zeitraum", [["", "Gesamter Verlauf"], [dayOffset(1), "Seit gestern"], [dayOffset(7), "Letzte 7 Tage"], [dayOffset(30), "Letzte 30 Tage"]], params.get("from"));
+  select(primary, "group", "Bereich", Object.entries(GROUP_LABELS), params.get("group"));
+  select(primary, "min_significance", "Umfang", [["", "Alles"], ["2", "Nur Wichtiges"]], params.get("min_significance"));
+  select(advanced, "lane", "Zuordnung", [["", "Alle"], ["attributed", "Zugeordnet"], ["unattributed", "Nicht zugeordnet"]], params.get("lane"));
+  select(advanced, "authority", "Beleg", [["", "Alle"], ["CANONICAL_RECORD", "Kanonisch"], ["GIT_DERIVED", "Aus Git belegt"], ["COMMIT_TRAILER", "Change-Set"], ["GIT_MENTION", "Nur erwähnt"]], params.get("authority"));
   const entity = node("label", "filter");
-  entity.append(node("span", "", "Wave / Requirement / Page …"));
+  entity.append(node("span", "", "Eintrag (z. B. wave:W13)"));
   const input = document.createElement("input");
   input.name = "entity";
-  input.placeholder = "z. B. wave:W13 oder requirement:REQ-093";
+  input.placeholder = "wave:W13 · requirement:REQ-093";
   input.value = params.get("entity") || "";
   input.addEventListener("change", apply);
   entity.append(input);
-  bar.append(entity);
+  advanced.append(entity);
+  const active = ["lane", "authority", "entity"].filter((key) => params.get(key)).length;
+  advanced.open = active > 0;
+  const summary = node("summary", "", active ? `Weitere Filter (${active} aktiv)` : "Weitere Filter");
+  advanced.prepend(summary);
+  bar.append(primary, advanced);
   for (const hidden of ["include_mentions"]) if (params.get(hidden)) { const field = document.createElement("input"); field.type = "hidden"; field.name = hidden; field.value = params.get(hidden); bar.append(field); }
   return bar;
 }
-
 async function renderTimeline() {
   const params = hashQuery();
   root.append(sectionTitle("Project Timeline", "Was ist im Projekt passiert – rekonstruiert aus kanonischen Artefakten und Git (abgeleitet, nie gespeichert)"));
   root.append(timelineFilterBar(params));
-  const explain = node("p", "muted timeline-note", "Eine Zeile pro Commit-Moment. Beziehungen zu Waves, Requirements oder Pages erscheinen nur, wenn sie aus Artefakten oder Change-Sets belegt sind; „nur erwähnt“ und „nicht zugeordnet“ bleiben sichtbar schwach.");
+  const explain = node("p", "muted timeline-note", "Neueste zuerst. Wichtiges hervorgehoben, Routine zusammengefasst. ");
+  explain.append(withTip(node("span", "hint", "ⓘ Wie wird zugeordnet?"), "Beziehungen zu Waves, Requirements oder Pages erscheinen nur, wenn sie aus Artefakten oder Change-Sets belegt sind. „nur erwähnt“ und „nicht zugeordnet“ bleiben sichtbar schwach. Zeitnähe, Dateinamen und Commit-Texte ordnen nichts zu."));
   root.append(explain);
   const stream = node("div", "timeline-stream");
   const footer = node("div", "timeline-footer");
@@ -1726,7 +1793,7 @@ async function renderRecentActivity() {
   const attempt = async () => {
     let result;
     try {
-      result = await fetchTimeline({ limit: "120", min_significance: "2" });
+      result = await fetchTimeline({ limit: "150", min_significance: "2" });
     } catch {
       clear(body);
       body.append(node("p", "muted", "Timeline nicht erreichbar."));
@@ -1740,13 +1807,29 @@ async function renderRecentActivity() {
       if (result.index.state === "BUILDING") setTimeout(() => { if (token === timelineView.token) attempt(); }, 1500);
       return;
     }
-    const moments = groupMoments(result.events).slice(0, 6);
-    if (!moments.length) {
+    const moments = groupMoments(result.events);
+    const story = moments.filter((moment) => tierOf(moment) !== "routine");
+    if (!story.length && !moments.length) {
       body.append(node("p", "muted", "Keine wesentlichen Ereignisse im beobachteten Verlauf."));
       return;
     }
+    // Orientation first: activity without evidence that is newer than the latest project milestone gets one honest line.
+    const newest = story.length ? story[0].epoch : -1;
+    const newer = moments.filter((moment) => tierOf(moment) === "routine" && moment.epoch > newest);
+    if (newer.length) {
+      const latest = newer[0];
+      const note = node("div", "recent-unassigned");
+      note.append(node("span", "unassigned-tag", "nicht zugeordnet"));
+      const text = latest.commit ? latest.commit.subject : latest.events[0].title;
+      note.append(withTip(node("span", "recent-unassigned-text", `${newer.length} Aktivität${newer.length > 1 ? "en" : ""} seit dem letzten Meilenstein – zuletzt: „${text.slice(0, 90)}"`),
+        newer.slice(0, 8).map((moment) => `${timeOf(moment.iso)}  ${moment.commit ? moment.commit.subject : moment.events[0].title}`).join("\n") + "\n\nKeiner Wave, Task oder Page zugeordnet."));
+      const more = internalLink("ansehen", "timeline?lane=unattributed");
+      more.className = "internal-link all-activity";
+      note.append(more);
+      body.append(note);
+    }
     let currentDay = null;
-    for (const moment of moments) {
+    for (const moment of story.slice(0, 6)) {
       const day = moment.iso.slice(0, 10);
       if (day !== currentDay) {
         currentDay = day;
@@ -1757,7 +1840,6 @@ async function renderRecentActivity() {
   };
   attempt();
 }
-
 async function renderEntityTimeline(type, id) {
   const section = node("section", "plain-section entity-timeline");
   const head = node("div", "cw-head");

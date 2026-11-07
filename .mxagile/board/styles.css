@@ -296,3 +296,37 @@ a { color: inherit; }
   .footnote { align-items: flex-start; flex-direction: column; }
   .footnote span { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
 }
+/* CS-5 UX refinement: visual hierarchy for the project story, details on hover */
+.has-tip { position: relative; cursor: help; }
+.has-tip::after { content: attr(data-tip); display: none; position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 30; width: max-content; max-width: 460px; white-space: pre-line; background: #0d1412; border: 1px solid var(--line); padding: 8px 10px; font: 11px/1.45 var(--mono); color: #d7e2dc; text-align: left; box-shadow: 0 6px 18px rgba(0,0,0,.45); }
+.has-tip:hover::after, .has-tip:focus::after { display: block; }
+.moment-time.has-tip::after { left: -4px; }
+.moment-eyebrow { font: 10px var(--mono); letter-spacing: .12em; color: var(--muted); margin-bottom: 2px; }
+.moment.tier-milestone { border-left: 4px solid var(--mint); margin: 10px 0; padding: 12px 14px; background: #17211e; }
+.moment.tier-milestone .moment-title { font-size: 17px; }
+.moment.tier-milestone .moment-eyebrow { color: var(--mint); }
+.moment.tier-standard .moment-title { font-size: 14px; }
+.moment.tier-routine { padding: 3px 0 3px 12px; border-left-width: 1px; opacity: .78; }
+.moment.tier-routine:hover, .moment.tier-routine:focus-within { opacity: 1; }
+.moment.tier-routine .moment-title { font-size: 12.5px; font-weight: 400; color: #aab8b1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.moment.tier-routine .moment-time { font-size: 11px; padding-top: 1px; }
+.moment-line { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.unassigned-tag { flex: none; padding: 0 6px; border: 1px dashed #6a512e; color: #b99a61; font: 10px var(--mono); letter-spacing: .05em; }
+.moment-sub { display: inline-block; font-size: 11.5px; color: var(--muted); margin-top: 2px; border-bottom: 1px dotted var(--muted); }
+.entity-more { padding: 1px 6px; border: 1px dotted var(--line); color: var(--muted); font: 11px var(--mono); }
+.authority-badge.quiet { opacity: .4; transition: opacity .12s; }
+.moment:hover .authority-badge.quiet, .moment:focus-within .authority-badge.quiet { opacity: 1; }
+.lane-badge { font-size: 10px; }
+.moment-note { margin: 4px 0; font-size: 12px; }
+.routine-group { margin: 2px 0 2px 4px; border-left: 1px dashed var(--line); padding-left: 8px; }
+.routine-group > summary { cursor: pointer; color: var(--muted); font: 11.5px var(--mono); padding: 5px 0; list-style-position: inside; }
+.routine-group[open] > summary { color: #c9d6cf; }
+.recent-unassigned { display: flex; gap: 10px; align-items: center; padding: 6px 12px; margin: 4px 0 10px; border-left: 1px dashed #6a512e; color: #aab8b1; font-size: 12.5px; }
+.recent-unassigned-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.filters-primary { display: flex; flex-wrap: wrap; gap: 12px; }
+.filters-advanced { flex-basis: 100%; }
+.filters-advanced > summary { cursor: pointer; color: var(--muted); font: 11px var(--mono); margin: 4px 0; }
+.filters-advanced[open] { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.filters-advanced[open] > summary { flex-basis: 100%; }
+.timeline-filters { display: block; margin: 8px 0 4px; }
+.hint { color: var(--muted); border-bottom: 1px dotted var(--muted); font-size: 12px; }
