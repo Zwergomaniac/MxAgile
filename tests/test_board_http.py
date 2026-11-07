@@ -281,6 +281,98 @@ class BoardHttpTests(unittest.TestCase):
             finally:
                 self.stop_server(server, thread)
 
+    def hub_project(self, root: Path) -> None:
+        def write(relative: str, content: str | bytes) -> None:
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+
+        write("planning/ui-inventory/PAGE-ONE.yaml", "page_id: PAGE-ONE\npage_name: Page_One\ntitle: Seite Eins\nsource_mockup: input-resources/ui-ux/one.html\ntarget_mockup: input-resources/ui-ux/one.html\n")
+        write("planning/ui-inventory/PAGE-TWO.yaml", "page_id: PAGE-TWO\npage_name: Page_Two\n")
+        write("input-resources/ui-ux/one.html", "<html><body>mockup one</body></html>")
+        write("planning/evidence/screenshots/set1/shot-a.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+        write("planning/evidence/screenshots/set1/notes.txt", "not an image")
+        write("planning/evidence/screenshots/other/secret.png", b"\x89PNG\r\n\x1a\n" + b"1" * 32)
+        write("planning/evidence/analysis/set1.md", "# analysis")
+        write("planning/parity/SCN-ONE.yaml",
+              "# Evidence: planning/evidence/screenshots/set1/ ; analysis: planning/evidence/analysis/set1.md\n"
+              "page_id: PAGE-ONE\nscenario_id: SCN-ONE\nverified_at: '2026-11-05'\nevidence_level: browser\n"
+              "target_mockup: input-resources/ui-ux/one.html\napp_url: http://localhost:8080/p/one\n"
+              "dimensions:\n  visual: {required: true, result: PARTIAL, note: delta}\n  content: {required: true, result: PASS}\noverall_result: PARTIAL\n")
+        write("planning/decisions/DEC-001.yml", "ID: DEC-001\ntitle: Choice\nstatus: CONFIRMED\ndecision_type: business\ntopic: x\ndecision_text: y\nowner: PO\n"
+              "affected_requirements: [REQ-001]\naffected_screens: [PAGE-ONE]\n")
+        write("requirements/REQ-001.yml", "ID: REQ-001\ntitle: A requirement\ndescription: d\nstatus: accepted\n")
+        write("planning/tasks/TASK-001.yml", "ID: TASK-001\nspec: SPEC-1\naction: Do it\nstatus: done\nreq: [REQ-001]\n")
+
+    def test_page_hub_serves_only_the_selected_page_and_never_binds_mentioned_captures(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-hub-api-") as temporary:
+            root = Path(temporary)
+            self.hub_project(root)
+            server, thread = self.start_server(root)
+            try:
+                base = f"http://127.0.0.1:{server.server_port}"
+                with urlopen(f"{base}/api/page/PAGE-ONE") as response:
+                    hub = json.loads(response.read())
+                self.assertEqual((hub["page_id"], hub["title"]), ("PAGE-ONE", "Seite Eins"))
+                self.assertNotIn("PAGE-TWO", json.dumps(hub))  # FR-083: nothing of other pages is loaded
+                report = hub["parity"]["reports"][0]
+                self.assertEqual((report["reported_result"], report["state"]), ("PARTIAL", "REPORTED_UNBOUND"))
+                self.assertEqual([item["dimension"] for item in report["dimensions"]], ["visual", "content"])
+                self.assertEqual(hub["parity"]["evidence_binding"]["state"], "NOT_RECORDED")
+                self.assertEqual(hub["parity"]["model_commit_fingerprint"]["observation_state"], "NOT_RECORDED")
+                self.assertIn("PARITY_NOT_BOUND", [item["code"] for item in hub["attention"]])
+                groups = hub["visuals"]["captures"]["reported"]
+                self.assertEqual([(group["label"], group["total"], group["bound"]) for group in groups], [("set1", 1, False)])
+                self.assertEqual(groups[0]["source"], "parity_report_comment")
+                self.assertEqual([doc["name"] for doc in hub["visuals"]["captures"]["documents"]], ["set1.md"])
+                self.assertEqual([item["id"] for item in hub["context"]["decisions"]], ["DEC-001"])
+                self.assertEqual(hub["context"]["requirements"][0]["via"], ["DEC-001"])
+                self.assertEqual(hub["context"]["tasks"]["observation_state"], "NOT_OBSERVABLE")
+                self.assertEqual(hub["visuals"]["reference"]["availability"], "available")
+
+                # Screenshots are served only when this page's own report mentions them.
+                with urlopen(f"{base}{groups[0]['items'][0]['url']}") as response:
+                    self.assertEqual(response.headers["Content-Type"], "image/png")
+                for forbidden in ("/page-artifact/PAGE-ONE/planning/evidence/screenshots/other/secret.png",
+                                  "/page-artifact/PAGE-ONE/planning/evidence/screenshots/set1/notes.txt",
+                                  "/page-artifact/PAGE-ONE/planning/parity/SCN-ONE.yaml",
+                                  "/page-artifact/PAGE-TWO/planning/evidence/screenshots/set1/shot-a.png",
+                                  "/page-artifact/PAGE-ONE/planning/evidence/screenshots/set1/../other/secret.png"):
+                    with self.assertRaises(HTTPError) as response:
+                        urlopen(f"{base}{forbidden}")
+                    self.assertEqual(response.exception.code, 404, forbidden)
+                    response.exception.close()
+
+                with urlopen(f"{base}/api/page/PAGE-TWO") as response:
+                    second = json.loads(response.read())
+                self.assertEqual((second["parity"]["reports"], second["visuals"]["captures"]["reported"]), ([], []))
+                self.assertIn("NO_PARITY_REPORT", [item["code"] for item in second["attention"]])
+            finally:
+                self.stop_server(server, thread)
+
+    def test_page_and_requirement_endpoints_return_404_for_unknown_ids_and_a_requirement_slice(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-slice-api-") as temporary:
+            root = Path(temporary)
+            self.hub_project(root)
+            server, thread = self.start_server(root)
+            try:
+                base = f"http://127.0.0.1:{server.server_port}"
+                for unknown in ("/api/page/PAGE-NOPE", "/api/page/not-a-page", "/api/requirement/REQ-404", "/api/requirement/bad id"):
+                    with self.assertRaises(HTTPError) as response:
+                        urlopen(f"{base}{unknown.replace(' ', '%20')}")
+                    self.assertEqual(response.exception.code, 404, unknown)
+                    response.exception.close()
+                with urlopen(f"{base}/api/requirement/REQ-001") as response:
+                    result = json.loads(response.read())
+                self.assertEqual(result["requirement"]["id"], "REQ-001")
+                self.assertEqual(result["assessment"]["rule_version"], "delivery-assessment/v1")
+                self.assertTrue(result["assessment"]["derived"])
+                self.assertEqual([task["id"] for task in result["traceability"]["tasks"]], ["TASK-001"])
+                self.assertEqual(result["traceability"]["pages_via_decisions"], ["PAGE-ONE"])
+                self.assertEqual([item["id"] for item in result["traceability"]["decisions"]], ["DEC-001"])
+            finally:
+                self.stop_server(server, thread)
+
     def test_health_endpoint_separates_groups_and_serves_older_snapshots(self) -> None:
         diagnostic = {"diagnostic_id": "DX-0000000000000001", "category": "DONE_BASIS_NOT_RECORDED", "severity": "INFO",
                       "blocking": False, "diagnostic_group": "framework_compat", "source_path": None}

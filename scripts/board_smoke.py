@@ -38,23 +38,25 @@ from urllib.request import urlopen
 sys.dont_write_bytecode = True
 
 SCHEMA_VERSION = 1
-ROUTE_LIST_VERSION = 2
-# Versioned v2 route list (v2 adds the CS-3 health view): (hash route, heading that proves the view rendered).
+ROUTE_LIST_VERSION = 3
+# Versioned v3 route list (v3: CS-6 information architecture NOW / DELIVERY / QUALITY / SYSTEM): (hash route, heading that proves the view rendered).
 ROUTES = (
-    ("portfolio", "Portfolio"),
     ("overview", "Delivery at a glance"),
+    ("timeline", "Project Timeline"),
     ("waves", "Waves & Workpackages"),
     ("requirements", "Requirements"),
+    ("tasks", "Tasks"),
     ("verification", "Verification & Evidence"),
-    ("gallery", "Parity Evidence"),
-    ("ui-pages", "UI & Pages"),
+    ("pages", "Pages & Parity"),
     ("findings", "Findings"),
     ("decisions", "Decisions"),
     ("health", "Health & Diagnostics"),
+    ("portfolio", "Portfolio"),
 )
 LOADING_TOKENS = (
     "LOADING PARITY EVIDENCE", "PARITY EVIDENCE NOT LOADED",
     "LOADING PAGE PREVIEW METADATA", "PAGE PREVIEW METADATA NOT LOADED",
+    "Pages werden geladen", "Page wird geladen", "Verlauf wird geladen",
 )
 PROJECTION_LABELS = {"FRESH": "AKTUELL", "STALE": "VERALTET", "BUILDING": "BUILDING", "PROJECTION_ERROR": "PROJECTION_ERROR"}
 MAX_TIMEOUT_SECONDS = 60.0
@@ -635,12 +637,21 @@ class BoardSmoke:
 
         def check_page(href: str) -> None:
             page_id = href.split("/", 1)[1]
-            page.wait_for_selector(f'#view h2:has-text("{page_id}")', timeout=max(500.0, self.deadline.budget(8.0) * 1000))
+            page.wait_for_selector(f'#view .page-hub .hub-header:has-text("{page_id}")', timeout=max(500.0, self.deadline.budget(10.0) * 1000))
             self.wait_final_state(page, "page")
 
         drill("wave", "waves", '#view a.internal-link[href^="#wave/"]', check_wave, bool(waves))
         drill("requirement", "requirements", '#view a.internal-link[href^="#requirement/"]', check_requirement, bool(requirements))
-        drill("page", "ui-pages", '#view a[href^="#page/"]', check_page, bool(pages))
+        drill("page", "pages", '#view a.page-card-title[href^="#pages/"]', check_page, bool(pages))
+        # Legacy hash routes are redirected (FR-084).
+        try:
+            page.evaluate("(route) => { location.hash = route; }", "gallery")
+            page.wait_for_function("location.hash === '#pages?view=parity'", timeout=3000)
+        except SmokeTimeout:
+            raise
+        except Exception as error:
+            entry["result"] = "FAIL"
+            entry["failures"].append({"route": "gallery", "kind": "legacy_redirect_failed", "message": str(error).splitlines()[0][:200]})
 
     def record_consistency(self, name: str, ui, api) -> None:
         self.consistency.append({"name": name, "ui": ui, "api": api, "match": str(ui) == str(api)})

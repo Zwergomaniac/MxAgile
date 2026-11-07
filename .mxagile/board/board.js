@@ -2,7 +2,7 @@
 
 const $ = (selector) => document.querySelector(selector);
 const root = $("#view");
-const tabs = ["overview", "waves", "requirements", "verification", "gallery", "ui-pages", "findings", "decisions", "timeline"];
+const tabs = ["overview", "timeline", "waves", "requirements", "tasks", "verification", "pages", "findings", "decisions", "health"];
 let status = null;
 
 function node(tag, className = "", text = "") {
@@ -187,7 +187,7 @@ function renderHeader() {
   clear(targetList);
   $("#target-state").textContent = targets.length ? "ACTIVE TARGET AUTHORITY" : obsLabel(status.project.active_targets, "REFERENCE UNKNOWN");
   if (!targets.length) targetList.append(node("div", "target-unknown", `${obsLabel(status.project.active_targets, "REFERENCE UNKNOWN")} · No canonical ACTIVE_TARGET reference available`));
-  else for (const target of targets) targetList.append(targetCard(target));
+  else for (const target of targets) targetList.append(compactTargetCard(target));
   for (const candidate of status.reconciliation?.external_reference_candidates || []) {
     const card = node("article", "target-card reference-candidate");
     const meta = node("div", "target-meta");
@@ -1041,9 +1041,12 @@ function renderTaskList(tasks) {
 }
 
 function renderView() {
-  clear(root);
   const parts = routeParts();
   const view = parts[0] || "overview";
+  const redirects = { gallery: "pages?view=parity", "ui-pages": "pages" };
+  if (redirects[view]) { location.replace(`#${redirects[view]}`); return; }
+  if (view === "page" && parts[1]) { location.replace(`#pages/${encodeURIComponent(parts[1])}`); return; }
+  clear(root);
   const isPortfolio = view === "portfolio";
   // The project context block belongs to Overview and Health only (v2 snapshots keep it everywhere but Portfolio).
   $("#project-context").hidden = isPortfolio || (Boolean(status.health) && !["overview", "health"].includes(view));
@@ -1052,7 +1055,7 @@ function renderView() {
   $("#tabs").hidden = isPortfolio;
   for (const button of document.querySelectorAll("[data-route]")) {
     const buttonRoute = button.dataset.route;
-    button.classList.toggle("active", buttonRoute === view || (view === "requirement" && buttonRoute === "requirements") || (["wave", "workpackage"].includes(view) && buttonRoute === "waves") || (view === "finding" && buttonRoute === "findings") || (view === "decision" && buttonRoute === "decisions"));
+    button.classList.toggle("active", buttonRoute === view || (view === "requirement" && buttonRoute === "requirements") || (["wave", "workpackage"].includes(view) && buttonRoute === "waves") || (view === "finding" && buttonRoute === "findings") || (["page", "gallery", "ui-pages"].includes(view) && buttonRoute === "pages") || (view === "decision" && buttonRoute === "decisions"));
   }
   if (isPortfolio) renderPortfolio();
   else if (view === "overview") renderOverview();
@@ -1061,9 +1064,14 @@ function renderView() {
   else if (view === "waves") renderWaves();
   else if (view === "requirements") renderRequirements();
   else if (view === "verification") renderVerification();
-  else if (view === "gallery") renderGallery();
-  else if (view === "ui-pages") renderUiPages();
-  else if (view === "page") renderGallery(parts[1]);
+  else if (view === "pages") { if (parts[1]) renderPageHub(parts[1]); else renderPages(); }
+  else if (view === "tasks") renderTasks();
+  else if (view === "legacy") {
+    if (parts[1] === "gallery") renderGallery();
+    else if (parts[1] === "ui-pages") renderUiPages();
+    else if (parts[1] === "page" && parts[2]) renderGallery(parts[2]);
+    else root.append(empty("Unbekannte Legacy-Route"));
+  }
   else if (view === "findings") renderFindings();
   else if (view === "decisions") renderDecisions();
   else renderDetail(parts);
@@ -1433,7 +1441,7 @@ const ENTITY_LABELS = {
   change_set: "Change-Set", mission: "Mission", parity_report: "Parity-Report", test_contract: "Test Contract", evidence_manifest: "Evidenz",
   framework: "Framework", context_epoch: "Epoche", delegation: "Delegation",
 };
-const DIRECT_ROUTES = { wave: "wave", requirement: "requirement", decision: "decision", finding: "finding", page: "page" };
+const DIRECT_ROUTES = { wave: "wave", requirement: "requirement", decision: "decision", finding: "finding", page: "pages" };
 
 const HEALTH_TEXT = {
   CHANGE_SET_SCHEMA_INVALID: ["Change-Set ungültig", "Das Change-Set verletzt sein Schema und hat deshalb keine Zuordnungswirkung."],
@@ -1864,6 +1872,385 @@ async function renderEntityTimeline(type, id) {
     clear(body);
     body.append(node("p", "muted", "Verlauf nicht erreichbar."));
   }
+}
+
+// ---------------------------------------------------------------------------------- Pages & Parity / Page Hub (CS-6)
+async function fetchJson(url) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(String(response.status));
+  return response.json();
+}
+
+const PARITY_STATE_TEXT = { COMPUTED: "belegt (berechnet)", REPORTED_UNBOUND: "berichtet, nicht belegt", STALE: "veraltet", NOT_VERIFIED: "nicht verifiziert" };
+
+function parityStateLabel(state) {
+  return PARITY_STATE_TEXT[state] || state;
+}
+
+function germanDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || "");
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : (value || "ohne Datum");
+}
+
+function pageReports(pageId) {
+  const reports = ((status.verification && status.verification.parity_reports) || []).filter((report) => report.page_id === pageId);
+  return reports.sort((a, b) => (b.verified_at || "").localeCompare(a.verified_at || ""));
+}
+
+function pageSignals(preview, reports) {
+  // Scannability only: which Pages deserve a look. Signals are facts from the projection, never verdicts.
+  const signals = [];
+  let score = 0;
+  const latest = reports[0];
+  if (!reports.length) { signals.push(["warn", "kein Parity-Report"]); score += 2; }
+  else {
+    if (latest.reported_result === "FAIL") { signals.push(["bad", "Parity: FAIL"]); score += 3; }
+    else if (latest.reported_result === "PARTIAL") { signals.push(["warn", "Parity: PARTIAL"]); score += 2; }
+    if (latest.state === "REPORTED_UNBOUND") signals.push(["muted", "nicht belegt"]);
+  }
+  if (preview.implementation && preview.implementation.mismatch) { signals.push(["bad", "Absicht ≠ Fakt"]); score += 3; }
+  if (preview.reference && preview.reference.availability !== "available") { signals.push(["bad", "Referenz fehlt"]); score += 3; }
+  if (preview.html_source && preview.html_source.availability === "missing") { signals.push(["warn", "HTML-Quelle fehlt"]); score += 2; }
+  return { signals, score };
+}
+
+function pageCard(preview) {
+  const reports = pageReports(preview.page_id);
+  const { signals, score } = pageSignals(preview, reports);
+  const card = node("article", `page-card ${score >= 3 ? "attention" : score > 0 ? "notice" : ""}`);
+  const head = node("div", "page-card-head");
+  const link = internalLink(preview.title || preview.page_name || preview.page_id, `pages/${encodeURIComponent(preview.page_id)}`);
+  link.className = "internal-link page-card-title";
+  head.append(link);
+  const sourceKind = preview.html_source && preview.html_source.availability === "available" ? "HTML-Quelle vorhanden" : preview.implementation_mode === "HTML_FIRST" ? "HTML-first" : "Mendix";
+  head.append(node("span", "page-card-mode", sourceKind));
+  card.append(head, node("div", "page-card-id mono", `${preview.page_id}${preview.title && preview.page_name && preview.title !== preview.page_name ? ` · Mendix: ${preview.page_name}` : ""}`));
+  const latest = reports[0];
+  card.append(node("p", "page-card-parity", latest
+    ? `Zuletzt geprüft ${germanDate(latest.verified_at)}${reports.length > 1 ? ` · ${reports.length} Reports` : ""}`
+    : "Parity: nicht erfasst"));
+  const chips = node("div", "page-card-signals");
+  for (const [tone, text] of signals) chips.append(node("span", `signal ${tone}`, text));
+  card.append(chips);
+  return { card, score, name: preview.title || preview.page_name || preview.page_id };
+}
+
+function renderParityOverview(container) {
+  const reports = (status.verification && status.verification.parity_reports) || [];
+  container.append(node("p", "muted", "Gesamtsicht über alle Parity-Reports des Projekts. Details je Page stehen im Page Hub. „berichtet, nicht belegt“ heißt: Der Report existiert, ist aber an keine Evidenz gebunden."));
+  if (!reports.length) {
+    container.append(empty("Keine Parity-Reports erfasst."));
+    return;
+  }
+  const counts = {};
+  for (const report of reports) counts[report.state] = (counts[report.state] || 0) + 1;
+  container.append(node("p", "", Object.entries(counts).map(([state, count]) => `${count} ${parityStateLabel(state)}`).join(" · ")));
+  const list = node("div", "plain-list");
+  for (const report of [...reports].sort((a, b) => (b.verified_at || "").localeCompare(a.verified_at || ""))) {
+    const row = node("div", "plain-item");
+    const main = node("div", "item-main");
+    const page = report.page_id ? internalLink(report.page_id, `pages/${encodeURIComponent(report.page_id)}`) : node("span", "", "ohne Page");
+    main.append(page, node("small", "muted", `${report.scenario_id || report.report_path} · berichtet: ${report.reported_result || "—"} · berechnet: ${report.computed_result || "—"} · ${germanDate(report.verified_at)}`));
+    row.append(main, stateBadge(parityStateLabel(report.state).toUpperCase().replaceAll(" ", "_").replaceAll(",", "")), sourceLinkPath(report.report_path, "Report ↗"));
+    list.append(row);
+  }
+  container.append(list);
+}
+
+async function renderPages() {
+  const params = hashQuery();
+  const parity = params.get("view") === "parity";
+  root.append(sectionTitle("Pages & Parity", "Page als Einstieg: Soll, Ist, Parity und Evidenz an einer Stelle · read-only"));
+  const seg = node("div", "segmented");
+  const pagesLink = internalLink("Pages", "pages");
+  const parityLink = internalLink("Parity-Übersicht", "pages?view=parity");
+  (parity ? parityLink : pagesLink).classList.add("active");
+  seg.append(pagesLink, parityLink);
+  root.append(seg);
+  const container = node("div", "pages-body");
+  root.append(container);
+  if (parity) return renderParityOverview(container);
+  container.append(node("p", "muted", "Pages werden geladen …"));
+  let previews;
+  try {
+    previews = await fetchJson("/api/page-previews");
+  } catch {
+    clear(container);
+    container.append(node("p", "muted", "Pages nicht erreichbar."));
+    return;
+  }
+  if (routeParts()[0] !== "pages" || routeParts()[1]) return;
+  clear(container);
+  const items = previews.items || [];
+  if (!items.length) return container.append(empty(previews.availability === "unavailable" ? "Kein UI-Inventar (planning/ui-inventory) vorhanden." : "Keine Pages im UI-Inventar."));
+  const cards = items.map(pageCard).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  const attention = cards.filter((entry) => entry.score > 0);
+  const calm = cards.filter((entry) => entry.score === 0);
+  if (attention.length) {
+    container.append(node("h3", "pages-group", `Zum Hinschauen (${attention.length})`));
+    const grid = node("div", "page-grid");
+    attention.forEach((entry) => grid.append(entry.card));
+    container.append(grid);
+  }
+  if (calm.length) {
+    const details = node("details", "pages-calm");
+    details.open = !attention.length;
+    details.append(node("summary", "", `Ohne auffällige Signale (${calm.length})`));
+    const grid = node("div", "page-grid");
+    calm.forEach((entry) => grid.append(entry.card));
+    details.append(grid);
+    container.append(details);
+  }
+  container.append(node("p", "muted", `${items.length} Pages · Signale sind Fakten aus der Projektion, keine Bewertung. Der Parity-Stand ist „berichtet“, solange keine Evidenz gebunden ist.`));
+}
+
+function lazyFrame(label, url) {
+  // The artifact renders at a desktop viewport (1440 px) and is scaled to the tile, so the preview shows the whole screen.
+  const details = node("details", "hub-preview");
+  details.append(node("summary", "", label));
+  details.addEventListener("toggle", () => {
+    if (details.open && !details.querySelector("iframe")) {
+      const wrap = node("div", "hub-frame-wrap");
+      details.append(wrap);
+      const scale = Math.min(1, (wrap.clientWidth || 330) / 1440);
+      wrap.style.height = `${Math.round(900 * scale)}px`;
+      const frame = document.createElement("iframe");
+      frame.src = url;
+      frame.loading = "lazy";
+      frame.className = "hub-frame";
+      frame.style.transform = `scale(${scale})`;
+      frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+      frame.title = label;
+      wrap.append(frame);
+    }
+  });
+  return details;
+}
+
+function hubTile(title, subtitle, stateText, tone) {
+  const tile = node("section", "hub-tile");
+  const head = node("div", "hub-tile-head");
+  head.append(node("span", "eyebrow", title), node("span", `signal ${tone}`, stateText));
+  tile.append(head);
+  if (subtitle) tile.append(node("div", "hub-tile-sub", subtitle));
+  return tile;
+}
+
+function thumbGroup(group) {
+  const wrapper = node("div", "thumb-group");
+  const head = node("div", "thumb-head");
+  head.append(node("strong", "", group.label), node("small", "muted", `${group.total} Bild${group.total === 1 ? "" : "er"} · im Parity-Report erwähnt, nicht als Evidenz gebunden`));
+  wrapper.append(head);
+  const strip = node("div", "thumb-strip");
+  for (const item of group.items.slice(0, 12)) {
+    const link = externalLink("", item.url, "thumb");
+    link.title = item.name;
+    const image = document.createElement("img");
+    image.loading = "lazy";
+    image.src = item.url;
+    image.alt = item.name;
+    link.append(image);
+    strip.append(link);
+  }
+  wrapper.append(strip);
+  if (group.total > 12) wrapper.append(node("small", "muted", `+${group.total - 12} weitere im Ordner ${group.path}`));
+  return wrapper;
+}
+
+function reportCard(report, open) {
+  const details = node("details", "hub-report");
+  details.open = open;
+  const summary = node("summary", "");
+  summary.append(node("strong", "", `${report.reported_result || "—"} · ${germanDate(report.verified_at)}`),
+    node("span", "hub-report-state", ` ${parityStateLabel(report.state)}`), node("small", "muted", `  ${report.scenario_id || ""}`));
+  details.append(summary);
+  const facts = node("div", "hub-facts");
+  const add = (label, value) => {
+    if (!value) return;
+    const item = node("div", "hub-fact");
+    item.append(node("span", "cw-label", label), node("span", "", value));
+    facts.append(item);
+  };
+  add("Geprüft gegen", report.target_mockup ? pathLabel(report.target_mockup) : null);
+  add("Laufzeit-URL", report.app_url);
+  add("Nachweisstufe", report.evidence_level ? `${report.evidence_level} (laut Report)` : null);
+  add("Evidenz-Bindung", report.state === "COMPUTED" ? "gebunden" : "keine – der Report ist an kein Evidence-Manifest gebunden");
+  add("Modell-/Commit-Stand der Prüfung", "nicht erfasst");
+  if (report.recorded_in) add("Report erfasst in", `Commit ${report.recorded_in.commit} · „${report.recorded_in.subject}"`);
+  details.append(facts);
+  if (report.dimensions.length) {
+    const dims = node("div", "dimension-grid");
+    for (const dimension of report.dimensions) {
+      const chip = node("span", `dimension ${dimension.result === "PASS" ? "good" : dimension.result === "PARTIAL" || dimension.result === "FAIL" ? "warn" : "muted"}`, `${dimension.dimension}: ${dimension.result || "—"}`);
+      if (dimension.note) withTip(chip, dimension.note);
+      dims.append(chip);
+    }
+    details.append(node("div", "cw-label", "Verglichene Dimensionen"), dims);
+  }
+  const links = node("div", "hub-links");
+  links.append(externalLink("Report-Quelle ↗", report.source_url, "source-link"));
+  details.append(links);
+  return details;
+}
+
+function hubSection(title, hint) {
+  const section = node("section", "hub-section");
+  const head = node("div", "cw-head");
+  head.append(node("h3", "", title));
+  if (hint) head.append(node("small", "muted", hint));
+  section.append(head);
+  return section;
+}
+
+async function renderPageHub(pageId) {
+  root.append(internalLink("← Pages & Parity", "pages"));
+  const hub = node("div", "page-hub");
+  root.append(hub);
+  hub.append(node("p", "muted", "Page wird geladen …"));
+  let data;
+  try {
+    data = await fetchJson(`/api/page/${encodeURIComponent(pageId)}`);
+  } catch (error) {
+    clear(hub);
+    hub.append(empty(String(error.message) === "404" ? `Page ${pageId} ist im UI-Inventar nicht bekannt.` : "Page nicht erreichbar."));
+    return;
+  }
+  if (routeParts()[0] !== "pages" || routeParts()[1] !== pageId) return;
+  clear(hub);
+
+  const header = node("header", "hub-header");
+  header.append(node("div", "eyebrow", `PAGE · ${data.page_id}`), node("h2", "", data.title || data.page_name));
+  const mode = data.implementation.mode === "HTML_FIRST" ? "HTML-first" : data.implementation.mode === "MENDIX_NATIVE" ? "Mendix-nativ" : "Modus unbekannt";
+  const htmlState = data.visuals.design_preview.availability === "available" ? "HTML-Quelle vorhanden" : data.visuals.design_preview.availability === "missing" ? "HTML-Quelle fehlt" : "keine HTML-Quelle konfiguriert";
+  header.append(node("div", "hub-modeline", `Einstellung: ${mode} · ${htmlState} · Mendix-Seite: ${data.page_name}`));
+  if (data.purpose) header.append(node("p", "hub-purpose muted", data.purpose.length > 260 ? `${data.purpose.slice(0, 260)} …` : data.purpose));
+  hub.append(header);
+
+  const strip = node("div", "hub-attention");
+  if (data.attention.length) for (const item of data.attention) strip.append(node("span", "signal warn", item.text));
+  else strip.append(node("span", "signal good", "Keine Hinweise aus der Projektion"));
+  hub.append(strip);
+
+  // Soll und Ist side by side: what it should look like, the implementation source, what was captured.
+  const tiles = node("div", "hub-tiles");
+  const reference = data.visuals.reference;
+  const referenceTile = hubTile("SOLL · REFERENZ", reference.path ? pathLabel(reference.path) : null, reference.availability === "available" ? "vorhanden" : "nicht auffindbar", reference.availability === "available" ? "good" : "bad");
+  if (reference.availability === "available") {
+    referenceTile.append(externalLink("Mockup öffnen ↗", reference.url, "target-open"), lazyFrame("Vorschau einblenden", reference.url));
+  }
+  const design = data.visuals.design_preview;
+  const designTile = hubTile("UMSETZUNG · HTML-QUELLE", design.path ? pathLabel(design.path) : null,
+    design.availability === "available" ? "vorhanden" : design.availability === "missing" ? "fehlt" : "nicht konfiguriert",
+    design.availability === "available" ? "good" : design.availability === "missing" ? "bad" : "muted");
+  if (design.availability === "available") {
+    designTile.append(externalLink("Design Preview öffnen ↗", design.preview_url, "target-open"), externalLink("Quelle ↗", design.source_url, "source-link"), lazyFrame("Vorschau einblenden", design.preview_url));
+    if (design.fragment) designTile.append(node("p", "muted", "Die HTML-Quelle ist ein Fragment ohne eingebundene Styles und Skripte (diese lädt Mendix zur Laufzeit). Die Vorschau zeigt daher nur die Struktur, nicht das Aussehen – dafür sind die Captures da."));
+  } else if (design.availability === "not_configured") {
+    designTile.append(node("p", "muted", "Für diese Page ist keine HTML-Quelle im UI-Inventar hinterlegt (nicht HTML-first oder nicht erfasst)."));
+  } else {
+    designTile.append(node("p", "muted", "Der im Inventar genannte Pfad existiert im Projekt nicht."));
+  }
+  const captures = data.visuals.captures;
+  const runtime = data.visuals.runtime;
+  const captureCount = captures.reported.reduce((sum, group) => sum + group.total, 0);
+  const runtimeTile = hubTile("IST · CAPTURES & LAUFZEIT", runtime.app_urls[0] || null,
+    captures.bound_runs.length ? "Evidenz-gebunden" : captureCount ? `${captureCount} im Report erwähnt` : "nicht erfasst",
+    captures.bound_runs.length ? "good" : captureCount ? "warn" : "muted");
+  if (!captureCount && !captures.bound_runs.length) runtimeTile.append(node("p", "muted", "Keine Screenshots sind mit dieser Page verknüpft oder in einem Report erwähnt."));
+  for (const group of captures.reported.slice(0, 2)) runtimeTile.append(thumbGroup(group));
+  if (captures.reported.length > 2) runtimeTile.append(node("small", "muted", `+${captures.reported.length - 2} weitere Capture-Ordner in den technischen Quellen`));
+  tiles.append(referenceTile, designTile, runtimeTile);
+  hub.append(tiles);
+
+  // Parity and evidence: what was compared, and whether the result is evidenced.
+  const parity = hubSection("Parity & Evidenz", "Ein Screenshot oder Report allein belegt keine Parität.");
+  const bindingText = data.parity.evidence_binding.state === "BOUND" ? `${data.parity.evidence_binding.entries} gebundene Evidenz-Einträge` : "keine gebundene Evidenz (kein Evidence-Manifest für diese Page)";
+  parity.append(node("p", "", data.parity.reports.length
+    ? `${data.parity.reports.length} Report${data.parity.reports.length > 1 ? "s" : ""} · zuletzt berichtet: ${data.parity.reports[0].reported_result || "—"} (${germanDate(data.parity.reports[0].verified_at)}) · ${bindingText}`
+    : `Kein Parity-Report · ${bindingText}`));
+  data.parity.reports.forEach((report, index) => parity.append(reportCard(report, index === 0)));
+  hub.append(parity);
+
+  // Context with explicit derivation; only canonical fields create relationships.
+  const context = hubSection("Kontext", "nur belegte Beziehungen");
+  const contextRows = node("div", "plain-list");
+  const line = (label, content) => { const entry = node("div", "plain-item"); entry.append(node("div", "item-main", label)); entry.append(content); contextRows.append(entry); };
+  const linkList = (items, route, text) => {
+    const wrapper = node("span", "hub-linklist");
+    items.forEach((item, index) => { if (index) wrapper.append(document.createTextNode(" · ")); wrapper.append(internalLink(text(item), `${route}/${encodeURIComponent(item.id)}`)); });
+    return wrapper;
+  };
+  line("Decisions", data.context.decisions.length ? linkList(data.context.decisions, "decision", (item) => `${item.id}${item.status ? ` (${item.status})` : ""}`) : node("span", "muted", "keine Decision verweist auf diese Page (affected_screens)"));
+  line("Requirements", data.context.requirements.length ? linkList(data.context.requirements, "requirement", (item) => `${item.id} (über ${item.via.join(", ")})`) : node("span", "muted", "keine – nur über Decisions ableitbar"));
+  line("Findings", data.context.findings.length ? linkList(data.context.findings, "finding", (item) => item.id) : node("span", "muted", "keine verknüpft"));
+  line("Tasks", node("span", "muted", data.context.tasks.note));
+  const authority = data.authority.active_targets.map((target) => `${target.revision_id || target.mockup_name || pathLabel(target.canonical_path)}`).concat(data.authority.revision_ledger.map((item) => `${item.revision_id}${item.active_target ? " (aktiv)" : ""}`));
+  line("Design Authority", node("span", authority.length ? "" : "muted", authority.length ? [...new Set(authority)].join(" · ") : "keine aktive Referenz an diese Page gebunden"));
+  context.append(contextRows);
+  hub.append(context);
+
+  const sources = node("details", "hub-sources");
+  sources.append(node("summary", "", "Technische Quellen"));
+  const sourceList = node("div", "hub-links");
+  sourceList.append(externalLink("UI-Inventar ↗", data.sources.inventory_url, "source-link"));
+  data.parity.reports.forEach((report) => sourceList.append(externalLink(`${report.scenario_id || "Report"} ↗`, report.source_url, "source-link")));
+  captures.documents.forEach((doc) => sourceList.append(externalLink(`${doc.name} ↗`, doc.url, "source-link")));
+  captures.reported.forEach((group) => sourceList.append(node("small", "muted mono", `${group.path} (${group.total})`)));
+  sources.append(sourceList);
+  hub.append(sources);
+  renderEntityTimeline("page", pageId);
+}
+
+function renderTasks() {
+  const tasks = (status.delivery && status.delivery.tasks.items) || [];
+  root.append(sectionTitle("Tasks", `${valueText(status.delivery.tasks.items.length, status.delivery.tasks)} Tasks · aus planning/tasks`));
+  if (!tasks.length) return root.append(empty(obsLabel(status.delivery.tasks, "Keine Tasks")));
+  const counts = {};
+  for (const task of tasks) counts[task.status || "unknown"] = (counts[task.status || "unknown"] || 0) + 1;
+  root.append(node("p", "", Object.entries(counts).map(([name, count]) => `${count} ${name}`).join(" · ")));
+  const scroll = node("div", "table-scroll");
+  const table = node("table", "data-table");
+  const head = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  for (const label of ["Task", "Status", "Wave", "Requirements"]) headerRow.append(node("th", "", label));
+  head.append(headerRow);
+  const body = document.createElement("tbody");
+  const order = { blocked: 0, in_progress: 1, pending: 2, deferred: 3, failed: 0, done: 4 };
+  for (const task of [...tasks].sort((a, b) => (order[a.status] ?? 5) - (order[b.status] ?? 5) || a.id.localeCompare(b.id, undefined, { numeric: true }))) {
+    const row = document.createElement("tr");
+    const idCell = document.createElement("td");
+    idCell.append(node("strong", "", task.id), node("div", "muted", task.action || ""));
+    const statusCell = document.createElement("td");
+    statusCell.append(stateBadge(task.status || "UNKNOWN"));
+    const waveCell = document.createElement("td");
+    if (task.wave_id) waveCell.append(internalLink(task.wave_id, `wave/${encodeURIComponent(task.wave_id)}`)); else waveCell.append(node("span", "muted", "keine"));
+    const reqCell = document.createElement("td");
+    task.requirement_ids.slice(0, 4).forEach((id, index) => { if (index) reqCell.append(document.createTextNode(", ")); reqCell.append(internalLink(id, `requirement/${encodeURIComponent(id)}`)); });
+    if (task.requirement_ids.length > 4) reqCell.append(node("span", "muted", ` +${task.requirement_ids.length - 4}`));
+    row.append(idCell, statusCell, waveCell, reqCell);
+    body.append(row);
+  }
+  table.append(head, body);
+  scroll.append(table);
+  root.append(scroll);
+}
+
+function compactTargetCard(target) {
+  const card = node("article", "target-compact");
+  const title = target.mockup_name || target.revision_id || pathLabel(target.canonical_path) || "Reference";
+  const main = node("div", "target-compact-main");
+  main.append(node("strong", "", title));
+  const pages = (target.screen_ids || []).length;
+  main.append(node("span", "muted", `${target.revision_id || "ohne Revision"} · ${pages} Page${pages === 1 ? "" : "s"} gebunden`));
+  // Fingerprints and authority-source lists are technical detail: on hover, not on the Overview.
+  const fingerprint = target.bundle_hash || target.content_hash || target.source_fingerprint;
+  withTip(main, `Referenz-ID: ${target.reference_id || "unbekannt"}\nFingerprint: ${fingerprint || "unbekannt"}\nAutorität: ${target.authoritative_state || "unbekannt"}\nQuellen: ${(target.authority_sources || []).map((source) => `${source.source_type} · ${pathLabel(source.canonical_path)}`).join(", ") || "unbekannt"}`);
+  card.append(main);
+  if (target.availability === "available" && target.canonical_path) card.append(externalLink("Mockup öffnen ↗", safePathUrl("/reference", target.canonical_path), "target-open"));
+  else card.append(node("span", "signal warn", "Referenz nicht auffindbar"));
+  const drift = target.inventory_drift && target.inventory_drift.state;
+  if (drift && drift !== "not_applicable" && drift !== "consistent") card.append(node("span", "signal warn", `Inventar: ${drift}`));
+  return card;
 }
 
 function healthChipInfo() {

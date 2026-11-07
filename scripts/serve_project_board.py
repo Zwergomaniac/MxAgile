@@ -796,7 +796,21 @@ def resolve_design_preview_file(project_root: Path, page_id: str, resource_path:
     return candidate
 
 
-def build_page_previews(project_root: Path, status: dict) -> dict:
+def _design_preview_file_for(project_root: Path, page: dict) -> Path | None:
+    """Same checks as resolve_design_preview_file, but for an inventory record that is already loaded."""
+    location = _html_source_location(project_root, page)
+    if location is None:
+        return None
+    candidate = _no_symlink_components(project_root, location[0])
+    try:
+        if candidate is None or not candidate.is_file() or candidate.stat().st_size > MAX_SOURCE_BYTES:
+            return None
+    except OSError:
+        return None
+    return candidate if PurePosixPath(location[0]).suffix.lower() in PREVIEW_EXTENSIONS else None
+
+
+def build_page_previews(project_root: Path, status: dict, only_page_id: str | None = None) -> dict:
     inventory_root = _no_symlink_components(project_root, "planning/ui-inventory")
     if inventory_root is None or not inventory_root.is_dir():
         return {"availability": "unavailable", "items": []}
@@ -826,6 +840,8 @@ def build_page_previews(project_root: Path, status: dict) -> dict:
         if not isinstance(page, dict) or not isinstance(page.get("page_id"), str):
             continue
         page_id = page["page_id"]
+        if only_page_id is not None and page_id != only_page_id:
+            continue
         if not re.fullmatch(r"PAGE-[A-Z0-9][A-Z0-9_-]*", page_id):
             continue
 
@@ -877,7 +893,7 @@ def build_page_previews(project_root: Path, status: dict) -> dict:
 
         source_location = _html_source_location(project_root, page)
         html_source = page.get("html_source") if source_location else None
-        source_exists = bool(source_location and resolve_design_preview_file(project_root, page_id))
+        source_exists = bool(source_location and _design_preview_file_for(project_root, page))
         intent_mode = (
             "HTML_FIRST" if html_setting.get("effective") is True else
             "MENDIX_NATIVE" if html_setting.get("effective") is False else "UNKNOWN"
@@ -892,6 +908,7 @@ def build_page_previews(project_root: Path, status: dict) -> dict:
         }
         pages.append({
             "page_id": page_id,
+            "title": page.get("title") if isinstance(page.get("title"), str) else None,
             "page_name": page.get("page_name") or page.get("title") or page_id,
             "implementation_mode": (
                 "HTML_FIRST" if html_setting.get("effective") is True else
@@ -1046,7 +1063,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 "Content-Security-Policy",
                 "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; "
                 "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
-                "font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+                "font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
             )
         else:
             self.send_header(
@@ -1135,6 +1152,71 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self._send(503, json.dumps({"error": "timeline_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
                 return
             self._send(code, json.dumps(body, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if parsed.path.startswith("/api/page/"):
+            page_id = unquote(parsed.path[len("/api/page/"):], errors="replace")
+            if not PAGE_ID_PATTERN.fullmatch(page_id):
+                self.send_error(404)
+                return
+            try:
+                status = self._status()
+                bound_runs = []
+                if any(entry.get("screen_id") == page_id for entry in status.get("verification", {}).get("evidence", {}).get("entries", [])):
+                    try:
+                        bound_runs = self.server.status_cache.get_gallery(page_id).get("items", [])  # type: ignore[attr-defined]
+                    except Exception:
+                        bound_runs = []
+                hub = build_page_hub(self.project_root, status, page_id, bound_runs=bound_runs,
+                                     timeline_events=self.server.timeline.events())  # type: ignore[attr-defined]
+            except Exception as exc:
+                self.log_error("PAGE_HUB_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "page_hub_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            if hub is None:
+                self.send_error(404)
+                return
+            self._send(200, json.dumps(hub, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if parsed.path.startswith("/api/requirement/"):
+            requirement_id = unquote(parsed.path[len("/api/requirement/"):], errors="replace")
+            if not REQUIREMENT_ID_PATTERN.fullmatch(requirement_id):
+                self.send_error(404)
+                return
+            try:
+                result = build_requirement_slice(self._status(), requirement_id)
+            except Exception as exc:
+                self.log_error("REQUIREMENT_SLICE_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "requirement_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            if result is None:
+                self.send_error(404)
+                return
+            self._send(200, json.dumps(result, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if parsed.path.startswith("/page-artifact/"):
+            remainder = parsed.path[len("/page-artifact/"):]
+            page_id, _, raw_path = remainder.partition("/")
+            try:
+                requested = unquote(raw_path, errors="strict")
+            except UnicodeError:
+                self.send_error(404)
+                return
+            try:
+                status = self._status()
+            except Exception as exc:
+                self.log_error("STATUS_BUILD_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "status_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            file_path = resolve_page_artifact(self.project_root, status, page_id, requested)
+            body = self._read_file(file_path) if file_path else None
+            if body is None:
+                self.send_error(404)
+                return
+            kind = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+            self._send(200, body, kind if kind.startswith("image/") else "text/plain; charset=utf-8")
             return
 
         if parsed.path == "/api/health":
@@ -1375,6 +1457,234 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
         sys.stderr.write("%s - %s\n" % (self.address_string(), format_string % args))
 
 
+PAGE_ID_PATTERN = re.compile(r"^PAGE-[A-Z0-9][A-Z0-9_-]*$")
+REQUIREMENT_ID_PATTERN = re.compile(r"^REQ-[A-Za-z0-9_-]{1,60}$")
+ARTIFACT_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+ARTIFACT_TEXT_EXTENSIONS = {".md", ".yaml", ".yml"}
+MAX_ARTIFACT_IMAGES = 24
+MAX_REPORT_BYTES = 512 * 1024
+_ARTIFACT_MENTION = re.compile(r"planning/evidence/(?:screenshots|analysis)/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]")
+
+
+def _read_small_text(project_root: Path, relative_path: str) -> str | None:
+    candidate = _no_symlink_components(project_root, relative_path)
+    try:
+        if candidate is None or not candidate.is_file() or candidate.stat().st_size > MAX_REPORT_BYTES:
+            return None
+        return candidate.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def page_artifact_groups(project_root: Path, page_id: str, report_paths: list[str]) -> dict:
+    """Captures and analysis documents that a Page's parity reports merely MENTION (comment text).
+
+    A mention is a navigation aid, not Evidence: nothing here binds a capture to a verification result.
+    """
+    from urllib.parse import quote
+    groups: list[dict] = []
+    documents: list[dict] = []
+    seen: set[str] = set()
+    for report_path in report_paths:
+        text = _read_small_text(project_root, report_path)
+        for mention in _ARTIFACT_MENTION.findall(text or ""):
+            mention = mention.rstrip("/.")
+            if mention in seen or any(part.startswith(".") for part in PurePosixPath(mention).parts):
+                continue
+            seen.add(mention)
+            target = _no_symlink_components(project_root, mention)
+            if target is None:
+                continue
+            suffix = PurePosixPath(mention).suffix.lower()
+            if target.is_dir() and mention.startswith("planning/evidence/screenshots/"):
+                images = sorted((item for item in target.iterdir() if item.is_file() and not item.is_symlink()
+                                 and item.suffix.lower() in ARTIFACT_IMAGE_EXTENSIONS), key=lambda item: item.name.casefold())
+                groups.append({
+                    "label": PurePosixPath(mention).name, "path": mention, "source": "parity_report_comment", "bound": False,
+                    "report_path": report_path, "total": len(images),
+                    "items": [{"name": item.name, "path": f"{mention}/{item.name}",
+                               "url": f"/page-artifact/{page_id}/{quote(mention + '/' + item.name)}"} for item in images[:MAX_ARTIFACT_IMAGES]],
+                })
+            elif target.is_file() and suffix in ARTIFACT_IMAGE_EXTENSIONS:
+                groups.append({"label": PurePosixPath(mention).name, "path": mention, "source": "parity_report_comment", "bound": False,
+                               "report_path": report_path, "total": 1,
+                               "items": [{"name": target.name, "path": mention, "url": f"/page-artifact/{page_id}/{quote(mention)}"}]})
+            elif target.is_file() and suffix in ARTIFACT_TEXT_EXTENSIONS:
+                documents.append({"name": target.name, "path": mention, "report_path": report_path, "url": f"/page-artifact/{page_id}/{quote(mention)}"})
+    return {"groups": groups, "documents": documents}
+
+
+def _page_reports(status: dict, page_id: str) -> list[dict]:
+    return [item for item in status.get("verification", {}).get("parity_reports", []) if item.get("page_id") == page_id]
+
+
+def resolve_page_artifact(project_root: Path, status: dict, page_id: str, requested: str) -> Path | None:
+    """Only files that the Page's own parity reports mention (and that are images or analysis text) are served."""
+    if not PAGE_ID_PATTERN.fullmatch(page_id):
+        return None
+    canonical = canonical_url_path(requested)
+    if canonical is None:
+        return None
+    reports = [item["report_path"] for item in _page_reports(status, page_id)]
+    artifacts = page_artifact_groups(project_root, page_id, reports)
+    allowed = {item["path"] for group in artifacts["groups"] for item in group["items"]} | {doc["path"] for doc in artifacts["documents"]}
+    if canonical not in allowed:
+        return None
+    path = _no_symlink_components(project_root, canonical)
+    try:
+        if path is None or not path.is_file() or path.stat().st_size > MAX_SOURCE_BYTES:
+            return None
+    except OSError:
+        return None
+    return path
+
+
+def _dimension_summary(record: dict) -> list[dict]:
+    dimensions = record.get("dimensions") if isinstance(record.get("dimensions"), dict) else {}
+    result = []
+    for name, value in dimensions.items():
+        if isinstance(value, dict):
+            note = value.get("note") or value.get("not_applicable_rationale")
+            result.append({"dimension": str(name), "result": str(value.get("result")) if value.get("result") is not None else None,
+                           "required": value.get("required") is not False, "note": str(note)[:240] if note else None})
+        else:
+            result.append({"dimension": str(name), "result": str(value), "required": True, "note": None})
+    return result[:12]
+
+
+def _is_html_fragment(project_root: Path, html_source: dict) -> bool | None:
+    path = html_source.get("path") if isinstance(html_source, dict) else None
+    if html_source.get("availability") != "available" or not isinstance(path, str):
+        return None
+    text = _read_small_text(project_root, path)
+    if text is None:
+        return None
+    head = text[:8192].lower()
+    return "<html" not in head and "<link" not in head and "<style" not in head
+
+
+def build_page_hub(project_root: Path, status: dict, page_id: str, *, bound_runs: list[dict], timeline_events: list[dict]) -> dict | None:
+    """Everything the Page Hub shows for ONE Page. Relationships come only from canonical fields; mentions stay labelled."""
+    preview = next((item for item in build_page_previews(project_root, status, only_page_id=page_id)["items"] if item["page_id"] == page_id), None)
+    if preview is None:
+        return None
+    inventory = load_page_inventory(project_root, page_id) or {}
+    inventory_path = f"planning/ui-inventory/{page_id}.yaml"
+    for candidate in sorted((_no_symlink_components(project_root, "planning/ui-inventory") or project_root).glob("*.yaml")):
+        try:
+            if yaml.safe_load(candidate.read_text(encoding="utf-8")).get("page_id") == page_id:
+                inventory_path = candidate.relative_to(project_root).as_posix()
+                break
+        except (OSError, yaml.YAMLError, AttributeError):
+            continue
+    reports = _page_reports(status, page_id)
+    report_paths = [item["report_path"] for item in reports]
+    artifacts = page_artifact_groups(project_root, page_id, report_paths)
+
+    def recorded_in(path: str) -> dict | None:
+        found = [event for event in timeline_events if (event.get("source") or {}).get("path") == path and event.get("commit")]
+        if not found:
+            return None
+        newest = max(found, key=lambda event: event["occurred_epoch"])
+        return {"commit": newest["commit"]["short"], "committed_at": newest["occurred_at"], "subject": newest["commit"]["subject"][:120]}
+
+    report_items = []
+    for item in reports:
+        text = _read_small_text(project_root, item["report_path"])
+        try:
+            record = yaml.safe_load(text) if text else {}
+        except yaml.YAMLError:
+            record = {}
+        record = record if isinstance(record, dict) else {}
+        report_items.append({
+            **item, "evidence_level": record.get("evidence_level") if isinstance(record.get("evidence_level"), str) else None,
+            "target_mockup": record.get("target_mockup") if isinstance(record.get("target_mockup"), str) else None,
+            "app_url": record.get("app_url") if isinstance(record.get("app_url"), str) else None,
+            "dimensions": _dimension_summary(record), "recorded_in": recorded_in(item["report_path"]),
+            "source_url": f"/source/{item['report_path']}",
+        })
+    report_items.sort(key=lambda item: (item.get("verified_at") or "", item["report_path"]), reverse=True)
+
+    entries = [entry for entry in status.get("verification", {}).get("evidence", {}).get("entries", []) if entry.get("screen_id") == page_id]
+    targets = [target for target in status.get("project", {}).get("active_targets", {}).get("items", []) if page_id in (target.get("screen_ids") or [])]
+    ledger = [item for item in status.get("project", {}).get("revision_ledger", {}).get("items", []) if page_id in (item.get("screens") or [])]
+    decisions = [item for item in status.get("decisions", {}).get("items", []) if page_id in (item.get("affected_screens") or [])]
+    requirement_index = {item["id"]: item for item in status.get("requirements", {}).get("items", [])}
+    requirements: dict[str, dict] = {}
+    for decision in decisions:
+        for requirement_id in decision.get("affected_requirements", []):
+            entry = requirements.setdefault(requirement_id, {"id": requirement_id, "title": (requirement_index.get(requirement_id) or {}).get("title"),
+                                                              "status": (requirement_index.get(requirement_id) or {}).get("status"), "via": []})
+            entry["via"].append(decision["id"])
+    findings = [item for item in status.get("findings", {}).get("items", []) if inventory_path in (item.get("source_artifact_paths") or [])]
+    mismatch = (preview.get("implementation") or {}).get("mismatch")
+    attention = []
+    if reports and not entries:
+        attention.append({"code": "PARITY_NOT_BOUND", "text": "Parity wurde berichtet, ist aber an keine Evidenz gebunden (kein Evidence-Manifest)."})
+    if not reports:
+        attention.append({"code": "NO_PARITY_REPORT", "text": "Es gibt keinen Parity-Report für diese Page."})
+    if mismatch:
+        attention.append({"code": "INTENT_FACT_MISMATCH", "text": (preview.get("implementation") or {}).get("mismatch_reason") or "Absicht und Fakt der Implementierung widersprechen sich."})
+    if preview["html_source"]["availability"] == "available" and preview["implementation_mode"] != "HTML_FIRST":
+        attention.append({"code": "HTML_SOURCE_PRESENT_SETTING_OFF", "text": "Eine HTML-Quelle liegt vor, die Projekt-Einstellung html_first ist jedoch aus (Einstellung ≠ Artefakt)."})
+    if preview["reference"]["availability"] != "available":
+        attention.append({"code": "REFERENCE_UNAVAILABLE", "text": "Die Referenz (Mockup) ist nicht auffindbar."})
+    reference_path = preview["reference"].get("path")
+    checked_against = report_items[0].get("target_mockup") if report_items else None
+    if reference_path and checked_against and reference_path != checked_against:
+        attention.append({"code": "REFERENCE_DIFFERS_FROM_REPORT_TARGET",
+                          "text": f"Die Referenz der Page ({PurePosixPath(reference_path).name}) weicht vom Prüfziel des letzten Parity-Reports ({PurePosixPath(checked_against).name}) ab."})
+    if report_items and report_items[0].get("reported_result") in ("PARTIAL", "FAIL"):
+        attention.append({"code": "PARITY_RESULT_" + str(report_items[0]["reported_result"]), "text": f"Letztes berichtetes Ergebnis: {report_items[0]['reported_result']}."})
+    return {
+        "page_id": page_id, "page_name": preview["page_name"], "title": inventory.get("title") if isinstance(inventory.get("title"), str) else None,
+        "purpose": (str(inventory.get("purpose")).strip()[:600] if inventory.get("purpose") else None),
+        "implementation": {**(preview.get("implementation") or {}), "mode": preview["implementation_mode"]},
+        "mockup_driven": preview.get("mockup_driven"),
+        "authority": {"active_targets": [{key: target.get(key) for key in ("reference_id", "canonical_path", "revision_id", "mockup_name", "authoritative_state")} for target in targets],
+                      "revision_ledger": [{"revision_id": item["revision_id"], "active_target": item["active_target"]} for item in ledger]},
+        "visuals": {
+            "reference": preview["reference"],
+            "design_preview": {**preview["html_source"], "fragment": _is_html_fragment(project_root, preview["html_source"])},
+            "runtime": {"recorded_readiness": preview.get("runtime_status"),
+                        "app_urls": sorted({item["app_url"] for item in report_items if item.get("app_url")})[:3]},
+            "captures": {
+                "bound_runs": [{key: run.get(key) for key in ("entry_id", "run_id", "parity_result", "historical", "reference_path", "captures")} for run in bound_runs[:6]],
+                "reported": artifacts["groups"], "documents": artifacts["documents"],
+            },
+        },
+        "parity": {"reports": report_items, "evidence_binding": {"state": "BOUND" if entries else "NOT_RECORDED", "entries": len(entries)},
+                   "model_commit_fingerprint": {"observation_state": "NOT_RECORDED"}},
+        "context": {"decisions": [{key: item.get(key) for key in ("id", "title", "status", "created_at", "confirmed_at")} for item in decisions],
+                    "requirements": list(requirements.values()),
+                    "findings": [{"id": item["id"], "title": item.get("title"), "lifecycle_status": item.get("lifecycle_status"), "blocking": item.get("blocking")} for item in findings],
+                    "tasks": {"observation_state": "NOT_OBSERVABLE", "items": [],
+                              "note": "Das Datenmodell kennt keine kanonische Beziehung zwischen Task und Page."}},
+        "sources": {"inventory": inventory_path, "inventory_url": f"/diagnostic-source/{inventory_path}", "reports": report_paths},
+        "attention": attention,
+    }
+
+
+def build_requirement_slice(status: dict, requirement_id: str) -> dict | None:
+    requirement = next((item for item in status.get("requirements", {}).get("items", []) if item["id"] == requirement_id), None)
+    if requirement is None:
+        return None
+    decisions = [item for item in status.get("decisions", {}).get("items", []) if requirement_id in (item.get("affected_requirements") or [])]
+    pages = sorted({page for decision in decisions for page in (decision.get("affected_screens") or [])})
+    return {
+        "requirement": requirement,
+        "assessment": requirement.get("delivery_assessment"),
+        "traceability": {
+            "tasks": [item for item in status.get("delivery", {}).get("tasks", {}).get("items", []) if requirement_id in (item.get("requirement_ids") or [])],
+            "test_contracts": [item for item in status.get("verification", {}).get("test_contracts", {}).get("items", []) if requirement_id in (item.get("requirement_ids") or [])],
+            "evidence": [item for item in status.get("verification", {}).get("evidence", {}).get("entries", []) if requirement_id in (item.get("requirement_ids") or [])],
+            "findings": [item for item in status.get("findings", {}).get("items", []) if requirement_id in (item.get("requirement_ids") or [])],
+            "decisions": decisions,
+            "pages_via_decisions": pages,
+        },
+    }
+
+
 class TimelineService:
     """Serves the derived project timeline without repository analysis on the request path.
 
@@ -1419,6 +1729,16 @@ class TimelineService:
         except Exception as exc:
             self._error = type(exc).__name__
         _emit_board_timing("timeline_index", seconds=round(time.perf_counter() - started, 3), ready=self._ready)
+
+    def events(self) -> list[dict]:
+        """In-memory index events (empty while building or without Git); never triggers a scan on the request path."""
+        if self._module is None or not self._ready or (self._thread is not None and self._thread.is_alive()):
+            return []
+        try:
+            index = self._module.get_index(self.project_root, ttl=3.0)
+        except Exception:
+            return []
+        return index["events"] if index["state"] == "READY" else []
 
     def valid_filters(self, query: dict[str, list[str]]) -> dict[str, str] | None:
         allowed = set(self._module.FILTER_KEYS) if self._module else set()
