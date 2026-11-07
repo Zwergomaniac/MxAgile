@@ -980,7 +980,19 @@
         "open_tasks_superseded": { "type": "array", "items": { "type": "string" } },
         "open_tasks_unexplained": { "type": "array", "items": { "type": "string" } },
         "later_findings": { "type": "array", "items": { "type": "string" } },
-        "changes_after_done": { "type": "object", "required": ["observation_state", "commit_count"], "additionalProperties": false, "properties": { "observation_state": { "$ref": "#/definitions/observation_state" }, "commit_count": { "type": ["integer", "null"] } } },
+        "changes_after_done": {
+          "type": "object",
+          "description": "Later activity is reported beside DONE and never reopens or invalidates it. commit_count = commits after the DONE transition that touch artifacts explicitly linked to the Wave; project_activity_commits = project-wide delivery commits (not attributed).",
+          "required": ["observation_state", "commit_count"],
+          "additionalProperties": false,
+          "properties": {
+            "observation_state": { "$ref": "#/definitions/observation_state" },
+            "commit_count": { "type": ["integer", "null"] },
+            "project_activity_commits": { "type": ["integer", "null"] },
+            "done_transition": { "type": ["object", "null"], "additionalProperties": false, "properties": { "commit": { "type": "string" }, "committed_at": { "type": "integer" } } },
+            "linked_commits": { "type": "array", "items": { "type": "string" } }
+          }
+        },
         "present_confidence": {
           "type": "object", "required": ["level", "requirement_labels", "freshness", "reasons"], "additionalProperties": false,
           "properties": {

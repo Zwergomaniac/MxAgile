@@ -261,6 +261,26 @@ class BoardHttpTests(unittest.TestCase):
             finally:
                 self.stop_server(server, thread)
 
+    def test_timeline_endpoint_validates_parameters_and_never_scans_per_request(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-timeline-api-") as temporary:
+            root = Path(temporary)
+            server, thread = self.start_server(root)
+            try:
+                base = f"http://127.0.0.1:{server.server_port}"
+                server.timeline._thread.join(timeout=30)
+                with urlopen(f"{base}/api/timeline?limit=5&group=decision") as response:
+                    self.assertEqual(response.headers["Cache-Control"], "no-store")
+                    payload = json.loads(response.read())
+                self.assertEqual((payload["events"], payload["total"]), ([], 0))
+                self.assertEqual(payload["index"]["state"], "NOT_OBSERVABLE")  # no Git history: nothing is guessed
+                for bad in ("bogus=1", "limit=abc", "from=yesterday", "authority=X", "wave=W1&wave=W2", "cursor=1"):
+                    with self.assertRaises(HTTPError) as response:
+                        urlopen(f"{base}/api/timeline?{bad}")
+                    self.assertEqual(response.exception.code, 400, bad)
+                    response.exception.close()
+            finally:
+                self.stop_server(server, thread)
+
     def test_health_endpoint_separates_groups_and_serves_older_snapshots(self) -> None:
         diagnostic = {"diagnostic_id": "DX-0000000000000001", "category": "DONE_BASIS_NOT_RECORDED", "severity": "INFO",
                       "blocking": False, "diagnostic_group": "framework_compat", "source_path": None}

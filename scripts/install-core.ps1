@@ -684,12 +684,26 @@ try {
     }
     Copy-Item -LiteralPath $reconciliationGitSource -Destination (Join-Path $destToolsDir "reconciliation_git.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/reconciliation_git.py (parent-aware delta verification)."
+    $timelineSource = Join-Path $PSScriptRoot "build_project_timeline.py"
+    if (-not (Test-Path -LiteralPath $timelineSource -PathType Leaf)) {
+        throw "build_project_timeline.py not found in script directory."
+    }
+    Copy-Item -LiteralPath $timelineSource -Destination (Join-Path $destToolsDir "build_project_timeline.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/build_project_timeline.py (derived project timeline; index only in the OS cache)."
     $impactResolverSource = Join-Path $PSScriptRoot "resolve_impact.py"
     if (-not (Test-Path -LiteralPath $impactResolverSource -PathType Leaf)) {
         throw "resolve_impact.py not found in script directory."
     }
     Copy-Item -LiteralPath $impactResolverSource -Destination (Join-Path $destToolsDir "resolve_impact.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/resolve_impact.py (read-only impact fingerprint support)."
+    foreach ($securityProjectionTool in @("security_projection.py", "generate-security-matrix.ps1")) {
+        $securityProjectionSource = Join-Path $PSScriptRoot $securityProjectionTool
+        if (-not (Test-Path -LiteralPath $securityProjectionSource -PathType Leaf)) {
+            throw "$securityProjectionTool not found in script directory."
+        }
+        Copy-Item -LiteralPath $securityProjectionSource -Destination (Join-Path $destToolsDir $securityProjectionTool) -Force
+        Write-Host "[OK] Distributed .mxagile/tools/$securityProjectionTool (read-only Security Projection; opt-in generation)."
+    }
 
     $projectBoardServerSource = Join-Path $PSScriptRoot "serve_project_board.py"
     if (-not (Test-Path -LiteralPath $projectBoardServerSource -PathType Leaf)) {
@@ -791,7 +805,10 @@ try {
                 ".mxagile/tools/build_project_status.py",
                 ".mxagile/tools/reconcile_external_changes.py",
                 ".mxagile/tools/reconciliation_git.py",
+                ".mxagile/tools/build_project_timeline.py",
                 ".mxagile/tools/resolve_impact.py",
+                ".mxagile/tools/security_projection.py",
+                ".mxagile/tools/generate-security-matrix.ps1",
                 ".mxagile/tools/serve_project_board.py",
                 ".mxagile/tools/board_smoke.py",
                 ".mxagile/tools/project_compatibility.py",

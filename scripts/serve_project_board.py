@@ -1106,7 +1106,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         self._request_started_at = time.perf_counter()
         parsed = urlsplit(self.path)
-        if parsed.query and parsed.path != "/api/gallery" and not parsed.path.startswith(("/reference/", "/source/", "/design-preview-source/")):
+        if parsed.query and parsed.path not in ("/api/gallery", "/api/timeline") and not parsed.path.startswith(("/reference/", "/source/", "/design-preview-source/")):
             self.send_error(400)
             return
         if parsed.path == "/api/status":
@@ -1121,6 +1121,20 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self._send(503, payload, "application/json; charset=utf-8")
                 return
             self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path == "/api/timeline":
+            filters = self.server.timeline.valid_filters(parse_qs(parsed.query, keep_blank_values=True))  # type: ignore[attr-defined]
+            if filters is None:
+                self.send_error(400)
+                return
+            try:
+                code, body = self.server.timeline.response(filters)  # type: ignore[attr-defined]
+            except Exception as exc:
+                self.log_error("TIMELINE_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "timeline_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            self._send(code, json.dumps(body, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
             return
 
         if parsed.path == "/api/health":
@@ -1361,6 +1375,83 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
         sys.stderr.write("%s - %s\n" % (self.address_string(), format_string % args))
 
 
+class TimelineService:
+    """Serves the derived project timeline without repository analysis on the request path.
+
+    The Git-history reconstruction runs once in the background (and incrementally when HEAD moves);
+    requests only filter the in-memory index. Never writes into the project.
+    """
+
+    FILTER_PATTERNS = {
+        "from": r"\d{4}-\d{2}-\d{2}", "to": r"\d{4}-\d{2}-\d{2}", "limit": r"\d{1,3}", "min_significance": r"[1-3]",
+        "include_mentions": r"[01]", "cursor": r"\d{1,12}:EV-[0-9a-f]{16}", "entity": r"[a-z_]{2,24}:[A-Za-z0-9._-]{1,80}",
+        "authority": r"CANONICAL_RECORD|GIT_DERIVED|COMMIT_TRAILER|GIT_MENTION", "lane": r"attributed|unattributed",
+    }
+
+    def __init__(self, project_root: Path):
+        self.project_root = project_root
+        self._thread: threading.Thread | None = None
+        self._ready = False
+        self._error: str | None = None
+        self._lock = threading.Lock()
+        self._module = None
+        try:
+            import build_project_timeline
+            self._module = build_project_timeline
+        except Exception as exc:  # distributions without the module keep the Board working
+            self._error = type(exc).__name__
+        self.start()
+
+    def start(self) -> None:
+        if self._module is None:
+            return
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                return
+            self._thread = threading.Thread(target=self._build, name="mxagile-timeline-index", daemon=True)
+            self._thread.start()
+
+    def _build(self) -> None:
+        started = time.perf_counter()
+        try:
+            self._module.get_index(self.project_root, ttl=0.0)
+            self._ready, self._error = True, None
+        except Exception as exc:
+            self._error = type(exc).__name__
+        _emit_board_timing("timeline_index", seconds=round(time.perf_counter() - started, 3), ready=self._ready)
+
+    def valid_filters(self, query: dict[str, list[str]]) -> dict[str, str] | None:
+        allowed = set(self._module.FILTER_KEYS) if self._module else set()
+        if set(query) - allowed or any(len(values) != 1 for values in query.values()):
+            return None
+        filters: dict[str, str] = {}
+        for key, (value,) in query.items():
+            pattern = self.FILTER_PATTERNS.get(key)
+            if key == "group":
+                pattern = "|".join(self._module._TYPE_GROUPS)
+            elif pattern is None:
+                pattern = r"[A-Za-z0-9._:-]{1,80}"
+            if not re.fullmatch(pattern, value):
+                return None
+            filters[key] = value
+        return filters
+
+    def response(self, filters: dict[str, str]) -> tuple[int, dict]:
+        if self._module is None:
+            return 200, {"events": [], "next_cursor": None, "total": 0, "index": {"state": "UNAVAILABLE", "reason": self._error}}
+        if self._thread is not None and self._thread.is_alive():
+            return 200, {"events": [], "next_cursor": None, "total": 0, "index": {"state": "BUILDING", "reason": None}}
+        if not self._ready:
+            if self._error:
+                return 200, {"events": [], "next_cursor": None, "total": 0, "index": {"state": "ERROR", "reason": self._error}}
+            self.start()
+            return 200, {"events": [], "next_cursor": None, "total": 0, "index": {"state": "BUILDING", "reason": None}}
+        index = self._module.get_index(self.project_root, ttl=3.0)  # HEAD moved -> incremental, otherwise memory
+        if index["state"] != "READY":
+            return 200, {"events": [], "next_cursor": None, "total": 0, "index": index["meta"]}
+        return 200, self._module.query(index, filters)
+
+
 class ProjectBoardServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
@@ -1378,6 +1469,7 @@ class ProjectBoardServer(ThreadingHTTPServer):
         self.project_root = project_root.resolve()
         self.ui_root = ui_root.resolve()
         self.status_cache = ProjectStatusCache(self.project_root, persist=persist_cache)
+        self.timeline = TimelineService(self.project_root)
         # Requests trust a snapshot validated within this window; legacy mode keeps per-request validation.
         self.status_cache.request_window = 0.0 if legacy_cache_mode() else VALIDATION_WINDOW_SECONDS
         self._refresh_stop = threading.Event()

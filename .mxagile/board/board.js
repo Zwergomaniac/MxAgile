@@ -2,7 +2,7 @@
 
 const $ = (selector) => document.querySelector(selector);
 const root = $("#view");
-const tabs = ["overview", "waves", "requirements", "verification", "gallery", "ui-pages", "findings", "decisions"];
+const tabs = ["overview", "waves", "requirements", "verification", "gallery", "ui-pages", "findings", "decisions", "timeline"];
 let status = null;
 
 function node(tag, className = "", text = "") {
@@ -125,7 +125,9 @@ function pathLabel(path) {
 }
 
 function routeParts() {
-  const raw = decodeURIComponent(location.hash.slice(1) || "portfolio");
+  const full = location.hash.slice(1) || "portfolio";
+  const query = full.indexOf("?");
+  const raw = decodeURIComponent(query >= 0 ? full.slice(0, query) : full);
   return raw.split("/").filter(Boolean);
 }
 
@@ -887,6 +889,7 @@ function renderDetail(parts) {
     const missionRecorded = status.mission.availability !== "unavailable" && status.mission.blocker_count !== null && status.mission.blocker_count !== undefined;
     facts.append(countItem("MISSION BLOCKERS (MISSIONSWEIT)", missionRecorded ? status.mission.blocker_count : "NICHT ERFASST", missionRecorded ? "aus mission-state.yaml" : "keine Mission-State-Quelle"));
     renderWaveTrustBlock(wave.wave_id);
+    renderEntityTimeline("wave", wave.wave_id);
     root.append(node("h3", "plain-section", "Requirements"));
     for (const reqId of wave.requirement_ids) root.append(internalLink(reqId, `requirement/${encodeURIComponent(reqId)}`));
     renderTaskList(tasks);
@@ -927,6 +930,7 @@ function renderDetail(parts) {
     root.append(stateBadge(requirement.status || "UNKNOWN"));
     root.append(sourceLink("requirement", requirement.id));
     renderAssessmentBlock(requirement);
+    renderEntityTimeline("requirement", requirement.id);
     const relatedTasks = status.delivery.tasks.items.filter((task) => task.requirement_ids.includes(id));
     renderTaskList(relatedTasks);
     root.append(node("h3", "plain-section", "Verification / Proof Points"));
@@ -954,6 +958,7 @@ function renderDetail(parts) {
     root.append(sectionTitle(`${decision.id} · ${decision.title || "Untitled"}`, decision.status || "UNKNOWN"));
     root.append(stateBadge(decision.status || "UNKNOWN"), sourceLink("decision", decision.id));
     renderDecisionFacts(decision);
+    renderEntityTimeline("decision", decision.id);
     for (const reqId of decision.affected_requirements) root.append(internalLink(reqId, `requirement/${encodeURIComponent(reqId)}`));
     root.append(node("h3", "plain-section", "Related Findings"));
     renderFindingCards(status.findings.items.filter((finding) => finding.decision_ids.includes(id)));
@@ -1042,6 +1047,7 @@ function renderView() {
   const isPortfolio = view === "portfolio";
   // The project context block belongs to Overview and Health only (v2 snapshots keep it everywhere but Portfolio).
   $("#project-context").hidden = isPortfolio || (Boolean(status.health) && !["overview", "health"].includes(view));
+  if (!status.health && view === "timeline") root.append(empty("Die Timeline benötigt eine Status-Projektion ab Schema v3."));
   if (!status.health) renderCompatibility();
   $("#tabs").hidden = isPortfolio;
   for (const button of document.querySelectorAll("[data-route]")) {
@@ -1051,6 +1057,7 @@ function renderView() {
   if (isPortfolio) renderPortfolio();
   else if (view === "overview") renderOverview();
   else if (view === "health") renderHealthView();
+  else if (view === "timeline") renderTimeline();
   else if (view === "waves") renderWaves();
   else if (view === "requirements") renderRequirements();
   else if (view === "verification") renderVerification();
@@ -1269,6 +1276,12 @@ function trustWaveRows(items) {
     if (item.open_tasks_superseded.length) parts.push(`${item.open_tasks_superseded.length} offene Tasks durch Acceptance überholt`);
     if (item.open_tasks_unexplained.length) parts.push(`${item.open_tasks_unexplained.length} offene Tasks ohne Grundlage`);
     if (item.later_findings.length) parts.push(`${item.later_findings.length} Findings gegen diese Wave`);
+    const after = item.changes_after_done;
+    if (after && after.observation_state === "AVAILABLE") {
+      parts.push(`nach DONE: ${after.commit_count} Commit(s) an verknüpften Artefakten · ${after.project_activity_commits} Projekt-Commits (nicht zugeordnet)`);
+    } else if (after && after.observation_state === "NOT_RECORDED") {
+      parts.push("DONE-Zeitpunkt nicht im Git-Verlauf");
+    }
     main.append(node("small", "", parts.join(" · ")));
     const confidence = item.present_confidence.level === "EVIDENCED" ? "EVIDENCED" : item.present_confidence.level === "NOT_EVIDENCED" ? "NOT EVIDENCED" : "NOT OBSERVABLE";
     row.append(main, stateBadge(item.historical_state), stateBadge(confidence.replaceAll(" ", "_")));
@@ -1395,6 +1408,380 @@ function renderDecisionFacts(decision) {
   if (decision.rationale_excerpt) root.append(node("p", "", decision.rationale_excerpt));
   const lists = [["Screens", decision.affected_screens], ["Mockup-Revisionen", decision.affected_mockup_revisions]];
   for (const [label, values] of lists) if (values && values.length) root.append(node("p", "muted", `${label}: ${values.join(", ")}`));
+}
+
+// ---------------------------------------------------------------------------------------------- Timeline (CS-5)
+function hashQuery() {
+  const raw = location.hash.slice(1);
+  const index = raw.indexOf("?");
+  return new URLSearchParams(index >= 0 ? raw.slice(index + 1) : "");
+}
+
+const AUTHORITY_TEXT = {
+  CANONICAL_RECORD: ["kanonisch", "Aus einem kanonischen Eintrag mit eigenem Zeitstempel."],
+  GIT_DERIVED: ["aus Git belegt", "Aus einer Änderung an einem Projektartefakt im Git-Verlauf abgeleitet."],
+  COMMIT_TRAILER: ["Change-Set-Beleg", "Durch Commit-Trailer und ein schema-gültiges Change-Set belegt."],
+  GIT_MENTION: ["nur erwähnt", "Nur in der Commit-Nachricht erwähnt. Keine belegte Beziehung."],
+};
+const GROUP_LABELS = {
+  "": "Alles", wave: "Waves & Mission", requirement: "Requirements", decision: "Decisions", finding: "Findings",
+  verification: "Verification & Evidenz", authority: "Design Authority", page: "Pages", task: "Tasks",
+  provenance: "Herkunft & Framework", code: "Modell, Code & Dokumente",
+};
+const ENTITY_LABELS = {
+  wave: "Wave", requirement: "Requirement", decision: "Decision", finding: "Finding", page: "Page", task: "Task", revision: "Revision",
+  change_set: "Change-Set", mission: "Mission", parity_report: "Parity-Report", test_contract: "Test Contract", evidence_manifest: "Evidenz",
+  framework: "Framework", context_epoch: "Epoche", delegation: "Delegation",
+};
+const DIRECT_ROUTES = { wave: "wave", requirement: "requirement", decision: "decision", finding: "finding", page: "page" };
+
+const HEALTH_TEXT = {
+  CHANGE_SET_SCHEMA_INVALID: ["Change-Set ungültig", "Das Change-Set verletzt sein Schema und hat deshalb keine Zuordnungswirkung."],
+  COMMIT_TRAILER_UNVERIFIED: ["Trailer nicht verifiziert", "Die MxAgile-Trailer des Commits konnten nicht gegen ein gültiges Change-Set verifiziert werden. Keine Zuordnung."],
+  COMMIT_TRAILER_UNVERIFIABLE: ["Trailer nicht prüfbar", "Die Trailer des Commits konnten nicht geprüft werden. Keine Zuordnung."],
+};
+
+function healthBadge(code) {
+  const info = HEALTH_TEXT[code] || [code.replaceAll("_", " ").toLowerCase(), ""];
+  const badge = node("span", "lane-badge", info[0]);
+  badge.title = info[1];
+  return badge;
+}
+
+function authorityBadge(event) {
+  const info = AUTHORITY_TEXT[event.authority_class] || [event.authority_class, ""];
+  const badge = node("span", `authority-badge ${event.authority_class === "GIT_MENTION" ? "weak" : ""}`, info[0]);
+  badge.title = info[1];
+  return badge;
+}
+
+function entityChip(entity) {
+  const weak = entity.derivation === "message_mention";
+  const label = `${weak ? "erwähnt: " : ""}${entity.id}`;
+  const route = DIRECT_ROUTES[entity.type] && !weak ? `${DIRECT_ROUTES[entity.type]}/${encodeURIComponent(entity.id)}`
+    : `timeline?entity=${encodeURIComponent(`${entity.type}:${entity.id}`)}${weak ? "&include_mentions=1" : ""}`;
+  const chip = internalLink(label, route);
+  chip.className = `entity-chip ${weak ? "weak" : ""}`;
+  chip.title = `${ENTITY_LABELS[entity.type] || entity.type} · ${weak ? "nur in der Commit-Nachricht erwähnt" : entity.derivation.replaceAll("_", " ")}`;
+  return chip;
+}
+
+function groupMoments(events) {
+  const moments = [];
+  const byKey = new Map();
+  for (const event of events) {
+    const key = event.commit ? event.commit.hash : event.event_id;
+    let moment = byKey.get(key);
+    if (!moment) {
+      moment = { key, events: [], iso: event.occurred_at, epoch: event.occurred_epoch, commit: event.commit };
+      byKey.set(key, moment);
+      moments.push(moment);
+    }
+    moment.events.push(event);
+  }
+  // Headline = most significant event; at equal significance an event with evidence-backed entities beats a generic one.
+  const evidenced = (event) => (event.entities.some((entity) => entity.derivation !== "message_mention") ? 1 : 0);
+  for (const moment of moments) {
+    moment.events = moment.events
+      .map((event, order) => ({ event, order }))
+      .sort((a, b) => (b.event.significance - a.event.significance) || (evidenced(b.event) - evidenced(a.event)) || (a.order - b.order))
+      .map((item) => item.event);
+  }
+  return moments;
+}
+
+function timeOf(iso) {
+  const match = /T(\d{2}:\d{2})/.exec(iso);
+  return match ? match[1] : "";
+}
+
+function dayLabel(iso) {
+  const [year, month, day] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function momentSummary(moment) {
+  const counts = {};
+  for (const event of moment.events.slice(1)) {
+    const group = event.type.split(".")[0];
+    const label = { task: "Tasks", requirement: "Requirements", decision: "Decisions", finding: "Findings", wave: "Wave-Änderungen", parity: "Parity", evidence: "Evidenz",
+      page: "Pages", model: "Modell", project: "Projektdateien", document: "Dokumente", reference: "Referenz", authority: "Authority", verification: "Verification",
+      framework: "Framework", commit: "Commit", changeset: "Change-Set", mission: "Mission", epoch: "Epoche", delegation: "Delegation" }[group] || group;
+    counts[label] = (counts[label] || 0) + 1;
+  }
+  return Object.entries(counts).map(([label, count]) => `${count} ${label}`).join(" · ");
+}
+
+function othersLabel(moment) {
+  const labels = [];
+  const seen = new Set();
+  for (const event of moment.events.slice(1)) {
+    const primary = event.entities.find((entity) => ["decision", "requirement", "task", "finding", "page", "revision"].includes(entity.type) && entity.derivation !== "message_mention");
+    const label = primary ? primary.id : event.title.split(" · ")[0].replace(/ \d+ Dateien?$/, "");
+    if (!seen.has(label)) {
+      seen.add(label);
+      labels.push(label);
+    }
+  }
+  return labels.length > 7 ? `${labels.slice(0, 7).join(" · ")} · +${labels.length - 7} weitere` : labels.join(" · ");
+}
+
+function momentCard(moment, { compact = false } = {}) {
+  const head = moment.events[0];
+  const unattributed = moment.events.every((event) => event.lane === "unattributed");
+  const card = node("article", `moment ${unattributed ? "unattributed" : ""}`);
+  card.append(node("div", "moment-time", timeOf(moment.iso) || "—"));
+  const body = node("div", "moment-body");
+  // Without an evidence-backed entity the human-written commit text is the clearest label; it stays a Git fact, not an attribution.
+  const commitText = moment.commit ? moment.commit.subject : null;
+  const title = node("div", "moment-title", unattributed && commitText ? `Commit ${moment.commit.short}: ${commitText}` : head.title);
+  body.append(title);
+  const rest = moment.events.length - 1;
+  if (unattributed && commitText) {
+    body.append(node("div", "moment-sub", `${moment.events.map((event) => event.title).join(" · ")} – keiner Wave, Task oder Page zugeordnet`));
+  } else if (rest > 0) {
+    body.append(node("div", "moment-sub", `Im selben Commit außerdem (keine Zuordnung zu diesem Ereignis): ${othersLabel(moment)}`));
+  }
+  const strong = head.entities.filter((entity) => entity.derivation !== "message_mention").slice(0, compact ? 5 : 10);
+  const weak = unattributed ? head.entities.filter((entity) => entity.derivation === "message_mention").slice(0, 4) : [];
+  const chips = node("div", "moment-entities");
+  strong.forEach((entity) => chips.append(entityChip(entity)));
+  weak.forEach((entity) => chips.append(entityChip(entity)));
+  const flags = node("span", "moment-flags");
+  flags.append(authorityBadge(head));
+  if (unattributed) {
+    const badge = node("span", "lane-badge", "nicht zugeordnet");
+    badge.title = "Beobachtbar, aber ohne belegte Beziehung zu einer Wave, einem Requirement oder einer Page.";
+    flags.append(badge);
+  }
+  if (head.health.length) flags.append(healthBadge(head.health[0]));
+  chips.append(flags);
+  body.append(chips);
+  if (!compact) {
+    const details = node("details", "moment-details");
+    details.append(node("summary", "", "Details & Beleg"));
+    const list = node("div", "moment-events");
+    for (const event of moment.events) {
+      const row = node("div", "moment-event");
+      const text = node("div", "item-main");
+      text.append(node("div", "", event.title));
+      if (event.detail) text.append(node("small", "muted", event.detail));
+      const trail = node("div", "moment-entities");
+      for (const entity of event.entities.slice(0, 10)) trail.append(entityChip(entity));
+      if (event.entities.length) text.append(trail);
+      if (event.source && event.source.path) text.append(node("small", "muted mono", `${event.source.path}${event.source.field ? ` · ${event.source.field}` : ""}${event.source.before || event.source.after ? ` · ${event.source.before ?? "—"} → ${event.source.after ?? "—"}` : ""}`));
+      row.append(text, authorityBadge(event));
+      list.append(row);
+    }
+    details.append(list);
+    const provenance = [];
+    if (moment.commit) provenance.push(`Commit ${moment.commit.short} · ${moment.commit.author} · „${moment.commit.subject}"`);
+    const changeSet = moment.events.find((event) => event.change_set_id);
+    if (changeSet) provenance.push(`Change-Set ${changeSet.change_set_id}${changeSet.mission_label ? ` · Mission-Label: ${changeSet.mission_label}` : ""}`);
+    if (unattributed) provenance.push("Zuordnung: keine – Zeitnähe, Dateinamen oder Commit-Text begründen keine Beziehung.");
+    if (provenance.length) details.append(node("p", "muted mono provenance", provenance.join("  |  ")));
+    body.append(details);
+  }
+  card.append(body);
+  return card;
+}
+
+function renderMomentStream(container, moments, options = {}) {
+  let currentDay = null;
+  let section = null;
+  for (const moment of moments) {
+    const day = moment.iso.slice(0, 10);
+    if (!options.compact && day !== currentDay) {
+      currentDay = day;
+      section = node("section", "day-group");
+      section.append(node("h3", "day-heading", dayLabel(moment.iso)));
+      container.append(section);
+    }
+    (options.compact ? container : section).append(momentCard(moment, options));
+  }
+}
+
+async function fetchTimeline(params) {
+  const query = new URLSearchParams(params);
+  const response = await fetch(`/api/timeline?${query.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("timeline unavailable");
+  return response.json();
+}
+
+function timelineStateMessage(meta) {
+  if (!meta) return null;
+  if (meta.state === "BUILDING") return "Timeline wird aus der Git-Historie aufgebaut … (einmalig, danach sofort verfügbar)";
+  if (meta.state === "NOT_OBSERVABLE") return "Kein Git-Verlauf beobachtbar. Die Timeline wird nicht erraten.";
+  if (meta.state === "ERROR" || meta.state === "UNAVAILABLE") return `Timeline nicht verfügbar (${meta.reason || meta.state}).`;
+  return null;
+}
+
+let timelineView = { token: 0, events: [], next: null, meta: null };
+
+function timelineFilterBar(params) {
+  const bar = node("form", "timeline-filters");
+  bar.addEventListener("submit", (event) => event.preventDefault());
+  const apply = () => {
+    const next = new URLSearchParams();
+    for (const [key, value] of new FormData(bar).entries()) if (String(value).trim()) next.set(key, String(value).trim());
+    location.hash = `timeline${next.toString() ? `?${next.toString()}` : ""}`;
+  };
+  const select = (name, label, options, value) => {
+    const wrapper = node("label", "filter");
+    wrapper.append(node("span", "", label));
+    const element = document.createElement("select");
+    element.name = name;
+    for (const [optionValue, optionLabel] of options) {
+      const option = document.createElement("option");
+      option.value = optionValue;
+      option.textContent = optionLabel;
+      option.selected = optionValue === (value || "");
+      element.append(option);
+    }
+    element.addEventListener("change", apply);
+    wrapper.append(element);
+    bar.append(wrapper);
+  };
+  const dayOffset = (days) => { const date = new Date(); date.setDate(date.getDate() - days); return date.toISOString().slice(0, 10); };
+  select("from", "Zeitraum", [["", "Gesamter Verlauf"], [dayOffset(1), "Seit gestern"], [dayOffset(7), "Letzte 7 Tage"], [dayOffset(30), "Letzte 30 Tage"]], params.get("from"));
+  select("group", "Bereich", Object.entries(GROUP_LABELS), params.get("group"));
+  select("lane", "Zuordnung", [["", "Alle"], ["attributed", "Zugeordnet"], ["unattributed", "Nicht zugeordnet"]], params.get("lane"));
+  select("authority", "Beleg", [["", "Alle"], ["CANONICAL_RECORD", "Kanonisch"], ["GIT_DERIVED", "Aus Git belegt"], ["COMMIT_TRAILER", "Change-Set"], ["GIT_MENTION", "Nur erwähnt"]], params.get("authority"));
+  select("min_significance", "Detailgrad", [["", "Alles"], ["2", "Wichtiges"]], params.get("min_significance"));
+  const entity = node("label", "filter");
+  entity.append(node("span", "", "Wave / Requirement / Page …"));
+  const input = document.createElement("input");
+  input.name = "entity";
+  input.placeholder = "z. B. wave:W13 oder requirement:REQ-093";
+  input.value = params.get("entity") || "";
+  input.addEventListener("change", apply);
+  entity.append(input);
+  bar.append(entity);
+  for (const hidden of ["include_mentions"]) if (params.get(hidden)) { const field = document.createElement("input"); field.type = "hidden"; field.name = hidden; field.value = params.get(hidden); bar.append(field); }
+  return bar;
+}
+
+async function renderTimeline() {
+  const params = hashQuery();
+  root.append(sectionTitle("Project Timeline", "Was ist im Projekt passiert – rekonstruiert aus kanonischen Artefakten und Git (abgeleitet, nie gespeichert)"));
+  root.append(timelineFilterBar(params));
+  const explain = node("p", "muted timeline-note", "Eine Zeile pro Commit-Moment. Beziehungen zu Waves, Requirements oder Pages erscheinen nur, wenn sie aus Artefakten oder Change-Sets belegt sind; „nur erwähnt“ und „nicht zugeordnet“ bleiben sichtbar schwach.");
+  root.append(explain);
+  const stream = node("div", "timeline-stream");
+  const footer = node("div", "timeline-footer");
+  root.append(stream, footer);
+  const token = ++timelineView.token;
+  const filters = Object.fromEntries([...params.entries()].filter(([key]) => key !== "cursor"));
+  filters.limit = "80";
+  const load = async (cursor) => {
+    footer.textContent = "";
+    footer.append(node("span", "muted", "lädt …"));
+    let result;
+    try {
+      result = await fetchTimeline(cursor ? { ...filters, cursor } : filters);
+    } catch {
+      footer.textContent = "Timeline nicht erreichbar.";
+      return;
+    }
+    if (token !== timelineView.token) return;
+    const message = timelineStateMessage(result.index);
+    if (message) {
+      footer.textContent = message;
+      if (result.index.state === "BUILDING") setTimeout(() => { if (token === timelineView.token && routeParts()[0] === "timeline") load(cursor); }, 1500);
+      return;
+    }
+    if (!cursor) timelineView.events = [];
+    timelineView.events.push(...result.events);
+    clear(stream);
+    if (!timelineView.events.length) stream.append(empty("Keine Ereignisse für diesen Filter."));
+    renderMomentStream(stream, groupMoments(timelineView.events));
+    clear(footer);
+    footer.append(node("span", "muted", `${timelineView.events.length} von ${result.total} Ereignissen · Index ${result.index.head || ""}${result.index.incremental ? " (inkrementell)" : ""} · ${result.index.rule_version || ""}`));
+    if (result.next_cursor) {
+      const more = node("button", "load-more", "Ältere Ereignisse laden");
+      more.type = "button";
+      more.addEventListener("click", () => load(result.next_cursor));
+      footer.append(more);
+    }
+  };
+  load(null);
+}
+
+async function renderRecentActivity() {
+  const container = $("#recent-activity");
+  if (!container) return;
+  clear(container);
+  container.hidden = !status.health;
+  if (!status.health) return;
+  const head = node("div", "cw-head");
+  head.append(node("span", "eyebrow", "RECENT ACTIVITY"), derivedBadge());
+  const all = internalLink("Gesamte Timeline →", "timeline");
+  all.className = "internal-link all-activity";
+  head.append(all);
+  container.append(head);
+  const body = node("div", "recent-body");
+  container.append(body);
+  body.append(node("p", "muted", "Aktivität wird geladen …"));
+  const token = ++timelineView.token;
+  const attempt = async () => {
+    let result;
+    try {
+      result = await fetchTimeline({ limit: "120", min_significance: "2" });
+    } catch {
+      clear(body);
+      body.append(node("p", "muted", "Timeline nicht erreichbar."));
+      return;
+    }
+    if (token !== timelineView.token) return;
+    const message = timelineStateMessage(result.index);
+    clear(body);
+    if (message) {
+      body.append(node("p", "muted", message));
+      if (result.index.state === "BUILDING") setTimeout(() => { if (token === timelineView.token) attempt(); }, 1500);
+      return;
+    }
+    const moments = groupMoments(result.events).slice(0, 6);
+    if (!moments.length) {
+      body.append(node("p", "muted", "Keine wesentlichen Ereignisse im beobachteten Verlauf."));
+      return;
+    }
+    let currentDay = null;
+    for (const moment of moments) {
+      const day = moment.iso.slice(0, 10);
+      if (day !== currentDay) {
+        currentDay = day;
+        body.append(node("div", "recent-day", dayLabel(moment.iso)));
+      }
+      body.append(momentCard(moment, { compact: true }));
+    }
+  };
+  attempt();
+}
+
+async function renderEntityTimeline(type, id) {
+  const section = node("section", "plain-section entity-timeline");
+  const head = node("div", "cw-head");
+  head.append(node("h3", "", "Verlauf"), derivedBadge());
+  const all = internalLink("Alle Ereignisse →", `timeline?entity=${encodeURIComponent(`${type}:${id}`)}`);
+  all.className = "internal-link all-activity";
+  head.append(all);
+  section.append(head);
+  const body = node("div", "recent-body");
+  body.append(node("p", "muted", "Verlauf wird geladen …"));
+  section.append(body);
+  root.append(section);
+  try {
+    const result = await fetchTimeline({ entity: `${type}:${id}`, limit: "30" });
+    clear(body);
+    const message = timelineStateMessage(result.index);
+    if (message) return body.append(node("p", "muted", message));
+    const moments = groupMoments(result.events).slice(0, 8);
+    if (!moments.length) return body.append(node("p", "muted", "Keine belegten Ereignisse zu diesem Eintrag im beobachteten Verlauf."));
+    renderMomentStream(body, moments, { compact: true });
+  } catch {
+    clear(body);
+    body.append(node("p", "muted", "Verlauf nicht erreichbar."));
+  }
 }
 
 function healthChipInfo() {
@@ -1554,6 +1941,7 @@ async function load() {
     status = await response.json();
     renderHeader();
     renderCurrentWork();
+    renderRecentActivity();
     renderAttention();
     renderMetrics();
     updateHealthChip();

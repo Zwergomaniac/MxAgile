@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import shutil
 import sys
 import subprocess
@@ -2656,8 +2657,18 @@ class CurrentWorkAndAssessmentTests(unittest.TestCase):
         self.root.mkdir()
         fixture(self.root)
         build_project_status._DELIVERY_ACTIVITY_CACHE.clear()
+        # The derived timeline index (per-Wave DONE history) lives in an OS cache; keep it inside the test sandbox.
+        self.previous_cache = os.environ.get("MXAGILE_BOARD_CACHE_DIR")
+        os.environ["MXAGILE_BOARD_CACHE_DIR"] = str(Path(self.temp.name) / "board-cache")
+        import build_project_timeline
+        build_project_timeline._MEMORY.clear()
+        build_project_timeline._REPO_CHECK.clear()
 
     def tearDown(self) -> None:
+        if self.previous_cache is None:
+            os.environ.pop("MXAGILE_BOARD_CACHE_DIR", None)
+        else:
+            os.environ["MXAGILE_BOARD_CACHE_DIR"] = self.previous_cache
         cleanup_temporary_directory(self.temp, expected_prefix="mxagile-status-")
 
     def status(self) -> dict:

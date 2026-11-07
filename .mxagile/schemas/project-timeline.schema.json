@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile://schemas/project-timeline.schema.json",
+  "title": "MxAgile project timeline response (derived, non-canonical)",
+  "description": "Describes a projection reconstructed from canonical artifacts and Git history by build_project_timeline.py. It is never stored in the project, never lifecycle authority, and relationships exist only where the event carries evidence (authority_class / entities[].derivation). Temporal proximity, branch names, file-name similarity and free-text mission ids never attribute an event.",
+  "type": "object",
+  "required": ["events", "next_cursor", "total", "index"],
+  "additionalProperties": false,
+  "properties": {
+    "events": { "type": "array", "items": { "$ref": "#/definitions/event" } },
+    "next_cursor": { "type": ["string", "null"], "pattern": "^[0-9]{1,12}:EV-[0-9a-f]{16}$" },
+    "total": { "type": "integer", "minimum": 0 },
+    "index": { "$ref": "#/definitions/index" }
+  },
+  "definitions": {
+    "index": {
+      "type": "object",
+      "required": ["state"],
+      "additionalProperties": true,
+      "properties": {
+        "state": { "enum": ["READY", "BUILDING", "NOT_OBSERVABLE", "ERROR", "UNAVAILABLE"] },
+        "reason": { "type": ["string", "null"] },
+        "head": { "type": "string" },
+        "branch": { "type": "string" },
+        "shallow": { "type": "boolean" },
+        "incremental": { "type": "boolean" },
+        "scanned_commits": { "type": "integer", "minimum": 0 },
+        "build_seconds": { "type": "number", "minimum": 0 },
+        "event_count": { "type": "integer", "minimum": 0 },
+        "rule_version": { "const": "project-timeline/v1" }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "required": ["type", "id", "derivation"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" },
+        "derivation": { "enum": ["artifact_field", "touched_artifact", "commit_trailer", "change_set_paths", "canonical_field_link", "canonical_artifact_name", "message_mention"] }
+      }
+    },
+    "commit": {
+      "type": ["object", "null"],
+      "required": ["hash", "short", "first_parent", "author", "subject"],
+      "additionalProperties": false,
+      "properties": {
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "short": { "type": "string" },
+        "first_parent": { "type": ["string", "null"] },
+        "author": { "type": "string" },
+        "subject": { "type": "string" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": ["event_id", "type", "authority_class", "lane", "occurred_at", "occurred_epoch", "time_basis", "title", "significance", "entities", "commit", "source", "change_set_id", "mission_label", "mission_id", "health"],
+      "additionalProperties": false,
+      "properties": {
+        "event_id": { "type": "string", "pattern": "^EV-[0-9a-f]{16}$" },
+        "type": { "type": "string" },
+        "authority_class": { "enum": ["CANONICAL_RECORD", "GIT_DERIVED", "COMMIT_TRAILER", "GIT_MENTION"] },
+        "lane": { "enum": ["attributed", "unattributed"] },
+        "occurred_at": { "type": "string" },
+        "occurred_epoch": { "type": "integer" },
+        "time_basis": { "enum": ["artifact_field", "commit_time"] },
+        "title": { "type": "string" },
+        "detail": { "type": ["string", "null"] },
+        "significance": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "entities": { "type": "array", "items": { "$ref": "#/definitions/entity" } },
+        "commit": { "$ref": "#/definitions/commit" },
+        "source": {
+          "type": ["object", "null"],
+          "required": ["path", "field", "before", "after"],
+          "additionalProperties": false,
+          "properties": { "path": { "type": ["string", "null"] }, "field": { "type": ["string", "null"] }, "before": { "type": ["string", "null"] }, "after": { "type": ["string", "null"] } }
+        },
+        "change_set_id": { "type": ["string", "null"] },
+        "mission_label": { "type": ["string", "null"] },
+        "mission_id": { "type": ["string", "null"] },
+        "health": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -21,6 +21,13 @@
     "Reason": "Real isolated 6170-entry Git fixture and installer/canonicalizer STOP checks."
   },
   {
+    "File": "test-security-projection.ps1", "Tier": 1, "FastGate": true,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Synthetic-fixture unit tests for the Security Projection (schema, determinism, drift, provenance). Real-mxcli check is opt-in via env and reported as SKIPPED otherwise."
+  },
+  {
     "File": "test-parity-gallery.ps1", "Tier": 1, "FastGate": true,
     "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
     "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
@@ -1542,5 +1549,20 @@
     "ModifiesGlobalState": false,
     "ParallelSafe": false,
     "Reason": "Opt-in Board smoke (CS-7): isolated temporary fixture projects, OS-assigned loopback ports, isolated Board cache, headless browser when available (UNAVAILABLE otherwise), process and cleanup checks, Doctor exit semantics."
+  },
+  {
+    "File": "test-project-timeline.ps1",
+    "Tier": 1,
+    "FastGate": false,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": true,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": false,
+    "Reason": "Derived project timeline (CS-5): synthetic Git fixture repositories in temporary directories, isolated cache directory, evidence classes, determinism, incremental equals full, rebase invalidation, no proximity attribution."
   }
 ]

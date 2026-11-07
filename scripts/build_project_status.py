@@ -2019,9 +2019,38 @@ def build_delivery_assessments(
         }
 
 
+def _timeline_wave_history(root: Path) -> dict[str, Any]:
+    """Per-Wave DONE reconstruction from the process-state history (CS-5); unavailable without Git or the module."""
+    try:
+        import build_project_timeline
+        return build_project_timeline.wave_history(root)
+    except Exception:
+        return {"observation_state": "NOT_OBSERVABLE", "reason": "TIMELINE_UNAVAILABLE", "waves": {}}
+
+
+def _changes_after_done(phase: str | None, wave_id: str, history: dict[str, Any] | None) -> dict[str, Any]:
+    """Later activity never reopens or invalidates DONE; it is reported next to it (BRD-F-56)."""
+    empty = {"commit_count": None, "project_activity_commits": None, "done_transition": None, "linked_commits": []}
+    if phase != "done":
+        return {"observation_state": "NOT_APPLICABLE", **empty}
+    if not history or history.get("observation_state") != "AVAILABLE":
+        return {"observation_state": "NOT_OBSERVABLE", **empty}
+    entry = history["waves"].get(wave_id)
+    if entry is None:
+        # The transition is not in the observed history; it is never inferred from timestamps (BRD-F-28).
+        return {"observation_state": "NOT_RECORDED", **empty}
+    return {
+        "observation_state": "AVAILABLE", "commit_count": entry["linked_artifact_commits"],
+        "project_activity_commits": entry["project_activity_commits"],
+        "done_transition": {"commit": entry["commit"], "committed_at": entry["committed_at"]},
+        "linked_commits": list(entry["linked_commit_hashes"]),
+    }
+
+
 def build_waves_trust(
     waves: list[dict[str, Any]], process_doc: dict[str, Any] | None, tasks: list[dict[str, Any]],
     requirements: list[dict[str, Any]], findings: list[dict[str, Any]], activity: dict[str, Any],
+    history: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """'Trust in DONE' per Wave (K.5): historical DONE stays DONE; present confidence is reported separately."""
     waves_doc = process_doc.get("waves") if isinstance(process_doc, dict) and isinstance(process_doc.get("waves"), dict) else {}
@@ -2066,7 +2095,7 @@ def build_waves_trust(
             "open_tasks_superseded": open_tasks if done_wave and explained else [],
             "open_tasks_unexplained": open_tasks if done_wave and not explained else [],
             "later_findings": wave_findings[:12],
-            "changes_after_done": {"observation_state": "NOT_OBSERVABLE", "commit_count": None},
+            "changes_after_done": _changes_after_done(wave["phase"], wave_id, history),
             "present_confidence": {"level": confidence, "requirement_labels": labels, "freshness": "NOT_OBSERVABLE", "reasons": reasons},
         })
     return trust
@@ -2142,7 +2171,7 @@ def attach_cs4_projections(
     )
     result["waves_trust"] = build_waves_trust(
         result["delivery"]["waves"]["items"], process_doc, result["delivery"]["tasks"]["items"],
-        result["requirements"]["items"], result["findings"]["items"], activity,
+        result["requirements"]["items"], result["findings"]["items"], activity, _timeline_wave_history(root),
     )
     result["project"]["revision_ledger"] = build_revision_ledger(root, hashes, gaps, parsed_documents)
     result["verification"]["parity_reports"] = build_parity_report_states(parity_records, parity_paths)

@@ -38,6 +38,9 @@ RULES = (
     ((".mxagile/board/*", "scripts/*project_status.py", "scripts/serve_project_board.py", "tests/test_parity_gallery.py", "tests/test-parity-gallery.ps1", "tests/test_board_performance.py", "docs/project-status-inventory.md", ".mxagile/policies/gap-verification-repair.md", ".mxagile/policies/project-compatibility.md"),
      1, ("test_project_status.py", "test_parity_gallery.py", "test_board_performance.py", "test-board-authority.ps1")),
     (("scripts/serve_project_board.py", "tests/test_board_http.py"), 1, ("test_board_http.py",)),
+    # CS-5: the derived project timeline (library, schema and its tests)
+    (("scripts/build_project_timeline.py", ".mxagile/schemas/project-timeline.schema.json", "tests/test_project_timeline.py", "tests/test-project-timeline.ps1"),
+     1, ("test_project_timeline.py", "test_board_http.py")),
     # CS-7: changes to the opt-in Board smoke select its own tests; Board/Doctor changes stay narrow and are
     # covered by the Full Release Gate wrapper (test-board-smoke.ps1).
     (("scripts/board_smoke.py", "tests/test_board_smoke.py", "tests/test-board-smoke.ps1"), 2,
@@ -84,6 +87,10 @@ RULES = (
         ".mxagile/schemas/harness-adapter.schema.json", ".mxagile/schemas/routing-decision.schema.json",
         ".mxagile/schemas/context-epoch.schema.json"),
      2, ("test-agent-delegation.ps1", "test-agent-delegation-results.ps1")),
+    # Security Projection (read-only, generated evidence; no Board dependency)
+    (("scripts/security_projection.py", "scripts/generate-security-matrix.ps1", ".mxagile/schemas/security-matrix.schema.json",
+      "tests/test_security_projection.py", "tests/test-security-projection.ps1", ".mxagile/policies/security-projection.md"),
+     1, ("test-security-projection.ps1", "test-documentation-consistency.ps1")),
     (("scripts/Get-MxAgileCapabilities.ps1",), 1,
      ("test-agent-delegation.ps1", "test-capabilities-resolver.ps1", "test-capability-discovery-routing.ps1")),
     (("scripts/Normalize-MxcliSessionStart.ps1",), 1,
