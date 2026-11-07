@@ -107,6 +107,19 @@ def core_schema_dir() -> Path:
     return base / "schemas" if base.name == ".mxagile" else base / ".mxagile" / "schemas"
 
 
+ARTIFACT_ORIGIN_MARKERS = ("/design-preview/", "/design-preview-source/", "/reference/", "/page-artifact/")
+
+
+def script_error_origin(origin_hint: str | None) -> str:
+    """'artifact' when a script error was raised inside an embedded project artifact, else 'board'.
+
+    The hint is the error stack or the console location URL (never the message text): errors from embedded CapTrack
+    HTML must not be reported as Board-core failures.
+    """
+    hint = origin_hint or ""
+    return "artifact" if any(marker in hint for marker in ARTIFACT_ORIGIN_MARKERS) else "board"
+
+
 def classify_projection(projection: dict | None) -> tuple[str, str | None]:
     """Return (verdict, message): verdict is OK, WARN or FAIL (CS-2 projection_state semantics)."""
     if not isinstance(projection, dict) or "state" not in projection:
@@ -511,8 +524,10 @@ class BoardSmoke:
         page = context.new_page()
         errors: list[dict] = []
         responses: list[tuple[str, int]] = []
-        page.on("pageerror", lambda error: errors.append({"kind": "pageerror", "message": str(error)[:300]}))
-        page.on("console", lambda message: errors.append({"kind": "console_error", "message": message.text[:300]})
+        page.on("pageerror", lambda error: errors.append({"kind": "pageerror", "message": str(error)[:300],
+                                                          "origin": script_error_origin(str(getattr(error, "stack", "") or ""))}))
+        page.on("console", lambda message: errors.append({"kind": "console_error", "message": message.text[:300],
+                                                          "origin": script_error_origin((message.location or {}).get("url", ""))})
                 if message.type == "error" and "Failed to load resource" not in message.text else None)
         page.on("response", lambda response: responses.append((response.url, response.status)))
 
@@ -571,6 +586,9 @@ class BoardSmoke:
         self.projection_visibility(page, s6)
         s6["seconds"] = round(s6["seconds"] + time.perf_counter() - visibility_started, 3)
         for item in errors:
+            if item.get("origin") == "artifact":
+                self.warnings.append(f"ARTIFACT_SCRIPT_ERROR: {item['message'][:160]} (raised inside an embedded project artifact, not Board code)")
+                continue
             s3["result"] = "FAIL"
             s3["failures"].append({"route": None, "kind": item["kind"], "message": item["message"]})
         for url, code in responses:

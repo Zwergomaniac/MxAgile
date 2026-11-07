@@ -373,6 +373,41 @@ class BoardHttpTests(unittest.TestCase):
             finally:
                 self.stop_server(server, thread)
 
+    def test_reference_csp_allows_only_the_board_itself_to_frame(self) -> None:
+        """Security decision BRD-F-68: frame-ancestors 'self' for references/previews, 'none' elsewhere, never wider."""
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-csp-") as temporary:
+            root = Path(temporary)
+            self.hub_project(root)
+            (root / "planning/ui-inventory/PAGE-THREE.yaml").write_text(
+                "page_id: PAGE-THREE\npage_name: Page_Three\nhtml_source: themesource/mod/public/feat/Page.html\n", encoding="utf-8")
+            (root / "themesource/mod/public/feat").mkdir(parents=True)
+            (root / "themesource/mod/public/feat/Page.html").write_text("<div>fragment</div>", encoding="utf-8")
+            (root / ".mxagile/board").mkdir(parents=True, exist_ok=True)
+            (root / ".mxagile/board/index.html").write_text("<!doctype html><title>board</title>", encoding="utf-8")
+            server, thread = self.start_server(root)
+            try:
+                base = f"http://127.0.0.1:{server.server_port}"
+
+                def directives(path: str) -> dict[str, list[str]]:
+                    with urlopen(f"{base}{path}") as response:
+                        policy = response.headers["Content-Security-Policy"]
+                    return {part.split()[0]: part.split()[1:] for part in (item.strip() for item in policy.split(";")) if part}
+
+                with urlopen(f"{base}/api/page/PAGE-ONE") as response:
+                    reference_url = json.loads(response.read())["visuals"]["reference"]["url"]
+                framed = {"reference": directives(reference_url), "design preview": directives("/design-preview/PAGE-THREE/")}
+                for name, policy in framed.items():
+                    self.assertEqual(policy["frame-ancestors"], ["'self'"], name)
+                    joined = " ".join(policy["frame-ancestors"])
+                    for broadening in ("*", "http", "data:", "blob:", "127.0.0.1", "localhost"):
+                        self.assertNotIn(broadening, joined, f"{name}: frame-ancestors must stay 'self'")
+                    self.assertEqual(policy["object-src"], ["'none'"], name)
+                    self.assertEqual(policy["base-uri"], ["'none'"], name)
+                for path in ("/", "/api/status"):
+                    self.assertEqual(directives(path)["frame-ancestors"], ["'none'"], path)
+            finally:
+                self.stop_server(server, thread)
+
     def test_health_endpoint_separates_groups_and_serves_older_snapshots(self) -> None:
         diagnostic = {"diagnostic_id": "DX-0000000000000001", "category": "DONE_BASIS_NOT_RECORDED", "severity": "INFO",
                       "blocking": False, "diagnostic_group": "framework_compat", "source_path": None}

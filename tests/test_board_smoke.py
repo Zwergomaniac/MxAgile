@@ -215,6 +215,15 @@ class BoardSmokeTests(unittest.TestCase):
             self.assertTrue(all(item["match"] for item in report["consistency"]), report["consistency"])
             self.assertTrue(any("NOT claimed to be schema-valid" in note for note in report["notes"]))
 
+    def test_script_errors_from_embedded_artifacts_are_not_board_failures(self) -> None:
+        for hint in ("ReferenceError: x\n    at http://127.0.0.1:8851/design-preview-source/PAGE-X/:1:1",
+                     "at http://127.0.0.1:8851/reference/input-resources/ui-ux/a.html:9:3",
+                     "http://127.0.0.1:8851/page-artifact/PAGE-X/planning/evidence/a.md",
+                     "http://127.0.0.1:8851/design-preview/PAGE-X/"):
+            self.assertEqual(board_smoke.script_error_origin(hint), "artifact", hint)
+        for hint in ("TypeError: y\n    at http://127.0.0.1:8851/board.js:10:5", "", None):
+            self.assertEqual(board_smoke.script_error_origin(hint), "board", hint)
+
     def test_forced_missing_browser_is_unavailable_and_other_stages_still_run(self) -> None:
         code, report, _ = run_smoke(self.project, env={"MXAGILE_BOARD_SMOKE_BROWSER": "none"})
         self.assertEqual((report["result"], code), ("UNAVAILABLE", 2))

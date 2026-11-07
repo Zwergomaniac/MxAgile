@@ -1059,6 +1059,8 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 "font-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
             )
         elif is_reference:
+            # Security decision BRD-F-68 (docs/board-security-decisions.md): only the Board's own origin may frame a
+            # reference. Never widen frame-ancestors beyond 'self' (no wildcard, scheme or host sources).
             self.send_header(
                 "Content-Security-Policy",
                 "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; "

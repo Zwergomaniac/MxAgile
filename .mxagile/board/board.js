@@ -2022,6 +2022,7 @@ function lazyFrame(label, url) {
       frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
       frame.title = label;
       wrap.append(frame);
+      details.append(node("small", "muted", "Vorschau eines Projekt-Artefakts im Sandbox-Frame. Skriptfehler darin stammen aus dem Artefakt, nicht aus dem Board."));
     }
   });
   return details;
