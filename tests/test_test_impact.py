@@ -24,6 +24,22 @@ class ImpactTests(unittest.TestCase):
     def test_installer_requires_integration(self):
         self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
 
+    def test_spec_kit_traceability_paths_are_documentation_not_unknown_paths(self):
+        paths = ["specs/001-board-redesign/spec.md", "specs/001-board-redesign/contracts/timeline-event.md",
+                 "specs/001-board-redesign/reports/cs-2-bench.json", "specs/002-any-future-feature/tasks.md"]
+        plan = impact.select(paths)
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["tier"], 1)  # bounded documentation validation, no Full Release Gate
+        self.assertEqual(plan["suites"], ["test-documentation-consistency.ps1"])
+        mixed = impact.select(paths + ["docs/board-redesign-plan.md"])
+        self.assertEqual((mixed["unmapped"], mixed["tier"]), ([], 1))
+
+    def test_spec_kit_mapping_does_not_weaken_the_fail_closed_rule(self):
+        for unknown in ("unknown-top-level/file.bin", "specsX/looks-similar.md", "my-specs/spec.md", "Specs/Upper.md"):
+            plan = impact.select(["specs/001-board-redesign/spec.md", unknown])
+            self.assertEqual(plan["unmapped"], [unknown], unknown)
+            self.assertEqual(plan["tier"], 3, unknown)  # a genuinely unknown path still requires the full release gate
+
     def test_impact_router_changes_require_release_gate(self):
         plan = impact.select(["tests/run-impact-tests.py"])
         self.assertEqual(plan["tier"], 3)

@@ -132,7 +132,10 @@ RULES = (
     ((".mxagile/schemas/*", ".mxagile/templates/generic/ui-inventory/template.yaml", "docs/injection-contract.md"), 2,
      ("test_project_status.py", "test-negative-schema.ps1", "test-injection-contract.ps1")),
     (("tests/run-impact-tests.py", "tests/test_test_impact.py", "tests/test-impact-tiers.ps1", "tests/README.md"), 1, ("test_test_impact.py",)),
-    (("docs/*", "CHANGELOG.md", ".mxagile/README.md", ".mxagile/GLOSSARY.yaml"), 1,
+    # `specs/*` is the GitHub Spec Kit / engineering-traceability path of MxAgile development (specification, plan,
+     # contracts, task record, reports). It is versioned documentation, never runtime or product payload, so it is
+     # classified like documentation instead of being an unknown (fail-closed) path.
+    (("docs/*", "specs/*", "CHANGELOG.md", ".mxagile/README.md", ".mxagile/GLOSSARY.yaml"), 1,
      ("test-documentation-consistency.ps1",)),
 )
 
