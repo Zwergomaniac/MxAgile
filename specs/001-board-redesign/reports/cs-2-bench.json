@@ -1,0 +1,288 @@
+{
+ "snapshot_head": "365beaa",
+ "signature": [
+  {
+   "variant": "old",
+   "signature_median_s": 4.873
+  },
+  {
+   "variant": "new",
+   "signature_median_s": 1.939
+  },
+  {
+   "variant": "old",
+   "signature_median_s": 4.991
+  },
+  {
+   "variant": "new",
+   "signature_median_s": 1.011
+  }
+ ],
+ "interactive": [
+  {
+   "variant": "old",
+   "status_cold": [
+    200,
+    22.46
+   ],
+   "status_warm_median": 3.208,
+   "page_previews": [
+    200,
+    3.576
+   ],
+   "gallery_first": [
+    200,
+    10.755
+   ],
+   "gallery_second": [
+    200,
+    4.037
+   ],
+   "source_median": 3.222,
+   "reference_median": 7.367,
+   "status_after_idle_median": 5.273,
+   "navigation_after_idle_median": 7.497,
+   "invalidation_reflected_after_seconds": 9.234
+  },
+  {
+   "variant": "new",
+   "status_cold": [
+    200,
+    4.279
+   ],
+   "status_warm_median": 0.108,
+   "page_previews": [
+    200,
+    0.11
+   ],
+   "gallery_first": [
+    200,
+    1.773
+   ],
+   "gallery_second": [
+    200,
+    0.008
+   ],
+   "source_median": 0.011,
+   "reference_median": 0.01,
+   "status_after_idle_median": 0.135,
+   "navigation_after_idle_median": 0.018,
+   "invalidation_reflected_after_seconds": 6.579
+  },
+  {
+   "variant": "old",
+   "status_cold": [
+    200,
+    12.835
+   ],
+   "status_warm_median": 7.855,
+   "page_previews": [
+    200,
+    7.572
+   ],
+   "gallery_first": [
+    200,
+    17.221
+   ],
+   "gallery_second": [
+    200,
+    7.389
+   ],
+   "source_median": 7.721,
+   "reference_median": 7.345,
+   "status_after_idle_median": 7.418,
+   "navigation_after_idle_median": 4.19,
+   "invalidation_reflected_after_seconds": 11.48
+  },
+  {
+   "variant": "new",
+   "status_cold": [
+    200,
+    6.829
+   ],
+   "status_warm_median": 0.135,
+   "page_previews": [
+    200,
+    0.12
+   ],
+   "gallery_first": [
+    200,
+    2.94
+   ],
+   "gallery_second": [
+    200,
+    0.017
+   ],
+   "source_median": 0.016,
+   "reference_median": 0.036,
+   "status_after_idle_median": 0.132,
+   "navigation_after_idle_median": 0.048,
+   "invalidation_reflected_after_seconds": 10.197
+  }
+ ],
+ "restart_last_good": {
+  "first_status": [
+   200,
+   0.467
+  ],
+  "first_state": "STALE",
+  "fresh_after_seconds": 10.824
+ },
+ "churn": [
+  {
+   "variant": "old",
+   "target": "requirements/REQ-001.yml",
+   "interval": 0.3,
+   "with_last_good": false,
+   "codes": [
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503
+   ],
+   "states": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "time_median": 13.585
+  },
+  {
+   "variant": "new",
+   "target": "requirements/REQ-001.yml",
+   "interval": 0.3,
+   "with_last_good": false,
+   "codes": [
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503
+   ],
+   "states": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "time_median": 21.642
+  },
+  {
+   "variant": "new",
+   "target": "requirements/REQ-001.yml",
+   "interval": 0.3,
+   "with_last_good": true,
+   "codes": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "states": [
+    "STALE",
+    "STALE",
+    "STALE",
+    "STALE",
+    "STALE",
+    "STALE",
+    "STALE",
+    "STALE",
+    "STALE",
+    "STALE"
+   ],
+   "time_median": 0.207
+  },
+  {
+   "variant": "old",
+   "target": "mprcontents/ff/53/ff53fb54-9c79-4068-94ba-892fde727008.mxunit",
+   "interval": 0.3,
+   "with_last_good": false,
+   "codes": [
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503,
+    503
+   ],
+   "states": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "time_median": 17.149
+  },
+  {
+   "variant": "new",
+   "target": "mprcontents/ff/53/ff53fb54-9c79-4068-94ba-892fde727008.mxunit",
+   "interval": 0.3,
+   "with_last_good": false,
+   "codes": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "states": [
+    "FRESH",
+    "FRESH",
+    "FRESH",
+    "FRESH",
+    "FRESH",
+    "FRESH",
+    "FRESH",
+    "FRESH",
+    "FRESH",
+    "FRESH"
+   ],
+   "time_median": 0.177
+  }
+ ]
+}
