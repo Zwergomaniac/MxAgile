@@ -1,5 +1,20 @@
 [
   {
+    "File": "test-hygiene-no-project-residue.ps1",
+    "Tier": 0,
+    "FastGate": true,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": false,
+    "UsesGit": true,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Static forbidden-identifier guard over git ls-files (read-only): no project/customer/machine-specific residue in the distributable tree."
+  },
+  {
     "File": "test-git-recovery.ps1", "Tier": 1, "FastGate": false,
     "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
     "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,

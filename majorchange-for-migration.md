@@ -4,7 +4,7 @@
 
 This document outlines the major architectural evolution of the `mxagile-ai` framework into `MxAgile`. This evolution transforms the framework into a more universal, Mendix-native, spec-driven development system that integrates the powerful lifecycle concepts of Spec Kit while preserving and strengthening the core principles of the original framework.
 
-*   **What changed:** The framework is renamed to `MxAgile`. A formal, traceable, and verifiable lifecycle from mockup to Mendix implementation has been established. This includes the introduction of Living Feature Specs, a structured Refinement Engine for managing change, a global consistency analysis command, and formal processes for brownfield adoption and project initialization. Company-specific content (like Mercedes-Benz modules) is now optional and managed via a pluggable layer system.
+*   **What changed:** The framework is renamed to `MxAgile`. A formal, traceable, and verifiable lifecycle from mockup to Mendix implementation has been established. This includes the introduction of Living Feature Specs, a structured Refinement Engine for managing change, a global consistency analysis command, and formal processes for brownfield adoption and project initialization. Company-specific content (like Company Layer modules) is now optional and managed via a pluggable layer system.
 *   **Why it changed:** To increase reproducibility, improve traceability, formalize the artifact lifecycle, and make the framework more universal and adaptable for different projects and companies, reducing the risk of artifact drift and providing a clearer path for both greenfield and brownfield projects.
 *   **What remains unchanged:** The core philosophy of being mockup-driven and Mendix-native remains central. `mxcli` remains the primary Mendix engineering layer. The phased workflow (`Discovery`, `Refinement`, etc.) and the agent-agnostic skill architecture are preserved and strengthened.
 *   **Why MxAgile is not Spec Kit:** MxAgile adopts architectural *concepts* from Spec Kit (e.g., living specs, clarification, planning) but adapts them to a Mendix-native context. It does not adopt high-code assumptions. The mockup-to-Page-YAML analysis via Playwright and the multi-layered, Mendix-native validation process remain unique and core to MxAgile.
@@ -206,10 +206,10 @@ The existing multi-layer validation strategy is formalized:
 The `init` script will:
 1.  Be idempotent (safe to run multiple times).
 2.  Ask the user if they want to use a company-specific layer.
-3.  If yes, prompt for the layer name (e.g., `mercedes-benz`).
+3.  If yes, prompt for the layer name (e.g., `example-company`).
 4.  Create the `.mxagile/` directory structure.
 5.  Copy the generic framework files.
-6.  If a layer was selected, copy and overlay the company-specific files (e.g., from `.mxagile/layers/mercedes-benz/`).
+6.  If a layer was selected, copy and overlay the company-specific files (e.g., from `.mxagile/layers/example-company/`).
 7.  Create the `constitution.md` file and other baseline project principles.
 
 ## 16. Brownfield Adoption (`mxagile adopt`)
@@ -233,7 +233,7 @@ Existing `mxagile-ai` projects can be migrated using `mxagile adopt`. The proces
 |---|---|---|---|---|
 | `.mxagile-ai/` directory | `.mxagile/` directory | Yes | Automatic (`mv`) | Yes (Path) |
 | File/content `mxagile-ai` references | `MxAgile` references | Yes | Automatic (sed/replace) | Yes (String) |
-| `.mxagile-ai/modules/MB_*` | `.mxagile/layers/mercedes-benz/modules/` | Yes | Automatic (`mv`) | Yes (Path) |
+| `.mxagile-ai/modules/MB_*` | `.mxagile/layers/example-company/modules/` | Yes | Automatic (`mv`) | Yes (Path) |
 | `planning/stories/*.md` | `requirements/*.md` + `specs/*.md` | Yes | Manual Logic | Yes (Concept) |
 | `planning/checklists/*.yaml` | `planning/tasks/TASK-*.yaml` | Yes | Automatic (Script) | Yes (Structure) |
 | `planning/ui-inventory/*.yaml` | `planning/ui-inventory/*.yml` (as Page YAML) | Yes | Automatic (Script) | No |
@@ -249,7 +249,7 @@ Projects can operate in three modes:
 ## 20. Breaking Changes
 
 -   **Project Name:** All `mxagile-ai` file paths, directory paths, and content strings are replaced with `MxAgile`. Scripts relying on the old name will fail.
--   **Company-Specific Content:** Previously integrated Mercedes-Benz content is moved to an optional layer. Projects using it must be configured to include the `mercedes-benz` layer during `init` or `adopt`.
+-   **Company-Specific Content:** Previously integrated Company Layer content is moved to an optional layer. Projects using it must be configured to include the `example-company` layer during `init` or `adopt`.
 -   **Planning Artifacts:** `planning/stories` and `planning/checklists` are replaced by `requirements`, `specs`, and `planning/tasks`, which have a new structure and relationship.
 
 ## 21. Rollback Considerations
@@ -288,7 +288,7 @@ These commands will be implemented as scripts (e.g., PowerShell) that orchestrat
 2.  [ ] Run the global refactoring script to rename `mxagile-ai` to `MxAgile`.
 3.  [ ] Run `mxagile adopt`. This will:
     *   Initialize the `.mxagile` directory.
-    *   Prompt you to select the `mercedes-benz` layer to preserve the old modules.
+    *   Prompt you to select the `example-company` layer to preserve the old modules.
     *   Inventory the existing project and create baseline specs/requirements.
 4.  [ ] Review the adoption report and the newly generated artifacts in `requirements/` and `specs/`. Manually verify and accept the inferred requirements.
 5.  [ ] Move old `planning/stories` and `planning/checklists` to an `_archive` directory.

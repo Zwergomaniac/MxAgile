@@ -19,7 +19,7 @@
     J. workspace create dispatches to create-test-workcopy.ps1
     K. workspace remove rejects nonexistent / unsafe paths
     L. install core requires path argument
-    M. install mercedes requires path argument
+    M. install company-layer requires path argument
     N. install core delegates to public bootstrap, not install-core.ps1 directly
     O. Repository root discovery uses canonical marker files
     P. CLI invocation from outside repo root succeeds (absolute path)
@@ -283,12 +283,12 @@ Assert-True 'L1: install core no-path exits 2'        ($r.ExitCode -eq 2) "exit 
 Assert-True 'L2: error mentions path required'        ($r.Output -match 'path required|required') 'no path-required hint'
 Assert-True 'L3: error shows usage'                   ($r.Output -match 'Usage|usage|install core') 'no usage shown'
 
-# ─── M. install mercedes requires path ───────────────────────────────────────
+# ─── M. install company-layer requires path ───────────────────────────────────────
 
-Write-Host '  Scenario M: install mercedes requires path argument'
+Write-Host '  Scenario M: install company-layer requires path argument'
 
-$r = Invoke-CLI @('install', 'mercedes')
-Assert-True 'M1: install mercedes no-path exits 2'    ($r.ExitCode -eq 2) "exit $($r.ExitCode)"
+$r = Invoke-CLI @('install', 'company-layer')
+Assert-True 'M1: install company-layer no-path exits 2'    ($r.ExitCode -eq 2) "exit $($r.ExitCode)"
 Assert-True 'M2: error mentions path required'        ($r.Output -match 'path required|required') 'no path-required hint'
 
 # ─── N. install delegates to PUBLIC bootstrap, not install-core.ps1 directly ─
@@ -298,8 +298,8 @@ Write-Host '  Scenario N: install core uses public bootstrap (not install-core.p
 $cliContent = Get-Content -LiteralPath $script:CliPath -Raw
 # Must reference the public bootstrap script
 Assert-True 'N1: CLI references install-mxagile.ps1'  ($cliContent -match "install-mxagile\.ps1") 'install-mxagile.ps1 not referenced'
-Assert-True 'N2: CLI references install-mxagile-mercedes.ps1' `
-    ($cliContent -match "install-mxagile-mercedes\.ps1") 'install-mxagile-mercedes.ps1 not referenced'
+Assert-True 'N2: CLI references install-mxagile-company-layer.ps1' `
+    ($cliContent -match "install-mxagile-company-layer\.ps1") 'install-mxagile-company-layer.ps1 not referenced'
 # Must NOT invoke install-core.ps1 directly (catalog may list it for discoverability; dispatch must not call it)
 Assert-True 'N3: CLI does not invoke install-core.ps1 directly' `
     ($cliContent -notmatch '-File[^;`n]*install-core\.ps1') 'CLI invokes install-core.ps1 directly — bypasses public bootstrap'

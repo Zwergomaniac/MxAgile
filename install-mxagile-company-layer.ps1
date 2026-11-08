@@ -1,20 +1,20 @@
 <#
 .SYNOPSIS
-    DEPRECATED compatibility wrapper. Use mxagile-setup-mercedes.ps1 directly.
+    DEPRECATED compatibility wrapper. Use mxagile-setup-company-layer.ps1 directly.
 
 .DESCRIPTION
     This script is a deprecated public bootstrap entry point that delegates to
-    mxagile-setup-mercedes.ps1. New invocations should call
-    mxagile-setup-mercedes.ps1 directly.
+    mxagile-setup-company-layer.ps1. New invocations should call
+    mxagile-setup-company-layer.ps1 directly.
 
-    ProvenanceFlavor "mercedes"
+    ProvenanceFlavor "company-layer"
 
 .PARAMETER ProjectRoot
-    Target Mendix project root. Passed through to mxagile-setup-mercedes.ps1.
+    Target Mendix project root. Passed through to mxagile-setup-company-layer.ps1.
 
 .PARAMETER DistributionSource
     Optional distribution source (directory or git URL). Passed through to
-    mxagile-setup-mercedes.ps1.
+    mxagile-setup-company-layer.ps1.
 
 .PARAMETER DistributionRef
     Optional git ref when DistributionSource is a git URL. Passed through.
@@ -53,14 +53,14 @@ $shouldWait = $Wait -or $isDirectLaunch
 # ---------------------------------------------------------------------------
 # Deprecation notice
 # ---------------------------------------------------------------------------
-Write-Host "[DEPRECATED] install-mxagile-mercedes.ps1: use mxagile-setup-mercedes.ps1 directly." -ForegroundColor Yellow
+Write-Host "[DEPRECATED] install-mxagile-company-layer.ps1: use mxagile-setup-company-layer.ps1 directly." -ForegroundColor Yellow
 
 # ---------------------------------------------------------------------------
 # Delegate to canonical setup script
 # ---------------------------------------------------------------------------
 $exitCode = 0
 try {
-    $setupScript = Join-Path $PSScriptRoot "mxagile-setup-mercedes.ps1"
+    $setupScript = Join-Path $PSScriptRoot "mxagile-setup-company-layer.ps1"
     $setupArgs   = @{}
     if ($ProjectRoot)             { $setupArgs['ProjectRoot']        = $ProjectRoot }
     if ($DistributionSource)      { $setupArgs['DistributionSource'] = $DistributionSource }
@@ -69,7 +69,7 @@ try {
     & $setupScript @setupArgs
     if ($LASTEXITCODE -ne $null) { $exitCode = $LASTEXITCODE }
 } catch {
-    Write-Host "install-mxagile-mercedes.ps1: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "install-mxagile-company-layer.ps1: $($_.Exception.Message)" -ForegroundColor Red
     $exitCode = 1
 }
 

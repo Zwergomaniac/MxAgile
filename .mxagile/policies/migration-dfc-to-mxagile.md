@@ -490,7 +490,7 @@ Call `install-core.ps1`, which copies the payload first and then calls `setup-ag
 Read `.mxagile/migration/provenance.yaml`.
 
 Required fields:
-- `installation.flavor`: must be `core` (no Company Layer) or a Company Layer identifier (e.g. `mercedes` for the Mercedes-Benz Company Layer)
+- `installation.flavor`: must be `core` (no Company Layer) or a Company Layer identifier (e.g. `company-layer` for the Company Layer)
 - `installation.core.source`: must be non-empty
 - `installation.core.source_type`: must be `git` or `local`
 - For `source_type: git`: `installation.core.ref` must be non-empty

@@ -1,8 +1,8 @@
 # Baseline (T004) — vor CS-1
 
 - **Datum:** 2026-11-05 · **Framework:** `e6a1481` (Board-Code unverändert seit `6b5091d`)
-- **Referenzprojekt:** CapTrack `dev/gb` @ `6d8923dc` (read-only; parallele Fremdarbeit aktiv: `.mpr` und 3 `mprcontents` modifiziert, neue untrackte Dateien)
-- **Aufruf:** `PYTHONDONTWRITEBYTECODE=1 MXAGILE_BOARD_PROFILE=1 python -B scripts/serve_project_board.py --project-root <CapTrack> --port 8797`
+- **Referenzprojekt:** Referenzprojekt `dev/gb` @ `6d8923dc` (read-only; parallele Fremdarbeit aktiv: `.mpr` und 3 `mprcontents` modifiziert, neue untrackte Dateien)
+- **Aufruf:** `PYTHONDONTWRITEBYTECODE=1 MXAGILE_BOARD_PROFILE=1 python -B scripts/serve_project_board.py --project-root <reference-project> --port 8797`
 - **Projektzustand:** `git status --porcelain` vorher = nachher (keine Veränderung durch den Lauf); Port danach frei.
 
 ## Zeiten

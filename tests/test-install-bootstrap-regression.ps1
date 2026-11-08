@@ -28,7 +28,7 @@
     9.  Invalid DistributionSource: exit 1, target unchanged
     10. Distribution inside target: blocked (safety check)
     11. Clean external project: does not fail with "Canonical installer not found"
-    12. Mercedes variant: also has acquisition logic
+    12. Company Layer variant: also has acquisition logic
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -82,9 +82,9 @@ function Remove-FixtureDirectory {
 }
 
 $bootstrapScript  = Join-Path $ScriptDir "install-mxagile.ps1"           # compatibility wrapper
-$mercedesScript   = Join-Path $ScriptDir "install-mxagile-mercedes.ps1"    # compatibility wrapper
+$companyLayerScript   = Join-Path $ScriptDir "install-mxagile-company-layer.ps1"    # compatibility wrapper
 $setupScript      = Join-Path $ScriptDir "mxagile-setup.ps1"               # canonical entry point
-$setupMercedesScript = Join-Path $ScriptDir "mxagile-setup-mercedes.ps1"   # canonical entry point
+$setupCompanyLayerScript = Join-Path $ScriptDir "mxagile-setup-company-layer.ps1"   # canonical entry point
 $distributionRoot = $ScriptDir   # MxAi-Dev-System/ IS the distribution root for local tests
 
 Write-Host ""
@@ -131,8 +131,8 @@ Assert-FileContains "4b: setup defines canonical distribution subdirectory" `
 Assert-FileContains "4b: setup falls through to canonical clone when not in distribution tree" `
     $setupScript 'CanonicalDistributionUrl.*canonical|canonical.*CanonicalDistributionUrl'
 
-Assert-FileContains "4b: mercedes-setup defines canonical distribution URL (zero-config)" `
-    $setupMercedesScript 'CanonicalDistributionUrl'
+Assert-FileContains "4b: company-layer-setup defines canonical distribution URL (zero-config)" `
+    $setupCompanyLayerScript 'CanonicalDistributionUrl'
 
 # Compatibility wrappers delegate to canonical setup scripts
 Assert-FileContains "4c: old wrapper (install-mxagile.ps1) delegates to mxagile-setup.ps1" `
@@ -141,11 +141,11 @@ Assert-FileContains "4c: old wrapper (install-mxagile.ps1) delegates to mxagile-
 Assert-FileContains "4c: old wrapper has deprecation notice" `
     $bootstrapScript '(?i)deprecated'
 
-Assert-FileContains "4c: old mercedes wrapper delegates to mxagile-setup-mercedes.ps1" `
-    $mercedesScript 'mxagile-setup-mercedes\.ps1'
+Assert-FileContains "4c: old company-layer wrapper delegates to mxagile-setup-company-layer.ps1" `
+    $companyLayerScript 'mxagile-setup-company-layer\.ps1'
 
-Assert-FileContains "4c: old mercedes wrapper has deprecation notice" `
-    $mercedesScript '(?i)deprecated'
+Assert-FileContains "4c: old company-layer wrapper has deprecation notice" `
+    $companyLayerScript '(?i)deprecated'
 
 Write-Host ""
 
@@ -328,24 +328,24 @@ try {
 Write-Host ""
 
 # =========================================================================
-# 12: Canonical Mercedes setup script has acquisition logic
+# 12: Canonical Company Layer setup script has acquisition logic
 # =========================================================================
-Write-Host "--- 12: Canonical Mercedes setup script architecture ---"
+Write-Host "--- 12: Canonical Company Layer setup script architecture ---"
 
-Assert-FileContains "12: mercedes-setup has -DistributionSource parameter" `
-    $setupMercedesScript 'DistributionSource'
+Assert-FileContains "12: company-layer-setup has -DistributionSource parameter" `
+    $setupCompanyLayerScript 'DistributionSource'
 
-Assert-FileContains "12: mercedes-setup has finally cleanup block" `
-    $setupMercedesScript 'finally\s*\{'
+Assert-FileContains "12: company-layer-setup has finally cleanup block" `
+    $setupCompanyLayerScript 'finally\s*\{'
 
-Assert-FileContains "12: mercedes-setup supports git clone acquisition" `
-    $setupMercedesScript 'git clone'
+Assert-FileContains "12: company-layer-setup supports git clone acquisition" `
+    $setupCompanyLayerScript 'git clone'
 
-Assert-FileContains "12: mercedes-setup safety check: distribution != target" `
-    $setupMercedesScript 'distNorm.*targetNorm|distribution.*must not.*inside'
+Assert-FileContains "12: company-layer-setup safety check: distribution != target" `
+    $setupCompanyLayerScript 'distNorm.*targetNorm|distribution.*must not.*inside'
 
-Assert-FileContains "12: mercedes-setup resolves canonical installer from distribution" `
-    $setupMercedesScript 'distributionRoot.*scripts.*install-core|canonicalInstaller.*distributionRoot'
+Assert-FileContains "12: company-layer-setup resolves canonical installer from distribution" `
+    $setupCompanyLayerScript 'distributionRoot.*scripts.*install-core|canonicalInstaller.*distributionRoot'
 
 Write-Host ""
 

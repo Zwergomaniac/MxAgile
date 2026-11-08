@@ -121,7 +121,7 @@ Assert-True "fixture has PLATFORM_OWNED example" ($fixAccessContent -match "PLAT
 Assert-True "fixture: backward compatibility documented" ($fixAccessContent -match "backward_compatibility")
 Assert-True "fixture: organization neutrality documented" ($fixAccessContent -match "organization_neutrality")
 Assert-True "fixture uses generic ROLE-A not real project roles" ($fixAccessContent -match "ROLE-A")
-Assert-FileNotContains "fixture does not contain real project roles" $FixAccess "SITE_MANAGER|AppAdmin|CeKo|Mercedes"
+Assert-FileNotContains "fixture does not contain real project roles" $FixAccess "SITE_MANAGER|AppAdmin|CeKo|Company Layer"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BACKWARD COMPATIBILITY: existing proof points valid without access_dimensions

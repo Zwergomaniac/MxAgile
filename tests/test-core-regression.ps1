@@ -208,7 +208,7 @@ if ($namespaceLeaks.Count -gt 0) {
 # Files listed here test framework contracts with synthetic data only.
 # REPOSITORY_TOOLING_TEST files (test-setup-detection, test-installer-ux,
 # test-install-bootstrap-regression, test-platform-portability, etc.) are
-# deliberately excluded — they verify real shipped Mercedes artifacts.
+# deliberately excluded — they verify real shipped Company Layer artifacts.
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[10] Test tree boundary: no unguarded company coupling in generic Core tests"
 $genericCoreTests = @(

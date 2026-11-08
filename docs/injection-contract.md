@@ -205,9 +205,9 @@ MxAgile tooling must never read or modify these paths:
 
 ## Known Issues and Notes
 
-### mercedes-benz layer `.git/` in dev repo (tracked in git status as staged for deletion)
+### example-company layer `.git/` in dev repo (tracked in git status as staged for deletion)
 
-The development repository temporarily contained a nested `.git/` inside the `company-layers/mercedes-benz/` directory. This was staged for deletion and has no impact on installed projects — `install-core.ps1` strips `.git/` on install (`-Exclude ".git"` in `Copy-Item`). The `mxagile-system-check` skill will flag this as a violation if found in any installed layer.
+The development repository temporarily contained a nested `.git/` inside the `company-layers/example-company/` directory. This was staged for deletion and has no impact on installed projects — `install-core.ps1` strips `.git/` on install (`-Exclude ".git"` in `Copy-Item`). The `mxagile-system-check` skill will flag this as a violation if found in any installed layer.
 
 ### `dfc/` → `mxagile/` directory naming migration
 

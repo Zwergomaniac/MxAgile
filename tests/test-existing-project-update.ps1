@@ -202,11 +202,11 @@ Assert-Contains "B2: installer excludes layers/ from payload copy" `
 Assert-Contains "B3: Company Layer installation only when CompanyLayerSource provided" `
     $InstallCorePath 'if \(\$CompanyLayerSource\)'
 
-# install-mxagile-mercedes.ps1 is a deprecated wrapper that delegates to
-# mxagile-setup-mercedes.ps1, which owns the CompanyLayerSource/MercedesGitUrl logic.
-$mercedesBootstrap = Join-Path $RepoRoot "install-mxagile-mercedes.ps1"
-Assert-Contains "B4: install-mxagile-mercedes.ps1 delegates to mxagile-setup-mercedes.ps1 (CompanyLayer handled by canonical setup)" `
-    $mercedesBootstrap 'mxagile-setup-mercedes\.ps1'
+# install-mxagile-company-layer.ps1 is a deprecated wrapper that delegates to
+# mxagile-setup-company-layer.ps1, which owns the CompanyLayerSource/CompanyLayerGitUrl logic.
+$companyLayerBootstrap = Join-Path $RepoRoot "install-mxagile-company-layer.ps1"
+Assert-Contains "B4: install-mxagile-company-layer.ps1 delegates to mxagile-setup-company-layer.ps1 (CompanyLayer handled by canonical setup)" `
+    $companyLayerBootstrap 'mxagile-setup-company-layer\.ps1'
 
 # Provenance file (provenance.json) is stored inside .mxagile/layers/<id>/ which is excluded
 Assert-Contains "B5: provenance.json is written inside .mxagile/layers/<id>/ (excluded dir)" `
@@ -460,7 +460,7 @@ try {
     Assert-True "F5: Company Layer dir preserved" `
         (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\demo-company-layer")) `
         "Company Layer dir missing"
-    Assert-True "F6: Company Layer layer.json preserved" `
+    Assert-True "F6: Company Layer.json preserved" `
         (Test-Path -LiteralPath (Join-Path $tmpF ".mxagile\layers\demo-company-layer\layer.json")) `
         "layer.json missing"
     Assert-True "F7: Company Layer provenance.json preserved" `

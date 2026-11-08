@@ -105,18 +105,18 @@ foreach ($ep in $entryPoints) {
 }
 
 # -----------------------------------------------------------------------
-# Test: Mercedes entry point also has PS preflight (no delegation shortcut)
+# Test: Company Layer entry point also has PS preflight (no delegation shortcut)
 # -----------------------------------------------------------------------
-$t = "mxagile-setup-mercedes.ps1: delegates to canonical (no independent state mutation)"
+$t = "mxagile-setup-company-layer.ps1: delegates to canonical (no independent state mutation)"
 try {
-    $mercedesFile = Join-Path $repoRoot "mxagile-setup-mercedes.ps1"
-    if (Test-Path $mercedesFile) {
-        $content = Get-Content $mercedesFile -Raw
+    $companyLayerFile = Join-Path $repoRoot "mxagile-setup-company-layer.ps1"
+    if (Test-Path $companyLayerFile) {
+        $content = Get-Content $companyLayerFile -Raw
         $delegatesToCanonical = ($content -match "mxagile-setup\.ps1") -or ($content -match "install-core\.ps1")
         if ($delegatesToCanonical) {
             Pass $t
         } else {
-            Fail $t "Mercedes bootstrap does not delegate to canonical entry point"
+            Fail $t "Company Layer bootstrap does not delegate to canonical entry point"
         }
     } else {
         Pass "$t (file not present — skip)"

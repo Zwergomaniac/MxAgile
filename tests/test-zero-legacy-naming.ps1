@@ -22,7 +22,7 @@
     - tests/test-injection-contract.ps1 (tests that dfc/ does NOT exist)
     - tests/test-zero-legacy-naming.ps1 (this file)
     - tests/test-legacy-migration.ps1 (migration test)
-    - install-mxagile-mercedes.ps1 (external GitHub org URL)
+    - install-mxagile-company-layer.ps1 (external GitHub org URL)
     - tests/run-installer-tests.ps1 (validates external GitHub org URL)
     - .mxagile/agents/maintainer.md (intentional legacy knowledge)
 

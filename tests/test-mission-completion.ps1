@@ -33,7 +33,7 @@
     O. "Are you finished?" → agent checks mission contract and lifecycle first
 
     All tests are static content checks on canonical policy files.
-    No Example Project, KidsCompass, or Mercedes knowledge in this test file.
+    No customer-specific or project-specific knowledge in this test file.
 #>
 
 $ErrorActionPreference = 'Stop'

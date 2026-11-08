@@ -19,7 +19,7 @@ DONE-Uebergang je Wave aus der process-state-Historie; `changes_after_done` = ve
 - Zusaetzliche Health-Werte `COMMIT_TRAILER_UNVERIFIED`, `COMMIT_TRAILER_UNVERIFIABLE` neben `CHANGE_SET_SCHEMA_INVALID`.
 - `significance` (1-3) je Ereignis fuer die Auswahl in Recent Activity; Filterangebot gegenueber FR-074: Zeitraum, Bereich, Wave/Requirement/Page/Decision/Entity, Zuordnung, Beleg, Detailgrad (Mission/Change-Set nur per URL-Parameter).
 
-## Performance (CapTrack, 390 First-Parent-Commits, 39k Pfade)
+## Performance (reference project, 390 First-Parent-Commits, 39k Pfade)
 Kalt (Dateisystem-Cache kalt): 12,4 s; kalt mit warmem Cache: 2,4 s; Ziel <= 10 s nur mit warmem Cache sicher erreicht. Von der Platte: 0,18-0,5 s. Inkrementell (3 Commits): 0,9 s. Warm im Speicher (TTL): 1 ms; `/api/timeline` warm: 13-37 ms (Ziel <= 300 ms). Erster Board-Start ohne Index: Status-Bau und Index-Aufbau konkurrieren (Status 17,8 s kalt).
 
 ## Validierung

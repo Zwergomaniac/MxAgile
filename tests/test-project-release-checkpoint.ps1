@@ -37,7 +37,7 @@
     R. Fresh-session resume → checkpoint state reconstructed from mission-state.yaml
     S. Documentation reflects current behavior
 
-    No Example Project, KidsCompass, or Mercedes-specific knowledge in this file.
+    No customer-specific or project-specific knowledge in this file.
 #>
 
 $ErrorActionPreference = 'Stop'

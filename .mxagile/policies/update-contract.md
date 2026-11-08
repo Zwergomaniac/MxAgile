@@ -12,7 +12,7 @@ provenance record at `.mxagile/state/core-provenance.json` with the following ca
 | Field | Semantics |
 |---|---|
 | `schema_version` | Always `"1"` |
-| `flavor` | `"core"` (no Company Layer) or a Company Layer identifier (e.g. `"mercedes"` for the Mercedes-Benz Company Layer) |
+| `flavor` | `"core"` (no Company Layer) or a Company Layer identifier (e.g. `"company-layer"` for the Company Layer) |
 | `source` | Distribution URL or local path used during installation |
 | `source_type` | `"git"` or `"local"` |
 | `ref` | Git branch/tag used (e.g. `"main"`); empty for local sources |

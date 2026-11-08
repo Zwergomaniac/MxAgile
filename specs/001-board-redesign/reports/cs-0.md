@@ -9,10 +9,10 @@ Commit: `6094ab3` (Autor/Committer Zwergomaniac). 9 Dateien, +508/-11.
 - Kompatibilitaet: bestehende process-state-Dokumente bleiben gueltig; keine Migration; Fingerprint unveraendert.
 
 ## Validierung
-Fast Gate PASS; Impact Tier 2 PASS (238.6 s); lifecycle-resync- und drift-prevention-Suite PASS; `LifecycleClarityTests` (14) PASS; CapTrack read-only Doctor-Vergleich: 0 neue Blocker, +6 nicht-blockierend, Fingerprint gleich, keine Laufzeitregression, CapTrack unveraendert. Full Release Gate nicht wiederholt (Impact-Regeln erfordern es nicht).
+Fast Gate PASS; Impact Tier 2 PASS (238.6 s); lifecycle-resync- und drift-prevention-Suite PASS; `LifecycleClarityTests` (14) PASS; Referenzprojekt read-only Doctor-Vergleich: 0 neue Blocker, +6 nicht-blockierend, Fingerprint gleich, keine Laufzeitregression, Referenzprojekt unveraendert. Full Release Gate nicht wiederholt (Impact-Regeln erfordern es nicht).
 
 ## Neue Findings
-BRD-F-48 (weitere Policies inkonsistent, unmapped), BRD-F-49 (CapTrack-Realitaet), BRD-F-50 (Fremd-Edits im Arbeitsbaum). Zurueckgenommen: acceptance-campaign.md, autonomous-remediation.md (ausserhalb Vertrag).
+BRD-F-48 (weitere Policies inkonsistent, unmapped), BRD-F-49 (Referenzprojekt-Realitaet), BRD-F-50 (Fremd-Edits im Arbeitsbaum). Zurueckgenommen: acceptance-campaign.md, autonomous-remediation.md (ausserhalb Vertrag).
 
 ## Offen/Einordnung
 - BRD-F-45: nicht Teil des Lifecycle-Vertrags, nicht normalisiert; Empfehlung CS-3 (Diagnostik/Kompatibilitaet) oder eigener kleiner Fix.

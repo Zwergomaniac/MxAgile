@@ -91,17 +91,17 @@ Assert ($setup -match 'ProvenanceCoreCommit.*provenanceCoreCommit') 'B4: passes 
 Assert ($setup -match 'Commit hash is the primary currency signal|primary currency') 'B5: comment explains commit as primary currency signal'
 
 # ──────────────────────────────────────────────────────────────
-# C  mxagile-setup-mercedes.ps1: same commit resolution, both call sites
+# C  mxagile-setup-company-layer.ps1: same commit resolution, both call sites
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[C] mxagile-setup-mercedes.ps1: commit resolution"
-$merc = Get-Content (Join-Path $RepoRoot 'mxagile-setup-mercedes.ps1') -Raw -Encoding UTF8
+Write-Host "`n[C] mxagile-setup-company-layer.ps1: commit resolution"
+$merc = Get-Content (Join-Path $RepoRoot 'mxagile-setup-company-layer.ps1') -Raw -Encoding UTF8
 Assert ($merc -match 'rev-parse HEAD') 'C1: resolves commit SHA'
 Assert ($merc -match 'provenanceCoreCommit') 'C2: stores resolved commit'
 Assert (([regex]::Matches($merc, 'ProvenanceCoreCommit')).Count -ge 2) 'C3: ProvenanceCoreCommit passed at both call sites'
 Assert ($merc -match '\$coreMarker\s*=\s*Join-Path\s+\$ProjectRoot\s+"\.mxagile\\lifecycle\.yaml"') 'C4: Core installation state uses the canonical lifecycle marker'
 Assert ($merc -match '\$coreInstalled\s*=\s*Test-Path\s+-LiteralPath\s+\$coreMarker\s+-PathType\s+Leaf') 'C5: an existing Core installation is detected before flavor setup'
-Assert (([regex]::Matches($merc, '-IsUpdate\s+\$coreInstalled')).Count -eq 2) 'C6: both Mercedes Core installer branches preserve UPDATE mode'
-Assert (([regex]::Matches($merc, '-ProvenanceFlavor\s+"mercedes"')).Count -eq 2) 'C7: both installer branches record the requested Mercedes flavor'
+Assert (([regex]::Matches($merc, '-IsUpdate\s+\$coreInstalled')).Count -eq 2) 'C6: both Company Layer Core installer branches preserve UPDATE mode'
+Assert (([regex]::Matches($merc, '-ProvenanceFlavor\s+"company-layer"')).Count -eq 2) 'C7: both installer branches record the requested Company Layer flavor'
 Assert ($ic -match 'if\s*\(\$IsUpdate\s+-and\s+\(Test-Path[^\r\n]*\$coreProvPath') 'C8: Core updates load previous provenance when it exists'
 Assert ($ic -match '\$previousCommit\s*=\s*\$prevProv\.commit' -and $ic -match '\$previousVersion\s*=\s*\$prevProv\.version' -and $ic -match '\$previousInstalledAt\s*=\s*\$prevProv\.installed_at') 'C9: prior commit, version, and install timestamp are preserved on flavor update'
 

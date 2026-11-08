@@ -115,14 +115,14 @@ A matching matrix does not satisfy a runtime role test and vice versa. Local fix
 
 Evidence (spike, mxcli v0.20.0, 2026-11-07): extraction is reproducible and schema-valid on one real
 116-entity project (all sections complete, three consecutive runs identical) and on a mxcli-created
-fixture with XPath and member-level rules. Not yet proven: a CapTrack-class production project,
+fixture with XPath and member-level rules. Not yet proven: a reference-project class production project,
 more than one real project, XPath on a real production model, and stability across mxcli versions
 (mxcli describes itself as alpha). Cost is ~50-75 s for 116 entities/16 nanoflows because mxcli
 reloads the project per query (one query per entity with rules and per nanoflow, 4 in parallel), so it is
 unsuitable as an unconditional per-task scan.
 
 Recommendation: keep it optional (C). Promote to **B** (required when the installed toolchain supports
-deterministic extraction) after one successful reality run on CapTrack. Do not make it mandatory
+deterministic extraction) after one successful reality run on reference project. Do not make it mandatory
 (A) before then. Generate on demand: security-relevant model change, before security verification,
 CI on Mendix model changes.
 

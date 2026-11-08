@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = (
+    (("tests/test-hygiene-no-project-residue.ps1",), 0, ("test-hygiene-no-project-residue.ps1",)),
     (("tests/test-reconciliation-board.ps1",), 1,
      ("test_external_change_reconciliation.py", "test_board_performance.py", "test_board_http.py")),
     ((".mxagile/policies/lifecycle-resync.md",), 1,

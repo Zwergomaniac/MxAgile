@@ -18,7 +18,7 @@ Screenshots/Reports belegen nie Paritaet (FR-082). Captures, die ein Report nur 
 - Reference-CSP `frame-ancestors 'self'` (BRD-F-68).
 - Neuer Endpunkt `/page-artifact/<PAGE>/<pfad>` (Allowlist je Page) zusaetzlich zu den im Contract genannten.
 
-## Performance (CapTrack, 10 Pages)
+## Performance (Referenzprojekt, 10 Pages)
 Routenwechsel warm 15-40 ms; Pages-Katalog 105 ms; Page Hub warm 210-330 ms (ein Ausreisser 852 ms, erste Seite mit 65 Bildern); Ziel Routenwechsel <= 500 ms, Hub <= 1 s erreicht. Kalter erster Hub-Aufruf nach Serverstart bis 17 s (BRD-F-69).
 
 ## Validierung

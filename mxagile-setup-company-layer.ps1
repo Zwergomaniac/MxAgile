@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    MxAgile setup with Mercedes-Benz Company Layer — install or update independently.
+    MxAgile setup with Company Layer — install or update independently.
 
 .DESCRIPTION
-    Independently detects the state of MxAgile Core and the Mercedes Company Layer,
+    Independently detects the state of MxAgile Core and the Company Layer,
     then performs the correct operation for each:
 
         Core absent + Layer absent     -> INSTALL Core + INSTALL Layer
@@ -16,7 +16,7 @@
 
     Acquires the MxAgile distribution (from a local filesystem path or a Git URL),
     then invokes the canonical installer (scripts/install-core.ps1) from that
-    distribution against the target Mendix project, including the Mercedes-Benz
+    distribution against the target Mendix project, including the Company Layer
     Company Layer.
 
     Path model:
@@ -39,10 +39,11 @@
     Git branch / tag / commit ref to use when -DistributionSource is a Git URL.
     Defaults to "main".
 
-.PARAMETER MercedesGitUrl
-    Git URL for the Mercedes-Benz Company Layer repository.
+.PARAMETER CompanyLayerGitUrl
+    Git URL for the Company Layer repository. Required: pass it explicitly or set the
+    MXAGILE_COMPANY_LAYER_URL environment variable. There is no built-in default.
 
-.PARAMETER MercedesRef
+.PARAMETER CompanyLayerRef
     Git branch / tag / commit ref for the Company Layer. Defaults to "main".
 
 .PARAMETER NonInteractive
@@ -59,7 +60,7 @@
 
 .EXAMPLE
     # Interactive/direct-launch use — keep window open after completion
-    .\mxagile-setup-mercedes.ps1 -Wait
+    .\mxagile-setup-company-layer.ps1 -Wait
 #>
 
 [CmdletBinding()]
@@ -67,8 +68,8 @@ param (
     [string]$ProjectRoot = (Get-Location).Path,
     [string]$DistributionSource = "",
     [string]$DistributionRef = "main",
-    [string]$MercedesGitUrl = "https://mercedes-benz.ghe.com/DFC-Applikationsentwicklung/MxAgile-CompanyLayer.git",
-    [string]$MercedesRef = "main",
+    [string]$CompanyLayerGitUrl = $env:MXAGILE_COMPANY_LAYER_URL,
+    [string]$CompanyLayerRef = "main",
     [switch]$NonInteractive,
     [switch]$Wait
 )
@@ -93,7 +94,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
     Write-Host "  https://aka.ms/powershell"
     Write-Host ""
     Write-Host "Then run this script with:"
-    Write-Host "  pwsh -File mxagile-setup-mercedes.ps1"
+    Write-Host "  pwsh -File mxagile-setup-company-layer.ps1"
     Write-Host ""
     exit 1
 }
@@ -132,7 +133,7 @@ try {
     # =========================================================================
     Write-Host ""
     Write-Host "=======================================" -ForegroundColor Cyan
-    Write-Host "MxAgile Setup (Mercedes)" -ForegroundColor Cyan
+    Write-Host "MxAgile Setup (Company Layer)" -ForegroundColor Cyan
     Write-Host "=======================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Target project  : $ProjectRoot"
@@ -170,7 +171,7 @@ try {
 
     Write-Host ""
     Write-Host "  MxAgile Core       : $coreState -> $coreOperation" -ForegroundColor $(if ($coreInstalled) { "Yellow" } else { "Green" })
-    Write-Host "  Mercedes Layer     : $layerState -> $layerOperation" -ForegroundColor $(if ($layerInstalled) { "Yellow" } else { "Green" })
+    Write-Host "  Company Layer     : $layerState -> $layerOperation" -ForegroundColor $(if ($layerInstalled) { "Yellow" } else { "Green" })
     Write-Host ""
 
     # =========================================================================
@@ -186,9 +187,9 @@ try {
         Write-Host "  - install MxAgile Core" -ForegroundColor White
     }
     if ($layerInstalled) {
-        Write-Host "  - update the Mercedes-Benz Company Layer" -ForegroundColor White
+        Write-Host "  - update the Company Layer" -ForegroundColor White
     } else {
-        Write-Host "  - install the Mercedes-Benz Company Layer" -ForegroundColor White
+        Write-Host "  - install the Company Layer" -ForegroundColor White
     }
     Write-Host "  - update required MxAgile agent integrations" -ForegroundColor White
     Write-Host "  - preserve project-owned knowledge and lifecycle state" -ForegroundColor White
@@ -333,16 +334,21 @@ try {
     #   Layer INSTALLED     → call update-layer.ps1 separately (CR-10: independent update domains)
     # =========================================================================
 
+    # Company Layer source is explicit: no implicit/default source (fail before any mutation).
+    if ([string]::IsNullOrWhiteSpace($CompanyLayerGitUrl)) {
+        throw "No Company Layer source configured. Pass -CompanyLayerGitUrl <git-url> or set MXAGILE_COMPANY_LAYER_URL."
+    }
+
     # Step 6a: Core installation / update
     if (-not $layerInstalled) {
         # First-time setup: install Core AND Layer together
         & $canonicalInstaller `
             -ProjectRoot              $ProjectRoot `
-            -CompanyLayerSource       $MercedesGitUrl `
+            -CompanyLayerSource       $CompanyLayerGitUrl `
             -CompanyLayerSourceType   Git `
-            -CompanyLayerRef          $MercedesRef `
+            -CompanyLayerRef          $CompanyLayerRef `
             -IsUpdate                 $coreInstalled `
-            -ProvenanceFlavor         "mercedes" `
+            -ProvenanceFlavor         "company-layer" `
             -ProvenanceCoreSource     $provenanceCoreSource `
             -ProvenanceCoreSourceType $provenanceCoreSourceType `
             -ProvenanceCoreRef        $provenanceCoreRef `
@@ -354,7 +360,7 @@ try {
         & $canonicalInstaller `
             -ProjectRoot              $ProjectRoot `
             -IsUpdate                 $coreInstalled `
-            -ProvenanceFlavor         "mercedes" `
+            -ProvenanceFlavor         "company-layer" `
             -ProvenanceCoreSource     $provenanceCoreSource `
             -ProvenanceCoreSourceType $provenanceCoreSourceType `
             -ProvenanceCoreRef        $provenanceCoreRef `
@@ -379,8 +385,8 @@ try {
         Write-Host ""
 
         $updateLayerArgs = @(
-            "-RepositoryUrl", $MercedesGitUrl,
-            "-Ref",           $MercedesRef,
+            "-RepositoryUrl", $CompanyLayerGitUrl,
+            "-Ref",           $CompanyLayerRef,
             "-ProjectRoot",   $ProjectRoot
         )
         if ($NonInteractive) { $updateLayerArgs += "-NonInteractive" }

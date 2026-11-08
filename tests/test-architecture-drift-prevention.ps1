@@ -20,7 +20,7 @@
       I. Interrupted/resumed flow -> architecture classification remains reconstructable
 
     All fixtures use synthetic names only.
-    No Example Project, KidsCompass, or Mercedes knowledge in this test file.
+    No customer-specific or project-specific knowledge in this test file.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -232,7 +232,7 @@ Assert-FileContains "J8: accepted in-scope Requirements must be assigned before 
 Assert-FileContains "J9: small cohesive change remains one Task/Wave" `
     $ImplControl 'One Task in one Wave'
 Assert-FileContains "J10: substantial cohesive recovery may remain one Wave" `
-    $RealityReport "(?s)CapTrack's undo/recovery remains a valid conceptual \*\*single Wave\*\*"
+    $RealityReport "(?s)Reference project's undo/recovery remains a valid conceptual \*\*single Wave\*\*"
 Assert-FileContains "J11: uncertainty can justify a separate Wave when it creates a gate" `
     $ImplControl '(?s)Investigation that must decide whether implementation can proceed.*own useful gate/recovery point'
 Assert-FileContains "J11b: independent feature outcomes split only when useful alone" `

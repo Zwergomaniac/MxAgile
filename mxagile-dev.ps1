@@ -66,7 +66,7 @@ $script:ScriptCatalog = @(
     @{ Display = 'Generate Platform Skills';       Path = 'scripts\generate-mxagile-platform-skills.ps1'; Category = 'Framework';  Purpose = 'Generate platform projections from canonical .mxagile/ sources';     Safety = 'MUTATING'  },
     @{ Display = 'Setup Agent System';             Path = 'scripts\setup-agent-system.ps1';               Category = 'Framework';  Purpose = 'Set up agent tooling in a project directory';                        Safety = 'MUTATING'  },
     @{ Display = 'Public Bootstrap (Core)';        Path = 'install-mxagile.ps1';                          Category = 'Install';    Purpose = 'Entry point: install MxAgile Core into a project';                   Safety = 'MUTATING'  },
-    @{ Display = 'Public Bootstrap (Mercedes)';    Path = 'install-mxagile-mercedes.ps1';                 Category = 'Install';    Purpose = 'Entry point: install MxAgile + Mercedes Company Layer';              Safety = 'MUTATING'  },
+    @{ Display = 'Public Bootstrap (Company Layer)';    Path = 'install-mxagile-company-layer.ps1';                 Category = 'Install';    Purpose = 'Entry point: install MxAgile + Company Layer';              Safety = 'MUTATING'  },
     @{ Display = 'Install Core (internal)';        Path = 'scripts\install-core.ps1';                     Category = 'Install';    Purpose = 'Internal installation engine -- use public bootstrap instead';       Safety = 'INTERNAL'  },
     @{ Display = 'Migration Bootstrap (internal)'; Path = 'scripts\install-migration-bootstrap.ps1';      Category = 'Migration';  Purpose = 'Internal migration bootstrap -- invoked by bootstrap automatically';  Safety = 'INTERNAL'  }
 )
@@ -112,7 +112,7 @@ function Show-RootHelp {
     Write-Host ""
     Write-Host "    install"
     Write-Host "      core <path>           Install MxAgile core (install-mxagile.ps1)"
-    Write-Host "      mercedes <path>       Install with MB layer (install-mxagile-mercedes.ps1)"
+    Write-Host "      company-layer <path>       Install with MB layer (install-mxagile-company-layer.ps1)"
     Write-Host ""
     Write-Host "    migration"
     Write-Host "      status [path]         Show migration diagnostic status (read-only)"
@@ -425,7 +425,7 @@ function Show-InstallMenu {
         Write-Host '  ------------' -ForegroundColor DarkCyan
         Write-Host ''
         Write-Host '  [1] Core installer       (install-mxagile.ps1)'
-        Write-Host '  [2] Mercedes installer   (install-mxagile-mercedes.ps1)'
+        Write-Host '  [2] Company Layer installer   (install-mxagile-company-layer.ps1)'
         Write-Host ''
         Write-Host '  [B] Back  [Q] Quit'
         $choice = Read-MenuChoice
@@ -455,13 +455,13 @@ function Show-InstallMenu {
                 if (-not [string]::IsNullOrWhiteSpace($path)) {
                     $resolved = if ([System.IO.Path]::IsPathRooted($path)) { $path } else { Join-Path (Get-Location).Path $path }
                     Write-Host ''
-                    Write-Host '  Install MxAgile (Mercedes) to:' -ForegroundColor Yellow
+                    Write-Host '  Install MxAgile (Company Layer) to:' -ForegroundColor Yellow
                     Write-Host "    $resolved" -ForegroundColor Yellow
                     Write-Host '  Confirm? [y/N] ' -NoNewline
                     $confirm = $null
                     try { $confirm = (Read-Host).Trim() } catch { $confirm = '' }
                     if ($confirm -eq 'y' -or $confirm -eq 'Y') {
-                        $null = Invoke-MenuOperation @('install', 'mercedes', $resolved)
+                        $null = Invoke-MenuOperation @('install', 'company-layer', $resolved)
                     } else {
                         Write-Host '  Cancelled.' -ForegroundColor DarkGray
                     }
@@ -610,7 +610,7 @@ function Invoke-TestCommand {
                 }
                 'installer' {
                     & powershell -NoProfile -File (Join-Path $testsDir 'run-installer-tests.ps1') `
-                        -Test All -SkipMercedesIntegration
+                        -Test All -SkipCompanyLayerIntegration
                     exit $LASTEXITCODE
                 }
                 'all' {
@@ -865,14 +865,14 @@ function Invoke-InstallCommand {
             exit $LASTEXITCODE
         }
 
-        'mercedes' {
+        'company-layer' {
             if ([string]::IsNullOrWhiteSpace($PathArg)) {
-                Write-Host 'mxagile-dev install mercedes: project path required.' -ForegroundColor Red
-                Write-Host '  Usage: mxagile-dev install mercedes <path>'
+                Write-Host 'mxagile-dev install company-layer: project path required.' -ForegroundColor Red
+                Write-Host '  Usage: mxagile-dev install company-layer <path>'
                 exit 2
             }
             $targetPath    = Resolve-ProjectArg $PathArg
-            $installScript = Join-Path $script:RepoRoot 'install-mxagile-mercedes.ps1'
+            $installScript = Join-Path $script:RepoRoot 'install-mxagile-company-layer.ps1'
             & powershell -NoProfile -File $installScript -ProjectRoot $targetPath
             exit $LASTEXITCODE
         }
@@ -880,7 +880,7 @@ function Invoke-InstallCommand {
         default {
             $q = if ([string]::IsNullOrWhiteSpace($Sub)) { 'subcommand required' } else { "unknown subcommand '$Sub'" }
             Write-Host "mxagile-dev install: $q." -ForegroundColor Red
-            Write-Host '  Expected: core <path>, mercedes <path>'
+            Write-Host '  Expected: core <path>, company-layer <path>'
             exit 2
         }
     }

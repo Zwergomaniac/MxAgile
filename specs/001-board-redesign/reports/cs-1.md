@@ -15,7 +15,7 @@
 | BRD-F-07 | Parity reports in `planning/parity/` are `source_type: parity_report` source references (artifact id = `scenario_id`) → linkable without manifest binding | `scripts/build_project_status.py` |
 | BRD-F-08 | Single server-side latest-run rule `select_latest_run` (current over historical, newest capture, deterministic tie-break); `/api/gallery` returns `latest_runs`; client only looks up | `scripts/serve_project_board.py`, `.mxagile/board/board.js` |
 
-No schema change (HEAD/branch live in `commit_range`, which allows additional properties; `parity_report` already existed). No canonical data change. `source_fingerprint` unchanged for identical sources (verified on CapTrack snapshot).
+No schema change (HEAD/branch live in `commit_range`, which allows additional properties; `parity_report` already existed). No canonical data change. `source_fingerprint` unchanged for identical sources (verified on reference project snapshot).
 
 ## 2. Tests (written; red proof on unmodified HEAD, green on CS-1)
 
@@ -40,9 +40,9 @@ No schema change (HEAD/branch live in `commit_range`, which allows additional pr
 
 `test-reconciliation-board.ps1` (named in the contract) was not selected by the impact runner; it only re-runs three suites that were all part of this gate.
 
-## 4. CapTrack reality check (read-only)
+## 4. Reference project reality check (read-only)
 
-Live CapTrack `dev/gb` @ `d10a168b` (heavy parallel foreign activity: HEAD moved from `6d8923dc`, model files saved during the run):
+Live reference project `dev/gb` @ `d10a168b` (heavy parallel foreign activity: HEAD moved from `6d8923dc`, model files saved during the run):
 
 | RC | Before (baseline.md) | After CS-1 |
 |---|---|---|
@@ -50,16 +50,16 @@ Live CapTrack `dev/gb` @ `d10a168b` (heavy parallel foreign activity: HEAD moved
 | RC-02 | 11 page previews | 10 page previews, standalone excluded |
 | RC-03 | 0 `parity_report` references; parity source 404 | 11 `parity_report` references; parity source **200** |
 
-CapTrack `git status` before/after: only `.mxunit`/`.mpr` changes from the parallel Studio Pro session; no file touched by the Board (read-only server, `python -B`, `git --no-optional-locks`).
+Reference project `git status` before/after: only `.mxunit`/`.mpr` changes from the parallel Studio Pro session; no file touched by the Board (read-only server, `python -B`, `git --no-optional-locks`).
 
 **UI evidence (Playwright, OS temp only):**
-- CapTrack snapshot `d10a168` with CS-1 `board.js`: drift section shows `LÄDT … · CURRENT HEAD d10a168b5116 · BRANCH dev/gb · LAST RECONCILED lädt …` (before: "BASELINE REQUIRED / HEAD UNKNOWN", see first-inspection screenshot `overview.png`).
+- reference project snapshot `d10a168` with CS-1 `board.js`: drift section shows `LÄDT … · CURRENT HEAD d10a168b5116 · BRANCH dev/gb · LAST RECONCILED lädt …` (before: "BASELINE REQUIRED / HEAD UNKNOWN", see first-inspection screenshot `overview.png`).
 - Embedded fixture, CS-1 `board.js`: 0 page errors, 0 console errors; drift `LÄDT …` → after load `BASELINE REQUIRED` with HEAD (fixture truly has no watermark); UI & Pages 2 cards (standalone excluded), parity `NICHT GELADEN` → `NOT_VERIFIED` after lazy gallery load; `#finding/FIND-001` (terminal) opens; `#wave/W1` shows `MISSION BLOCKERS (MISSIONSWEIT) NICHT ERFASST`.
-- The full UI & Pages screenshot on the CapTrack snapshot was not captured: the measurement script used Playwright `wait_for_function`, which the Board's strict CSP (`script-src 'self'`, no `unsafe-eval`) correctly blocks; RC-02 is evidenced by API (10 previews) and the unit test instead.
+- The full UI & Pages screenshot on the Referenzprojekt snapshot was not captured: the measurement script used Playwright `wait_for_function`, which the Board's strict CSP (`script-src 'self'`, no `unsafe-eval`) correctly blocks; RC-02 is evidenced by API (10 previews) and the unit test instead.
 
 ## 5. Performance (contract: ±10 %)
 
-Live CapTrack timings are dominated by the unchanged signature walk (3.8–13.3 s per request under churn) and two 503s from pre-existing BRD-F-11 (sources changed during build) — not comparable with the baseline. Controlled comparison on a frozen shallow snapshot (`d10a168`, OS temp), old (`git archive HEAD`) vs. CS-1, alternating:
+Live reference project timings are dominated by the unchanged signature walk (3.8–13.3 s per request under churn) and two 503s from pre-existing BRD-F-11 (sources changed during build) — not comparable with the baseline. Controlled comparison on a frozen shallow snapshot (`d10a168`, OS temp), old (`git archive HEAD`) vs. CS-1, alternating:
 
 | Path | Old | CS-1 |
 |---|---|---|

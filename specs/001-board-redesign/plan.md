@@ -24,11 +24,11 @@ Das read-only Dev Board wird in acht einzeln freigegebenen Changesets überarbei
 
 **Project Type**: Framework-Werkzeug — lokaler read-only Webserver + statisches Frontend + CLI-Werkzeuge (Doctor, Smoke, Timeline-Builder) + JSON-Schemas + Policy-Dokumente.
 
-**Performance Goals** (CapTrack-Referenz, read-only gemessen): warme Ansicht ≤ 300 ms; Link ≤ 200 ms; erster Paint ≤ 3 s mit letztem Stand / ≤ 6 s kalt; Reconciliation (26 Commits) ≤ 10 s; Timeline-Erstaufbau (~600 Commits) ≤ 10 s, inkrementell ≤ 1 s; Smoke ≤ 15 s (hart 60 s); Doctor +≤ 10 %; Statusaufbau durch CS-3/CS-4 +≤ 10 %.
+**Performance Goals** (Referenzprojekt-Referenz, read-only gemessen): warme Ansicht ≤ 300 ms; Link ≤ 200 ms; erster Paint ≤ 3 s mit letztem Stand / ≤ 6 s kalt; Reconciliation (26 Commits) ≤ 10 s; Timeline-Erstaufbau (~600 Commits) ≤ 10 s, inkrementell ≤ 1 s; Smoke ≤ 15 s (hart 60 s); Doctor +≤ 10 %; Statusaufbau durch CS-3/CS-4 +≤ 10 %.
 
 **Constraints**: strikt read-only; keine Schreibzugriffe im Projekt (auch kein `__pycache__`: Server-/Smoke-Starts mit `-B`); Git nur mit `--no-optional-locks`; keine Zuordnung über zeitliche Nähe; keine Live-Telemetrie; Default-Doctor browserfrei; nicht-interaktive Läufe starten keinen Smoke.
 
-**Scale/Scope**: CapTrack: ~6.300 getrackte Dateien, 2.140 Modelldateien, 597 Commits, 90 Requirements, 123 Tasks, 55 Decisions, 11 Parity-Reports, 58 Screenshots, 10 Pages, 15 registrierte Waves. Ziel: unverändertes Verhalten bis ~5× dieser Größe.
+**Scale/Scope**: Referenzprojekt: ~6.300 getrackte Dateien, 2.140 Modelldateien, 597 Commits, 90 Requirements, 123 Tasks, 55 Decisions, 11 Parity-Reports, 58 Screenshots, 10 Pages, 15 registrierte Waves. Ziel: unverändertes Verhalten bis ~5× dieser Größe.
 
 ## Constitution Check
 
@@ -71,9 +71,9 @@ Für jedes Changeset gilt: eigener Commit (oder kleine Commit-Serie) nur mit den
 | CS | Zweck | Hauptkomponenten | Kanon/Schema | Gate (Mindestumfang) | Perf-Ziel | Rollback | Unabhängig? |
 |---|---|---|---|---|---|---|---|
 | **CS-1** | Falsche Anzeigen beseitigen (BRD-F-01…08) | `board.js`, `serve_project_board.py`, `reconcile_external_changes.py`, `build_project_status.build_source_references` | keine | Fast + Impact Tier 3 (A1) | ±10 % | Revert | ja |
-| **CS-2** | Keine interaktiven Vollscans; kein 503 | `serve_project_board.py` (Snapshot-Manager, Hintergrund-Invalidierung, Asset-Allowlist, SWR, Retry), `reconciliation_git.py` (Batch-Git), `project_compatibility.py` (Per-Dokument-Cache), Cache-Pfad-Logik in `serve_project_board.py` (R-02), Schema `projection.*` | Status-Schema additiv | Fast + Impact Tier 3 + CapTrack-Messlauf | SC-001…004 | Flag `MXAGILE_BOARD_LEGACY_CACHE=1`, dann Revert | ja |
+| **CS-2** | Keine interaktiven Vollscans; kein 503 | `serve_project_board.py` (Snapshot-Manager, Hintergrund-Invalidierung, Asset-Allowlist, SWR, Retry), `reconciliation_git.py` (Batch-Git), `project_compatibility.py` (Per-Dokument-Cache), Cache-Pfad-Logik in `serve_project_board.py` (R-02), Schema `projection.*` | Status-Schema additiv | Fast + Impact Tier 3 + Referenzprojekt-Messlauf | SC-001…004 | Flag `MXAGILE_BOARD_LEGACY_CACHE=1`, dann Revert | ja |
 | **CS-7** | Begrenzter Board-Smoke, OD-4 | neues `board_smoke.py`, Doctor-Flag `--board-smoke`, `install-core.ps1` (Angebot nur interaktiv + Verteilung), Impact-Mapping | keine | **Full Release Gate** (A3, Installer) | ≤ 15 s / 60 s | Flag+Angebot entfernen | ja |
-| **CS-0** | Lifecycle-Klärung R1–R6 | Policies, `lifecycle.yaml`, `GLOSSARY.yaml`, `process-state.schema.json`, `project_compatibility.py`, ggf. Skills via Generator | **kanonisch** (additiv) | Fast + Impact Tier 2 + Projektionstests; CapTrack-Doctor read-only | Doctor +≤ 10 % | Revert vor Distribution | ja (nach Vorbedingung) |
+| **CS-0** | Lifecycle-Klärung R1–R6 | Policies, `lifecycle.yaml`, `GLOSSARY.yaml`, `process-state.schema.json`, `project_compatibility.py`, ggf. Skills via Generator | **kanonisch** (additiv) | Fast + Impact Tier 2 + Projektionstests; Referenzprojekt-Doctor read-only | Doctor +≤ 10 % | Revert vor Distribution | ja (nach Vorbedingung) |
 | **CS-3** | Zustandsvokabular, Trennung | `build_project_status.py`, `project_compatibility.py`, `board.js`, `styles.css`, Status-Schema v3 additiv | Status-Schema | Fast + Impact Tier 2 | Build +≤ 10 % | v2-Fallback, Revert | nach CS-1 |
 | **CS-4** | Projektionen, Current Work, Delivery Assessment, Vertrauen in DONE | `build_project_status.py` (neue Projektoren), `board.js`, Status-Schema; kleine Git-Abfrage „Commits seit letztem DONE" | Status-Schema | Fast + Impact Tier 2 | ≤ 300 ms warm; Git ≤ 500 ms | Feld-Flags, Revert | nach CS-3, CS-0 |
 | **CS-5** | Evidenzbasierte Timeline | neues `build_project_timeline.py`, `serve_project_board.py` (`/api/timeline`), `board.js`, neues `project-timeline.schema.json` (abgeleitet), `install-core.ps1`, Mapping | abgeleitetes Schema | **Full Release Gate** (A3, Installer) | SC-010 | Endpoint/Ansicht entfernen | nach CS-2, CS-3 |

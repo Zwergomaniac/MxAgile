@@ -56,7 +56,7 @@ $EvPol       = Join-Path $ScriptDir ".mxagile/policies/evidence-contract.md"
 Write-Host ""
 Write-Host "TEST A: Current public setup/update entrypoints documented" -ForegroundColor Cyan
 Assert-FileContains "A.1 README documents mxagile-setup.ps1 as canonical" $ReadMe 'mxagile-setup\.ps1'
-Assert-FileContains "A.2 README documents mxagile-setup-mercedes.ps1 as canonical" $ReadMe 'mxagile-setup-mercedes\.ps1'
+Assert-FileContains "A.2 README documents mxagile-setup-company-layer.ps1 as canonical" $ReadMe 'mxagile-setup-company-layer\.ps1'
 Assert-FileContains "A.3 installation.md documents mxagile-setup.ps1" $InstallDoc 'mxagile-setup\.ps1'
 
 # B: Removed active installer names are not taught as current entrypoints
@@ -161,7 +161,7 @@ Assert-FileContains "O.5 README mentions verifying phase" $ReadMe '(?i)\bverifyi
 Write-Host ""
 Write-Host "TEST P: Canonical setup scripts exist on disk" -ForegroundColor Cyan
 Assert-True "P.1 mxagile-setup.ps1 exists at root" (Test-Path (Join-Path $ScriptDir "mxagile-setup.ps1")) "mxagile-setup.ps1 not found"
-Assert-True "P.2 mxagile-setup-mercedes.ps1 exists at root" (Test-Path (Join-Path $ScriptDir "mxagile-setup-mercedes.ps1")) "mxagile-setup-mercedes.ps1 not found"
+Assert-True "P.2 mxagile-setup-company-layer.ps1 exists at root" (Test-Path (Join-Path $ScriptDir "mxagile-setup-company-layer.ps1")) "mxagile-setup-company-layer.ps1 not found"
 Assert-True "P.3 scripts/install-core.ps1 exists" (Test-Path (Join-Path $ScriptDir "scripts/install-core.ps1")) "scripts/install-core.ps1 not found"
 Assert-True "P.4 scripts/generate-mxagile-platform-skills.ps1 exists" (Test-Path (Join-Path $ScriptDir "scripts/generate-mxagile-platform-skills.ps1")) "scripts/generate-mxagile-platform-skills.ps1 not found"
 

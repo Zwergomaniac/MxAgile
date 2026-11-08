@@ -5,7 +5,7 @@
 > Keine Implementierung vor expliziter Freigabe je Changeset.
 > **Stand:** 2026-11-05 · Framework `main` @ `6b5091d` (+ uncommitted Policy-Änderungen in `lifecycle-resync.md`,
 > `implementation-control.md` u. a. — für OD-3 relevant, siehe K.1)
-> **Realitätsreferenz:** CapTrack (`D:\MTC\Mendix\Projekte\CapTrack\CapTrack-devrick`), Branch `dev/gb`,
+> **Realitätsreferenz:** Referenzprojekt (`<reference-project>`), Branch `dev/gb`,
 > Core 1.10.0 / `6b5091d`, Inspektion read-only bei HEAD `257989f1` (HEAD wanderte während der Inspektion
 > durch parallele Projektarbeit auf `6d8923dc` — siehe R-12).
 > **Begleitdokument:** [board-redesign-findings.md](board-redesign-findings.md) — Findings-Register (BRD-F-xx)
@@ -17,19 +17,19 @@
 Das Board ist eine solide, sicherheitsbewusste **read-only Projektion** mit guter kanonischer Disziplin
 (keine LLM-Aufrufe, Fingerprints, allowlisted Serving, kein Fabrizieren von PASS). Es scheitert aber an der
 Kernfrage eines Menschen — *„Was passiert gerade, was ist zuletzt passiert, und kann ich dem DONE trauen?"* —
-aus vier Gründen, die CapTrack eindeutig belegt:
+aus vier Gründen, das Referenzprojekt eindeutig belegt:
 
 1. **Diagnostik dominiert jede Ansicht.** Kopfbereich (Design Authority mit Fingerprints, Git-Drift,
-   Attention, Metrics) und das Compatibility-Panel werden auf *jedem* Tab gerendert. In CapTrack: 184
+   Attention, Metrics) und das Compatibility-Panel werden auf *jedem* Tab gerendert. Im Referenzprojekt: 184
    Diagnostics, **0 blockierend** (123× `UNASSIGNED` = fehlendes *optionales* `workpackage_id`,
    38× Task-Inspect-Migration) — erscheint als „183 diagnostics" über jeder Seite.
 2. **Unbekannt-Zustände sind nicht unterscheidbar.** `UNKNOWN` steht gleichzeitig für „strukturell nie
    beobachtbar" (Model Freshness ist *hart kodiert* `unknown`), „noch nicht geladen" (Reconciliation-Platzhalter
    → „HEAD UNKNOWN / BASELINE REQUIRED", obwohl HEAD und Watermark existieren), „nie erfasst"
    (kein `planning/findings/`) und echte Mehrdeutigkeit.
-3. **Es gibt keine Zeitachse und kein „Current Work".** Das Board liest nur Zustandssnapshots. CapTrack zeigt
+3. **Es gibt keine Zeitachse und kein „Current Work".** Das Board liest nur Zustandssnapshots. Referenzprojekt zeigt
    „alle 15 Waves DONE, Mission unavailable", während die echte Arbeit (Regionen-A/B HTML-first, REV-037,
-   Department HTML-first, CAP2-Integration) nur in Git, Change-Sets und Decisions sichtbar ist.
+   Department HTML-first, REF2-Integration) nur in Git, Change-Sets und Decisions sichtbar ist.
 4. **Performance-Architektur skaliert nicht.** Jede Anfrage (auch jedes Mockup-/Quell-Asset) walkt
    `requirements/ specs/ scripts/ planning/ input-resources/ui-ux/ mprcontents/ …` mit Windows-`CreateFileW`
    pro Datei plus `git status --untracked-files=all`: **3–6,5 s pro Request**, **~8,4 s pro Link-Klick**,
@@ -125,7 +125,7 @@ Hash-Router: `#portfolio`, `#overview`, `#waves`, `#requirements`, `#verificatio
 
 ### A.5 Zentrale technische Grenzen
 
-1. Monolithische Projektion (270 KB JSON für CapTrack) wird pro Ansicht vollständig geladen und clientseitig gefiltert.
+1. Monolithische Projektion (270 KB JSON für Referenzprojekt) wird pro Ansicht vollständig geladen und clientseitig gefiltert.
 2. Invalidierung = vollständiger Metadaten-Walk pro Request (statt Ereignis-/Grenzen-basiert).
 3. Kein Zeitbezug außer Fingerprint; keine Historie.
 4. „Verfügbarkeit" (`available/partial/unavailable/unknown/not_loaded`) ist pro Feld ad hoc, ohne geschlossene Semantik.
@@ -140,37 +140,37 @@ Legende Klassifikation: **UX** = UX/Präsentation · **PROJ** = fehlende Projekt
 **LEG** = Legacy-Kompatibilität · **BUG** = Implementierungsfehler · **OBS** = Observability · **PERF** = Performance · **ARCH** = Architektur.
 IDs verweisen auf das Findings-Register.
 
-| # | Befund | Klasse | Beleg (CapTrack/Code) |
+| # | Befund | Klasse | Beleg (Referenzprojekt/Code) |
 |---|---|---|---|
 | G-01 | Diagnostik-/Kontextblock und Compatibility-Panel auf jedem Tab | UX | `renderView()` → `renderCompatibility()`; Playwright: jede Route beginnt mit „183 diagnostics" |
 | G-02 | 123 INFO-Diagnostics `UNASSIGNED` für optionales `workpackage_id` wirken wie Defekte | UX/LEG | 184 Diagnostics, 0 blocking |
 | G-03 | `model_freshness` hart `unknown`, Gap `MODEL_FRESHNESS_UNAVAILABLE` bedingungslos → Recorded PASS kann *nie* VERIFIED werden | CAN/ARCH | `build_project_status.py:1939,1989` |
 | G-04 | Weitere bedingungslose Gaps (`PROJECT_ID_`, `OPERATING_MODE_`, `CAPABILITY_SESSION_`, `CONTEXT_SESSION_`, `MULTI_SOURCE_UNAVAILABLE`) | UX/ARCH | `build_project_status.py:1691,1940-1943` |
-| G-05 | Reconciliation-Platzhalter rendert „HEAD UNKNOWN / BASELINE REQUIRED" statt LOADING; Watermark existiert | BUG | BRD-F-01, CapTrack FINDING-018 |
+| G-05 | Reconciliation-Platzhalter rendert „HEAD UNKNOWN / BASELINE REQUIRED" statt LOADING; Watermark existiert | BUG | BRD-F-01, Referenzprojekt FINDING-018 |
 | G-06 | Ohne Watermark wird bekannter HEAD nicht in `commit_range` übernommen | BUG | `reconcile_external_changes.py:350` |
 | G-07 | Finding-Detail findet terminale Findings (History) nicht → Link führt ins Leere | BUG | `board.js:864` |
-| G-08 | Wave-Detail „MISSION BLOCKERS 0" obwohl Mission unavailable (fabrizierte 0) | BUG | `board.js:791`; CapTrack W4a |
+| G-08 | Wave-Detail „MISSION BLOCKERS 0" obwohl Mission unavailable (fabrizierte 0) | BUG | `board.js:791`; Referenzprojekt W4a |
 | G-09 | Page Previews zählen Standalone-Interaction-Artefakt als Page (11 vs. 10) | BUG | `build_page_previews` ohne `is_standalone_interaction_artifact` |
-| G-10 | Page-Parität in „UI & Pages" dauerhaft `NOT_LOADED` (Gallery nie geladen) | BUG/UX | alle 11 CapTrack-Pages |
+| G-10 | Page-Parität in „UI & Pages" dauerhaft `NOT_LOADED` (Gallery nie geladen) | BUG/UX | alle 11 Referenzprojekt-Pages |
 | G-11 | `implementation_mode` nur aus Konfiguration, nicht aus Page-Fakt (`html_source`) → HTML-first-Page als MENDIX_NATIVE | PROJ/CAN | PAGE-ABTEILUNGSVERWALTUNG |
 | G-12 | Parity-Reports ohne Manifest-Bindung unsichtbar; keine Unterscheidung „nicht verifiziert" vs. „nicht projizierbar" | PROJ/LEG | 11 Reports (6 PASS, 5 PARTIAL) → Gallery 0 Runs |
 | G-13 | Parity-Reports nicht als Quelle verlinkbar (404) | PROJ | `/source/planning/parity/…` |
-| G-14 | `planning/revisions/` (Ledger mit `active_target`) nicht gelesen → REV-037 nur via 1 Page sichtbar, rev5 für 9 Pages | PROJ/LEG | CapTrack FINDING-019 |
+| G-14 | `planning/revisions/` (Ledger mit `active_target`) nicht gelesen → REV-037 nur via 1 Page sichtbar, rev5 für 9 Pages | PROJ/LEG | Referenzprojekt FINDING-019 |
 | G-15 | Decisions: `affected_screens/mockup_revisions`, Daten, Rationale nicht projiziert; Decision-Detail ohne Inhalt | PROJ | DEC-053 Detail: nur „No explicitly linked Findings" |
 | G-16 | Keine Timeline / Recent Activity | PROJ/ARCH | — |
 | G-17 | Kein Current Work; Mission/Context-Epoch-Felder (`objective`, `next_action`, `checkpoint_commits`) ungenutzt | PROJ | A.2 |
-| G-18 | CapTrack: keine `mission-state.yaml`/`context-epoch.yaml`, obwohl Change-Sets Missionen benennen | CAN | BRD-F-12 |
+| G-18 | Referenzprojekt: keine `mission-state.yaml`/`context-epoch.yaml`, obwohl Change-Sets Missionen benennen | CAN | BRD-F-12 |
 | G-19 | Neueste Waves W9a–W10c ohne kanonische Tasks; Arbeit läuft als „Kampagnen/GAP-IDs" außerhalb des Task-Modells | CAN | Waves mit 0 Tasks, Commits „Regionen parity Wave 3/4" |
 | G-20 | DONE-Waves mit offenen Tasks (13 pending + 1 blocked in W1a–W7) werden nicht als Vertrauensproblem sichtbar | PROJ/UX | Legacy-Completion |
 | G-21 | Requirement hat keinen Delivery-Status (Enum: draft/accepted/…); „Warum fertig?" nicht beantwortbar | PROJ/ARCH | `REQUIREMENT_STATUSES` |
 | G-22 | Evidence besitzt keinen Commit-/Modell-Fingerprint → „zu welchem Stand gehört diese Evidenz?" unbeantwortbar | CAN | Schema `evidence-manifest` |
-| G-23 | Findings-Verzeichnis fehlt → „UNKNOWN open/blocking…" statt „keine Findings erfasst" | UX/ARCH | CapTrack Findings-Tab |
+| G-23 | Findings-Verzeichnis fehlt → „UNKNOWN open/blocking…" statt „keine Findings erfasst" | UX/ARCH | Referenzprojekt Findings-Tab |
 | G-24 | Signatur-Walk pro Request inkl. `mprcontents/` (2.140 Dateien) + `git status -uall` | PERF | 3–6,5 s/Request, 8,4 s/Link |
 | G-25 | Reconciliation: ~1.100 git-Subprozesse für 26 Commits | PERF | 280–373 s |
 | G-26 | Kaltstart-503, wenn Quellen sich während Build ändern (parallele Agentenarbeit) — kein „last good snapshot" | ARCH/BUG | BRD-F-11 |
 | G-27 | Keine Agent-/Delegations-Sicht; Delegation Results und Change-Sets nicht projiziert | OBS | — |
 | G-28 | Kein automatisierter Board-Smoke im Doctor | OBS | — |
-| G-29 | Mojibake in `process-state.yaml` (`\xE2\u20AC"`) wird ungefiltert angezeigt | LEG (Projektdaten) | CapTrack W1a-Notes |
+| G-29 | Mojibake in `process-state.yaml` (`\xE2\u20AC"`) wird ungefiltert angezeigt | LEG (Projektdaten) | Referenzprojekt W1a-Notes |
 | G-30 | Frontend-Duplikatlogik (latest-run-Auswahl) weicht vom Server ab | BUG | `updatePageEvidence` vs. `build_page_previews` |
 
 ---
@@ -190,7 +190,7 @@ IDs verweisen auf das Findings-Register.
 ### C.2 Navigation
 
 ```
-┌ MxAgile · CapTrack ────────────────────────── [● Projection OK · 4s alt] [LOCAL · READ ONLY] ↻ ┐
+┌ MxAgile · Project ────────────────────────── [● Projection OK · 4s alt] [LOCAL · READ ONLY] ↻ ┐
 │ NOW        Overview  ·  Timeline                                                              │
 │ DELIVERY   Waves  ·  Requirements  ·  Tasks                                                   │
 │ QUALITY    Verification  ·  Pages & Parity  ·  Findings  ·  Decisions                         │
@@ -207,14 +207,14 @@ IDs verweisen auf das Findings-Register.
 
 ```
 ┌ CURRENT WORK ───────────────────────────────────────────── Quelle: mission-state.yaml ┐
-│ Mission  MISSION-2026-11-CAP2 · "CAP2 Save/Undo-Integration"           ACTIVE        │
+│ Mission  MISSION-2026-11-REF2 · "REF2 Save/Undo-Integration"           ACTIVE        │
 │ Phase    implementing   · Wave W10c · TASK-240 (in_progress)                          │
 │ Page     PAGE-ZIELEMANAGEMENT-REGIONPLANTYP · HTML-first · Authority REV-037          │
 │ Stand    Impl ● in_progress · Verify ○ not_started · Accept ○                         │
 │ Commit   6d8923dc · vor 12 min · "feat(cap2): apply WP1/WP2 …"                         │
 │ Weiter   next_action: "Visual parity Regionen gegen REV-037" (safe_to_run: nein)      │
 └──────────────────────────────────────────────────────────────────────────────────────┘
-   Fallback ohne Mission/Epoch (CapTrack heute):
+   Fallback ohne Mission/Epoch (Referenzprojekt heute):
 ┌ CURRENT WORK ─────────────────────────────────────────── abgeleitet · zuletzt beobachtet ┐
 │ Keine aktive Mission erfasst (planning/mission/mission-state.yaml nicht vorhanden).     │
 │ Alle 15 Waves: done.  Zuletzt beobachtete Arbeit (Git/Change-Sets):                     │
@@ -232,7 +232,7 @@ IDs verweisen auf das Findings-Register.
 └───────────────────────────────────────────┘ │ Modellfrische: nicht ermittelbar (→ Health) │
                                               └─────────────────────────────────────────────┘
 ┌ RECENT ACTIVITY ─────────────────────────────────────────────── alle → Timeline ┐
-│ 18:47 ◆ Change-Set  CAP2 Interaction/Save/Undo Integration      32 Pfade         │
+│ 18:47 ◆ Change-Set  REF2 Interaction/Save/Undo Integration      32 Pfade         │
 │ 12:56 ● Page        Department_Overview_HTML ersetzt Navigation  REV-037 · 74b5d482│
 │ 11:15 ◇ Decision    DEC-054, DEC-055 vorgeschlagen · REQ-093..095 (draft)         │
 │ 07:43 ★ Authority   REV-037 → ACTIVE_TARGET (REV-020 superseded) · DEC-053        │
@@ -243,7 +243,7 @@ IDs verweisen auf das Findings-Register.
 └───────────────────────────────────────────┘ └────────────────────────────────────────────┘
 ```
 
-(Die Mission-Variante ist illustrativ; die Fallback-Variante entspricht den realen CapTrack-Daten.)
+(Die Mission-Variante ist illustrativ; die Fallback-Variante entspricht den realen Referenzprojekt-Daten.)
 
 **Ableitungskaskade Current Work** (spiegelt die Re-Sync-Statusregeln aus `lifecycle-resync.md`; Details K.5):
 
@@ -374,7 +374,7 @@ mission_id: null
 4. **Merge-Regel:** CANONICAL-Zeitstempel hat Vorrang vor Commit-Zeit; Dubletten per `event_id` zusammengeführt;
    Commit bleibt als Beleg verlinkt.
 5. **Index** (abgeleitet, verwerfbar, außerhalb des Projekts — G.3): Key = (repository_identity, branch, HEAD);
-   Rebuild vollständig möglich. Erstaufbau CapTrack (597 Commits) geschätzt < 10 s mit Batch-Git; inkrementell < 1 s.
+   Rebuild vollständig möglich. Erstaufbau Referenzprojekt (597 Commits) geschätzt < 10 s mit Batch-Git; inkrementell < 1 s.
 6. **Merge-Commits** (z. B. `6832c480`): als ein Ereignis mit First-Parent-Diff; zweiter Elternteil nur Hinweis.
 7. **Shallow/Rebased History:** Index invalidiert, wenn `last_indexed_commit` nicht mehr Vorfahr von HEAD ist.
 
@@ -403,11 +403,11 @@ Empfehlung: Live-Telemetrie **nicht** in v1. Erst wenn ein Harness-Adapter sie s
 - Filter: Zeitraum, Typ-Gruppe (Delivery/Quality/Authority/Framework/Git), Wave, Requirement, Page,
   Mission/Change-Set, Autoritätsklasse (z. B. „nur kanonisch"). Filter sind URL-Parameter (deep-linkbar).
 
-### D.8 CapTrack-Validierung der Timeline-Annahme
+### D.8 Referenzprojekt-Validierung der Timeline-Annahme
 
 | Frage | Heute beantwortbar? | Mit Timeline |
 |---|---|---|
-| Was wurde zuletzt bearbeitet? | Nein | Ja (Commits 05.11, Change-Set CAP2) |
+| Was wurde zuletzt bearbeitet? | Nein | Ja (Commits 05.11, Change-Set REF2) |
 | Zu welcher Wave/REQ/Task/Page? | Nein | Teilweise: Page/REV/DEC ja; Wave/Task **nein**, weil die Arbeit keine kanonischen Tasks hat (G-19) |
 | Welche Decisions? | Teilweise (Liste ohne Datum) | Ja (51/55 mit `created_at`; DEC-053 → REV-037) |
 | Welche Commits? | Nein | Ja (GIT_DERIVED/GIT_MENTION) |
@@ -510,7 +510,7 @@ Mendix: CAP_Core.Department_Overview_HTML · Requirements: REQ-0xx, REQ-0yy · W
 | Cleanup | Browser schließen, Server terminieren (Prozessgruppe), Port-Freigabe prüfen | < 1 s |
 
 **Zielgesamtlaufzeit:** < 15 s (nach CS-2), **harter Timeout:** 60 s gesamt, je Stufe eigener Timeout.
-Vor CS-2 realistisch 30–45 s auf CapTrack (Signaturkosten).
+Vor CS-2 realistisch 30–45 s auf Referenzprojekt (Signaturkosten).
 
 ### F.3 Fehlerverhalten & Ergebnis
 
@@ -537,7 +537,7 @@ Vor CS-2 realistisch 30–45 s auf CapTrack (Signaturkosten).
 
 ## G. Performance-Strategie
 
-### G.1 Messungen (CapTrack, 2026-11-05)
+### G.1 Messungen (Referenzprojekt, 2026-11-05)
 
 | Vorgang | heute |
 |---|---|
@@ -599,7 +599,7 @@ Maßnahmen:
 Cache-Ort-Begründung: Doctor/Dry-Run „never create project files or caches" (`project-compatibility.md`) und das
 Board ist LOCAL · READ ONLY → Cache außerhalb des Projekt-Worktrees; jederzeit löschbar; nie Autorität.
 
-Zielwerte (CapTrack): erster Paint < 3 s mit last-good, kalt < 6 s; Link-Klick < 200 ms; Timeline inkrementell < 1 s;
+Zielwerte (Referenzprojekt): erster Paint < 3 s mit last-good, kalt < 6 s; Link-Klick < 200 ms; Timeline inkrementell < 1 s;
 Reconciliation < 10 s.
 
 ---
@@ -631,7 +631,7 @@ Jedes Changeset ist einzeln reviewbar, einzeln rückrollbar und ändert **keine*
 - **Schema:** keine kanonische; neuer Projection-Contract-Hinweis `projection.age_seconds`, `projection.state`.
 - **Risiko:** mittel (Invalidierungskorrektheit). **Validierung:** `test_board_performance.py` erweitern
   (P3b same-mtime-Edit muss weiterhin invalidieren; Asset-Request ohne Signatur; Quelländerung während Build → kein 503),
-  Reconciliation-Äquivalenztest alt vs. neu auf Fixture-Repo; Messlauf CapTrack read-only.
+  Reconciliation-Äquivalenztest alt vs. neu auf Fixture-Repo; Messlauf Referenzprojekt read-only.
 - **Rollback:** Feature-Flag `MXAGILE_BOARD_LEGACY_CACHE=1` für einen Release, danach Revert möglich.
 
 ### CS-3 · Beobachtungszustands-Taxonomie & Health-Trennung
@@ -654,7 +654,7 @@ Jedes Changeset ist einzeln reviewbar, einzeln rückrollbar und ändert **keine*
   `planning/revisions/` Ledger, Parity-Reports als `REPORTED_UNBOUND`, Implementation Mode Intent/Fakt,
   „Wave done mit offenen Tasks", Requirement **Delivery Assessment v1** (regelversioniert).
 - **Schema:** Status-Contract additive Felder; keine Projektschemas.
-- **Risiko:** mittel (Regeldefinition Delivery Assessment). **Validierung:** Regel-Fixtures je Stufe; CapTrack-Readonly-Abgleich.
+- **Risiko:** mittel (Regeldefinition Delivery Assessment). **Validierung:** Regel-Fixtures je Stufe; Referenzprojekt-Readonly-Abgleich.
 - **Rollback:** Feld-Flags im Frontend; Projektion additiv.
 
 ### CS-5 · Timeline & Recent Activity
@@ -663,7 +663,7 @@ Jedes Changeset ist einzeln reviewbar, einzeln rückrollbar und ändert **keine*
   Overview-Recent-Activity, Timeline-Ansicht, Entity-Timelines in Details.
 - **Schema:** neuer Projection-Contract `project-timeline.schema.json` (abgeleitet, nicht kanonisch).
 - **Risiko:** mittel (Git-Edge-Cases: Merge, Rebase, Shallow). **Validierung:** Fixture-Repo mit synthetischer
-  Historie inkl. Merge/Rebase; Determinismus-Test (zwei Läufe → identische `event_id`s); CapTrack read-only.
+  Historie inkl. Merge/Rebase; Determinismus-Test (zwei Läufe → identische `event_id`s); Referenzprojekt read-only.
 - **Rollback:** Endpoint + Ansicht entfernen; keine Datenfolgen.
 
 ### CS-6 · Pages & Parity Hub + IA-Umbau
@@ -671,7 +671,7 @@ Jedes Changeset ist einzeln reviewbar, einzeln rückrollbar und ändert **keine*
 - **Komponenten:** `board.js` (Navigation, Page Hub, Requirements/Tasks-Listen), `/api/page/<id>`,
   `/api/requirement/<id>`, CSS.
 - **Schema:** keine kanonische.
-- **Risiko:** mittel (UX-Umbau). **Validierung:** Board-Smoke (CS-7) + HTTP-Tests; Review mit PO anhand CapTrack-Screenshots.
+- **Risiko:** mittel (UX-Umbau). **Validierung:** Board-Smoke (CS-7) + HTTP-Tests; Review mit PO anhand Referenzprojekt-Screenshots.
 - **Rollback:** alter Router hinter `#legacy/…` ein Release lang.
 
 ### CS-7 · Doctor `--board-smoke`
@@ -683,8 +683,8 @@ Jedes Changeset ist einzeln reviewbar, einzeln rückrollbar und ändert **keine*
 
 ### Separate, nicht Teil des Redesigns (kanonische Datenerweiterungen — eigene Missionen)
 - **CX-A** Evidence-Capture `captured_at_commit` / `model_tree_oid` / `worktree_model_dirty` (behebt G-03/G-22 an der Wurzel).
-- **CX-B** entfällt als offene Entscheidung; durch OD-3/CS-0 geklärt (K). Projektseitige Nacharbeit in CapTrack bleibt Projektsache.
-- **CX-C** Mission-State-Disziplin: Warum fehlt `mission-state.yaml` in CapTrack trotz Missionen? (BRD-F-12)
+- **CX-B** entfällt als offene Entscheidung; durch OD-3/CS-0 geklärt (K). Projektseitige Nacharbeit in Referenzprojekt bleibt Projektsache.
+- **CX-C** Mission-State-Disziplin: Warum fehlt `mission-state.yaml` im Referenzprojekt trotz Missionen? (BRD-F-12)
 
 ---
 
@@ -703,10 +703,10 @@ Doctor-Default bleibt browserfrei.
 
 ---
 
-## J. End-State-Walkthrough (Project Owner, CapTrack)
+## J. End-State-Walkthrough (Project Owner, Referenzprojekt)
 
 1. **Was macht MxAgile gerade?** Overview → *Current Work*. Mit Mission: Mission, Phase, Wave, Task, Page, Fortschritt.
-   CapTrack heute: „Keine aktive Mission erfasst" + zuletzt beobachtete Change-Sets/Commits + Hinweis
+   Reference project heute: „Keine aktive Mission erfasst" + zuletzt beobachtete Change-Sets/Commits + Hinweis
    „Arbeit außerhalb kanonischer Waves" — ehrlich statt „DONE".
 2. **Was ist zuletzt passiert?** *Recent Activity* (5 Einträge) → Timeline mit Filter „heute".
 3. **Zu welcher Wave/REQ/Page gehört es?** Jedes Ereignis zeigt Entitätschips mit Ableitungsweg
@@ -763,10 +763,10 @@ Beziehungen: `Mission 1─n Wave 1─n Task (Checkliste)`, `Task n─m Requireme
 
 | Ursache | Befund | Gewicht |
 |---|---|---|
-| **3 · Falsche Nutzung bestehender Konzepte (CapTrack)** | „Campaign" als Arbeitsbündel statt Acceptance-Lauf; GAP-IDs (GAP-R02…) ohne Findings (`planning/findings/` fehlt) und ohne Repair-Tasks; Missionen ohne `mission-state.yaml` (nur Freitext in Change-Sets); Change-Sets mit nicht erlaubten Feldern (`gap_classification`, `final_result`, `updated_at`) als Kampagnen-Log; REV-020/REV-037-Umsetzung ohne Wave, obwohl das Projekt für REV-014/REV-017 selbst W9/W10 angelegt hat; W8 und W11 („In Arbeit") in `execution-waves.md`, aber nicht in `process-state.yaml`; W9/W10-Checklisten nicht zu Tasks kanonisiert | **Hauptursache** |
+| **3 · Falsche Nutzung bestehender Konzepte (Referenzprojekt)** | „Campaign" als Arbeitsbündel statt Acceptance-Lauf; GAP-IDs (GAP-R02…) ohne Findings (`planning/findings/` fehlt) und ohne Repair-Tasks; Missionen ohne `mission-state.yaml` (nur Freitext in Change-Sets); Change-Sets mit nicht erlaubten Feldern (`gap_classification`, `final_result`, `updated_at`) als Kampagnen-Log; REV-020/REV-037-Umsetzung ohne Wave, obwohl das Projekt für REV-014/REV-017 selbst W9/W10 angelegt hat; W8 und W11 („In Arbeit") in `execution-waves.md`, aber nicht in `process-state.yaml`; W9/W10-Checklisten nicht zu Tasks kanonisiert | **Hauptursache** |
 | **2 · Lifecycle-Semantik unklar (Framework)** | (a) Die Regel „GAP-Repair erzeugt keine neue Wave, gehört zum Verifikationszyklus der aktuellen Wave" deckt den Fall *keine aktuelle Wave* nicht ab. (b) Nicht festgelegt, ab wann eine geplante Wave in `process-state` registriert wird; das Board kann geplante Waves nur so erkennen. (c) `lifecycle.yaml` verweist für den State noch auf `.concord/scratch/process-state.yaml` (gitignored), alle anderen Quellen auf `planning/lifecycle/process-state.yaml`. (d) Das Glossar definiert Campaign/GAP/Change-Set/Workpackage nicht; das begünstigt die Begriffsüberladung | klein, real |
-| **1 · Fehlende kanonische Beziehung (Framework)** | `lifecycle.yaml` verlangt `testability_gate` und `acceptance_gate` je Wave, `process-state.schema.json` erlaubt sie nicht (`additionalProperties: false`). Die DONE-Grundlage ist dadurch nicht strukturiert erfassbar; sie liegt nur in frei benannten Markdown-Wave-Reports (vgl. CapTrack FINDING-013) | klein, real |
-| **4 · Neuer Arbeitscontainer nötig?** | **Nein.** Jede beobachtete CapTrack-Arbeit lässt sich in Mission → Wave → Task (repair) → Finding → Change-Set abbilden. Ein „Campaign"-Container würde Wave-Semantik duplizieren und gegen „keine parallele Wave-Spezifikation" (implementation-control.md) verstoßen | verworfen |
+| **1 · Fehlende kanonische Beziehung (Framework)** | `lifecycle.yaml` verlangt `testability_gate` und `acceptance_gate` je Wave, `process-state.schema.json` erlaubt sie nicht (`additionalProperties: false`). Die DONE-Grundlage ist dadurch nicht strukturiert erfassbar; sie liegt nur in frei benannten Markdown-Wave-Reports (vgl. Referenzprojekt FINDING-013) | klein, real |
+| **4 · Neuer Arbeitscontainer nötig?** | **Nein.** Jede beobachtete Referenzprojekt-Arbeit lässt sich in Mission → Wave → Task (repair) → Finding → Change-Set abbilden. Ein „Campaign"-Container würde Wave-Semantik duplizieren und gegen „keine parallele Wave-Spezifikation" (implementation-control.md) verstoßen | verworfen |
 
 Fazit: **Hauptsächlich (3), ergänzt durch kleine Klarstellungen (2) und eine fehlende Schema-Beziehung (1).** Kein neues
 kanonisches Konzept.
@@ -801,7 +801,7 @@ den Rollen aus K.2. `lifecycle.yaml` state_tracking wird auf `planning/lifecycle
 Change-Set verletzt Schema; Wave `done` ohne erfasste DONE-Grundlage (`acceptance_gate` fehlt, als Legacy-INFO);
 `active_target`-Revision ohne Page-Bindung (CT-FINDING-019). **Kein** Markdown-Parsing von `execution-waves.md`.
 
-Ausdrücklich **nicht** Teil von CS-0: automatische Migration von Projekten. CapTrack (oder jedes Projekt) holt R2/R3 durch
+Ausdrücklich **nicht** Teil von CS-0: automatische Migration von Projekten. Referenzprojekt (oder jedes Projekt) holt R2/R3 durch
 seinen eigenen Agenten über reguläre Lifecycle-Arbeit nach (W8/W11 registrieren, Mission-State anlegen, GAPs als Findings).
 
 ### K.5 Was DONE garantiert — und was nicht
@@ -828,12 +828,12 @@ existiert), spätere Overrides/Findings gegen die Wave und Commits nach DONE, di
   `mission-state.mission_id` verlinkt. Schema-invalide Change-Sets erscheinen als Ereignis mit Health-Hinweis, ohne
   Zuordnungswirkung.
 
-### K.7 CapTrack-Einordnung
+### K.7 Referenzprojekt-Einordnung
 
-CapTrack **nutzt bestehende Semantik falsch bzw. unvollständig** (K.3 Zeile 3) **und** legt zwei kleine Framework-Lücken
-offen (fehlende Gates im Schema, ungeregelter Fall „Arbeit nach letztem DONE"). Nach CS-0 würde das Board für CapTrack
+Referenzprojekt **nutzt bestehende Semantik falsch bzw. unvollständig** (K.3 Zeile 3) **und** legt zwei kleine Framework-Lücken
+offen (fehlende Gates im Schema, ungeregelter Fall „Arbeit nach letztem DONE"). Nach CS-0 würde das Board für Referenzprojekt
 ohne Projektänderung korrekt zeigen: „Keine aktive kanonische Arbeit · Arbeit außerhalb des Lifecycles beobachtet
-(Commits seit letztem DONE, Change-Set CAP2) · W8/W11 nicht registriert (Quelle: execution-waves.md, nur als Link)". Nach
+(Commits seit letztem DONE, Change-Set REF2) · W8/W11 nicht registriert (Quelle: execution-waves.md, nur als Link)". Nach
 regulärer Lifecycle-Nacharbeit durch das Projekt erscheinen W11 als ACTIVE und W8 als NOT_STARTED.
 
 ---
@@ -858,7 +858,7 @@ regulärer Lifecycle-Nacharbeit durch das Projekt erscheinen W11 als ACTIVE und 
 `NOT_OBSERVABLE`; Reconciliation-Platzhalter → `NOT_LOADED`; Findings-Dir fehlt → `NOT_RECORDED`;
 `UNASSIGNED workpackage` → `NOT_APPLICABLE`/optional).
 
-## Anhang R · CapTrack-Realitätsabgleich der Missionsfragen
+## Anhang R · Referenzprojekt-Realitätsabgleich der Missionsfragen
 
 | # | Frage | heute | Ursache |
 |---|---|---|---|
@@ -868,20 +868,20 @@ regulärer Lifecycle-Nacharbeit durch das Projekt erscheinen W11 als ACTIVE und 
 | R-4 | Welche Commits? | nein | nur Reconciliation-Range, 5 min |
 | R-5 | Was ist DONE, warum? | irreführend | 15/15 Waves done trotz 14 offener Tasks; kein Requirement-Delivery-Status (G-20/G-21) |
 | R-6 | Evidenz für DONE? | nein | 0 Evidence-Entries; Parity-Reports unsichtbar (G-12) |
-| R-7 | Autoritatives Mockup je Page? | teilweise/falsch | REV-037 nur 1 Page, rev5 für 9 (G-14, CapTrack FINDING-019) |
+| R-7 | Autoritatives Mockup je Page? | teilweise/falsch | REV-037 nur 1 Page, rev5 für 9 (G-14, Referenzprojekt FINDING-019) |
 | R-8 | Wo sind Parity-Screenshots? | nein | 58 Screenshots, Gallery 0 Runs |
 | R-9 | HTML-first ohne Studio Pro? | teilweise | Design Preview/Source funktionieren (200, < 0,2 s), aber Page als MENDIX_NATIVE (G-11); RegionOverview.html ungebunden |
 | R-10 | UNKNOWN echt vs. unvollständig? | nein | keine Taxonomie; s. Anhang T |
 | R-11 | Aktion vs. Diagnose? | nein | 184 INFO-Diagnostics über jeder Seite (G-01/G-02) |
-| R-12 | Aktivität deterministisch rekonstruierbar? | — | ja für Artefakt-Änderungen; nein für Arbeit ohne Artefakte. Live-Beleg: HEAD wanderte während der Inspektion `257989f1 → 6d8923dc` (Merge + CAP2), neues Change-Set — das Board hätte davon nichts gezeigt |
+| R-12 | Aktivität deterministisch rekonstruierbar? | — | ja für Artefakt-Änderungen; nein für Arbeit ohne Artefakte. Live-Beleg: HEAD wanderte während der Inspektion `257989f1 → 6d8923dc` (Merge + REF2), neues Change-Set — das Board hätte davon nichts gezeigt |
 
 ## Anhang M · Methodik & Nachweise
 
 - Framework-Code gelesen: `serve_project_board.py`, `build_project_status.py` (Kernabschnitte), `board.js`,
   `index.html`, `reconcile_external_changes.py`, `project_compatibility.py` (Report), Schemas.
-- CapTrack read-only: Artefaktzählung, Status-/Page-Preview-/Gallery-API, Playwright-Rundgang (13 Routen, 0 Console-
+- Referenzprojekt read-only: Artefaktzählung, Status-/Page-Preview-/Gallery-API, Playwright-Rundgang (13 Routen, 0 Console-
   /Page-Errors), Link-Checks, `git log` read-only. Python mit `-B`/`PYTHONDONTWRITEBYTECODE=1`, Git mit
-  `--no-optional-locks`, Server nur Loopback, beendet. CapTrack-`git status` vor/nach unverändert durch diese Inspektion
+  `--no-optional-locks`, Server nur Loopback, beendet. Referenzprojekt-`git status` vor/nach unverändert durch diese Inspektion
   (die HEAD-Bewegung stammt aus paralleler Projektarbeit). `/api/reconciliation` wurde durch das Board-Frontend
   automatisch angestoßen, lief read-only und wurde mit dem Server beendet (nicht fertig).
 - Temporäre Inspektionsdateien ausschließlich außerhalb beider Repositories (OS-Temp).

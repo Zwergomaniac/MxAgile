@@ -16,7 +16,7 @@
    und Full Regression werden getrennt berichtet. Unmapped Pfade und Änderungen an `install-core.ps1` bzw. am Test-Runner
    erfordern das Full Release Gate. Ein Impact-PASS ist kein Full-PASS. Fehlend, fehlgeschlagen und unvollständig bleiben
    von PASS unterschieden.
-5. **Realitätsprüfung CapTrack:** nur read-only (Python `-B`, Git `--no-optional-locks`, Server nur auf Loopback und
+5. **Realitätsprüfung Referenzprojekt:** nur read-only (Python `-B`, Git `--no-optional-locks`, Server nur auf Loopback und
    danach beendet). Keine Projektänderung, kein Doctor-Repair.
 6. **Commit-Identität:** Vor jedem Commit `git var GIT_AUTHOR_IDENT`/`GIT_COMMITTER_IDENT` = `Zwergomaniac <Keeperdeluxe@web.de>`.
    Bei Abweichung stoppen.
@@ -63,10 +63,10 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Scope — ausgeschlossen** | Kein neues Entity und keine neue Datei-Art; kein Markdown-Parsing von `execution-waves.md`; keine automatische Projektmigration; keine Board-Änderung; keine blockierenden Doctor-Diagnosen; kein Repair. |
 | **Kanon/Schema** | `process-state.schema.json`: optionale `gates.testability_gate` (gate_result) und `gates.acceptance_gate` (`result: not_recorded\|passed\|failed\|pending`, `evaluated`, `evidence`, optional `pending_decisions`). Additiv. Change-Set wird als Contract in die Doctor-Coverage aufgenommen (nur Validierung). |
 | **Migration** | Keine. Bestehende Projekte bleiben schema-valide. Neue Doctor-Diagnosen sind INFO/WARNING mit `repairability: DECISION_REQUIRED` bzw. `UNSUPPORTED`. Nacharbeit (Waves registrieren, Mission-State, GAPs als Findings) ist reguläre Projekt-Lifecycle-Arbeit. |
-| **Validierung** | Fast Gate; Schema-Fixtures (Alt-Block ohne neue Gates valide, neuer Block valide, `pending` nur bei acceptance_gate); Doctor-Fixtures je neuer Diagnose (INFO, nicht blockierend, Exit-Code-Vertrag 0/1/2 unverändert); `test-lifecycle-resync.ps1`, `test-architecture-drift-prevention.ps1`, Projektions-Tests nach Generatorlauf; Impact Regression. Schemas sind verteilt: falls Impact unmapped → Full Release Gate. CapTrack read-only Doctor-Lauf (`doctor --format json`): erwartete neue INFO-Diagnosen (Change-Sets, DONE ohne Grundlage), **0 neue blockierende**. |
-| **Performance** | Doctor-Laufzeit CapTrack +≤ 10 %. |
+| **Validierung** | Fast Gate; Schema-Fixtures (Alt-Block ohne neue Gates valide, neuer Block valide, `pending` nur bei acceptance_gate); Doctor-Fixtures je neuer Diagnose (INFO, nicht blockierend, Exit-Code-Vertrag 0/1/2 unverändert); `test-lifecycle-resync.ps1`, `test-architecture-drift-prevention.ps1`, Projektions-Tests nach Generatorlauf; Impact Regression. Schemas sind verteilt: falls Impact unmapped → Full Release Gate. Referenzprojekt read-only Doctor-Lauf (`doctor --format json`): erwartete neue INFO-Diagnosen (Change-Sets, DONE ohne Grundlage), **0 neue blockierende**. |
+| **Performance** | Doctor-Laufzeit Referenzprojekt +≤ 10 %. |
 | **Rollback** | Ein Commit; Revert stellt Schema, Policies und Doctor wieder her. Projekte, die neue Gate-Felder bereits schreiben, würden nach Revert ungültig → Revert nur vor Distribution an Projekte unkritisch; danach Vorwärtskorrektur. |
-| **STOP** | Nach CS-0: Policy-Diff und Doctor-Ergebnis (CapTrack read-only) vorlegen. **Agentenverhalten ändert sich** → ausdrückliche Freigabe vor Distribution und vor CS-4. |
+| **STOP** | Nach CS-0: Policy-Diff und Doctor-Ergebnis (Referenzprojekt read-only) vorlegen. **Agentenverhalten ändert sich** → ausdrückliche Freigabe vor Distribution und vor CS-4. |
 
 ## CS-1 · Board-Korrektheitsfixes
 
@@ -77,10 +77,10 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Scope — ausgeschlossen** | Neue Ansichten, Taxonomie, Performance-Umbau, Layoutänderungen. |
 | **Kanon/Schema** | keine kanonische. `project-status.schema.json` ggf. additiv `parity_report` im `source_type`-Enum. |
 | **Migration** | keine |
-| **Validierung** | Fast Gate; `test_board_http.py` + neue Fälle (terminales Finding, Platzhalter-Rendering, 10 statt 11 Pages, Parity-Report-Source 200, HEAD ohne Watermark); `test-reconciliation-board.ps1`; Impact Regression. CapTrack read-only: die betroffenen Routen zeigen keine der alten Fehlbilder mehr. |
+| **Validierung** | Fast Gate; `test_board_http.py` + neue Fälle (terminales Finding, Platzhalter-Rendering, 10 statt 11 Pages, Parity-Report-Source 200, HEAD ohne Watermark); `test-reconciliation-board.ps1`; Impact Regression. Referenzprojekt read-only: die betroffenen Routen zeigen keine der alten Fehlbilder mehr. |
 | **Performance** | keine Verschlechterung (Messung `MXAGILE_BOARD_PROFILE=1`, ±10 %). |
 | **Rollback** | Revert eines Commits. |
-| **STOP** | Nach CS-1: Testbericht und Vorher/Nachher-Screenshots (CapTrack read-only). |
+| **STOP** | Nach CS-1: Testbericht und Vorher/Nachher-Screenshots (Referenzprojekt read-only). |
 
 ## CS-2 · Performance-Grundlage
 
@@ -91,10 +91,10 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Scope — ausgeschlossen** | Neue Endpunkte für Teilansichten (CS-6), Timeline (CS-5), UI-Änderungen außer Health-Alter. |
 | **Kanon/Schema** | keine kanonische; Status-Contract additiv `projection.*`. |
 | **Migration** | Cache-Verzeichnis entsteht beim ersten Start; jederzeit löschbar. |
-| **Validierung** | Fast Gate; `test_board_performance.py` erweitert: P3b (same-mtime-Edit invalidiert weiterhin), Asset-Request ohne Signatur, Quelländerung während Build → kein 503, `last-good` korrekt als STALE markiert, kein Schreibzugriff im Projekt (Dateisystem-Diff vor/nach); Reconciliation-Äquivalenz alt vs. neu auf Fixture-Repo (identische Klassifikation); Impact Regression. `reconciliation_git.py` ist verteilt → Full Release Gate, falls unmapped. CapTrack-Messlauf read-only. |
-| **Performance (CapTrack)** | warmes `/api/status` ≤ 300 ms; Link-Klick ≤ 200 ms; erster Paint mit `last-good` ≤ 3 s; kalt ohne Cache ≤ 6 s; Invalidierungsprüfung ≤ 1 s im Hintergrund, höchstens alle 2 s; Reconciliation (26 Commits) ≤ 10 s. |
+| **Validierung** | Fast Gate; `test_board_performance.py` erweitert: P3b (same-mtime-Edit invalidiert weiterhin), Asset-Request ohne Signatur, Quelländerung während Build → kein 503, `last-good` korrekt als STALE markiert, kein Schreibzugriff im Projekt (Dateisystem-Diff vor/nach); Reconciliation-Äquivalenz alt vs. neu auf Fixture-Repo (identische Klassifikation); Impact Regression. `reconciliation_git.py` ist verteilt → Full Release Gate, falls unmapped. Referenzprojekt-Messlauf read-only. |
+| **Performance (Referenzprojekt)** | warmes `/api/status` ≤ 300 ms; Link-Klick ≤ 200 ms; erster Paint mit `last-good` ≤ 3 s; kalt ohne Cache ≤ 6 s; Invalidierungsprüfung ≤ 1 s im Hintergrund, höchstens alle 2 s; Reconciliation (26 Commits) ≤ 10 s. |
 | **Rollback** | `MXAGILE_BOARD_LEGACY_CACHE=1` für einen Release; danach Revert möglich. Cache-Verzeichnis ist folgenlos löschbar. |
-| **STOP** | Nach CS-2: Messprotokoll vorher/nachher (CapTrack) und Äquivalenznachweis Reconciliation. |
+| **STOP** | Nach CS-2: Messprotokoll vorher/nachher (Referenzprojekt) und Äquivalenznachweis Reconciliation. |
 
 ## CS-7 · Doctor `--board-smoke` (OD-4)
 
@@ -108,7 +108,7 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Validierung** | Fast Gate; Tier 2: Smoke gegen Fixture-Projekt (PASS); Negativfälle: JS-Fehler injiziert → FAIL mit Screenshot in OS-Temp; Browser fehlt → `UNAVAILABLE` (nicht PASS); Timeout → `TIMEOUT` + Prozess-/Port-Cleanup; non-interaktiver Installer-Lauf startet keinen Smoke. `install-core.ps1` geändert → **Full Release Gate**. |
 | **Performance** | ≤ 15 s gesamt (nach CS-2), harter Timeout 60 s, Stufen-Timeouts gemäß Plan F.2. |
 | **Rollback** | Flag und Installer-Angebot entfernen (ein Commit). |
-| **STOP** | Nach CS-7: Laufprotokolle (Fixture + CapTrack read-only), Full-Gate-Bericht. |
+| **STOP** | Nach CS-7: Laufprotokolle (Fixture + Referenzprojekt read-only), Full-Gate-Bericht. |
 
 ## CS-3 · Beobachtungszustände & Health-Trennung
 
@@ -119,10 +119,10 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Scope — ausgeschlossen** | Neue Datenquellen, Timeline, Navigationsumbau (außer Health-Ansicht). Kein Zustand wird ausgeblendet, nur klassifiziert und verortet. |
 | **Kanon/Schema** | keine kanonische. `project-status.schema.json` v3 additiv (`observation_state`, `diagnostic_group`); v2-Felder bleiben einen Release parallel. |
 | **Migration** | Frontend erkennt v2/v3 per Feature-Detection. |
-| **Validierung** | Fast Gate; Schema-Snapshot-Test; Fixture-Projekt mit jedem Zustand; `test-board-authority.ps1`; `test_board_http.py`; Impact Regression. CapTrack read-only: 0 blockierende Diagnosen erscheinen nicht mehr als Projekt-Attention; `MODEL_FRESHNESS` nur einmal in Health. |
+| **Validierung** | Fast Gate; Schema-Snapshot-Test; Fixture-Projekt mit jedem Zustand; `test-board-authority.ps1`; `test_board_http.py`; Impact Regression. Referenzprojekt read-only: 0 blockierende Diagnosen erscheinen nicht mehr als Projekt-Attention; `MODEL_FRESHNESS` nur einmal in Health. |
 | **Performance** | `build_project_status` +≤ 10 %. |
 | **Rollback** | Frontend fällt auf v2 zurück; Revert ohne Datenfolgen. |
-| **STOP** | Nach CS-3: Zustands-Mapping-Tabelle (alt → neu) für CapTrack zur PO-Sichtprüfung. |
+| **STOP** | Nach CS-3: Zustands-Mapping-Tabelle (alt → neu) für Referenzprojekt zur PO-Sichtprüfung. |
 
 ## CS-4 · Projektionen vorhandener kanonischer Daten + Delivery Assessment (OD-1)
 
@@ -133,10 +133,10 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Scope — ausgeschlossen** | Timeline-Ansicht, Navigationsumbau, Page Hub, Zuordnung über Message-/Zeit-Heuristik, Rückschreiben jeglicher Bewertung. |
 | **Kanon/Schema** | keine kanonische; Status-Contract additiv (`current_work`, `delivery_assessment{rule_version, levels[], evidence_refs[], reasons[]}`, `done_basis`). |
 | **Migration** | keine |
-| **Validierung** | Fast Gate; Regel-Fixtures je Assessment-Stufe inkl. Negativfälle (keine Evidenz, STALE, blockierendes Finding, Legacy-DONE ohne Grundlage); Current-Work-Fixtures für alle Kaskadenstufen inkl. `CONFLICT`; Schema-Snapshot; Impact Regression. CapTrack read-only: erwartet „keine aktive kanonische Arbeit + UNATTRIBUTED_DELIVERY_ACTIVITY", REV-037 sichtbar, 6 PASS/5 PARTIAL als `REPORTED_UNBOUND`. |
+| **Validierung** | Fast Gate; Regel-Fixtures je Assessment-Stufe inkl. Negativfälle (keine Evidenz, STALE, blockierendes Finding, Legacy-DONE ohne Grundlage); Current-Work-Fixtures für alle Kaskadenstufen inkl. `CONFLICT`; Schema-Snapshot; Impact Regression. Referenzprojekt read-only: erwartet „keine aktive kanonische Arbeit + UNATTRIBUTED_DELIVERY_ACTIVITY", REV-037 sichtbar, 6 PASS/5 PARTIAL als `REPORTED_UNBOUND`. |
 | **Performance** | `/api/status` warm unverändert ≤ 300 ms; Zusatz-Git-Abfrage ≤ 500 ms, gecacht pro HEAD. |
 | **Rollback** | Additive Felder; Frontend-Flags; Revert ohne Datenfolgen. |
-| **STOP** | Nach CS-4: Delivery-Assessment-Regeltext v1 und CapTrack-Beispiele zur PO-Abnahme (OD-1-Auflage). |
+| **STOP** | Nach CS-4: Delivery-Assessment-Regeltext v1 und Referenzprojekt-Beispiele zur PO-Abnahme (OD-1-Auflage). |
 
 ## CS-5 · Timeline & Recent Activity (OD-2: nur dauerhafte Historie)
 
@@ -147,10 +147,10 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Scope — ausgeschlossen** | Live-/Harness-Telemetrie (OD-2), persistierte Ereignisse im Projekt, Zuordnung über Zeitnähe/Branch-Namen/Freitext, semantische Modell-Diffs. |
 | **Kanon/Schema** | keine kanonische; neuer abgeleiteter Contract `project-timeline.schema.json` (nicht kanonisch). |
 | **Migration** | neues verteiltes Skript → Installer-Payload. |
-| **Validierung** | Fast Gate; Fixture-Repo mit synthetischer Historie (Merge, Rebase/Force-Push, Shallow, Change-Set mit/ohne Schema-Validität, Trailer, Task-Status-Übergänge); Determinismus (zwei Läufe → identische `event_id`s); Zuordnungs-Negativtests (kein Zeitnähe-Match); Impact Regression; Installer-Payload → **Full Release Gate**. CapTrack read-only: Ereignisse vom 2026-11-05 erscheinen; CAP2-Commits ohne Trailer in „Nicht zugeordnet". |
-| **Performance (CapTrack, 597 Commits)** | Erstaufbau ≤ 10 s; inkrementell ≤ 1 s; `/api/timeline`-Seite ≤ 300 ms. |
+| **Validierung** | Fast Gate; Fixture-Repo mit synthetischer Historie (Merge, Rebase/Force-Push, Shallow, Change-Set mit/ohne Schema-Validität, Trailer, Task-Status-Übergänge); Determinismus (zwei Läufe → identische `event_id`s); Zuordnungs-Negativtests (kein Zeitnähe-Match); Impact Regression; Installer-Payload → **Full Release Gate**. Referenzprojekt read-only: Ereignisse vom 2026-11-05 erscheinen; REF2-Commits ohne Trailer in „Nicht zugeordnet". |
+| **Performance (Referenzprojekt, 597 Commits)** | Erstaufbau ≤ 10 s; inkrementell ≤ 1 s; `/api/timeline`-Seite ≤ 300 ms. |
 | **Rollback** | Endpoint/Ansicht entfernen; Cache löschen; keine Datenfolgen. |
-| **STOP** | Nach CS-5: Timeline-Auszug CapTrack mit Autoritätsklassen zur PO-Sichtprüfung. |
+| **STOP** | Nach CS-5: Timeline-Auszug Referenzprojekt mit Autoritätsklassen zur PO-Sichtprüfung. |
 
 ## CS-6 · Informationsarchitektur & Pages-&-Parity-Hub
 
@@ -161,7 +161,7 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
 | **Scope — ausgeschlossen** | Schreibfunktionen, Live-Telemetrie, Board-seitige Diff-Berechnung, neue kanonische Daten. |
 | **Kanon/Schema** | keine kanonische; Teil-Endpunkte als Ausschnitte desselben Snapshots (Status-Contract-Unterschemata). |
 | **Migration** | Deep-Links alter Routen leiten auf neue Routen um. |
-| **Validierung** | Fast Gate; `test_board_http.py`; Board-Smoke (CS-7) mit neuer Routenliste; Impact Regression; PO-Review anhand CapTrack-Screenshots (read-only) entlang Plan J (12 Fragen). |
+| **Validierung** | Fast Gate; `test_board_http.py`; Board-Smoke (CS-7) mit neuer Routenliste; Impact Regression; PO-Review anhand Referenzprojekt-Screenshots (read-only) entlang Plan J (12 Fragen). |
 | **Performance** | Routenwechsel ≤ 500 ms bei warmem Snapshot; Page Hub ≤ 1 s inkl. Captures-Metadaten. |
 | **Rollback** | `#legacy/…`-Router aktivieren; Revert ohne Datenfolgen. |
 | **STOP** | Nach CS-6: PO-Abnahme-Walkthrough (Plan J); danach Entfernung des Legacy-Routers nur mit eigener Freigabe. |
@@ -174,4 +174,4 @@ Empfohlene Reihenfolge: **CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → 
   Evidence-Schema-Erweiterung; behebt die strukturelle Modellfrische-Lücke BRD-F-20).
 - **CX-C:** Ursachenanalyse fehlender `mission-state.yaml` in Projekten mit Mehrsitzungsmissionen (BRD-F-12).
 - Artifact-Index-Fingerprint-Divergenz (BRD-F-26 / CT-FINDING-020).
-- Projektseitige CapTrack-Nacharbeit (BRD-F-13, -18, -25, -34, -36). Dafür ist das Projekt selbst zuständig, nicht diese Mission.
+- Projektseitige Referenzprojekt-Nacharbeit (BRD-F-13, -18, -25, -34, -36). Dafür ist das Projekt selbst zuständig, nicht diese Mission.

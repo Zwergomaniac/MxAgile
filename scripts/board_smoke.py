@@ -113,7 +113,7 @@ ARTIFACT_ORIGIN_MARKERS = ("/design-preview/", "/design-preview-source/", "/refe
 def script_error_origin(origin_hint: str | None) -> str:
     """'artifact' when a script error was raised inside an embedded project artifact, else 'board'.
 
-    The hint is the error stack or the console location URL (never the message text): errors from embedded CapTrack
+    The hint is the error stack or the console location URL (never the message text): errors from embedded reference project
     HTML must not be reported as Board-core failures.
     """
     hint = origin_hint or ""

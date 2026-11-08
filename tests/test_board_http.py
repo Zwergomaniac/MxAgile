@@ -568,7 +568,7 @@ BOARD_FIXTURE_FILES = {
         "page_id: PAGE-002\npage_name: Fixture Page2\nsource_mockup: input-resources/ui-ux/main.html\n"
         "html_source: themesource/fixture/public/page2/Page2.html\n"
     ),
-    # Mirrors CapTrack PAGE-INTERACTION-STATES-REV5: has a page_id but is not a Page (BRD-F-05).
+    # Mirrors reference project PAGE-INTERACTION-STATES-REV5: has a page_id but is not a Page (BRD-F-05).
     "planning/ui-inventory/PAGE-INTERACTION-STATES-REV1.yaml": (
         "page_id: PAGE-INTERACTION-STATES-REV1\nsource_mockup: input-resources/ui-ux/main.html\n"
         "interaction_states:\n  - {id: STATE-001, description: Standalone legacy interaction record}\n"

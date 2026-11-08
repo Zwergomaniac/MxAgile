@@ -121,7 +121,7 @@
         },
         "company_layer": {
           "type": "string",
-          "description": "Company Layer identifier (if any), e.g. mercedes-layer."
+          "description": "Company Layer identifier (if any), e.g. company-layer."
         },
         "project": {
           "type": "string",

@@ -27,12 +27,12 @@ Reality evidence:
   (one XPath-constrained, `[id='[%CurrentUser%]']`, verbatim).
 - XPath and member-level survival: this project has one real XPath rule; additionally a throw-away copy
   of an empty Mendix app in a temp directory received an XPath rule (`[Country = 'DE']`) via mxcli and
-  was extracted losslessly. The opt-in real test `RealMxcli` passes against it. CapTrack was not
+  was extracted losslessly. The opt-in real test `RealMxcli` passes against it. Reference project was not
   available on this machine, so it was **not verified**.
 - Not shown: stability across mxcli versions; scale beyond ~120 entities.
 
 Conclusion: usable for deterministic extraction with the stated limitations. Option C (optional) is
-recommended, Option B after one CapTrack reality run.
+recommended, Option B after one reference project reality run.
 
 ## 2. Reality findings triage
 

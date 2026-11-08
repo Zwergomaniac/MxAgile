@@ -7,14 +7,14 @@ Validierungs- und Messleitfaden. Implementierungsdetails stehen in `tasks.md`, G
 
 - Python 3 mit `requirements.txt`; Git; optional Chromium über Python-Playwright oder `playwright-cli`.
 - Fixture-Projekt `tests/fixtures/board-redesign/` (wird in Phase 2 der Tasks angelegt).
-- CapTrack **nur read-only**: `D:\MTC\Mendix\Projekte\CapTrack\CapTrack-devrick`.
+- Referenzprojekt **nur read-only**: `<reference-project>`.
 
 ## Read-only-Board gegen ein Projekt starten
 
 ```bash
 cd <projekt>
 PYTHONDONTWRITEBYTECODE=1 MXAGILE_BOARD_PROFILE=1 python -B .mxagile/tools/serve_project_board.py --project-root . --port 0
-# Framework-Arbeitskopie gegen CapTrack: python -B <repo>/scripts/serve_project_board.py --project-root <CapTrack>
+# Framework-Arbeitskopie gegen reference project: python -B <repo>/scripts/serve_project_board.py --project-root <reference-project>
 ```
 
 Danach ist `git -C <projekt> --no-optional-locks status --porcelain` vor und nach dem Lauf identisch (fremde Parallelarbeit ausgenommen und gesondert notiert).
@@ -43,11 +43,11 @@ python tests/run-impact-tests.py --tier release                       # nur CS-7
 |---|---|---|
 | CS-1 | Overview-Drift, UI & Pages-Anzahl, `/source/planning/parity/SCN-CAP-DEPARTMENTS-HTMLFIRST.yaml` | RC-01…03 |
 | CS-2 | Messlauf oben; Reconciliation-Zeit | RC-04, RC-05 |
-| CS-7 | `python -B scripts/board_smoke.py --project-root <CapTrack> --format json` | PASS oder UNAVAILABLE ≤ 15 s; `project_unchanged: true` |
-| CS-0 | `python -B scripts/project_compatibility.py doctor --project-root <CapTrack> --format json` | RC-06; 0 neue blockierende Diagnosen |
+| CS-7 | `python -B scripts/board_smoke.py --project-root <reference-project> --format json` | PASS oder UNAVAILABLE ≤ 15 s; `project_unchanged: true` |
+| CS-0 | `python -B scripts/project_compatibility.py doctor --project-root <reference-project> --format json` | RC-06; 0 neue blockierende Diagnosen |
 | CS-3 | `/api/health`; Fachansichten ohne Diagnosepanel | RC-07, RC-08 |
 | CS-4 | Overview Current Work; Requirement-Detail; Vertrauen in DONE; Pages | RC-09…13 |
-| CS-5 | `/api/timeline?from=2026-11-05` | RC-14; CAP2-Commits ohne Trailer `lane=unattributed` |
+| CS-5 | `/api/timeline?from=2026-11-05` | RC-14; REF2-Commits ohne Trailer `lane=unattributed` |
 | CS-6 | Page Hub `PAGE-ABTEILUNGSVERWALTUNG`; Walkthrough 12 Fragen | RC-15; SC-008 |
 
 ## Smoke-Negativfälle (CS-7)

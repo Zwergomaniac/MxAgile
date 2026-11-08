@@ -57,7 +57,7 @@ changes:
     - "RF-002: Context Mode setup/discovery states — context-mode.yaml: INSTALLED/REGISTERED/LOADED/ACTIVE distinguished; authoring_tool: ctx_index documented"
     - "RF-003: ctx_index is the authoring tool — affirmed in context-mode.yaml; regression test added"
     - "RF-004: Studio Pro detector hardening — check-studio-pro-status.ps1: -TimeoutSeconds bounded job; timeout→UNKNOWN not CLOSED-AUTONOM; operating-mode.md: TIMEOUT rule, MPR lock is project-affinity evidence only; detection_source/confidence vocabulary extended"
-    - "RF-005: PowerShell 7 preflight — mxagile-setup.ps1, mxagile-setup-mercedes.ps1, scripts/install-core.ps1: fail before any mutation with clear install instructions"
+    - "RF-005: PowerShell 7 preflight — mxagile-setup.ps1, mxagile-setup-company-layer.ps1, scripts/install-core.ps1: fail before any mutation with clear install instructions"
     - "RF-006: Runtime-start reality check — runtime-startup-recovery.md: AMBIGUOUS_START_RESULT≠APPLICATION_NOT_STARTED; reachability check before retry; port/process inspection"
     - "RF-007: MxTest/test-harness cleanup discipline — policies/test-harness-cleanup.md: artifact classification, required lifecycle, .gitignore rules"
     - "RF-008: mxcli known limitations — docs/mxcli-known-limitations.md: KL-001 CALL MICROFLOW, KL-002 Windows attach/PID, KL-003 OQL; verification method selection guidance"

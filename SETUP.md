@@ -8,10 +8,10 @@ Nicht alle Werte stehen beim Anlegen sofort fest — die Tabelle zeigt wann sie 
 | Platzhalter | Beispiel (MyApp) | Bekannt ab | Beschreibung |
 |---|---|---|---|
 | `{Projektname}` | `MyApp` | Projektanlage | Anzeigename der App |
-| `{App}` | `Cap` | Company Layer Onboarding | Rollen-Praefix-Konfiguration des Company Layers |
-| `{APP}_` | `CAP_` | Company Layer Onboarding | Rollen-Praefix (`{App}` in Grossbuchstaben + Unterstrich) |
+| `{App}` | `My` | Company Layer Onboarding | Rollen-Praefix-Konfiguration des Company Layers |
+| `{APP}_` | `MY_` | Company Layer Onboarding | Rollen-Praefix (`{App}` in Grossbuchstaben + Unterstrich) |
 | `{Projektbeschreibung}` | _optional_ | Projektanlage | Kurzbeschreibung fuer `projekt.md`, falls verwendet |
-| `{STORYPREFIX}` | `CAP` | Projektanlage | Praefix fuer Requirement-IDs und Story-Spec-Dateinamen unter `planning/stories/` |
+| `{STORYPREFIX}` | `MYAPP` | Projektanlage | Praefix fuer Requirement-IDs und Story-Spec-Dateinamen unter `planning/stories/` |
 
 ## Betroffene Dateien
 

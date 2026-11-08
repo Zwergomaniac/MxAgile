@@ -89,7 +89,7 @@ mxagile-dev install core /path/to/mendix-project
 
 Suite names map directly to test filenames: `test run migration-crash-safety` runs `tests/test-migration-crash-safety.ps1`.
 
-The `installer` suite runs `tests/run-installer-tests.ps1 -Test All -SkipMercedesIntegration`.
+The `installer` suite runs `tests/run-installer-tests.ps1 -Test All -SkipCompanyLayerIntegration`.
 
 ### workspace
 
@@ -126,7 +126,7 @@ Paths that fail either check are rejected with exit code 3.
 | Command | Delegates to | Notes |
 |---|---|---|
 | `install core <path>` | `install-mxagile.ps1` | Public bootstrap; DFC preflight is preserved |
-| `install mercedes <path>` | `install-mxagile-mercedes.ps1` | Public bootstrap + Mercedes Company Layer |
+| `install company-layer <path>` | `install-mxagile-company-layer.ps1` | Public bootstrap + Company Layer |
 
 Both commands delegate to the **public bootstrap scripts**, which handle distribution acquisition and legacy DFC-AI detection/migration routing through the canonical preflight. The CLI does not call `scripts/install-core.ps1` directly.
 
@@ -183,7 +183,7 @@ for the framework repository.
 - **No duplicated logic.** The CLI never reimplements what a canonical script does.
 - **Canonical scripts are authoritative.** If a script changes, the CLI delegates to
   the updated script without modification.
-- **Public bootstrap is preserved.** `install core` and `install mercedes` use the
+- **Public bootstrap is preserved.** `install core` and `install company-layer` use the
   public bootstrap scripts, preserving DFC-AI detection and migration preflight.
 - **Workspace safety.** Destructive commands validate `.testing-*` prefix and repo-root
   containment before any removal.

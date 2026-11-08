@@ -81,7 +81,7 @@ Return routing is **scoped**: only affected stories return to earlier phases; un
 | **Target mockup** | Refined acceptance target derived from source mockups |
 | **Acceptance** | Structured campaigns proving all requirement proof points |
 | **Core** | The `.mxagile/` framework payload — canonical agents, skills, policies, schemas |
-| **Company Layer** | An organizational extension added on top of Core (e.g. Mercedes standards) |
+| **Company Layer** | An organizational extension added on top of Core (e.g. Company Layer standards) |
 | **Project Layer** | Project-specific artifacts: requirements, specs, tasks, decisions, mockups |
 
 ## Autonomy Model
@@ -153,15 +153,15 @@ MxAgile is designed so developers do not need lifecycle vocabulary.
 .\mxagile-setup.ps1 -ProjectRoot "path\to\your\project"
 ```
 
-**Mercedes-Benz Company Layer:**
+**Company Layer:**
 
 ```powershell
-.\mxagile-setup-mercedes.ps1 -ProjectRoot "path\to\your\project"
+.\mxagile-setup-company-layer.ps1 -ProjectRoot "path\to\your\project" -CompanyLayerGitUrl "<git-url>"
 ```
 
 `mxagile-setup.ps1` auto-detects project state and performs either a fresh INSTALL or a Core UPDATE.
 
-> `install-mxagile.ps1` and `install-mxagile-mercedes.ps1` are deprecated wrappers that delegate to the scripts above.
+> `install-mxagile.ps1` and `install-mxagile-company-layer.ps1` are deprecated wrappers that delegate to the scripts above.
 
 **Typical developer prompts after setup:**
 

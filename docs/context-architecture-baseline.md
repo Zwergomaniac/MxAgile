@@ -4,12 +4,12 @@
 lossless Doctor migration; `expect` may be absent/blank without schema invalidation, but Doctor
 keeps semantic acceptance at `EXPECTATION_MISSING` / `DECISION_REQUIRED`. The C2 route now emits
 structured `user_interaction`; the orchestrator and always-on router suppress a mode choice for
-conclusive results and defer ambiguity questions to the rechecked mutation boundary. The Mercedes
+conclusive results and defer ambiguity questions to the rechecked mutation boundary. The Company Layer
 flavor-transition UPDATE path now has direct regression coverage. Generic Mendix UserRole identity
 guidance was committed across Implementation, UI, Acceptance, Maintainer, Brownfield, Builder Kit,
 and Mocketeer producers. No Role.Name string, wildcard, or substring fallback is allowed.
 
-**Consumer evidence (read-only):** CapTrack reports installed Core version `1.10.0` / commit
+**Consumer evidence (read-only):** Reference project reports installed Core version `1.10.0` / commit
 `f62c57b10df2edd51f630aa96aef8ae8922c42df`. This predates commits `ff78c99`, `e3a535c`, and
 `6717daa`; its installed Task schema/Doctor therefore remain stale until a normal Core update.
 Board `/api/status` returned `BLOCKED` with 159 diagnostics (123 `UNASSIGNED`, 13 `SCHEMA_ERROR`,
@@ -18,7 +18,7 @@ Board `/api/status` returned `BLOCKED` with 159 diagnostics (123 `UNASSIGNED`, 1
 read-only endpoint alternated between HTTP 200 and 503 `status_unavailable` / `RuntimeError`; no
 server log exposing the underlying exception was available. Historical `/api/reference`,
 `/api/capture`, `/api/diagnostic-source` paths return 404 because current Core routes are
-`/reference/`, `/capture/`, and `/diagnostic-source/`. CapTrack was not modified. Its Findings
+`/reference/`, `/capture/`, and `/diagnostic-source/`. Reference project was not modified. Its Findings
 directory is absent, so the Board's `findings: unavailable` / zero items is expected, not a
 reproduced projection defect.
 
@@ -52,7 +52,7 @@ interrupted during the earlier implementation sequence; its aggregate status rem
 `INCOMPLETE`, not PASS, and no partial suite output is used as release evidence.
 
 **Commits created:** `ff78c99` (typed Task Inspect and Role Identity contracts), `e3a535c`
-(C2 zero-question consumer contract), and `6717daa` (Mercedes flavor update provenance regression).
+(C2 zero-question consumer contract), and `6717daa` (Company Layer flavor update provenance regression).
 The baseline/reconciliation update is a separate documentation change. No unresolved Child Model,
 Board runtime, or root-pollution finding is included in a completed implementation commit.
 
@@ -189,7 +189,7 @@ API duration: 2h 50m 44s. Wall duration: 21h 30m 54s. Usage report delta: +1,213
 - Regionen screen was reachable for AppAdmin; Name / Code / Status columns and AppAdmin read-only state were verified.
 - CAP_Ceko and E2 role parity remained blocked by missing fixtures.
 - Screenshot was bound to REV-020 / Regionen / AppAdmin.
-- `SCN-CAP-REGIONS.yaml` records `overall_result: PARTIAL`; Findings and Change-Set were updated.
+- `SCN-REGIONS.yaml` records `overall_result: PARTIAL`; Findings and Change-Set were updated.
 - Commit description records 7 files, +5,984 / -5 lines. Work was real and produced a committed artifact, but not a fully verified role campaign.
 
 ### Agent and fork anatomy
@@ -1173,7 +1173,7 @@ Items 1–2 and 25–29 in the supplied reconciliation note are method/decision 
 not additional findings.
 
 At reconciliation start, Task Inspect v2 and Mendix UserRole identity were uncommitted overlays;
-they were then committed in the follow-through above. CapTrack was not modified as part of this
+they were then committed in the follow-through above. Reference project was not modified as part of this
 work. The report itself is documentation-only relative to `6717daa`.
 
 Keep these evidence stages distinct: `documented`, `configured`, `installed`, `projected`,
@@ -1197,11 +1197,11 @@ recorded as `NOT_OBSERVABLE`, not inferred as fixed or broken.
 | 14. Authority Disposition Persistence | Canonical Findings persist revisioned authority/source fingerprints and allowed/prohibited actions; Project Status rejects stale dispositions. V4–V6 tests cover later-consumer gating. | `FIXED_CURRENT_MAIN` | Preserve the existing persisted-disposition regressions. |
 | 15. Representative Fixture States | `representative-fixture-contract.md`, role-coverage schema and scope-aware tests distinguish identity, role, scope, representative state, positive/negative scenarios, and `FIXTURE_BLOCKED`. | `FIXED_CURRENT_MAIN` | Retain the fixture-state regression inventory; no second fixture model. |
 | 16. Synthetic Verification Data vs Canonical Domain Authority | Mocketeer marks mock data and forbids deriving business rules from sample data; representative fixtures are project-owned verification preconditions, not requirement authority. The boundary exists across current guidance/tests; no separate domain fixture schema is justified by this evidence. | `FIXED_CURRENT_MAIN` | Keep the sample-data/non-authority regression; do not add a parallel fixture contract. |
-| 17. Reconciliation Watermark / jsonschema | Core distributes `.mxagile/tools/requirements.txt`; the Doctor detects missing `jsonschema` and fails closed. A read-only CapTrack `/api/status` request successfully produced schema diagnostics without a validator-unavailable diagnostic, demonstrating the dependency was available for that request. | `FIXED_CURRENT_MAIN` | Preserve fail-closed missing-dependency coverage; do not claim installer auto-provisioning. |
-| 18. Board Runtime Reality | Current Board uses `/reference/`, `/capture/`, and `/diagnostic-source/`; historical `/api/reference`, `/api/capture`, and `/api/diagnostic-source` paths are not current contracts. `test_board_http.py` verifies current routes and `test_board_performance.py -k p7` verifies snapshot/cache reuse. Read-only CapTrack status returned HTTP 200 once and intermittent 503 `status_unavailable` / `RuntimeError`; successful status was BLOCKED with 159 diagnostics, including 13 schema errors. Installed Core was 1.10.0 / commit `f62c57b`; its Task schema/Doctor predate the now-committed Task Inspect fix. | `PARTIALLY_FIXED` | No CapTrack writes. Consumer still needs the normal Core update, then an authorized route/status/performance recheck. The 503 cause is not exposed by the endpoint or available server log. |
+| 17. Reconciliation Watermark / jsonschema | Core distributes `.mxagile/tools/requirements.txt`; the Doctor detects missing `jsonschema` and fails closed. A read-only reference project `/api/status` request successfully produced schema diagnostics without a validator-unavailable diagnostic, demonstrating the dependency was available for that request. | `FIXED_CURRENT_MAIN` | Preserve fail-closed missing-dependency coverage; do not claim installer auto-provisioning. |
+| 18. Board Runtime Reality | Current Board uses `/reference/`, `/capture/`, and `/diagnostic-source/`; historical `/api/reference`, `/api/capture`, and `/api/diagnostic-source` paths are not current contracts. `test_board_http.py` verifies current routes and `test_board_performance.py -k p7` verifies snapshot/cache reuse. Read-only reference project status returned HTTP 200 once and intermittent 503 `status_unavailable` / `RuntimeError`; successful status was BLOCKED with 159 diagnostics, including 13 schema errors. Installed Core was 1.10.0 / commit `f62c57b`; its Task schema/Doctor predate the now-committed Task Inspect fix. | `PARTIALLY_FIXED` | No reference project writes. Consumer still needs the normal Core update, then an authorized route/status/performance recheck. The 503 cause is not exposed by the endpoint or available server log. |
 | 19. HTTP Client Disconnect | `serve_project_board.py` catches expected reset/abort/broken-pipe exceptions and emits compact `CLIENT_DISCONNECT`; Board HTTP tests cover each exception and next-request survival. | `FIXED_CURRENT_MAIN` | Retain the disconnect regression; no further handler change. |
-| 20. Findings Projection | Project Status reads canonical `planning/findings/*.yml`, projects lifecycle/counts, and Board renders available records. Read-only CapTrack status reports Findings unavailable/zero items; direct directory inventory found no `planning/findings/` directory, so no canonical records existed to project. | `FIXED_CURRENT_MAIN` | Keep the canonical projection and explicit unavailable-state behavior; no second Finding store. |
-| 21. Flavor Change Provenance | Mercedes setup uses the canonical `.mxagile/lifecycle.yaml` marker to select UPDATE and passes `-IsUpdate $coreInstalled` at both Core call sites. Core provenance retains the prior commit/version/install timestamp. New focused C4–C9 assertions cover this cross-flavor update path. | `FIXED_CURRENT_MAIN` | Keep the regression; no `previous_flavor` field is warranted by the current contract. |
+| 20. Findings Projection | Project Status reads canonical `planning/findings/*.yml`, projects lifecycle/counts, and Board renders available records. Read-only reference project status reports Findings unavailable/zero items; direct directory inventory found no `planning/findings/` directory, so no canonical records existed to project. | `FIXED_CURRENT_MAIN` | Keep the canonical projection and explicit unavailable-state behavior; no second Finding store. |
+| 21. Flavor Change Provenance | Company Layer setup uses the canonical `.mxagile/lifecycle.yaml` marker to select UPDATE and passes `-IsUpdate $coreInstalled` at both Core call sites. Core provenance retains the prior commit/version/install timestamp. New focused C4–C9 assertions cover this cross-flavor update path. | `FIXED_CURRENT_MAIN` | Keep the regression; no `previous_flavor` field is warranted by the current contract. |
 | 22. Workspace Root Pollution | Test-workcopy/temp cleanup, harness cleanup policy, `.concord`/canonical evidence locations, and cleanup regressions cover known test-owned outputs. There is no single runtime-level inventory proving every mxcli/Playwright/Concord failure artifact is confined for every consumer route. | `PARTIALLY_FIXED` | Keep existing cleanup gates. Only add a targeted output-path regression if the current consumer reproduces root writes; do not add blanket cleanup or ignore rules. |
 | 23. Child Model Runtime Reality | Handoff/result schemas and adapters record requested/static resolution, not independently observed actual child model. The Explore audit found no VS Code Copilot child-model return field; `profile_resolution: unknown` remains authoritative. The spawned Explore task had no requested model/profile and its tool result exposed no actual model metadata. | `STILL_OPEN` | Host API/telemetry attestation is unavailable in this environment. Keep actual child model/profile `NOT_OBSERVABLE`; do not add a schema field populated from adapter declarations or child self-report. |
 | 24. Context-Cost Benchmark | The benchmark explicitly records Main model changes as `USER_CONTROLLED`; it is not evidence for automatic model routing. Current policy/telemetry guidance preserves requested-vs-actual provenance and cost attribution caveats. | `SUPERSEDED` | Retain as historical benchmark evidence only; do not create routing work from it. |
@@ -1222,7 +1222,7 @@ recorded as `NOT_OBSERVABLE`, not inferred as fixed or broken.
 | **Total Reality Funds** | **22** |
 
 `FIXED_CURRENT_MAIN` means current code/contracts and focused regressions establish the fix; it does
-not assert a fresh runtime pass in CapTrack. The incomplete Full Release Gate is not used as PASS.
+not assert a fresh runtime pass in reference project. The incomplete Full Release Gate is not used as PASS.
 
 ### Updated Wave Plan
 
@@ -1232,7 +1232,7 @@ Only the three `PARTIALLY_FIXED` and one `STILL_OPEN` finding remain in the plan
 |---|---|---|
 | C0 / delegation evidence | Add actual child-model attestation to the existing result path only when the harness supplies it; otherwise retain `NOT_OBSERVABLE`. Do not infer routing from adapters or cost benchmarks. | 23 `STILL_OPEN` |
 | UserRole Identity validation | The generic model-bound policy and producers are committed. A project-owned MPR and Studio Pro/mxcli validation are still required to prove CE1613 on an invalid token and rename/refactoring behavior. | 10 `PARTIALLY_FIXED` |
-| Board / consumer verification | Core route/cache behavior is tested. CapTrack returned both status 200 and intermittent 503 `RuntimeError`; after normal Core update, recheck status, diagnostics, and route/cache timings with server logs available. No CapTrack writes in this run. | 18 `PARTIALLY_FIXED` |
+| Board / consumer verification | Core route/cache behavior is tested. Reference project returned both status 200 and intermittent 503 `RuntimeError`; after normal Core update, recheck status, diagnostics, and route/cache timings with server logs available. No reference project writes in this run. | 18 `PARTIALLY_FIXED` |
 | Output hygiene | Existing cleanup contracts stay. Reproduce current root pollution with source/path evidence before any cleanup change; no blanket deletion/ignore rule. | 22 `PARTIALLY_FIXED` |
 
 No additional detector, parity, fixture, or finding resolver is planned. The planned Full Release
@@ -1252,13 +1252,13 @@ records active/in-scope Waves and blockers, and acceptance/wave reports carry co
 evidence. This is a lifecycle/execution primitive, not reporting metadata. The contracts
 already require Wave-level verification and phase-boundary continuation.
 
-**CapTrack evidence:** the read-only status report in this document records installed
+**Reference project evidence:** the read-only status report in this document records installed
 Core `1.10.0` / commit `f62c57b`, `BLOCKED`, and six `WAVE_ASSIGNMENT_MISSING`
 diagnostics among 159. This proves missing canonical Wave assignments for the diagnosed
-artifacts, not that no Wave plan existed. No CapTrack `execution-waves.md`, process-state,
+artifacts, not that no Wave plan existed. No reference project `execution-waves.md`, process-state,
 task/checklist inventory, or run transcript establishing Wave references/order was
 available in this repository. Creation, use during implementation, and alignment of
-verification with CapTrack Waves are therefore **NOT_OBSERVABLE**; do not infer them.
+verification with reference project Waves are therefore **NOT_OBSERVABLE**; do not infer them.
 
 **Confirmed framework gap and correction:** Ready previously required only that the Wave
 plan be “updated”; it did not specify semantic Task/Wave split criteria or require all
@@ -1269,7 +1269,7 @@ run, or per-Wave subagent rule was added.
 **Existing finding status (current framework contracts):** test-cost awareness —
 `IMPLEMENTED`; proactive runtime/UI verification — `IMPLEMENTED` (consumer execution is
 not inferred); local mxcli/database recipe — `IMPLEMENTED` in current Core, while stale
-CapTrack installation remains a separate update/recheck; HTML-first/Builder discovery —
+Reference project installation remains a separate update/recheck; HTML-first/Builder discovery —
 `IMPLEMENTED` (actual consumer availability remains session-attested); spawn/model routing
 — `PARTIALLY IMPLEMENTED` (actual child-model attestation remains open/unobservable);
 LIVE-SP/CLOSED-AUTONOM routing — `IMPLEMENTED`; lifecycle interrupt/resume semantics —
@@ -1295,8 +1295,8 @@ The deterministic default is **KEEP RELATED WORK TOGETHER**; split only when an 
 outcome, dependency/gate, uncertainty result, recovery checkpoint, parallel path, or materially
 separate context/verification makes the split useful. Task count is only a sanity signal.
 
-CapTrack's undo/recovery remains a valid conceptual **single Wave**: multiple Tasks inspect,
-reconcile/restore, check consistency, and verify the shared outcome “CapTrack restored to the
+Reference project's undo/recovery remains a valid conceptual **single Wave**: multiple Tasks inspect,
+reconcile/restore, check consistency, and verify the shared outcome “reference project restored to the
 intended state.” This is semantic grouping, not an instruction that every Task be a persisted
 Task artifact for that historical operation.
 

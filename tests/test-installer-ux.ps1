@@ -17,7 +17,7 @@
     7.  No 'exit' call inside try/catch (exit code flows through $exitCode variable)
     8.  pause logic placed AFTER finally block (does not interfere with cleanup)
     9.  Core installer (install-mxagile.ps1) has ProvenanceFlavor "core"
-    10. Mercedes installer (install-mxagile-mercedes.ps1) has ProvenanceFlavor "mercedes"
+    10. Company Layer installer (install-mxagile-company-layer.ps1) has ProvenanceFlavor "company-layer"
     11. Bootstrap and startup regressions remain independent release suites
 #>
 
@@ -63,14 +63,14 @@ function Assert-NotContains {
 }
 
 $coreInstaller     = Join-Path $ScriptDir "install-mxagile.ps1"
-$mercedesInstaller = Join-Path $ScriptDir "install-mxagile-mercedes.ps1"
+$companyLayerInstaller = Join-Path $ScriptDir "install-mxagile-company-layer.ps1"
 
 Write-Host ""
 Write-Host "=== Installer Direct-Launch UX Tests ==="
 Write-Host ""
 
 Assert-True "core installer exists"     (Test-Path -LiteralPath $coreInstaller)     "Not found: $coreInstaller"
-Assert-True "mercedes installer exists" (Test-Path -LiteralPath $mercedesInstaller) "Not found: $mercedesInstaller"
+Assert-True "company-layer installer exists" (Test-Path -LiteralPath $companyLayerInstaller) "Not found: $companyLayerInstaller"
 Write-Host ""
 
 # ---------------------------------------------------------------------------
@@ -81,8 +81,8 @@ Write-Host "--- 1: -Wait switch declared ---"
 Assert-Contains "1a: core installer declares switch-Wait parameter" `
     $coreInstaller '\[switch\]\$Wait'
 
-Assert-Contains "1b: mercedes installer declares switch-Wait parameter" `
-    $mercedesInstaller '\[switch\]\$Wait'
+Assert-Contains "1b: company-layer installer declares switch-Wait parameter" `
+    $companyLayerInstaller '\[switch\]\$Wait'
 
 Write-Host ""
 
@@ -94,14 +94,14 @@ Write-Host "--- 2: Direct-launch detection ---"
 Assert-Contains "2a: core installer detects explorer parent process" `
     $coreInstaller "explorer.*OpenWith|isDirectLaunch"
 
-Assert-Contains "2b: mercedes installer detects explorer parent process" `
-    $mercedesInstaller "explorer.*OpenWith|isDirectLaunch"
+Assert-Contains "2b: company-layer installer detects explorer parent process" `
+    $companyLayerInstaller "explorer.*OpenWith|isDirectLaunch"
 
 Assert-Contains "2c: core installer sets shouldWait from Wait or isDirectLaunch" `
     $coreInstaller 'shouldWait.*=.*Wait.*isDirectLaunch|isDirectLaunch.*Wait'
 
-Assert-Contains "2d: mercedes installer sets shouldWait from Wait or isDirectLaunch" `
-    $mercedesInstaller 'shouldWait.*=.*Wait.*isDirectLaunch|isDirectLaunch.*Wait'
+Assert-Contains "2d: company-layer installer sets shouldWait from Wait or isDirectLaunch" `
+    $companyLayerInstaller 'shouldWait.*=.*Wait.*isDirectLaunch|isDirectLaunch.*Wait'
 
 Write-Host ""
 
@@ -113,14 +113,14 @@ Write-Host "--- 3: ReadKey guarded by shouldWait ---"
 Assert-Contains "3a: core installer guards ReadKey with shouldWait check" `
     $coreInstaller 'if.*shouldWait'
 
-Assert-Contains "3b: mercedes installer guards ReadKey with shouldWait check" `
-    $mercedesInstaller 'if.*shouldWait'
+Assert-Contains "3b: company-layer installer guards ReadKey with shouldWait check" `
+    $companyLayerInstaller 'if.*shouldWait'
 
 Assert-Contains "3c: core installer calls ReadKey" `
     $coreInstaller 'ReadKey'
 
-Assert-Contains "3d: mercedes installer calls ReadKey" `
-    $mercedesInstaller 'ReadKey'
+Assert-Contains "3d: company-layer installer calls ReadKey" `
+    $companyLayerInstaller 'ReadKey'
 
 Write-Host ""
 
@@ -132,8 +132,8 @@ Write-Host "--- 4: ReadKey wrapped in try/catch ---"
 Assert-Contains "4a: core installer wraps ReadKey in try/catch" `
     $coreInstaller 'try.*ReadKey.*catch|ReadKey.*\$true.*\}.*catch'
 
-Assert-Contains "4b: mercedes installer wraps ReadKey in try/catch" `
-    $mercedesInstaller 'try.*ReadKey.*catch|ReadKey.*\$true.*\}.*catch'
+Assert-Contains "4b: company-layer installer wraps ReadKey in try/catch" `
+    $companyLayerInstaller 'try.*ReadKey.*catch|ReadKey.*\$true.*\}.*catch'
 
 Write-Host ""
 
@@ -145,8 +145,8 @@ Write-Host "--- 5: No unconditional blocking constructs ---"
 Assert-NotContains "5a: core installer does not have unconditional Read-Host" `
     $coreInstaller '^[^#]*Read-Host'
 
-Assert-NotContains "5b: mercedes installer does not have unconditional Read-Host" `
-    $mercedesInstaller '^[^#]*Read-Host'
+Assert-NotContains "5b: company-layer installer does not have unconditional Read-Host" `
+    $companyLayerInstaller '^[^#]*Read-Host'
 
 Write-Host ""
 
@@ -158,33 +158,33 @@ Write-Host "--- 6: Exit code captured via exitCode variable ---"
 Assert-Contains "6a: core installer initializes exitCode = 0" `
     $coreInstaller '\$exitCode\s*=\s*0'
 
-Assert-Contains "6b: mercedes installer initializes exitCode = 0" `
-    $mercedesInstaller '\$exitCode\s*=\s*0'
+Assert-Contains "6b: company-layer installer initializes exitCode = 0" `
+    $companyLayerInstaller '\$exitCode\s*=\s*0'
 
 Assert-Contains "6c: core installer sets exitCode = 1 in catch block" `
     $coreInstaller '\$exitCode = 1'
 
-Assert-Contains "6d: mercedes installer sets exitCode = 1 in catch block" `
-    $mercedesInstaller '\$exitCode = 1'
+Assert-Contains "6d: company-layer installer sets exitCode = 1 in catch block" `
+    $companyLayerInstaller '\$exitCode = 1'
 
 Assert-Contains "6e: core installer ends with exit exitCode" `
     $coreInstaller 'exit \$exitCode'
 
-Assert-Contains "6f: mercedes installer ends with exit exitCode" `
-    $mercedesInstaller 'exit \$exitCode'
+Assert-Contains "6f: company-layer installer ends with exit exitCode" `
+    $companyLayerInstaller 'exit \$exitCode'
 
 Write-Host ""
 
 # ---------------------------------------------------------------------------
-# GROUP 7: Core / Mercedes flavor identity preserved
+# GROUP 7: Core / Company Layer flavor identity preserved
 # ---------------------------------------------------------------------------
 Write-Host "--- 7: Installer flavor identity ---"
 
 Assert-Contains "7a: core installer passes ProvenanceFlavor 'core'" `
     $coreInstaller 'ProvenanceFlavor.*"core"'
 
-Assert-Contains "7b: mercedes installer passes ProvenanceFlavor 'mercedes'" `
-    $mercedesInstaller 'ProvenanceFlavor.*"mercedes"'
+Assert-Contains "7b: company-layer installer passes ProvenanceFlavor 'company-layer'" `
+    $companyLayerInstaller 'ProvenanceFlavor.*"company-layer"'
 
 Write-Host ""
 

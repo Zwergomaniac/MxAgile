@@ -11,7 +11,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 
 **Organization**: One phase per changeset in the binding sequence. Story labels: US1=CS-1, US2=CS-2, US3=CS-7, US4=CS-0, US5=CS-3, US6=CS-4, US7=CS-5, US8=CS-6. Every changeset phase ends with **Gate → Commit → STOP**. No task of a later phase starts before the explicit approval recorded in the previous STOP task.
 
-**Global rules (apply to every task)**: read-only Board; no writes into analyzed projects; CapTrack (`D:\MTC\Mendix\Projekte\CapTrack\CapTrack-devrick`) read-only only (`python -B`, `PYTHONDONTWRITEBYTECODE=1`, `git --no-optional-locks`); never `git add -A`/`.`; commit identity must be `Zwergomaniac <Keeperdeluxe@web.de>`; do not touch files carrying pre-existing foreign uncommitted changes; Full Regression only where stated.
+**Global rules (apply to every task)**: read-only Board; no writes into analyzed projects; reference project (`<reference-project>`) read-only only (`python -B`, `PYTHONDONTWRITEBYTECODE=1`, `git --no-optional-locks`); never `git add -A`/`.`; commit identity must be `Zwergomaniac <Keeperdeluxe@web.de>`; do not touch files carrying pre-existing foreign uncommitted changes; Full Regression only where stated.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -31,7 +31,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 
 **Purpose**: Measurable before/after reference and a reusable fixture; committed together with CS-1 (first commit boundary).
 
-- [x] T004 Capture CapTrack read-only baseline with `MXAGILE_BOARD_PROFILE=1` (framework `scripts/serve_project_board.py --project-root <CapTrack> --port 8797`, curl timings per quickstart.md, record HEAD) into `specs/001-board-redesign/baseline.md`; stop the server afterwards and confirm CapTrack `git status` unchanged (background invalidation cost target ≤ 1 s is measured again in T040)
+- [x] T004 Capture reference project read-only baseline with `MXAGILE_BOARD_PROFILE=1` (framework `scripts/serve_project_board.py --project-root <reference-project> --port 8797`, curl timings per quickstart.md, record HEAD) into `specs/001-board-redesign/baseline.md`; stop the server afterwards and confirm reference project `git status` unchanged (background invalidation cost target ≤ 1 s is measured again in T040)
 - [x] T005 [P] **(adapted, see note)** Create fixture project `tests/fixtures/board-redesign/project/` containing: `mxagile-project.yaml`, `.mxagile/version.yaml`, `planning/lifecycle/process-state.yaml` (one `done` wave with an open task, one `implementing` wave), 3 requirements, 4 tasks (one `type: repair`), 2 decisions (one PROPOSED with `affected_screens`), 1 finding (terminal), 1 standalone `interaction-states-*.yaml` in `planning/ui-inventory/`, 2 pages (one with `html_source` under `themesource/x/public/y/`), 1 parity report without `comparison_identity`, `planning/revisions/REV-002.yaml` with `active_target: true`
 - [x] T006 [P] **(done in CS-2 inside `tests/test_external_change_reconciliation.py`, see note)** Create fixture helper `tests/fixtures/board-redesign/make_fixture_repo.py` that copies the fixture project to a temp dir and builds a deterministic synthetic Git history (fixed author/date env vars): linear commits, one merge, one commit with `MxAgile-Mission`/`MxAgile-Change-Set` trailers plus a schema-valid change-set, one schema-invalid change-set, one commit touching only `mprcontents/`, one commit only mentioning `REQ-001` in its message
 
@@ -47,7 +47,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 
 ## Phase 3: CS-1 — Board shows nothing false (US1, Priority P1) 🎯 MVP
 
-**Goal**: Remove the misleading displays BRD-F-01…08. **Independent Test**: fixture + CapTrack RC-01…03.
+**Goal**: Remove the misleading displays BRD-F-01…08. **Independent Test**: fixture + reference project RC-01…03.
 **Excluded**: new views, state vocabulary, performance changes, layout changes, canonical/schema changes.
 
 ### Tests (write first, must fail)
@@ -72,7 +72,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T020 [US1] Run `python tests/run-impact-tests.py --list --paths scripts/serve_project_board.py scripts/reconcile_external_changes.py scripts/build_project_status.py .mxagile/board/board.js tests/...`; then Fast Gate; then Impact Regression incl. Tier 3 suites `test_external_change_reconciliation.py`, `test-core-provenance.ps1`, `test-injection-contract.ps1` (plan.md A1); record Fast/Impact separately in `specs/001-board-redesign/reports/cs-1.md`
-- [x] T021 [US1] CapTrack read-only RC-01…03 check (Overview drift, page count 10, parity source 200) with before/after screenshots stored under OS temp and referenced in `specs/001-board-redesign/reports/cs-1.md`; profile timings within ±10 % of `baseline.md`
+- [x] T021 [US1] reference project read-only RC-01…03 check (Overview drift, page count 10, parity source 200) with before/after screenshots stored under OS temp and referenced in `specs/001-board-redesign/reports/cs-1.md`; profile timings within ±10 % of `baseline.md`
 - [x] T022 [US1] Commit only CS-1 files + Phase 2 fixture/baseline (explicit `git add -- <paths>`), identity verified, message `fix(board): CS-1 correctness fixes (BRD-F-01..08)` with required attribution trailer — **done: `f38b0c8`**
 - [x] T023 [US1] **STOP CS-1** — report diff summary, gates, RC results; wait for explicit approval of CS-2 (record approval status in `specs/001-board-redesign/reports/cs-1.md`)
 
@@ -80,7 +80,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 
 ## Phase 4: CS-2 — Board behaves like a local dashboard (US2, Priority P1)
 
-**Goal**: No interactive full scans; no startup 503; reconciliation ≤ 10 s. **Independent Test**: SC-001…004 on CapTrack + equivalence test.
+**Goal**: No interactive full scans; no startup 503; reconciliation ≤ 10 s. **Independent Test**: SC-001…004 on reference project + equivalence test.
 **Excluded**: new partial endpoints (CS-6), timeline (CS-5), UI changes except projection age; no change to `install-core.ps1` (research R-02).
 
 ### Tests (write first)
@@ -107,7 +107,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T039 [US2] `run-impact-tests.py --list` for changed paths; Fast Gate; Impact Regression Tier 3 (board, reconciliation, schema suites); confirm `install-core.ps1` unchanged (else escalate to Full Release Gate); record in `specs/001-board-redesign/reports/cs-2.md`
-- [x] T040 [US2] CapTrack read-only measurement per quickstart.md: warm view ≤ 300 ms, link ≤ 200 ms, first paint ≤ 3 s with last-good / ≤ 6 s cold, reconciliation (current range, note commit count) ≤ 10 s, background invalidation cycle ≤ 1 s, 20 restarts under parallel file change on fixture with 0 startup errors; record in `reports/cs-2.md`
+- [x] T040 [US2] reference project read-only measurement per quickstart.md: warm view ≤ 300 ms, link ≤ 200 ms, first paint ≤ 3 s with last-good / ≤ 6 s cold, reconciliation (current range, note commit count) ≤ 10 s, background invalidation cycle ≤ 1 s, 20 restarts under parallel file change on fixture with 0 startup errors; record in `reports/cs-2.md`
 - [x] T041 [US2] Commit CS-2 files only (identity verified), message `perf(board): CS-2 snapshot serving, background invalidation, batched reconciliation`
 - [x] T042 [US2] **STOP CS-2 (reached; CS-7 NOT authorized)** — report measurements before/after and equivalence proof; wait for approval of CS-7 (record approval status in `specs/001-board-redesign/reports/cs-2.md`)
 
@@ -138,7 +138,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T054 [US3] Fast Gate; Tier 2 smoke tests; **Full Release Gate** (installer + test-runner change, plan.md A3); record Fast/Impact/Full separately in `specs/001-board-redesign/reports/cs-7.md`
-- [x] T055 [US3] CapTrack read-only smoke run (`python -B scripts/board_smoke.py --project-root <CapTrack> --format json`): ≤ 15 s, PASS or UNAVAILABLE, `project_unchanged: true`; record
+- [x] T055 [US3] reference project read-only smoke run (`python -B scripts/board_smoke.py --project-root <reference-project> --format json`): ≤ 15 s, PASS or UNAVAILABLE, `project_unchanged: true`; record
 - [x] T056 [US3] Commit CS-7 files only (must not include foreign-modified `CLAUDE.md`), message `feat(doctor): CS-7 bounded board smoke (--board-smoke)`
 - [x] T057 [US3] **STOP CS-7 (reached; CS-0 NOT authorized)** — report run logs and Full-Gate result; wait for approval of CS-0 (record approval status in `specs/001-board-redesign/reports/cs-7.md`)
 
@@ -146,7 +146,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 
 ## Phase 6: CS-0 — Lifecycle clarification OD-3 (US4, Priority P2)
 
-**Goal**: R1–R6 from plan K.4 / `contracts/lifecycle-rules-cs0.md`. **Independent Test**: schema/Doctor fixtures; CapTrack Doctor read-only 0 new blockers.
+**Goal**: R1–R6 from plan K.4 / `contracts/lifecycle-rules-cs0.md`. **Independent Test**: schema/Doctor fixtures; reference project Doctor read-only 0 new blockers.
 **Excluded**: new entity, Markdown parsing of `execution-waves.md`, automatic project migration, Board changes, repair.
 
 - [x] T058 [US4] **Pre-flight gate**: confirm via `git status` / `git log -1 -- <file>` that `.mxagile/policies/lifecycle-resync.md` and `.mxagile/policies/implementation-control.md` carry no foreign uncommitted changes (owner has committed them); otherwise STOP and ask the owner — do not stage, revert or rewrite them
@@ -170,15 +170,15 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T069 [US4] `run-impact-tests.py --list`; Fast Gate; Impact Regression Tier 2 (`test-injection-contract.ps1`, `test-negative-schema.ps1`, `test_project_status.py`, `test-documentation-consistency.ps1`, `test-ui-parity.ps1`, `test-verification-lifecycle.ps1`, `test-lifecycle-resync.ps1`, `test-architecture-drift-prevention.ps1`, projection tests if T068 ran); Full Release Gate only if `unmapped` is reported; record in `reports/cs-0.md`
-- [x] T070 [US4] CapTrack read-only `doctor --format json` (framework script against CapTrack root): new INFO/WARNING diagnostics as expected (RC-06), 0 new blocking, runtime +≤ 10 %; record
+- [x] T070 [US4] reference project read-only `doctor --format json` (framework script against reference project root): new INFO/WARNING diagnostics as expected (RC-06), 0 new blocking, runtime +≤ 10 %; record
 - [x] T071 [US4] Commit CS-0 files only, message `feat(lifecycle): CS-0 clarify post-DONE work, wave registration, acceptance gates (OD-3)`
-- [x] T072 [US4] **STOP CS-0** — present policy diff + CapTrack Doctor JSON; **explicit approval required (agent behavior changes)** before distribution and before CS-3 (record approval status in `specs/001-board-redesign/reports/cs-0.md`)
+- [x] T072 [US4] **STOP CS-0** — present policy diff + reference project Doctor JSON; **explicit approval required (agent behavior changes)** before distribution and before CS-3 (record approval status in `specs/001-board-redesign/reports/cs-0.md`)
 
 ---
 
 ## Phase 7: CS-3 — Observation states & separation (US5, Priority P2)
 
-**Goal**: Closed vocabulary; attention vs. health vs. diagnostics. **Independent Test**: fixture with all states; CapTrack mapping old → new.
+**Goal**: Closed vocabulary; attention vs. health vs. diagnostics. **Independent Test**: fixture with all states; reference project mapping old → new.
 **Excluded**: new data sources, timeline, navigation rework except the Health view; no state is hidden.
 
 ### Tests (write first)
@@ -200,7 +200,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T083 [US5] Fast Gate; Impact Regression Tier 2; smoke on fixture; status build time +≤ 10 % vs. `reports/cs-2.md`; record in `reports/cs-3.md`
-- [x] T084 [US5] CapTrack read-only: produce mapping table old → new (RC-07, RC-08) in `reports/cs-3.md`
+- [x] T084 [US5] reference project read-only: produce mapping table old → new (RC-07, RC-08) in `reports/cs-3.md`
 - [x] T085 [US5] Commit CS-3 files only, message `feat(board): CS-3 observation states and attention/health/diagnostics separation`
 - [x] T086 [US5] **STOP CS-3** — present mapping table for PO review; wait for approval of CS-4 (record approval status in `specs/001-board-redesign/reports/cs-3.md`)
 
@@ -208,7 +208,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 
 ## Phase 8: CS-4 — Current Work, delivery assessment, DONE trust, projections (US6, Priority P2)
 
-**Goal**: FR-060…069. **Independent Test**: rule fixtures + CapTrack RC-09…13.
+**Goal**: FR-060…069. **Independent Test**: rule fixtures + reference project RC-09…13.
 **Excluded**: timeline view, navigation rework, Page Hub, heuristic assignment, writing back any assessment.
 
 ### Tests (write first)
@@ -233,8 +233,8 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T100 [US6] Fast Gate; Impact Regression Tier 2; `/api/status` warm ≤ 300 ms, Git query ≤ 500 ms; record in `reports/cs-4.md`
-- [x] T101 [US6] CapTrack read-only RC-09…13 (expect "Keine aktive kanonische Arbeit" + unattributed activity; REV-037 visible; 6 PASS/5 PARTIAL as REPORTED_UNBOUND; PAGE-ABTEILUNGSVERWALTUNG intent ≠ fact); record with HEAD
-- [x] T102 [US6] Write rule text `delivery-assessment/v1` with CapTrack examples into `reports/cs-4.md`
+- [x] T101 [US6] Referenzprojekt read-only RC-09…13 (expect "Keine aktive kanonische Arbeit" + unattributed activity; REV-037 visible; 6 PASS/5 PARTIAL as REPORTED_UNBOUND; PAGE-ABTEILUNGSVERWALTUNG intent ≠ fact); record with HEAD
+- [x] T102 [US6] Write rule text `delivery-assessment/v1` with reference project examples into `reports/cs-4.md`
 - [x] T103 [US6] Commit CS-4 files only, message `feat(board): CS-4 current work, delivery assessment, DONE trust, canonical projections`
 - [x] T104 [US6] **STOP CS-4** — PO acceptance of rule text (OD-1 condition); wait for approval of CS-5 (record approval status in `specs/001-board-redesign/reports/cs-4.md`)
 
@@ -263,7 +263,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T114 [US7] Fast Gate; timeline tests; Impact; **Full Release Gate** (installer + test-runner, plan.md A3); record in `reports/cs-5.md`
-- [x] T115 [US7] CapTrack read-only: initial build ≤ 10 s, incremental ≤ 1 s, `/api/timeline` ≤ 300 ms; RC-14 excerpt (events of 2026-11-05 with authority classes; CAP2 commits without trailer in `unattributed`)
+- [x] T115 [US7] reference project read-only: initial build ≤ 10 s, incremental ≤ 1 s, `/api/timeline` ≤ 300 ms; RC-14 excerpt (events of 2026-11-05 with authority classes; REF2 commits without trailer in `unattributed`)
 - [x] T116 [US7] Commit CS-5 files only, message `feat(board): CS-5 evidence-based project timeline`
 - [x] T117 [US7] **STOP CS-5** — present timeline excerpt; wait for approval of CS-6 (record approval status in `specs/001-board-redesign/reports/cs-5.md`)
 
@@ -291,7 +291,7 @@ description: "Task list for MxAgile Dev Board Redesign (CS-1 → CS-2 → CS-7 �
 ### Gate → Commit → STOP
 
 - [x] T126 [US8] Fast Gate; Impact Tier 1–2; smoke on fixture with route list v3; route switch ≤ 500 ms, Page Hub ≤ 1 s; record in `reports/cs-6.md`
-- [x] T127 [US8] CapTrack read-only PO walkthrough material: screenshots answering the 12 questions (plan J) incl. RC-15 Page Hub for `PAGE-ABTEILUNGSVERWALTUNG`; SC-008 assessment
+- [x] T127 [US8] reference project read-only PO walkthrough material: screenshots answering the 12 questions (plan J) incl. RC-15 Page Hub for `PAGE-ABTEILUNGSVERWALTUNG`; SC-008 assessment
 - [x] T128 [US8] Commit CS-6 files only, message `feat(board): CS-6 information architecture and Page Hub`
 - [x] T129 [US8] **STOP CS-6** — PO acceptance walkthrough; removal of legacy router requires a separate approval (record approval status in `specs/001-board-redesign/reports/cs-6.md`)
 
@@ -351,7 +351,7 @@ Each subsequent changeset adds value without breaking the previous one; every ph
 
 - Tests marked [P] are written before the implementation of the same phase; they must fail first where they cover new behavior.
 - Reports under `specs/001-board-redesign/reports/` document Fast/Impact/Full separately; NOT RUN ≠ PASS.
-- Never touch CapTrack; never commit foreign changes; never run Full Regression outside T054/T114 (or when `unmapped` forces it).
+- Never touch reference project; never commit foreign changes; never run Full Regression outside T054/T114 (or when `unmapped` forces it).
 
 ## CS-2 execution notes (2026-11-06)
 

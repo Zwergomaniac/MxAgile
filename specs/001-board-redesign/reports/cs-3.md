@@ -16,9 +16,9 @@ Commit: `64e8c65` (Autor/Committer Zwergomaniac). 12 Dateien, +696/-47. Vorausse
 - `EXPECTATION_MISSING` -> framework_compat ist eine Entscheidung dieses Changesets (nicht im Datenmodell), PO-Pruefung empfohlen.
 
 ## Validierung
-Fast Gate PASS (1,05 s); Impact Regression Tier 2 PASS (516 s, 9 Suites); nach UI-Fixes gezielt wiederholt: test_board_smoke, test_parity_gallery, ObservationStateTests, test_board_http = 70/70 PASS. Full Release Gate nicht erforderlich (keine unmapped Pfade, keine zentralen Installer-/Runner-Aenderungen). CapTrack read-only: 38 -> 0 Schema-Verletzungen, Fingerprint gleich, CapTrack unveraendert.
+Fast Gate PASS (1,05 s); Impact Regression Tier 2 PASS (516 s, 9 Suites); nach UI-Fixes gezielt wiederholt: test_board_smoke, test_parity_gallery, ObservationStateTests, test_board_http = 70/70 PASS. Full Release Gate nicht erforderlich (keine unmapped Pfade, keine zentralen Installer-/Runner-Aenderungen). Referenzprojekt read-only: 38 -> 0 Schema-Verletzungen, Fingerprint gleich, Referenzprojekt unveraendert.
 
-## CapTrack vorher/nachher
+## Reference project vorher/nachher
 Vorher: v2, 213 Diagnosen (5 blockierend), 38 Schema-Verletzungen, eine Compatibility-Karte. Nachher: v3, 213 Diagnosen: project_attention 0, projection_health 9 (5 blockierend), framework_compat 57, optional_metadata 147; 0 Schema-Verletzungen. Beobachtungszustaende: mission/findings/context/runtime/active_targets/lifecycle NOT_RECORDED; verification.evidence EMPTY; capabilities/sources/operating_mode/model_freshness NOT_OBSERVABLE.
 
 ## Status

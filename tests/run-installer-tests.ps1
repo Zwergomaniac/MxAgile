@@ -17,8 +17,8 @@ Directory name below project-templates used for Greenfield tests.
 Directory name below project-templates used for Brownfield tests. Brownfield tests are
 reported as SKIPPED_ENVIRONMENT when the template does not exist.
 
-.PARAMETER SkipMercedesIntegration
-Skips tests requiring access to the Mercedes-Benz Git repository.
+.PARAMETER SkipCompanyLayerIntegration
+Skips tests requiring access to the Company Layer Git repository.
 
 .PARAMETER KeepSuccessfulWorkspaces
 Keeps successful .testing-* workspaces. Failed workspaces are always retained.
@@ -33,7 +33,7 @@ Specifies which test categories to run. Defaults to 'All'.
 pwsh -NoProfile -File ./tests/run-installer-tests.ps1
 
 .EXAMPLE
-pwsh -NoProfile -File ./tests/run-installer-tests.ps1 -SkipMercedesIntegration
+pwsh -NoProfile -File ./tests/run-installer-tests.ps1 -SkipCompanyLayerIntegration
 
 .EXAMPLE
 pwsh -NoProfile -File ./tests/run-installer-tests.ps1 -Test MprSafety,GreenfieldGeneric
@@ -42,7 +42,7 @@ pwsh -NoProfile -File ./tests/run-installer-tests.ps1 -Test MprSafety,Greenfield
 param(
     [string]$GreenfieldTemplate = 'greenfield',
     [string]$BrownfieldTemplate = 'brownfield',
-    [switch]$SkipMercedesIntegration,
+    [switch]$SkipCompanyLayerIntegration,
     [switch]$KeepSuccessfulWorkspaces,
     [switch]$StopOnFailure,
     [string[]]$Test = @('All')
@@ -56,7 +56,7 @@ if ($Test.Count -eq 1 -and $Test[0].Contains(',')) {
     $Test = $Test[0].Split(',') | ForEach-Object { $_.Trim() }
 }
 
-$allowedCategories = @('All', 'Parser', 'MprSafety', 'LocalLayerDependency', 'GreenfieldGeneric', 'GreenfieldMercedes', 'MercedesRemoteFailure', 'BrownfieldGeneric', 'BrownfieldMercedes', 'GenericBootstrapE2E', 'MercedesBootstrapE2E')
+$allowedCategories = @('All', 'Parser', 'MprSafety', 'LocalLayerDependency', 'GreenfieldGeneric', 'GreenfieldCompanyLayer', 'CompanyLayerRemoteFailure', 'BrownfieldGeneric', 'BrownfieldCompanyLayer', 'GenericBootstrapE2E', 'CompanyLayerBootstrapE2E')
 foreach ($t in $Test) {
     if ($allowedCategories -notcontains $t) {
         Write-Error "Invalid test category: '$t'. Allowed values are: $($allowedCategories -join ', ')"
@@ -71,7 +71,7 @@ $RepoRoot = Split-Path -Parent $TestsRoot
 $Pwsh = (Get-Command pwsh -ErrorAction Stop).Source
 $WorkcopyScript = Join-Path $RepoRoot 'scripts/create-test-workcopy.ps1'
 $GenericInstaller = Join-Path $RepoRoot 'install-mxagile.ps1'
-$MercedesInstaller = Join-Path $RepoRoot 'install-mxagile-mercedes.ps1'
+$CompanyLayerInstaller = Join-Path $RepoRoot 'install-mxagile-company-layer.ps1'
 $ProjectTemplatesRoot = Join-Path $RepoRoot 'project-templates'
 
 $Results = [System.Collections.Generic.List[object]]::new()
@@ -256,7 +256,7 @@ function Test-PowerShellParser {
         $files = @(
             $WorkcopyScript,
             $GenericInstaller,
-            $MercedesInstaller,
+            $CompanyLayerInstaller,
             (Join-Path $RepoRoot 'scripts/fetch-layer.ps1'),
             (Join-Path $RepoRoot 'scripts/setup-agent-system.ps1'),
             (Join-Path $RepoRoot 'scripts/apply-project-agent-instructions.ps1')
@@ -323,8 +323,8 @@ function Test-GenericInstallation {
 
         Write-Host "PROGRESS: Verifying first install artifacts..."
         Assert-Path -Path (Join-Path $workspace '.mxagile') -Description '.mxagile directory'
-        if (Test-Path -LiteralPath (Join-Path $workspace '.mxagile/layers/mercedes-benz')) {
-            throw 'Generic installation unexpectedly installed the Mercedes layer.'
+        if (Get-InstalledLayerDir -Workspace $workspace) {
+            throw 'Generic installation unexpectedly installed the Company Layer.'
         }
 
         Write-Host "PROGRESS: Running second generic install (idempotency check)..."
@@ -341,76 +341,99 @@ function Test-GenericInstallation {
     }
 }
 
-function Test-MercedesInstallation {
+function Get-TestCompanyLayerUrl {
+    # Real Company Layer integration needs an explicit external source (no built-in default).
+    # Provide it via MXAGILE_TEST_COMPANY_LAYER_URL; otherwise the test is SKIPPED_ENVIRONMENT.
+    $url = $env:MXAGILE_TEST_COMPANY_LAYER_URL
+    if ([string]::IsNullOrWhiteSpace($url)) { return $null }
+    $env:MXAGILE_COMPANY_LAYER_URL = $url
+    return $url
+}
+
+function Get-InstalledLayerDir {
+    param([string]$Workspace)
+    $root = Join-Path $Workspace ".mxagile/layers"
+    if (-not (Test-Path -LiteralPath $root)) { return $null }
+    return (Get-ChildItem -LiteralPath $root -Directory | Select-Object -First 1)
+}
+
+function Test-CompanyLayerInstallation {
     param([string]$TemplateName, [string]$TestDirName, [string]$Label)
     $workspace = $null
-    if ($SkipMercedesIntegration) {
-        Add-TestResult -Name "$Label Mercedes" -Status SKIPPED_ENVIRONMENT -Reason 'Skipped by -SkipMercedesIntegration.'
+    if ($SkipCompanyLayerIntegration) {
+        Add-TestResult -Name "$Label Company Layer" -Status SKIPPED_ENVIRONMENT -Reason 'Skipped by -SkipCompanyLayerIntegration.'
+        return
+    }
+    $layerUrl = Get-TestCompanyLayerUrl
+    if (-not $layerUrl) {
+        Add-TestResult -Name "$Label Company Layer" -Status SKIPPED_ENVIRONMENT -Reason 'MXAGILE_TEST_COMPANY_LAYER_URL not set (no built-in Company Layer source).'
         return
     }
     try {
         $workspace = New-Workcopy -TemplateName $TemplateName -TestDirName $TestDirName
-        Write-Host "PROGRESS: Running first Mercedes install in '$workspace'..."
-        $first = Invoke-PwshFile -FilePath $MercedesInstaller -WorkingDirectory $workspace
+        Write-Host "PROGRESS: Running first Company Layer install in '$workspace'..."
+        $first = Invoke-PwshFile -FilePath $CompanyLayerInstaller -WorkingDirectory $workspace
         if ($first.ExitCode -ne 0) {
-            throw "First Mercedes install failed with exit code $($first.ExitCode).`nSTDOUT:`n$($first.StdOut)`nSTDERR:`n$($first.StdErr)"
+            throw "First Company Layer install failed with exit code $($first.ExitCode).`nSTDOUT:`n$($first.StdOut)`nSTDERR:`n$($first.StdErr)"
         }
 
-        Write-Host "PROGRESS: Verifying Mercedes layer installation..."
-        $layer = Join-Path $workspace '.mxagile/layers/mercedes-benz'
-        Assert-Path -Path $layer -Description 'Mercedes layer'
-        Assert-Path -Path (Join-Path $layer 'provenance.json') -Description 'Mercedes layer provenance'
-        if (Test-Path -LiteralPath (Join-Path $layer '.git')) { throw 'Installed Mercedes layer contains nested .git metadata.' }
+        Write-Host "PROGRESS: Verifying Company Layer installation..."
+        $layerDir = Get-InstalledLayerDir -Workspace $workspace
+        if (-not $layerDir) { throw 'No Company Layer directory installed under .mxagile/layers.' }
+        $layer = $layerDir.FullName
+        Assert-Path -Path $layer -Description 'Company Layer'
+        Assert-Path -Path (Join-Path $layer 'provenance.json') -Description 'Company Layer provenance'
+        if (Test-Path -LiteralPath (Join-Path $layer '.git')) { throw 'Installed Company Layer contains nested .git metadata.' }
 
-        Write-Host "PROGRESS: Verifying Mercedes layer provenance..."
+        Write-Host "PROGRESS: Verifying Company Layer provenance..."
         $provenance = Get-Content -LiteralPath (Join-Path $layer 'provenance.json') -Raw | ConvertFrom-Json
         $sourceText = [string]$provenance.source
-        if ($sourceText -notlike '*mercedes-benz.ghe.com/DFC-Applikationsentwicklung/MxAgile-CompanyLayer.git*') {
-            throw "Unexpected Mercedes provenance source: '$sourceText'"
+        if ($sourceText -notlike "*$layerUrl*") {
+            throw "Unexpected Company Layer provenance source: '$sourceText'"
         }
 
-        Write-Host "PROGRESS: Running second Mercedes install (idempotency check)..."
-        $second = Invoke-PwshFile -FilePath $MercedesInstaller -WorkingDirectory $workspace
+        Write-Host "PROGRESS: Running second Company Layer install (idempotency check)..."
+        $second = Invoke-PwshFile -FilePath $CompanyLayerInstaller -WorkingDirectory $workspace
         if ($second.ExitCode -ne 0) {
-            throw "Second Mercedes install failed with exit code $($second.ExitCode).`nSTDOUT:`n$($second.StdOut)`nSTDERR:`n$($second.StdErr)"
+            throw "Second Company Layer install failed with exit code $($second.ExitCode).`nSTDOUT:`n$($second.StdOut)`nSTDERR:`n$($second.StdErr)"
         }
 
-        Add-TestResult -Name "$Label Mercedes" -Status PASS -Reason 'External layer install and idempotent rerun succeeded; no nested .git.' -Workspace $workspace -Command $first.Command -ExitCode $first.ExitCode
+        Add-TestResult -Name "$Label Company Layer" -Status PASS -Reason 'External layer install and idempotent rerun succeeded; no nested .git.' -Workspace $workspace -Command $first.Command -ExitCode $first.ExitCode
         Remove-SuccessWorkspace -Path $workspace
     }
     catch {
         $message = $_.Exception.Message
         $environmentPattern = '(?i)(authentication|credential|could not resolve host|network|unable to access|repository not found|ssl|tls|proxy|git clone failed)'
         if ($message -match $environmentPattern) {
-            Add-TestResult -Name "$Label Mercedes" -Status SKIPPED_ENVIRONMENT -Reason $message -Workspace $workspace
+            Add-TestResult -Name "$Label Company Layer" -Status SKIPPED_ENVIRONMENT -Reason $message -Workspace $workspace
         }
         else {
-            Add-TestResult -Name "$Label Mercedes" -Status FAIL -Reason $message -Workspace $workspace
+            Add-TestResult -Name "$Label Company Layer" -Status FAIL -Reason $message -Workspace $workspace
         }
     }
 }
 
-function Test-MercedesRemoteFailure {
-    $name = 'Mercedes remote failure'
+function Test-CompanyLayerRemoteFailure {
+    $name = 'Company Layer remote failure'
     $workspace = $null
     try {
         Write-Host "PROGRESS: Creating workcopy for remote failure test..."
         $workspace = New-Workcopy -TemplateName $GreenfieldTemplate -TestDirName 'remote-failure'
         $invalidUrl = 'https://invalid.invalid/MxAgile-CompanyLayer.git'
         
-        Write-Host "PROGRESS: Invoking Mercedes installer with invalid URL..."
-        $result = Invoke-PwshFile -FilePath $MercedesInstaller `
-            -Arguments @('-MercedesGitUrl', $invalidUrl) `
+        Write-Host "PROGRESS: Invoking Company Layer installer with invalid URL..."
+        $result = Invoke-PwshFile -FilePath $CompanyLayerInstaller `
+            -Arguments @('-CompanyLayerGitUrl', $invalidUrl) `
             -WorkingDirectory $workspace
 
         Write-Host "PROGRESS: Verifying remote failure outcome..."
-        if ($result.ExitCode -eq 0) { throw 'Mercedes installer returned success for an invalid layer URL.' }
-        if ($result.StdOut -match '(?i)Mercedes-Benz installation complete') {
-            throw 'Mercedes installer printed a false success message after layer failure.'
+        if ($result.ExitCode -eq 0) { throw 'Company Layer installer returned success for an invalid layer URL.' }
+        if ($result.StdOut -match '(?i)Company Layer installation complete') {
+            throw 'Company Layer installer printed a false success message after layer failure.'
         }
-        $localLayer = Join-Path $workspace '.mxagile/layers/mercedes-benz'
-        if (Test-Path -LiteralPath $localLayer) {
-            throw 'Mercedes layer exists after failed remote retrieval; possible fallback or partial-state issue.'
+        $localLayer = Get-InstalledLayerDir -Workspace $workspace
+        if ($localLayer) {
+            throw 'Company Layer exists after failed remote retrieval; possible fallback or partial-state issue.'
         }
         Add-TestResult -Name $name -Status PASS -Reason 'Invalid remote failed non-zero without false success or local fallback.' -Workspace $workspace -Command $result.Command -ExitCode $result.ExitCode
         Remove-SuccessWorkspace -Path $workspace
@@ -423,7 +446,7 @@ function Test-MercedesRemoteFailure {
 function Test-NoRuntimeLocalLayerDependency {
     $name = 'No local company-layers runtime dependency'
     try {
-        $files = @($GenericInstaller, $MercedesInstaller, (Join-Path $RepoRoot 'scripts/fetch-layer.ps1')) |
+        $files = @($GenericInstaller, $CompanyLayerInstaller, (Join-Path $RepoRoot 'scripts/fetch-layer.ps1')) |
         Where-Object { Test-Path -LiteralPath $_ }
         $hits = foreach ($file in $files) {
             $matches = Select-String -LiteralPath $file -Pattern 'company-layers[\\/]' -SimpleMatch:$false
@@ -488,32 +511,39 @@ function Test-GenericBootstrapE2E {
     }
 }
 
-function Test-MercedesBootstrapE2E {
-    $name = 'E2E: Mercedes Public Bootstrap'
+function Test-CompanyLayerBootstrapE2E {
+    $name = 'E2E: Company Layer Public Bootstrap'
     $workspace = $null
+    $layerUrl = Get-TestCompanyLayerUrl
+    if (-not $layerUrl) {
+        Add-TestResult -Name $name -Status SKIPPED_ENVIRONMENT -Reason 'MXAGILE_TEST_COMPANY_LAYER_URL not set (no built-in Company Layer source).'
+        return
+    }
     try {
-        $workspace = New-Workcopy -TemplateName $GreenfieldTemplate -TestDirName 'bootstrap-mercedes'
+        $workspace = New-Workcopy -TemplateName $GreenfieldTemplate -TestDirName 'bootstrap-company-layer'
         $userContentPath = Join-Path $workspace 'user-content.txt'
         Set-Content -Path $userContentPath -Value "This is user content."
         $beforeHash = (Get-FileHash $userContentPath).Hash
 
         # --- First Run --- #
-        Write-Host "PROGRESS: E2E Mercedes: Running first bootstrap install..."
-        $firstRun = Invoke-PwshFile -FilePath $MercedesInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
+        Write-Host "PROGRESS: E2E Company Layer: Running first bootstrap install..."
+        $firstRun = Invoke-PwshFile -FilePath $CompanyLayerInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
         if ($firstRun.ExitCode -ne 0) { throw "First bootstrap run failed with exit code $($firstRun.ExitCode).`nSTDOUT:`n$($firstRun.StdOut)`nSTDERR:`n$($firstRun.StdErr)" }
 
         # --- Assertions --- #
-        Write-Host "PROGRESS: E2E Mercedes: Verifying first run artifacts..."
-        $layerPath = Join-Path $workspace '.mxagile/layers/mercedes-benz'
-        Assert-Path -Path $layerPath -Description 'Mercedes layer'
+        Write-Host "PROGRESS: E2E Company Layer: Verifying first run artifacts..."
+        $layerDir = Get-InstalledLayerDir -Workspace $workspace
+        if (-not $layerDir) { throw 'No Company Layer directory installed under .mxagile/layers.' }
+        $layerPath = $layerDir.FullName
+        Assert-Path -Path $layerPath -Description 'Company Layer'
         $provenancePath = Join-Path $layerPath 'provenance.json'
-        Assert-Path -Path $provenancePath -Description 'Mercedes layer provenance'
-        if ((Get-Content -Raw -LiteralPath $provenancePath) -notmatch 'mercedes-benz.ghe.com') { throw "Provenance does not identify Mercedes source." }
+        Assert-Path -Path $provenancePath -Description 'Company Layer provenance'
+        if ((Get-Content -Raw -LiteralPath $provenancePath) -notmatch [regex]::Escape($layerUrl)) { throw "Provenance does not identify Company Layer source." }
         if (Test-Path (Join-Path $layerPath '.git')) { throw "Installed layer contains nested .git metadata." }
 
         # --- Idempotency & Preservation --- #
-        Write-Host "PROGRESS: E2E Mercedes: Running second bootstrap install (idempotency check)..."
-        $secondRun = Invoke-PwshFile -FilePath $MercedesInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
+        Write-Host "PROGRESS: E2E Company Layer: Running second bootstrap install (idempotency check)..."
+        $secondRun = Invoke-PwshFile -FilePath $CompanyLayerInstaller -Arguments @('-ProjectRoot', $workspace) -WorkingDirectory $RepoRoot
         if ($secondRun.ExitCode -ne 0) { throw "Second bootstrap run failed with exit code $($secondRun.ExitCode).`nSTDOUT:`n$($secondRun.StdOut)`nSTDERR:`n$($secondRun.StdErr)" }
         $afterHash = (Get-FileHash $userContentPath).Hash
         if ($beforeHash -ne $afterHash) { throw "User-managed content file was modified during second installer run." }
@@ -525,7 +555,7 @@ function Test-MercedesBootstrapE2E {
         $message = $_.Exception.Message
         $environmentPattern = '(?i)(authentication|credential|could not resolve host|network|unable to access|repository not found|ssl|tls|proxy|git clone failed)'
         if ($message -match $environmentPattern) {
-            $command = "pwsh -NoProfile -File .\tests\run-installer-tests.ps1 -Test MercedesBootstrapE2E"
+            $command = "pwsh -NoProfile -File .\tests\run-installer-tests.ps1 -Test CompanyLayerBootstrapE2E"
             Add-TestResult -Name $name -Status SKIPPED_ENVIRONMENT -Reason "Execution requires network/auth access. Run locally: $command" -Workspace $workspace
         }
         else {
@@ -546,7 +576,7 @@ Write-Host "PowerShell: $(& $Pwsh --version)"
 Write-Host "Tests to run: $($Test -join ', ')"
 Write-Host ''
 
-foreach ($required in @($WorkcopyScript, $GenericInstaller, $MercedesInstaller)) {
+foreach ($required in @($WorkcopyScript, $GenericInstaller, $CompanyLayerInstaller)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         Add-TestResult -Name 'Suite preflight' -Status FAIL -Reason "Required file not found: $required"
     }
@@ -569,19 +599,19 @@ if (-not ($Results | Where-Object { $_.Status -eq 'FAIL' })) {
         Write-Host "`n---> Starting Test: Greenfield generic" -ForegroundColor Cyan
         Test-GenericInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-generic' -Label 'Greenfield'
     }
-    if (Should-Run-Test -Category 'GreenfieldMercedes') {
-        Write-Host "`n---> Starting Test: Greenfield Mercedes" -ForegroundColor Cyan
-        Test-MercedesInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-mercedes' -Label 'Greenfield'
+    if (Should-Run-Test -Category 'GreenfieldCompanyLayer') {
+        Write-Host "`n---> Starting Test: Greenfield Company Layer" -ForegroundColor Cyan
+        Test-CompanyLayerInstallation -TemplateName $GreenfieldTemplate -TestDirName 'greenfield-company-layer' -Label 'Greenfield'
     }
-    if (Should-Run-Test -Category 'MercedesRemoteFailure') {
-        Write-Host "`n---> Starting Test: MercedesRemoteFailure" -ForegroundColor Cyan
-        Test-MercedesRemoteFailure
+    if (Should-Run-Test -Category 'CompanyLayerRemoteFailure') {
+        Write-Host "`n---> Starting Test: CompanyLayerRemoteFailure" -ForegroundColor Cyan
+        Test-CompanyLayerRemoteFailure
     }
 
     $brownfieldTemplates = Get-ChildItem -Path $ProjectTemplatesRoot -Directory | Where-Object { $_.Name -like 'brownfield*' }
 
     if ($brownfieldTemplates.Count -eq 0) {
-        if (Should-Run-Test -Category 'BrownfieldGeneric' -or Should-Run-Test -Category 'BrownfieldMercedes') {
+        if (Should-Run-Test -Category 'BrownfieldGeneric' -or Should-Run-Test -Category 'BrownfieldCompanyLayer') {
             Add-TestResult -Name 'Brownfield templates' -Status SKIPPED_ENVIRONMENT -Reason 'No brownfield* templates found in project-templates'
         }
     }
@@ -594,9 +624,9 @@ if (-not ($Results | Where-Object { $_.Status -eq 'FAIL' })) {
                 Write-Host "`n---> Starting Test: $($label) generic" -ForegroundColor Cyan
                 Test-GenericInstallation -TemplateName $templateName -TestDirName "$templateName-generic" -Label $label
             }
-            if (Should-Run-Test -Category 'BrownfieldMercedes') {
-                Write-Host "`n---> Starting Test: $($label) Mercedes" -ForegroundColor Cyan
-                Test-MercedesInstallation -TemplateName $templateName -TestDirName "$templateName-mercedes" -Label $label
+            if (Should-Run-Test -Category 'BrownfieldCompanyLayer') {
+                Write-Host "`n---> Starting Test: $($label) Company Layer" -ForegroundColor Cyan
+                Test-CompanyLayerInstallation -TemplateName $templateName -TestDirName "$templateName-company-layer" -Label $label
             }
         }
     }
@@ -605,9 +635,9 @@ if (-not ($Results | Where-Object { $_.Status -eq 'FAIL' })) {
         Write-Host "`n---> Starting Test: GenericBootstrapE2E" -ForegroundColor Cyan
         Test-GenericBootstrapE2E
     }
-    if (Should-Run-Test -Category 'MercedesBootstrapE2E') {
-        Write-Host "`n---> Starting Test: MercedesBootstrapE2E" -ForegroundColor Cyan
-        Test-MercedesBootstrapE2E
+    if (Should-Run-Test -Category 'CompanyLayerBootstrapE2E') {
+        Write-Host "`n---> Starting Test: CompanyLayerBootstrapE2E" -ForegroundColor Cyan
+        Test-CompanyLayerBootstrapE2E
     }
 }
 

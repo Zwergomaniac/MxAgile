@@ -6,7 +6,7 @@
 
 **Status**: Draft — zur Freigabe; keine Implementierung vor ausdrücklicher Freigabe je Changeset
 
-**Input**: User description: "MxAgile Dev Board Redesign: Translate the approved planning artifacts docs/board-redesign-plan.md, docs/board-redesign-findings.md and docs/board-redesign-implementation-contract.md into an implementation-ready specification. The Board stays a strictly read-only projection of canonical MxAgile state; incremental changesets CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → CS-5 → CS-6; performance targets from CapTrack reality; Current Work derivation without invented lifecycle relationships; evidence-based timeline; separated human attention / projection health / framework diagnostics; Page Hub; bounded Doctor board smoke (<15 s, 60 s hard timeout, UNAVAILABLE when no browser). Short name: board-redesign."
+**Input**: User description: "MxAgile Dev Board Redesign: Translate the approved planning artifacts docs/board-redesign-plan.md, docs/board-redesign-findings.md and docs/board-redesign-implementation-contract.md into an implementation-ready specification. The Board stays a strictly read-only projection of canonical MxAgile state; incremental changesets CS-1 → CS-2 → CS-7 → CS-0 → CS-3 → CS-4 → CS-5 → CS-6; performance targets from reference project reality; Current Work derivation without invented lifecycle relationships; evidence-based timeline; separated human attention / projection health / framework diagnostics; Page Hub; bounded Doctor board smoke (<15 s, 60 s hard timeout, UNAVAILABLE when no browser). Short name: board-redesign."
 
 **Autoritative Quellen** (Architektur- und Produktautorität; diese Spec übersetzt sie, sie ersetzt sie nicht):
 
@@ -33,7 +33,7 @@ Als PO will ich, dass das Board keine irreführenden Werte anzeigt: keine „HEA
 
 **Why this priority**: Falsche Aussagen zerstören Vertrauen schneller als fehlende Funktionen; die Korrekturen sind klein und risikoarm.
 
-**Independent Test**: Board gegen ein Fixture-Projekt und read-only gegen CapTrack öffnen; die sieben bekannten Fehlbilder (BRD-F-01…08) treten nicht mehr auf.
+**Independent Test**: Board gegen ein Fixture-Projekt und read-only gegen Referenzprojekt öffnen; die sieben bekannten Fehlbilder (BRD-F-01…08) treten nicht mehr auf.
 
 **Acceptance Scenarios**:
 
@@ -41,7 +41,7 @@ Als PO will ich, dass das Board keine irreführenden Werte anzeigt: keine „HEA
 2. **Given** ein Projekt ohne Watermark, **When** die Reconciliation geladen ist, **Then** wird der bekannte HEAD angezeigt.
 3. **Given** ein terminales Finding in der Historie, **When** der PO dessen Link öffnet, **Then** erscheint die Finding-Detailansicht.
 4. **Given** keine Mission-State-Quelle, **When** der PO ein Wave-Detail öffnet, **Then** wird kein Blocker-Zähler „0" angezeigt, sondern der Zustand „nicht erfasst".
-5. **Given** ein Standalone-Interaction-Artefakt im UI-Inventory, **When** UI & Pages geladen ist, **Then** stimmt die Page-Anzahl mit der Status-Projektion überein (CapTrack: 10, nicht 11).
+5. **Given** ein Standalone-Interaction-Artefakt im UI-Inventory, **When** UI & Pages geladen ist, **Then** stimmt die Page-Anzahl mit der Status-Projektion überein (Referenzprojekt: 10, nicht 11).
 6. **Given** ein Parity-Report unter `planning/parity/`, **When** der PO dessen Quelle öffnet, **Then** wird sie angezeigt (kein 404).
 7. **Given** die Parity-Spalte in UI & Pages, **When** die Gallery noch nicht geladen ist, **Then** wird kein Paritätswert vorgetäuscht; nach Laden zeigen Server- und Client-Seite denselben „letzten Lauf".
 
@@ -51,9 +51,9 @@ Als PO will ich, dass das Board keine irreführenden Werte anzeigt: keine „HEA
 
 Als PO will ich, dass Ansichten und Links sofort reagieren und das Board auch bei paralleler Projektarbeit nicht mit einem Fehler startet, statt bei jedem Klick das ganze Projekt neu zu scannen.
 
-**Why this priority**: Heute 3–6,5 s pro Request, ~8,4 s pro Link, Reconciliation 280–373 s, Kaltstart-503 (CapTrack). Ohne Performance-Basis sind alle späteren Sichten unbenutzbar.
+**Why this priority**: Heute 3–6,5 s pro Request, ~8,4 s pro Link, Reconciliation 280–373 s, Kaltstart-503 (Referenzprojekt). Ohne Performance-Basis sind alle späteren Sichten unbenutzbar.
 
-**Independent Test**: Messlauf vorher/nachher gegen CapTrack (read-only) und Fixture; Dateisystem-Diff des Projekts vor/nach Board-Nutzung ist leer.
+**Independent Test**: Messlauf vorher/nachher gegen Referenzprojekt (read-only) und Fixture; Dateisystem-Diff des Projekts vor/nach Board-Nutzung ist leer.
 
 **Acceptance Scenarios**:
 
@@ -88,14 +88,14 @@ Als MxAgile-Agent und Maintainer will ich eindeutige Regeln: DONE bleibt DONE, s
 
 **Why this priority**: Voraussetzung für korrektes Current Work und „Vertrauen in DONE" (CS-4). Ändert Agentenverhalten → eigene Freigabe.
 
-**Independent Test**: Schema- und Doctor-Fixtures; read-only Doctor-Lauf gegen CapTrack ergibt neue Hinweise (nur INFO/WARNING), keine neuen Blocker.
+**Independent Test**: Schema- und Doctor-Fixtures; read-only Doctor-Lauf gegen Referenzprojekt ergibt neue Hinweise (nur INFO/WARNING), keine neuen Blocker.
 
 **Acceptance Scenarios**:
 
 1. **Given** ein Projekt, dessen letzte Wave DONE ist, **When** neue oder nachgearbeitete Arbeit autorisiert wird, **Then** schreiben die Regeln eine neue Wave vor; die DONE-Wave wird nicht wiedereröffnet.
 2. **Given** eine in der Wave-Planung autorisierte Wave, **When** sie autorisiert wird, **Then** ist sie im selben Schritt im Wave-Register registriert (noch ohne Fortschritt).
 3. **Given** bestehende Prozesszustände ohne neue Gate-Felder, **When** sie validiert werden, **Then** bleiben sie gültig; neue Acceptance-/Testability-Gate-Einträge sind ebenfalls gültig.
-4. **Given** CapTrack (read-only), **When** Doctor läuft, **Then** erscheinen Hinweise zu schema-invaliden Change-Sets und zu DONE-Waves ohne erfasste DONE-Grundlage — nie als Blocker, nie mit Reparatur.
+4. **Given** Referenzprojekt (read-only), **When** Doctor läuft, **Then** erscheinen Hinweise zu schema-invaliden Change-Sets und zu DONE-Waves ohne erfasste DONE-Grundlage — nie als Blocker, nie mit Reparatur.
 5. **Given** das Glossar, **When** ein Agent „Campaign", „GAP", „Change-Set" oder „Workpackage" nachschlägt, **Then** findet er die kanonische Rolle (Campaign = Acceptance-Lauf, GAP = Finding, Change-Set = Provenance, Workpackage = optionales Label).
 
 ---
@@ -104,9 +104,9 @@ Als MxAgile-Agent und Maintainer will ich eindeutige Regeln: DONE bleibt DONE, s
 
 Als PO will ich Projekt-Aufmerksamkeit, Datenqualität der Projektion und Framework-Diagnostik getrennt sehen und jeden Unbekannt-Zustand eindeutig verstehen.
 
-**Why this priority**: CapTrack zeigt 184 Diagnosen (0 blockierend) über jeder Seite und acht verschiedene Bedeutungen von „UNKNOWN".
+**Why this priority**: Referenzprojekt zeigt 184 Diagnosen (0 blockierend) über jeder Seite und acht verschiedene Bedeutungen von „UNKNOWN".
 
-**Independent Test**: Fixture mit allen Beobachtungszuständen; CapTrack read-only: Zustands-Mapping alt → neu.
+**Independent Test**: Fixture mit allen Beobachtungszuständen; Referenzprojekt read-only: Zustands-Mapping alt → neu.
 
 **Acceptance Scenarios**:
 
@@ -123,7 +123,7 @@ Als PO will ich sehen, woran gearbeitet wird (oder dass keine kanonische Arbeit 
 
 **Why this priority**: Beantwortet die Kernfragen 1, 5–8, 11, 12 aus dem Plan (Abschnitt J).
 
-**Independent Test**: Regel-Fixtures für Delivery Assessment und Current-Work-Kaskade; CapTrack read-only Abgleich.
+**Independent Test**: Regel-Fixtures für Delivery Assessment und Current-Work-Kaskade; Referenzprojekt read-only Abgleich.
 
 **Acceptance Scenarios**:
 
@@ -132,8 +132,8 @@ Als PO will ich sehen, woran gearbeitet wird (oder dass keine kanonische Arbeit 
 3. **Given** widersprüchliche Quellen (aktive Wave zeigt auf DONE-Wave), **When** Current Work abgeleitet wird, **Then** lautet der Zustand CONFLICT.
 4. **Given** ein Requirement, **When** der PO dessen Detail öffnet, **Then** sieht er eine als „abgeleitet" gekennzeichnete Bewertung mit Regelversion, jede Stufe mit verlinkter kanonischer Evidenz bzw. Grund der Nichterfüllung.
 5. **Given** eine DONE-Wave mit offenen Legacy-Tasks und erfasster Acceptance-Grundlage, **When** der PO „Vertrauen in DONE" öffnet, **Then** sind die Tasks als „durch Acceptance-Evidenz überholt" gekennzeichnet; ohne Grundlage lautet der Zustand „DONE-Grundlage nicht erfasst".
-6. **Given** Parity-Reports ohne gebundene Captures (CapTrack: 6 PASS, 5 PARTIAL), **When** der PO Pages oder Verification öffnet, **Then** erscheinen sie als „berichtet, nicht belegt", nie als verifiziert und nie unsichtbar.
-7. **Given** eine aktive Revision im Revisions-Ledger (CapTrack REV-037), **When** der PO Design Authority öffnet, **Then** ist sie mit gebundenen und nicht gebundenen Pages sichtbar.
+6. **Given** Parity-Reports ohne gebundene Captures (Referenzprojekt: 6 PASS, 5 PARTIAL), **When** der PO Pages oder Verification öffnet, **Then** erscheinen sie als „berichtet, nicht belegt", nie als verifiziert und nie unsichtbar.
+7. **Given** eine aktive Revision im Revisions-Ledger (Referenzprojekt REV-037), **When** der PO Design Authority öffnet, **Then** ist sie mit gebundenen und nicht gebundenen Pages sichtbar.
 8. **Given** eine Page mit auflösbarer HTML-Quelle bei Projektvorgabe „nicht HTML-first", **When** der PO die Page sieht, **Then** werden Absicht und Fakt getrennt gezeigt und die Abweichung als Gesundheitshinweis markiert.
 
 ---
@@ -163,7 +163,7 @@ Als PO will ich pro Page Referenz-Mockup, HTML-Quelle, Design Preview, zuletzt e
 
 **Why this priority**: Abschluss der IA; setzt alle vorherigen Projektionen voraus.
 
-**Independent Test**: PO-Walkthrough entlang der 12 Fragen (Plan J) mit CapTrack-Screenshots (read-only); Smoke mit neuer Routenliste.
+**Independent Test**: PO-Walkthrough entlang der 12 Fragen (Plan J) mit Referenzprojekt-Screenshots (read-only); Smoke mit neuer Routenliste.
 
 **Acceptance Scenarios**:
 
@@ -176,14 +176,14 @@ Als PO will ich pro Page Referenz-Mockup, HTML-Quelle, Design Preview, zuletzt e
 
 ### Edge Cases
 
-- Parallele Agentenarbeit während Board-Aufbau oder Smoke (CapTrack: HEAD wanderte während der Inspektion) → letzter gültiger Stand mit Alter; nie Startfehler.
+- Parallele Agentenarbeit während Board-Aufbau oder Smoke (Referenzprojekt: HEAD wanderte während der Inspektion) → letzter gültiger Stand mit Alter; nie Startfehler.
 - Gleicher Zeitstempel bei Inhaltsänderung → Änderung muss trotzdem erkannt werden.
 - Rebase/Force-Push, Shallow-Clone, Merge-Commits → Timeline-Index invalidiert bzw. First-Parent-Behandlung; keine falschen Zuordnungen.
 - Fehlende Quellen (Mission, Context Epoch, Findings, Target-Mockups) → `NOT_RECORDED`, nicht Fehler und nicht „UNKNOWN".
 - Legacy-Formen (leeres Legacy-Evidence-Manifest, Descriptive Filenames, Task-Inspect-Altform, Mojibake in Notizen) → sichtbar, klassifiziert, nicht normalisiert weg.
 - Schema-invalide Change-Sets → als Ereignis mit Gesundheitshinweis, ohne Zuordnungswirkung.
 - Kein Browser, belegter Port, hängender Prozess → Smoke UNAVAILABLE/FAIL/TIMEOUT mit Aufräumen.
-- Sehr große Modellverzeichnisse (2.140 Dateien in CapTrack) → werden für interaktive Nutzung nicht gescannt.
+- Sehr große Modellverzeichnisse (2.140 Dateien in Referenzprojekt) → werden für interaktive Nutzung nicht gescannt.
 - Gelöschter Projektion-Cache → vollständiger, korrekter Neuaufbau ohne Projektwirkung.
 
 ## Requirements *(mandatory)*
@@ -296,7 +296,7 @@ Kennung `[CS-n]` = verbindliches Changeset laut Implementation Contract. `[BRD-F
 
 ### Measurable Outcomes
 
-Referenzprojekt für Messungen: CapTrack (read-only), Ausgangswerte 2026-11-05.
+Referenzprojekt für Messungen: Referenzprojekt (read-only), Ausgangswerte 2026-11-05.
 
 - **SC-001**: Bei unverändertem Projekt erscheint eine angeforderte Ansicht in höchstens 0,3 s (heute 3–6,5 s).
 - **SC-002**: Ein Quell-, Mockup- oder Screenshot-Link öffnet in höchstens 0,2 s (heute ~8,4 s bzw. ~19 s).
@@ -304,15 +304,15 @@ Referenzprojekt für Messungen: CapTrack (read-only), Ausgangswerte 2026-11-05.
 - **SC-004**: Erste Anzeige nach Board-Start in höchstens 3 s mit vorhandenem letzten Stand, höchstens 6 s ohne; unter paralleler Projektarbeit 0 Startfehler in 20 Wiederholungen.
 - **SC-005**: Der Board-Smoke endet in höchstens 15 s (Ziel) und spätestens nach 60 s; in 100 % der Fälle ohne Browser lautet das Ergebnis UNAVAILABLE, nie PASS.
 - **SC-006**: Nach Board-Nutzung und Smoke ist der Dateisystem- und Git-Zustand des Projekts unverändert (0 Abweichungen).
-- **SC-007**: In CapTrack erscheinen 0 nicht-blockierende Diagnosen als Projekt-Aufmerksamkeit (heute 184 über jeder Seite).
-- **SC-008**: Jede der 12 Kernfragen aus Plan J ist in CapTrack ohne Öffnen von Rohdateien beantwortbar oder ausdrücklich als „nicht erfasst" erklärt (heute: 0 von 12 vollständig).
+- **SC-007**: In Referenzprojekt erscheinen 0 nicht-blockierende Diagnosen als Projekt-Aufmerksamkeit (heute 184 über jeder Seite).
+- **SC-008**: Jede der 12 Kernfragen aus Plan J ist in Referenzprojekt ohne Öffnen von Rohdateien beantwortbar oder ausdrücklich als „nicht erfasst" erklärt (heute: 0 von 12 vollständig).
 - **SC-009**: 100 % der Timeline-Zuordnungen haben eine ausgewiesene Autoritätsklasse; 0 Zuordnungen beruhen auf zeitlicher Nähe (Negativtest-Fixture).
 - **SC-010**: Zwei Timeline-Aufbauten derselben Historie liefern 100 % identische Ereignis-IDs; Erstaufbau für ~600 Commits höchstens 10 s, inkrementell höchstens 1 s.
 - **SC-011**: Jede abgeleitete Bewertung (Delivery Assessment, Current Work, Vertrauen in DONE) ist als „abgeleitet" gekennzeichnet und verlinkt mindestens eine kanonische Quelle oder einen Nichterfüllungsgrund (100 %).
-- **SC-012**: CS-0 erzeugt beim read-only Doctor-Lauf gegen CapTrack 0 neue blockierende Diagnosen; Doctor-Laufzeit steigt um höchstens 10 %.
+- **SC-012**: CS-0 erzeugt beim read-only Doctor-Lauf gegen Referenzprojekt 0 neue blockierende Diagnosen; Doctor-Laufzeit steigt um höchstens 10 %.
 - **SC-013**: Projekt-Statusaufbau wird durch CS-3/CS-4 um höchstens 10 % langsamer.
 
-### CapTrack-Realitätsfälle (Abnahmefälle, read-only)
+### Referenzprojekt-Realitätsfälle (Abnahmefälle, read-only)
 
 | RC | Situation (Stand 2026-11-05) | Erwartung nach Changeset |
 |---|---|---|
@@ -324,25 +324,25 @@ Referenzprojekt für Messungen: CapTrack (read-only), Ausgangswerte 2026-11-05.
 | RC-06 | Change-Sets mit vom Schema nicht erlaubten Feldern (mind. 2 von 3); DONE-Waves ohne strukturierte Grundlage | CS-0: Doctor-Hinweise, keine Blocker |
 | RC-07 | 184 Diagnosen (0 blockierend) über jeder Seite | CS-3: nur Gesundheitsindikator + Diagnoseansicht |
 | RC-08 | „UNKNOWN" für Findings, Mission, Modellfrische | CS-3: NOT_RECORDED / NOT_OBSERVABLE mit Erklärung |
-| RC-09 | 15/15 Waves DONE, Mission fehlt, CAP2/Regionen-Arbeit aktiv | CS-4: „Keine aktive kanonische Arbeit" + „Arbeit außerhalb des Lifecycles beobachtet" |
+| RC-09 | 15/15 Waves DONE, Mission fehlt, REF2/Regionen-Arbeit aktiv | CS-4: „Keine aktive kanonische Arbeit" + „Arbeit außerhalb des Lifecycles beobachtet" |
 | RC-10 | 13 pending + 1 blocked Task in DONE-Waves | CS-4: „Vertrauen in DONE" mit Grundlage/NOT_RECORDED |
 | RC-11 | 6 PASS / 5 PARTIAL Parity-Reports unsichtbar | CS-4: „berichtet, nicht belegt" |
 | RC-12 | REV-037 nur über 1 Page sichtbar | CS-4: Revisions-Ledger als Authority |
 | RC-13 | PAGE-ABTEILUNGSVERWALTUNG als MENDIX_NATIVE trotz HTML-Quelle | CS-4: Absicht ≠ Fakt markiert |
-| RC-14 | Jüngste Arbeit (05.11.) nirgends sichtbar | CS-5: Timeline mit belegten Ereignissen; CAP2-Commits ohne Trailer in „Nicht zugeordnet" |
+| RC-14 | Jüngste Arbeit (05.11.) nirgends sichtbar | CS-5: Timeline mit belegten Ereignissen; REF2-Commits ohne Trailer in „Nicht zugeordnet" |
 | RC-15 | HTML-first Page nur über verstreute Links prüfbar | CS-6: Page Hub |
 
 ## Scope-Grenzen
 
-**Out of Scope (V1)**: Live-/Harness-Telemetrie (OD-2); Schreibfunktionen/Projekteditor; Board-seitige Bild-Diffs; Evidence-Erweiterung um Commit-/Modell-Fingerprint (CX-A, eigene Mission; BRD-F-20 bleibt bis dahin NOT_OBSERVABLE); Ursachenanalyse fehlender Mission-State (CX-C, BRD-F-12); Artifact-Index-Fingerprint (BRD-F-26); projektseitige CapTrack-Nacharbeit (BRD-F-13, BRD-F-18, BRD-F-25, BRD-F-34, BRD-F-36); jede Änderung an CapTrack; automatische Projektmigration.
+**Out of Scope (V1)**: Live-/Harness-Telemetrie (OD-2); Schreibfunktionen/Projekteditor; Board-seitige Bild-Diffs; Evidence-Erweiterung um Commit-/Modell-Fingerprint (CX-A, eigene Mission; BRD-F-20 bleibt bis dahin NOT_OBSERVABLE); Ursachenanalyse fehlender Mission-State (CX-C, BRD-F-12); Artifact-Index-Fingerprint (BRD-F-26); projektseitige Referenzprojekt-Nacharbeit (BRD-F-13, BRD-F-18, BRD-F-25, BRD-F-34, BRD-F-36); jede Änderung an Referenzprojekt; automatische Projektmigration.
 
 **Querschnitt**: Server-seitige Teilprojektionen (Page Previews, Builder Kit) werden in CS-3/CS-6 unter den Status-Contract gebracht (BRD-F-09); die Overview-Target-Karte verliert Fingerprints und Authority-Listen (CS-6, BRD-F-29).
 
 ## Assumptions
 
 - Der Implementation Contract ist verbindlich; diese Spec übernimmt seine Grenzen unverändert.
-- Messungen erfolgen auf derselben Maschinenklasse wie die CapTrack-Ausgangsmessung (Windows-Entwicklerrechner).
+- Messungen erfolgen auf derselben Maschinenklasse wie die Referenzprojekt-Ausgangsmessung (Windows-Entwicklerrechner).
 - Ein Browser für den Smoke wird über vorhandene Framework-Werkzeuge bereitgestellt oder fehlt; er wird nie automatisch installiert.
 - Modellfrische bleibt bis CX-A strukturell NOT_OBSERVABLE; die Spec erfindet keine Freshness.
 - Die Re-Sync-Statusregeln in den vorbestehenden, noch uncommitteten `lifecycle-resync.md`-Änderungen werden vom Eigentümer committet; Current Work spiegelt sie.
-- CapTrack wird nur read-only genutzt und kann sich während der Arbeit durch parallele Projektarbeit verändern; Realitätsfälle werden deshalb je Lauf mit HEAD dokumentiert.
+- Referenzprojekt wird nur read-only genutzt und kann sich während der Arbeit durch parallele Projektarbeit verändern; Realitätsfälle werden deshalb je Lauf mit HEAD dokumentiert.

@@ -7,9 +7,9 @@ This guide explains how to set up a new or update an existing Mendix project wit
 | Script | Purpose |
 |---|---|
 | `mxagile-setup.ps1` | **Canonical** generic setup — detects state, installs or updates |
-| `mxagile-setup-mercedes.ps1` | **Canonical** Mercedes setup — detects Core + Layer state independently |
+| `mxagile-setup-company-layer.ps1` | **Canonical** Company Layer setup — detects Core + Layer state independently |
 | `install-mxagile.ps1` | **Deprecated** — compatibility wrapper, delegates to `mxagile-setup.ps1` |
-| `install-mxagile-mercedes.ps1` | **Deprecated** — compatibility wrapper, delegates to `mxagile-setup-mercedes.ps1` |
+| `install-mxagile-company-layer.ps1` | **Deprecated** — compatibility wrapper, delegates to `mxagile-setup-company-layer.ps1` |
 
 The setup scripts detect project state automatically:
 
@@ -36,21 +36,23 @@ Choose the setup script based on your requirements:
     .\mxagile-setup.ps1
     ```
 
-*   **Mercedes-Benz Environment:** Independently detects MxAgile Core state and Mercedes
-    Company Layer state, then performs the correct operation for each.
+*   **Company Layer Environment:** Independently detects MxAgile Core state and Company Layer
+    state, then performs the correct operation for each. The Company Layer Git source is
+    always explicit: pass `-CompanyLayerGitUrl <git-url>` (optional `-CompanyLayerRef`) or set
+    `MXAGILE_COMPANY_LAYER_URL`. There is no built-in default source.
     ```powershell
-    .\mxagile-setup-mercedes.ps1
+    .\mxagile-setup-company-layer.ps1 -CompanyLayerGitUrl "<git-url>"
     ```
 
 Both scripts will:
 
 1.  **Detect project state:** Report `FRESH_PROJECT` or `EXISTING_MXAGILE_PROJECT`.
-2.  **Report selected operation:** `INSTALL` or `UPDATE` for Core (and Layer separately for Mercedes).
+2.  **Report selected operation:** `INSTALL` or `UPDATE` for Core (and Layer separately for Company Layer).
 3.  **Report protected state:** `.mxagile/layers/`, `.mxagile/state/`, `.mxagile/migration/` are never overwritten.
 4.  **Safety Check:** Validate that a single `.mpr` project file exists in the root.
 5.  **Install or Update:** Bootstrap MxAgile from scratch or synchronize an existing installation.
 6.  **Setup Agents:** Configure the agent system (platform projections for all supported agents).
-7.  **Layer Management:** (Mercedes script only) Install or update the Mercedes-Benz company layer.
+7.  **Layer Management:** (Company Layer script only) Install or update the Company Layer company layer.
 
 ### Step 2: Synchronize Agent Environment
 
@@ -84,11 +86,11 @@ Re-run the same setup script from the new distribution — it detects the existi
 # Generic Core update (detects existing installation, performs UPDATE)
 .\mxagile-setup.ps1
 
-# Mercedes environment update (detects Core + Layer independently, updates both)
-.\mxagile-setup-mercedes.ps1
+# Company Layer environment update (detects Core + Layer independently, updates both)
+.\mxagile-setup-company-layer.ps1
 ```
 
-The public entry points (`mxagile-setup.ps1`, `mxagile-setup-mercedes.ps1`) always select the
+The public entry points (`mxagile-setup.ps1`, `mxagile-setup-company-layer.ps1`) always select the
 correct operation. There is no separate update command.
 
 Internally, `scripts/install-core.ps1` is the canonical installer invoked by all entry points.

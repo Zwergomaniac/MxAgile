@@ -2,12 +2,12 @@
 
 Phase 0. Alle technischen Unbekannten aus plan.md sind hier entschieden. Grundlage: Code-Lektüre
 (`serve_project_board.py`, `build_project_status.py`, `reconcile_external_changes.py`, `project_compatibility.py`,
-`board.js`), Impact-Mapping (`run-impact-tests.py --list --paths …`) und CapTrack-Messungen (read-only, 2026-11-05).
+`board.js`), Impact-Mapping (`run-impact-tests.py --list --paths …`) und Referenzprojekt-Messungen (read-only, 2026-11-05).
 
 ## R-01 · Änderungserkennung ohne interaktiven Vollscan (CS-2)
 
 - **Decision**: Ein Hintergrund-Thread prüft höchstens alle 2 s eine **billige Signatur**: Git `HEAD`, Index-Datei (`mtime_ns`, `size`), Branch-Ref; je kanonischer Collection ein Directory-Listing mit (Name, `mtime_ns`, `size`); `*.mpr`-Stat; Modellstand über `git rev-parse HEAD:mprcontents` (tracked) plus `git status --porcelain=v1 -z --untracked-files=no -- mprcontents *.mpr` für den Dirty-Zustand. Interaktive Requests lesen nur den aktuellen Snapshot.
-- **Same-mtime-Problem** (Test P3b): Für kanonische YAML/JSON-Collections wird zusätzlich `size` geprüft; der vollständige Aufbau hasht die Inhalte ohnehin (`source_fingerprint`). Bleiben `size` und `mtime` gleich, erkennt Git über den Index-Stat bzw. `git status` die Änderung. Fällt Git aus oder liegt kein Repository vor, gibt es pro Hintergrundzyklus einen Content-Hash der kanonischen Collections (wenige hundert kleine Dateien, ≤ 300 ms in CapTrack).
+- **Same-mtime-Problem** (Test P3b): Für kanonische YAML/JSON-Collections wird zusätzlich `size` geprüft; der vollständige Aufbau hasht die Inhalte ohnehin (`source_fingerprint`). Bleiben `size` und `mtime` gleich, erkennt Git über den Index-Stat bzw. `git status` die Änderung. Fällt Git aus oder liegt kein Repository vor, gibt es pro Hintergrundzyklus einen Content-Hash der kanonischen Collections (wenige hundert kleine Dateien, ≤ 300 ms in Referenzprojekt).
 - **Rationale**: Die heutige Signatur walkt sechs Wurzeln inkl. 2.140 Modelldateien mit `CreateFileW` je Datei, pro Request. Gemessen 2,9–6,5 s.
 - **Alternatives**: Filesystem-Watcher (plattformabhängig, zusätzliche Abhängigkeit); mtime-only (verletzt P3b); weiterhin synchron pro Request (Ursache des Problems).
 
@@ -26,7 +26,7 @@ Phase 0. Alle technischen Unbekannten aus plan.md sind hier entschieden. Grundla
 ## R-04 · Stale-while-revalidate und kein 503 (CS-2)
 
 - **Decision**: `last-good.json` je Branch. Beim Start wird er sofort mit `projection.state=STALE` und `age_seconds` ausgeliefert. Ändern sich Quellen während des Aufbaus (`*_SOURCES_CHANGED_DURING_*`), folgen bis zu 3 Retries mit Backoff (0,5/1/2 s). Danach wird der letzte gültige Stand mit `STALE` und dem Grund `SOURCES_CHURNING` ausgeliefert. 503 nur, wenn weder ein letzter Stand noch ein erfolgreicher Aufbau existiert (`PROJECTION_ERROR`).
-- **Rationale**: In CapTrack trat der 503 unter paralleler Agentenarbeit auf.
+- **Rationale**: In Referenzprojekt trat der 503 unter paralleler Agentenarbeit auf.
 
 ## R-05 · Reconciliation-Batching (CS-2)
 

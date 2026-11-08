@@ -52,7 +52,7 @@ MxAgile ownership. Always verify `# GENERATED` headers before removing content.
 
 ### Prerequisites
 
-- Current MxAgile installer: `install-mxagile.ps1` (or `install-mxagile-mercedes.ps1`)
+- Current MxAgile installer: `install-mxagile.ps1` (or `install-mxagile-company-layer.ps1`)
 - PowerShell 7+ (pwsh)
 - The target Mendix project directory
 

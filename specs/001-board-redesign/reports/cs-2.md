@@ -29,7 +29,7 @@ Safety properties (each covered by a test): cache lives outside the project (ins
 
 BRD-F-10 (per-request full scan: model walk removed in Git trees, asset routes served from validated snapshot), BRD-F-11 (no startup/refresh failure while a projection exists; bounded otherwise), BRD-F-24 (reconciliation 239 s → 6.9 s on real history). New findings: see §8.
 
-## 3. Primary comparable benchmark — frozen CapTrack snapshot (`365beaa`, `D:\MxAgileBoardBench`, unbuffered, alternating old/new, 2 rounds)
+## 3. Primary comparable benchmark — frozen reference project snapshot (`365beaa`, `<benchmark-dir>`, unbuffered, alternating old/new, 2 rounds)
 
 | Metric | Old (`f38b0c8`) | New (CS-2) |
 |---|---|---|
@@ -48,7 +48,7 @@ Cache-hit behavior: warm requests and all link/asset requests inside the window 
 
 Against spec targets: warm ≤ 0.3 s ✔; link ≤ 0.2 s ✔; first paint with last-good ≤ 3 s ✔ (0.47 s); **cold ≤ 6 s: 4.28 s ✔ / 6.83 s ✘ (one of two rounds misses by 0.8 s)**; background invalidation cycle ≤ 1 s: not met as such — validation takes ~1–2 s on the snapshot (BRD-F-42), but runs off the request path.
 
-## 4. Reconciliation on real history (read-only Git; CapTrack `dev/gb`, range `62463e88..6c9a4115` pinned, 42 commits, 593 paths)
+## 4. Reconciliation on real history (read-only Git; reference project `dev/gb`, range `62463e88..6c9a4115` pinned, 42 commits, 593 paths)
 
 | Variant | Time | Result |
 |---|---|---|
@@ -58,9 +58,9 @@ Against spec targets: warm ≤ 0.3 s ✔; link ≤ 0.2 s ✔; first paint with l
 
 SC-003 (≤ 10 s) met. Equivalence is additionally covered by `ReconciliationBatchingEquivalenceTests` (fixture with root, edit, mode-only, delete, merge with resolution delta, clean merge, trailer + valid Change-Set, invalid Change-Set, model-only, message-only mention; also asserts < ½ of the old Git process count).
 
-## 5. Live CapTrack reality observation (NOT a benchmark; uncontrolled parallel activity; HEAD `6c9a4115`)
+## 5. Live reference project reality observation (NOT a benchmark; uncontrolled parallel activity; HEAD `6c9a4115`)
 
-cold `/api/status` 4.10 s → warm 0.111 / 0.134 / 0.103 s; page-previews 0.095 s; `/source/…DEC-053.yml` 0.018 s; **parity report source 200 in 0.034 s**; reference 0.199 s; no 503; `projection_state` FRESH, validated 0.17 s ago. CapTrack status lines changed by others during the run: 0; the Board wrote nothing. (Earlier CS-1 live observation: 3.8–13.3 s per request, two 503.)
+cold `/api/status` 4.10 s → warm 0.111 / 0.134 / 0.103 s; page-previews 0.095 s; `/source/…DEC-053.yml` 0.018 s; **parity report source 200 in 0.034 s**; reference 0.199 s; no 503; `projection_state` FRESH, validated 0.17 s ago. Reference project status lines changed by others during the run: 0; the Board wrote nothing. (Earlier CS-1 live observation: 3.8–13.3 s per request, two 503.)
 
 ## 6. Concurrency and the 503 class (snapshot, controlled writer every 0.3 s, 10 sequential requests)
 
@@ -95,7 +95,7 @@ See `tasks.md` "CS-2 execution notes": field name, cache key, window + backgroun
 
 ## 10. CS-7 assumptions
 
-Hold: `--port 0` (T047) is not implemented yet and still needed; the Board now starts quickly and survives churn, which keeps the Smoke inside its 15 s budget on CapTrack (cold 4–7 s). New constraints for CS-7: use `MXAGILE_BOARD_CACHE_DIR` (temp) for isolated smoke runs and `MXAGILE_BOARD_LEGACY_CACHE` must not be set; the smoke must treat `projection_state.state != FRESH` as a reportable state, not a failure; the Board's CSP blocks `wait_for_function` (selector waits only).
+Hold: `--port 0` (T047) is not implemented yet and still needed; the Board now starts quickly and survives churn, which keeps the Smoke inside its 15 s budget on reference project (cold 4–7 s). New constraints for CS-7: use `MXAGILE_BOARD_CACHE_DIR` (temp) for isolated smoke runs and `MXAGILE_BOARD_LEGACY_CACHE` must not be set; the smoke must treat `projection_state.state != FRESH` as a reportable state, not a failure; the Board's CSP blocks `wait_for_function` (selector waits only).
 
 ## 11. Approval status
 

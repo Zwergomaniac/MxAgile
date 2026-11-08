@@ -45,7 +45,7 @@
     L. Fresh-session re-sync
        → reproduces reconciled canonical state without stale-cache regression
 
-    No Example Project, KidsCompass, or Mercedes-specific knowledge in this file.
+    No customer-specific or project-specific knowledge in this file.
 #>
 
 $ErrorActionPreference = 'Stop'

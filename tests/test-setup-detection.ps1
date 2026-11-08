@@ -3,10 +3,10 @@
     Bootstrap Rename and State Detection Tests
 
 .DESCRIPTION
-    Validates the mxagile-setup.ps1 / mxagile-setup-mercedes.ps1 public entry points:
+    Validates the mxagile-setup.ps1 / mxagile-setup-company-layer.ps1 public entry points:
     - Architecture: canonical setup scripts exist, wrappers delegate correctly
     - State detection: fresh project -> INSTALL, existing -> UPDATE
-    - Mercedes independent detection: Core and Layer states detected separately
+    - Company Layer independent detection: Core and Layer states detected separately
     - Backward compatibility: old install-mxagile.ps1 wrappers delegate to new scripts
     - Deprecation messaging: wrappers emit deprecation notice
     - One canonical path: no duplicate installation logic in wrappers
@@ -70,9 +70,9 @@ function Remove-FixtureDirectory {
 }
 
 $setupScript         = Join-Path $ScriptDir "mxagile-setup.ps1"
-$setupMercedesScript = Join-Path $ScriptDir "mxagile-setup-mercedes.ps1"
+$setupCompanyLayerScript = Join-Path $ScriptDir "mxagile-setup-company-layer.ps1"
 $installScript       = Join-Path $ScriptDir "install-mxagile.ps1"
-$installMercedesScript = Join-Path $ScriptDir "install-mxagile-mercedes.ps1"
+$installCompanyLayerScript = Join-Path $ScriptDir "install-mxagile-company-layer.ps1"
 $installationDoc     = Join-Path $ScriptDir "docs\installation.md"
 $readmeDoc           = Join-Path $ScriptDir "README.md"
 $distributionRoot    = $ScriptDir
@@ -91,17 +91,17 @@ Assert-True "mxagile-setup.ps1 exists" `
     (Test-Path -LiteralPath $setupScript -PathType Leaf) `
     "mxagile-setup.ps1 not found at: $setupScript"
 
-Assert-True "mxagile-setup-mercedes.ps1 exists" `
-    (Test-Path -LiteralPath $setupMercedesScript -PathType Leaf) `
-    "mxagile-setup-mercedes.ps1 not found at: $setupMercedesScript"
+Assert-True "mxagile-setup-company-layer.ps1 exists" `
+    (Test-Path -LiteralPath $setupCompanyLayerScript -PathType Leaf) `
+    "mxagile-setup-company-layer.ps1 not found at: $setupCompanyLayerScript"
 
 Assert-True "install-mxagile.ps1 still exists (compatibility)" `
     (Test-Path -LiteralPath $installScript -PathType Leaf) `
     "install-mxagile.ps1 not found (needed for backward compat)"
 
-Assert-True "install-mxagile-mercedes.ps1 still exists (compatibility)" `
-    (Test-Path -LiteralPath $installMercedesScript -PathType Leaf) `
-    "install-mxagile-mercedes.ps1 not found (needed for backward compat)"
+Assert-True "install-mxagile-company-layer.ps1 still exists (compatibility)" `
+    (Test-Path -LiteralPath $installCompanyLayerScript -PathType Leaf) `
+    "install-mxagile-company-layer.ps1 not found (needed for backward compat)"
 
 Write-Host ""
 
@@ -128,14 +128,14 @@ Assert-FileContains "setup: calls scripts/install-core.ps1" `
 Assert-FileContains "setup: has CanonicalDistributionUrl" `
     $setupScript 'CanonicalDistributionUrl'
 
-Assert-FileContains "mercedes-setup: has DistributionSource parameter" `
-    $setupMercedesScript 'DistributionSource'
+Assert-FileContains "company-layer-setup: has DistributionSource parameter" `
+    $setupCompanyLayerScript 'DistributionSource'
 
-Assert-FileContains "mercedes-setup: has MercedesGitUrl parameter" `
-    $setupMercedesScript 'MercedesGitUrl'
+Assert-FileContains "company-layer-setup: has CompanyLayerGitUrl parameter" `
+    $setupCompanyLayerScript 'CompanyLayerGitUrl'
 
-Assert-FileContains "mercedes-setup: calls scripts/install-core.ps1" `
-    $setupMercedesScript 'install-core\.ps1'
+Assert-FileContains "company-layer-setup: calls scripts/install-core.ps1" `
+    $setupCompanyLayerScript 'install-core\.ps1'
 
 Write-Host ""
 
@@ -165,33 +165,33 @@ Assert-FileContains "setup: reports protected project state" `
 Write-Host ""
 
 # =========================================================================
-# 4. Mercedes setup independently detects Core and Layer states
+# 4. Company Layer setup independently detects Core and Layer states
 # =========================================================================
-Write-Host "--- 4: Mercedes setup independently detects Core + Layer ---"
+Write-Host "--- 4: Company Layer setup independently detects Core + Layer ---"
 
-Assert-FileContains "mercedes-setup: detects Core via .mxagile/lifecycle.yaml" `
-    $setupMercedesScript 'lifecycle\.yaml'
+Assert-FileContains "company-layer-setup: detects Core via .mxagile/lifecycle.yaml" `
+    $setupCompanyLayerScript 'lifecycle\.yaml'
 
-Assert-FileContains "mercedes-setup: detects Layer via .mxagile/layers/" `
-    $setupMercedesScript '\.mxagile\\layers|mxagile.layers'
+Assert-FileContains "company-layer-setup: detects Layer via .mxagile/layers/" `
+    $setupCompanyLayerScript '\.mxagile\\layers|mxagile.layers'
 
-Assert-FileContains "mercedes-setup: reports Core state independently" `
-    $setupMercedesScript 'coreState'
+Assert-FileContains "company-layer-setup: reports Core state independently" `
+    $setupCompanyLayerScript 'coreState'
 
-Assert-FileContains "mercedes-setup: reports Layer state independently" `
-    $setupMercedesScript 'layerState'
+Assert-FileContains "company-layer-setup: reports Layer state independently" `
+    $setupCompanyLayerScript 'layerState'
 
-Assert-FileContains "mercedes-setup: reports Core operation separately" `
-    $setupMercedesScript 'coreOperation'
+Assert-FileContains "company-layer-setup: reports Core operation separately" `
+    $setupCompanyLayerScript 'coreOperation'
 
-Assert-FileContains "mercedes-setup: reports Layer operation separately" `
-    $setupMercedesScript 'layerOperation'
+Assert-FileContains "company-layer-setup: reports Layer operation separately" `
+    $setupCompanyLayerScript 'layerOperation'
 
-Assert-FileContains "mercedes-setup: LAYER_NOT_INSTALLED state defined" `
-    $setupMercedesScript 'LAYER_NOT_INSTALLED'
+Assert-FileContains "company-layer-setup: LAYER_NOT_INSTALLED state defined" `
+    $setupCompanyLayerScript 'LAYER_NOT_INSTALLED'
 
-Assert-FileContains "mercedes-setup: LAYER_INSTALLED state defined" `
-    $setupMercedesScript 'LAYER_INSTALLED'
+Assert-FileContains "company-layer-setup: LAYER_INSTALLED state defined" `
+    $setupCompanyLayerScript 'LAYER_INSTALLED'
 
 Write-Host ""
 
@@ -206,11 +206,11 @@ Assert-FileContains "install-wrapper: delegates to mxagile-setup.ps1" `
 Assert-FileContains "install-wrapper: has deprecation notice" `
     $installScript '(?i)deprecated|DEPRECATED'
 
-Assert-FileContains "install-mercedes-wrapper: delegates to mxagile-setup-mercedes.ps1" `
-    $installMercedesScript 'mxagile-setup-mercedes\.ps1'
+Assert-FileContains "install-company-layer-wrapper: delegates to mxagile-setup-company-layer.ps1" `
+    $installCompanyLayerScript 'mxagile-setup-company-layer\.ps1'
 
-Assert-FileContains "install-mercedes-wrapper: has deprecation notice" `
-    $installMercedesScript '(?i)deprecated|DEPRECATED'
+Assert-FileContains "install-company-layer-wrapper: has deprecation notice" `
+    $installCompanyLayerScript '(?i)deprecated|DEPRECATED'
 
 # Wrappers must NOT contain installation logic (no git clone, no Remove-Item for cleanup)
 Assert-FileNotContains "install-wrapper: no git clone in wrapper" `
@@ -219,11 +219,11 @@ Assert-FileNotContains "install-wrapper: no git clone in wrapper" `
 Assert-FileNotContains "install-wrapper: no Remove-Item tempDistDir in wrapper" `
     $installScript 'Remove-Item.*tempDistDir'
 
-Assert-FileNotContains "install-mercedes-wrapper: no git clone in wrapper" `
-    $installMercedesScript 'git clone'
+Assert-FileNotContains "install-company-layer-wrapper: no git clone in wrapper" `
+    $installCompanyLayerScript 'git clone'
 
-Assert-FileNotContains "install-mercedes-wrapper: no Remove-Item tempDistDir in wrapper" `
-    $installMercedesScript 'Remove-Item.*tempDistDir'
+Assert-FileNotContains "install-company-layer-wrapper: no Remove-Item tempDistDir in wrapper" `
+    $installCompanyLayerScript 'Remove-Item.*tempDistDir'
 
 Write-Host ""
 
@@ -294,55 +294,55 @@ try {
 Write-Host ""
 
 # =========================================================================
-# 8. E2E Mercedes: fresh -> Core INSTALL + Layer INSTALL
+# 8. E2E Company Layer: fresh -> Core INSTALL + Layer INSTALL
 # =========================================================================
-Write-Host "--- 8: Mercedes fresh project -> Core INSTALL + Layer INSTALL ---"
+Write-Host "--- 8: Company Layer fresh project -> Core INSTALL + Layer INSTALL ---"
 
-$fixtureMercedesFresh = New-FixtureDirectory "mercedes-fresh"
+$fixtureCompanyLayerFresh = New-FixtureDirectory "company-layer-fresh"
 try {
-    New-Item -Path (Join-Path $fixtureMercedesFresh "App.mpr") -ItemType File -Force | Out-Null
+    New-Item -Path (Join-Path $fixtureCompanyLayerFresh "App.mpr") -ItemType File -Force | Out-Null
 
-    $output = & $setupMercedesScript `
+    $output = & $setupCompanyLayerScript `
         -DistributionSource $distributionRoot `
-        -ProjectRoot $fixtureMercedesFresh `
-        -MercedesGitUrl "https://example.com/fake-layer.git" *>&1
+        -ProjectRoot $fixtureCompanyLayerFresh `
+        -CompanyLayerGitUrl "https://example.com/fake-layer.git" *>&1
     $outputStr = ($output | Out-String)
 
-    Assert-True "8: Mercedes fresh project shows FRESH_PROJECT for Core" `
+    Assert-True "8: Company Layer fresh project shows FRESH_PROJECT for Core" `
         ($outputStr -match 'FRESH_PROJECT') `
         "Expected FRESH_PROJECT for Core. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
-    Assert-True "8: Mercedes fresh project shows LAYER_NOT_INSTALLED" `
+    Assert-True "8: Company Layer fresh project shows LAYER_NOT_INSTALLED" `
         ($outputStr -match 'LAYER_NOT_INSTALLED') `
         "Expected LAYER_NOT_INSTALLED. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
-    Assert-True "8: Mercedes fresh reports Core action INSTALL" `
+    Assert-True "8: Company Layer fresh reports Core action INSTALL" `
         ($outputStr -match 'Core action.*INSTALL|INSTALL.*Core|Core.*->.*INSTALL|FRESH_PROJECT.*->.*INSTALL') `
         "Expected Core action INSTALL. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
 } finally {
-    Remove-FixtureDirectory $fixtureMercedesFresh
+    Remove-FixtureDirectory $fixtureCompanyLayerFresh
 }
 
 Write-Host ""
 
 # =========================================================================
-# 9. E2E Mercedes: existing Core + no Layer -> Core UPDATE + Layer INSTALL
+# 9. E2E Company Layer: existing Core + no Layer -> Core UPDATE + Layer INSTALL
 # =========================================================================
-Write-Host "--- 9: Mercedes existing Core, no Layer -> Core UPDATE + Layer INSTALL ---"
+Write-Host "--- 9: Company Layer existing Core, no Layer -> Core UPDATE + Layer INSTALL ---"
 
-$fixtureMercedesCore = New-FixtureDirectory "mercedes-core-only"
+$fixtureCompanyLayerCore = New-FixtureDirectory "company-layer-core-only"
 try {
-    New-Item -Path (Join-Path $fixtureMercedesCore "App.mpr") -ItemType File -Force | Out-Null
+    New-Item -Path (Join-Path $fixtureCompanyLayerCore "App.mpr") -ItemType File -Force | Out-Null
     # Plant Core marker only (no layer)
-    $mxDir = Join-Path $fixtureMercedesCore ".mxagile"
+    $mxDir = Join-Path $fixtureCompanyLayerCore ".mxagile"
     New-Item -Path $mxDir -ItemType Directory -Force | Out-Null
     Set-Content -Path (Join-Path $mxDir "lifecycle.yaml") -Value "schema_version: 1" -Encoding UTF8
 
-    $output = & $setupMercedesScript `
+    $output = & $setupCompanyLayerScript `
         -DistributionSource $distributionRoot `
-        -ProjectRoot $fixtureMercedesCore `
-        -MercedesGitUrl "https://example.com/fake-layer.git" *>&1
+        -ProjectRoot $fixtureCompanyLayerCore `
+        -CompanyLayerGitUrl "https://example.com/fake-layer.git" *>&1
     $outputStr = ($output | Out-String)
 
     Assert-True "9: Core existing detected correctly" `
@@ -362,7 +362,7 @@ try {
         "Expected Layer action INSTALL. First 300 chars: $($outputStr.Substring(0, [Math]::Min(300, $outputStr.Length)))"
 
 } finally {
-    Remove-FixtureDirectory $fixtureMercedesCore
+    Remove-FixtureDirectory $fixtureCompanyLayerCore
 }
 
 Write-Host ""
@@ -408,8 +408,8 @@ Write-Host "--- 11: Documentation references mxagile-setup.ps1 ---"
 Assert-FileContains "installation.md: references mxagile-setup.ps1" `
     $installationDoc 'mxagile-setup\.ps1'
 
-Assert-FileContains "installation.md: references mxagile-setup-mercedes.ps1" `
-    $installationDoc 'mxagile-setup-mercedes\.ps1'
+Assert-FileContains "installation.md: references mxagile-setup-company-layer.ps1" `
+    $installationDoc 'mxagile-setup-company-layer\.ps1'
 
 Assert-FileContains "installation.md: describes INSTALL/UPDATE detection" `
     $installationDoc '(?i)INSTALL.*UPDATE|detects.*state'

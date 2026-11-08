@@ -11,13 +11,13 @@ Do not confuse framework development with a Mendix project that has MxAgile inst
 The canonical public bootstrap entry points are:
 
 - mxagile-setup.ps1
-- mxagile-setup-mercedes.ps1
+- mxagile-setup-company-layer.ps1
 
 Both delegate actual installation to:
 
 - scripts/install-core.ps1
 
-The older `install-mxagile.ps1` and `install-mxagile-mercedes.ps1` are deprecated wrappers
+The older `install-mxagile.ps1` and `install-mxagile-company-layer.ps1` are deprecated wrappers
 that delegate to the canonical scripts above.
 
 `install-core.ps1` is also the canonical entry point for existing-project Core synchronization.

@@ -18,7 +18,7 @@
     G. Explicit user selection of Board story → normal intake/refinement as new input
     H. No external Board access required to complete/verify existing authorized scope
 
-    No Example Project, KidsCompass, or Mercedes-specific knowledge in this file.
+    No customer-specific or project-specific knowledge in this file.
 #>
 
 $ErrorActionPreference = 'Stop'

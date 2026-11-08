@@ -7,7 +7,7 @@
 ```mermaid
 flowchart TD
     A[install-mxagile.ps1\nGeneric Bootstrap] --> C[scripts/install-core.ps1\nCanonical Installer]
-    B[install-mxagile-mercedes.ps1\nMercedes Bootstrap] --> C
+    B[install-mxagile-company-layer.ps1\nCompanyLayer Bootstrap] --> C
 
     C --> I[scripts/mxagile-init.ps1\nInitialization]
     C --> U[update-mxcli.ps1\ndistributed to project]
