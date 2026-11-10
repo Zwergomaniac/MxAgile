@@ -707,7 +707,7 @@ agent runs git status → "clean"
     ↓
 test harness activates (MxTest, Playwright, mxunit)
     ↓
-harness mutates repository (injects *.mxunit, javasource/mxtest/)
+harness mutates repository (injects MxTest model content, javasource/mxtest/)
     ↓
 agent claims "mission complete, working tree clean"  ← FORBIDDEN without re-check
 ```

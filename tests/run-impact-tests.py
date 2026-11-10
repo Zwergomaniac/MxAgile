@@ -34,6 +34,8 @@ RULES = (
     (("tests/test-inventory.json", "tests/run-all-tests.ps1", "tests/run-fast-tests.ps1", "tests/run-impact-tests.py", "tests/test_test_impact.py", "tests/test-impact-tiers.ps1", "CLAUDE.md"), 3, ("test_test_impact.py",)),
     (("scripts/git_index_integrity.py", "tests/test_git_index_integrity.py", "tests/test-git-index-integrity.ps1", "tests/test_git_recovery.py", "tests/test-git-recovery.ps1", ".mxagile/policies/safety-rules.md", ".mxagile/policies/commit-authority.md"),
      1, ("test_git_index_integrity.py", "test_git_recovery.py", "test-commit-authority.ps1")),
+    (("scripts/test_harness_cleanup.py", "tests/test_test_harness_cleanup.py", "tests/test-test-harness-cleanup.ps1", ".mxagile/policies/test-harness-cleanup.md"),
+     1, ("test_test_harness_cleanup.py", "test-hardening-rf010-completion-cleanliness.ps1")),
     (("scripts/project_compatibility.py", ".mxagile/policies/project-compatibility.md", "tests/test_project_status.py"),
     1, ("test_project_status.py", "test_parity_gallery.py")),
     ((".mxagile/board/*", "scripts/*project_status.py", "scripts/serve_project_board.py", "tests/test_parity_gallery.py", "tests/test-parity-gallery.ps1", "tests/test_board_performance.py", "docs/project-status-inventory.md", ".mxagile/policies/gap-verification-repair.md", ".mxagile/policies/project-compatibility.md"),

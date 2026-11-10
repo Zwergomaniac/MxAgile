@@ -11,22 +11,75 @@ import subprocess
 from pathlib import Path
 
 
+GIT_TIMEOUT_SECONDS = 120
+PROCESS_TIMEOUT_SECONDS = 15
+# Last process observation outcome: OBSERVED | TIMEOUT | UNAVAILABLE. Missing process information never permits a mutation.
+PROCESS_OBSERVATION = {"state": "NOT_RUN"}
+
+
 def git(root: Path, *arguments: str) -> bytes:
-    result = subprocess.run(["git", "--no-optional-locks", "-C", str(root), *arguments], capture_output=True)
+    try:
+        result = subprocess.run(["git", "--no-optional-locks", "-C", str(root), *arguments], capture_output=True, timeout=GIT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("GIT_QUERY_TIMEOUT") from error
     if result.returncode:
         raise ValueError("GIT_QUERY_FAILED")
     return result.stdout
 
 
-def git_activity() -> bool | None:
+def observe_processes(command: list[str]) -> str | None:
+    """Bounded external process listing; returns stdout or None (state recorded in PROCESS_OBSERVATION)."""
     try:
-        if os.name == "nt":
-            result = subprocess.run(["tasklist", "/FI", "IMAGENAME eq git.exe", "/FO", "CSV", "/NH"], capture_output=True, text=True, errors='replace', check=True)
-            return any(row and row[0].lower() == "git.exe" for row in csv.reader(result.stdout.splitlines()))
-        result = subprocess.run(["ps", "-A", "-o", "comm="], capture_output=True, text=True, check=True)
-        return any(Path(line.strip()).name == "git" for line in result.stdout.splitlines())
-    except (OSError, subprocess.SubprocessError):
+        result = subprocess.run(command, capture_output=True, text=True, errors='replace', check=True, timeout=PROCESS_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        PROCESS_OBSERVATION["state"] = "TIMEOUT"
         return None
+    except (OSError, subprocess.SubprocessError):
+        PROCESS_OBSERVATION["state"] = "UNAVAILABLE"
+        return None
+    PROCESS_OBSERVATION["state"] = "OBSERVED"
+    return result.stdout
+
+
+def git_activity() -> bool | None:
+    if os.name == "nt":
+        output = observe_processes(["tasklist", "/FI", "IMAGENAME eq git.exe", "/FO", "CSV", "/NH"])
+        return None if output is None else any(row and row[0].lower() == "git.exe" for row in csv.reader(output.splitlines()))
+    output = observe_processes(["ps", "-A", "-o", "comm="])
+    return None if output is None else any(Path(line.strip()).name == "git" for line in output.splitlines())
+
+
+def observed_git_activity() -> tuple[bool | None, str]:
+    """git_activity plus a traceable observation state; None activity is never treated as 'no Git running'."""
+    PROCESS_OBSERVATION["state"] = "NOT_RUN"
+    activity = git_activity()
+    if activity is not None:
+        return activity, "OBSERVED"
+    return None, PROCESS_OBSERVATION["state"] if PROCESS_OBSERVATION["state"] in ("TIMEOUT", "UNAVAILABLE") else "UNAVAILABLE"
+
+
+def resolve_repository(root: Path) -> dict | None:
+    """Resolve the repository via Git itself (works from subdirectories and linked worktrees).
+
+    Returns None when no enclosing Git repository exists. Raises ValueError when a repository
+    marker exists but Git cannot resolve it (fail-closed)."""
+    try:
+        result = subprocess.run(["git", "--no-optional-locks", "-C", str(root), "rev-parse", "--path-format=absolute",
+                                 "--show-toplevel", "--git-dir", "--git-path", "index"],
+                                capture_output=True, timeout=GIT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("GIT_QUERY_TIMEOUT") from error
+    except OSError as error:
+        raise ValueError("GIT_UNAVAILABLE") from error
+    if result.returncode:
+        # Locale-independent: only report NOT_APPLICABLE when no ancestor carries a Git marker.
+        if any((candidate / ".git").exists() for candidate in (root, *root.parents)):
+            raise ValueError("GIT_REPOSITORY_UNRESOLVED")
+        return None
+    lines = os.fsdecode(result.stdout).splitlines()
+    if len(lines) != 3:
+        raise ValueError("GIT_REPOSITORY_UNRESOLVED")
+    return {"top_level": str(Path(lines[0]).resolve()), "git_dir": str(Path(lines[1]).resolve()), "index_path": str(Path(lines[2]).resolve())}
 
 
 def inspect_index(root: Path) -> dict:
@@ -34,25 +87,28 @@ def inspect_index(root: Path) -> dict:
         "read_only": True, "state": "GIT_INDEX_NOT_CHECKED", "mutations_allowed": False,
         "head_entry_count": None, "index_entry_count": None, "staged_deletion_count": None,
         "working_tree_present_count": None, "working_tree_files_present": None,
-        "index_lock_present": None, "git_process_active": None,
+        "index_lock_present": None, "git_process_active": None, "process_observation": None,
+        "top_level": None, "git_dir": None, "index_path": None,
         "reason": None, "recovery_command": None,
     }
-    if not (root / ".git").exists():
-        report.update(state="GIT_INDEX_NOT_APPLICABLE", mutations_allowed=True, reason="NO_GIT_WORKTREE")
-        return report
     try:
-        top = Path(os.fsdecode(git(root, "rev-parse", "--show-toplevel")).strip()).resolve()
+        repository = resolve_repository(root)
+        if repository is None:
+            report.update(state="GIT_INDEX_NOT_APPLICABLE", mutations_allowed=True, reason="NO_GIT_WORKTREE")
+            return report
+        report.update(repository)
+        top = Path(repository["top_level"])
         lock_path = Path(os.fsdecode(git(top, "rev-parse", "--git-path", "index.lock")).strip())
         if not lock_path.is_absolute():
             lock_path = top / lock_path
         report["index_lock_present"] = lock_path.exists()
         if lock_path.exists():
-            activity = git_activity()
-            report.update(git_process_active=activity,
+            activity, observation = observed_git_activity()
+            report.update(git_process_active=activity, process_observation=observation,
                           state="GIT_OPERATION_IN_PROGRESS" if activity else ("GIT_INDEX_LOCK_STALE_CANDIDATE" if activity is False else "GIT_INDEX_LOCK_UNVERIFIED"),
                           reason="LOCK_NOT_REMOVED; process observation does not establish lock ownership")
             return report
-        head_check = subprocess.run(["git", "--no-optional-locks", "-C", str(top), "rev-parse", "--verify", "HEAD"], capture_output=True)
+        head_check = subprocess.run(["git", "--no-optional-locks", "-C", str(top), "rev-parse", "--verify", "HEAD"], capture_output=True, timeout=GIT_TIMEOUT_SECONDS)
         if head_check.returncode:
             reference = os.fsdecode(git(top, "symbolic-ref", "--quiet", "HEAD")).strip()
             refs = git(top, "for-each-ref", "--format=%(refname)").splitlines()
@@ -71,8 +127,9 @@ def inspect_index(root: Path) -> dict:
                           recovery_command="git restore --source=HEAD --staged -- :/")
         else:
             report.update(state="GIT_INDEX_PLAUSIBLE", mutations_allowed=True)
-    except (OSError, ValueError):
-        report.update(state="GIT_INDEX_NOT_CHECKED", reason="GIT_OR_REPOSITORY_UNAVAILABLE")
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        detail = str(error) if isinstance(error, ValueError) and str(error).startswith("GIT_") else "GIT_OR_REPOSITORY_UNAVAILABLE"
+        report.update(state="GIT_INDEX_NOT_CHECKED", mutations_allowed=False, reason=detail)
     return report
 
 
@@ -131,18 +188,16 @@ def protected_fingerprint(root: Path, paths: list[str]) -> tuple[str, bool]:
 
 
 def runtime_processes() -> dict:
-    try:
-        if os.name == 'nt':
-            result = subprocess.run(['tasklist', '/FO', 'CSV', '/NH'], capture_output=True, text=True, errors='replace', check=True)
-            processes = [{'name': row[0], 'pid': row[1]} for row in csv.reader(result.stdout.splitlines())
-                         if len(row) >= 2 and any(token in row[0].lower() for token in ('git', 'sqlite', 'studio', 'modeler', 'concord', 'mxcli', 'node', 'python'))]
-        else:
-            result = subprocess.run(['ps', '-A', '-o', 'pid=,comm='], capture_output=True, text=True, check=True)
-            processes = [{'pid': parts[0], 'name': parts[1]} for line in result.stdout.splitlines()
-                         if len(parts := line.strip().split(None, 1)) == 2 and any(token in parts[1].lower() for token in ('git', 'sqlite', 'studio', 'modeler', 'concord', 'mxcli', 'node', 'python'))]
-        return {'state': 'OBSERVED', 'processes': processes, 'file_handle_ownership': 'UNKNOWN'}
-    except (OSError, subprocess.SubprocessError):
-        return {'state': 'UNAVAILABLE', 'processes': [], 'file_handle_ownership': 'UNKNOWN'}
+    tokens = ('git', 'sqlite', 'studio', 'modeler', 'concord', 'mxcli', 'node', 'python')
+    if os.name == 'nt':
+        output = observe_processes(['tasklist', '/FO', 'CSV', '/NH'])
+        processes = [] if output is None else [{'name': row[0], 'pid': row[1]} for row in csv.reader(output.splitlines())
+                                               if len(row) >= 2 and any(token in row[0].lower() for token in tokens)]
+    else:
+        output = observe_processes(['ps', '-A', '-o', 'pid=,comm='])
+        processes = [] if output is None else [{'pid': parts[0], 'name': parts[1]} for line in output.splitlines()
+                                               if len(parts := line.strip().split(None, 1)) == 2 and any(token in parts[1].lower() for token in tokens)]
+    return {'state': PROCESS_OBSERVATION['state'] if output is None else 'OBSERVED', 'processes': processes, 'file_handle_ownership': 'UNKNOWN'}
 
 
 def cache_observations(root: Path, tracked: list[str] | None = None, scope: list[str] | None = None) -> list[dict]:
@@ -193,12 +248,13 @@ def recovery_snapshot(root: Path, operation: str, scope: list[str] | None = None
     status = git(root, 'status', '--porcelain=v1', '-z', '--untracked-files=all')
     diff = git(root, 'diff', '--no-ext-diff', '--no-textconv', '--binary', '--') if complete else b'UNAVAILABLE'
     cached = git(root, 'diff', '--cached', '--no-ext-diff', '--no-textconv', '--binary', 'HEAD', '--') if complete else b'UNAVAILABLE'
+    activity, observation = observed_git_activity()
     return {
         'repository_identity': hashlib.sha256(os.fsencode(root)).hexdigest(),
         'head': head, 'branch': os.fsdecode(git(root, 'rev-parse', '--abbrev-ref', 'HEAD')).strip(),
         'operations': operations, 'scope': scope, 'index': inspect_index(root), 'locks': locks,
         'autostash_present': git_path(root, 'MERGE_AUTOSTASH').exists(),
-        'git_process_active': git_activity(), 'runtime_processes': runtime_processes(), 'tool_handle_owner': 'UNKNOWN', 'cache_files': caches,
+        'git_process_active': activity, 'process_observation': observation, 'runtime_processes': runtime_processes(), 'tool_handle_owner': 'UNKNOWN', 'cache_files': caches,
         'staged_count': len(staged), 'unstaged_count': len(unstaged), 'untracked_count': len(untracked),
         'unmerged_entry_count': sum(bool(entry) and entry.split(b'\t', 1)[0].split()[-1] != b'0' for entry in index_entries),
         'unrelated_staged_count': len(set(staged) - set(scope)),
@@ -223,6 +279,8 @@ def recovery_preflight(root: Path, operation: str, *, user_authorized: bool = Fa
         result['snapshot'] = snapshot
         if not user_authorized or not scope_reviewed:
             result['reason'] = 'EXPLICIT_USER_AUTHORIZATION_AND_SCOPE_REVIEW_REQUIRED'
+        elif snapshot['git_process_active'] is None:
+            result['reason'] = f"GIT_PROCESS_OBSERVATION_{snapshot.get('process_observation') or 'UNAVAILABLE'}; fail-closed, missing process information never permits recovery"
         elif snapshot['locks'] or snapshot['git_process_active'] is not False:
             result['reason'] = 'LOCK_OR_CONCURRENT_GIT_STATE_NOT_CLEARED'
         elif snapshot.get('autostash_present'):

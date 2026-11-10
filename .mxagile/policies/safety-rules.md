@@ -27,6 +27,10 @@ CONTROLLED_RECOVERY-Preflight und dessen eng autorisierte Recovery bleiben nach
 dem folgenden Vertrag moeglich; das ist keine Freigabe normaler Mutationen. Keine Umdeutung eines
 nicht pruefbaren Zustands als PASS. Unborn HEAD / Projekte ohne Git sind separat
 NOT_APPLICABLE, nicht "repariert".
+Der Guard liest den Index normalerweise nur und rekonstruiert ihn nie. Er loest das Repository ueber
+Git selbst auf (`rev-parse --show-toplevel`, `--git-dir`, `--git-path index`), auch aus Unterverzeichnissen
+und linked Worktrees; ein Unterverzeichnis eines Repositories ist nie NOT_APPLICABLE. Prozessbeobachtung
+(`tasklist`/`ps`) ist zeitbegrenzt; TIMEOUT oder UNAVAILABLE bleibt sichtbar und gibt nie eine Mutation frei.
 
 GIT_INDEX_INTEGRITY_FAILURE: HEAD > 0, Index = 0, staged deletions = HEAD und
 betroffene Working-Tree-Dateien weiterhin vorhanden. Kompakt die drei Counts

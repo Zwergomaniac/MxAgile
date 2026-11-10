@@ -29,6 +29,13 @@
     "Reason": "Deterministic impact selection unit tests; one Python interpreter."
   },
   {
+    "File": "test-test-harness-cleanup.ps1", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "RF-007 Fix 5: explicit harness ownership; canonical mprcontents units preserved in main checkout and linked worktree (isolated Git fixtures)."
+  },
+  {
     "File": "test-git-index-integrity.ps1", "Tier": 1, "FastGate": false,
     "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
     "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,
