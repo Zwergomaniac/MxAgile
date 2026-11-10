@@ -29,6 +29,13 @@
     "Reason": "Deterministic impact selection unit tests; one Python interpreter."
   },
   {
+    "File": "test-mendix-merge-preflight.ps1", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Mendix merge safety: structural BSON classifier, synthetic fixtures A-H and criss-cross reality fixture, post-merge integrity gate; temporary Git repositories, read-only tool."
+  },
+  {
     "File": "test-test-harness-cleanup.ps1", "Tier": 1, "FastGate": false,
     "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
     "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,

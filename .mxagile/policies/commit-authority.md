@@ -179,6 +179,9 @@ Before every autonomous checkpoint commit, all of the following must be verified
    unavailable verification block staging, commit and dependent mutations. Never
    recover the index or remove a lock merely to satisfy this precondition.
 
+0a. **Mendix model merge evidence** — a commit that completes a Mendix model merge requires a `PASS` post-merge integrity gate
+   (`python .mxagile/tools/mendix_merge_preflight.py postcheck`, see policies/mendix-integration.md). `INCOMPLETE` or `FAIL` blocks the commit.
+
 1. **Branch identified** — current branch name is known and is a working branch
 2. **Working tree classified** — `git status` has been read; all changes are
    identified as belonging to the authorized mission scope

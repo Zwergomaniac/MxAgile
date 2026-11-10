@@ -32,6 +32,9 @@ Git selbst auf (`rev-parse --show-toplevel`, `--git-dir`, `--git-path index`), a
 und linked Worktrees; ein Unterverzeichnis eines Repositories ist nie NOT_APPLICABLE. Prozessbeobachtung
 (`tasklist`/`ps`) ist zeitbegrenzt; TIMEOUT oder UNAVAILABLE bleibt sichtbar und gibt nie eine Mutation frei.
 
+Mendix-Modellmerge: vor der Integration `mendix_merge_preflight.py preflight`, danach `postcheck`; ein Merge gilt nur mit `PASS` als abgeschlossen
+(`.mxagile/policies/mendix-integration.md`). Kein `ours`/`theirs`-Shortcut auf `*.mpr` oder `mprcontents/**`.
+
 GIT_INDEX_INTEGRITY_FAILURE: HEAD > 0, Index = 0, staged deletions = HEAD und
 betroffene Working-Tree-Dateien weiterhin vorhanden. Kompakt die drei Counts
 und Working-Tree-Existenz melden. Keine tausenden Delete-Findings erzeugen,

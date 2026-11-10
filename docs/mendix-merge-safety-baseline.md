@@ -192,16 +192,16 @@ dadurch blockiert der Preflight real mit `LOCK_OR_CONCURRENT_GIT_STATE_NOT_CLEAR
 
 | ID | Gap | Klasse | Merge-kausal? |
 |---|---|---|---|
-| G1 | Keine Framework-Guidance für Mendix-Integration (Studio-Pro-Merge vs. Replay, Serialisierungsrauschen ≠ fachlicher Overlap, `.mpr`-Behandlung außerhalb Studio Pro) | STILL_OPEN | indirekt |
-| G2 | mxcli-Writes hinterlassen Fremd-Serialisierung, die später branchfremd normalisiert wird | STILL_OPEN | **ja** |
+| G1 | Keine Framework-Guidance für Mendix-Integration (Studio-Pro-Merge vs. Replay, Serialisierungsrauschen ≠ fachlicher Overlap, `.mpr`-Behandlung außerhalb Studio Pro) | FIXED_CURRENT_MAIN (Integrations-Wave: `policies/mendix-integration.md`, Preflight, Resolver) | indirekt |
+| G2 | mxcli-Writes hinterlassen Fremd-Serialisierung, die später branchfremd normalisiert wird | PARTIALLY_FIXED (erkannt und getrennt gemeldet; Ursache bleibt upstream STILL_OPEN, `docs/upstream/mxcli-serialization-stability.md`) | **ja** |
 | G3 | Kein deterministischer `.mpr`-Merge für MPRv2 (Unit-Tabelle + `ContentsHash` + `_Transaction`) | STILL_OPEN | **ja** |
-| G4 | `create or modify` erzeugt ID-Churn auch ohne semantische Änderung; Guidance zu ALTER-first fehlt | STILL_OPEN | partiell |
+| G4 | `create or modify` erzeugt ID-Churn auch ohne semantische Änderung; Guidance zu ALTER-first fehlt | PARTIALLY_FIXED (Guidance mit gemessenen Zahlen korrigiert, ALTER-first in Policy und Agent; Durchsetzung auf Tool-Ebene fehlt) | partiell |
 | G5 | `test-harness-cleanup.md` klassifizierte `*.mxunit` pauschal als `TEMPORARY_TEST_HARNESS_ARTIFACT` mit deterministischem Restore, in MPRv2 sind das echte Modell-Units | FIXED_CURRENT_MAIN (Fix 5: explizite Ownership, `scripts/test_harness_cleanup.py`) | Risiko (Modellinkonsistenz/Revert), nicht nachgewiesen kausal |
 | G6 | Guard fail-open bei Unterverzeichnis-Root | FIXED_CURRENT_MAIN (Fix 6) | nein |
 | G7 | `tasklist` ohne Timeout im Recovery-Preflight | FIXED_CURRENT_MAIN (Fix 6: Timeout, Status `TIMEOUT`, fail-closed) | nein |
 | G8 | Repo-Tests deckten Konflikt-Stages, Rename, Mixed-Staging, linked Worktrees nicht ab | FIXED_CURRENT_MAIN (Fix 6: `GuardHardeningMatrixTests`) | nein |
 
-## 10. Vorgeschlagene Fixes (nicht umgesetzt)
+## 10. Vorgeschlagene Fixes (Stand: Fix 5/6 und Integrations-Wave umgesetzt; offen: `.mpr`-Merge-Werkzeug, mxcli-Upstream)
 
 1. **Mendix-Integrationspolicy** (G1), canonical in `.mxagile/policies/`, mit Zielhierarchie:
    - unabhängige Units → normaler Git-Merge, `.mpr` deterministisch regenerieren (Fix 2) oder Studio-Pro-Merge;
@@ -262,3 +262,26 @@ Beobachtete Unterschiede mxcli gegenüber Studio Pro:
 
 Erwartetes Upstream-Ziel: mxcli schreibt Units byte-stabil im Studio-Pro-Format und erhält bei `create or modify`
 die IDs unveränderter Elemente.
+
+## 13. Reality-Validierung des Preflights (R1, ausschließlich lesend)
+
+Der Preflight wurde gegen den realen R1-Integrationsstand ausgeführt (Target und Source als Branch-Spitzen, zwei Merge-Basen,
+Criss-Cross). Nur `ls-tree`, `cat-file`, `merge-base` und der lesende Index-Guard liefen; Status, HEAD und Index-Zeitstempel
+waren danach unverändert. Laufzeit 16 s für rund 2200 Units je Seite.
+
+| Befund | Messwert |
+|---|---|
+| Mendix-Version beider Spitzen | 11.16.0, `.mpr` auf beiden Seiten gegenüber beiden Basen geändert |
+| Registry-Konsistenz der Spitzen | beide konsistent |
+| Merge-Basen | 2, eine historisch beschädigt: 111 Orphans (entspricht 2132 Registry-Einträge gegen 2243 mxunits), nur Warnung |
+| echte Identitätsdivergenzen | **10** (`DUPLICATE_AFTER_MERGE`, je zwei UUID-Linien); zusätzlich 56 deterministische `TARGET_LINE_WINS`, harmlos |
+| geteilte semantische Units | 7, davon 6 basisabhängig (`BASE_DEPENDENT`); DomainModel mit beidseitiger Änderung |
+| sicherheitskritisch | 3: zwei `GUARD_COLLAPSE` (Target `$KC/CanEditRegions`, Source `true`) und das DomainModel (Attribut `CanEditRegions` nur im Target, markergetrieben) |
+| Serialisierungsrauschen | vorhanden, zwischen den Spitzen nur 2 Units, daher kaum zusätzliche Konfliktfläche |
+| **Strategie** | `STUDIO_PRO_MERGE_WITH_TARGETED_CONFLICT_REVIEW` mit Identity-Reconciliation (10) und Security-Entscheidungen (3), **nicht** Replay |
+
+Die zwei Guard-Microflows sind keine Identitätsdivergenzen, sondern Units mit gleicher UnitID, die beide Seiten unterschiedlich
+geändert haben. Gemessene Ergebnisse je Merge-Basis: gegenüber der einen Basis ändern beide Seiten (beidseitiger Konflikt),
+gegenüber der anderen ändert nur die Source. Bei dieser zweiten Basis würde die Source-Linie (`true`) ohne jeden Konflikt gewinnen
+und den Guard-Ausdruck `$KC/CanEditRegions` still verdrängen. Genau dieser Fall darf nicht durch eine beliebige Merge-Basis entschieden werden. Der Reality-Stand dient als Vorlage der
+anonymisierten Fixture R in `tests/test_mendix_merge_preflight.py`; R1 selbst wurde nicht verändert und es wurde nicht gemergt.

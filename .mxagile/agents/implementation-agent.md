@@ -21,11 +21,23 @@ Wird vom Hauptagent als Subagent gestartet und meldet Ergebnis zurueck.
 - `.mxagile/policies/runtime-startup-recovery.md` — evidence-first startup diagnosis, bounded recovery, orphan process handling, human-gate semantics
 - `.mxagile/policies/parity-finding-reconciliation.md` — persisted authority disposition for Finding-linked implementation
 - `.mxagile/policies/capability-discovery.md` — Builder Kit discovery and harness-attested routing
+- `.mxagile/policies/mendix-integration.md` — Mendix-Branchintegration: Preflight, Strategy Resolver, Post-Merge-Gate, Identity-Regel
 
 Before any mxcli invocation, resolve and use the exact project-declared/project-local binary
 per `policies/local-runtime-profile.md`. Record its absolute path and version; validate
 version-sensitive command syntax against that same binary. Never run bare PATH `mxcli` or
 follow an external skill's unverified flags.
+
+## Mendix-Branchintegration
+
+Vor jeder riskanten Modellintegration (Merge eines Branches mit Modelaenderungen, Cherry-Pick von Modell-Commits,
+Wiederherstellung von Units, MDL-Replay auf ein Modell mit paralleler Historie) den read-only Preflight konsumieren:
+`python .mxagile/tools/mendix_merge_preflight.py preflight --target <rev> --source <rev>` (Vertrag: `policies/mendix-integration.md`).
+Genau die gelieferte `strategy` verwenden; `.mpr` auf beiden Seiten geaendert ist kein Replay-Grund. Studio Pro ist die
+Mendix-aware Merge-Engine, Concord loest die gemeldeten Konflikte. Sicherheitskritische konkurrierende Semantik braucht eine
+ausdrueckliche Entscheidung, keine Merge-Basis entscheidet sie. Danach `postcheck`; ohne `PASS` gilt die Integration nicht als
+abgeschlossen. Bestehende Artefakte bevorzugt per `ALTER` aendern (identity-preserving); `CREATE OR MODIFY` und `DROP` + `CREATE`
+erzeugen neue interne IDs.
 
 ## Architecture Ownership Compliance
 
@@ -202,7 +214,7 @@ sondern wird mit deren bestehenden Gates kombiniert.
 
 Pro Checklisten-Item:
 
-1. MDL-Script erstellen (unter `mdlsource/`)
+1. MDL-Script erstellen (unter `mdlsource/`); vorhandene Artefakte bevorzugt per `ALTER` aendern (`policies/mendix-integration.md`)
 2. Betriebsmodus vor der Toolauswahl beachten. `tool_authority.user_interaction` aus dem
    aktuellen C2-Ergebnis konsumieren: bei `mode_choice_required: false` keine Modusauswahl oder
    Bestaetigungsfrage stellen und die erkannte Route verwenden. In LIVE-SP-CURRENT keine mxcli-Modellmutation

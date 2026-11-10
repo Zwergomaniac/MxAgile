@@ -726,6 +726,7 @@ try {
     Copy-Item -LiteralPath $doctorSource -Destination (Join-Path $destToolsDir "project_compatibility.py") -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'git_index_integrity.py') -Destination (Join-Path $destToolsDir 'git_index_integrity.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'test_harness_cleanup.py') -Destination (Join-Path $destToolsDir 'test_harness_cleanup.py') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'mendix_merge_preflight.py') -Destination (Join-Path $destToolsDir 'mendix_merge_preflight.py') -Force
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) "requirements.txt") -Destination (Join-Path $destToolsDir "requirements.txt") -Force
     Write-Host "[OK] Distributed Compatibility Doctor and Python requirements."
 
@@ -815,6 +816,7 @@ try {
                 ".mxagile/tools/project_compatibility.py",
                 ".mxagile/tools/git_index_integrity.py",
                 ".mxagile/tools/test_harness_cleanup.py",
+                ".mxagile/tools/mendix_merge_preflight.py",
                 ".mxagile/tools/requirements.txt"
             )
         }

@@ -96,6 +96,13 @@ conflicts through `tool-instruction-conflict.md`.
 
 ---
 
+## Branch Integration Route
+
+Mode detection does not change for model integration. The Mendix-aware merge route is Studio Pro (`LIVE-SP-*`, `Merge Changes Here`,
+Concord for conflict analysis/resolution). `CLOSED-AUTONOM` may use another route only after it is validated as equivalent and safe.
+The decision (`preflight`) and the completion gate (`postcheck`) are defined in `policies/mendix-integration.md`; they add no new
+mutation authority.
+
 ## C2 Detection Contract
 
 Project root and `.mpr` identity, headless behavior, detector timeout, exit-state mapping,
