@@ -45,6 +45,7 @@ $ProcSchema  = Join-Path $ScriptDir ".mxagile/schemas/process-state.schema.json"
 $KnowPol     = Join-Path $ScriptDir ".mxagile/policies/project-knowledge.md"
 $ReconPol    = Join-Path $ScriptDir ".mxagile/policies/reconciliation.md"
 $ResyncPol   = Join-Path $ScriptDir ".mxagile/policies/lifecycle-resync.md"
+$UiAgent     = Join-Path $ScriptDir ".mxagile/agents/ui-agent.md"
 $ReadMe      = Join-Path $ScriptDir "README.md"
 $GitIgnore   = Join-Path $ScriptDir ".gitignore"
 
@@ -71,6 +72,10 @@ Write-Host "TEST 3: Fresh clone retains required lifecycle position without .con
 Assert-FileContains "3.1 lifecycle-resync.md reads planning/lifecycle/ as primary source" $ResyncPol 'planning/lifecycle/process-state.yaml'
 Assert-FileContains "3.2 lifecycle-resync.md states deleting .concord/scratch does not destroy canonical state" $ResyncPol 'Loeschen.*concord.*scratch|concord.*darf keine.*zerstoeren'
 Assert-FileContains "3.3 README tree places canonical process-state.yaml under planning/lifecycle" $ReadMe '(?s)planning/.*lifecycle/\s+#\s*process-state\.yaml.*canonical Git-tracked lifecycle state'
+Assert-FileContains "3.4 UI-Agent re-syncs before selecting Analyze or Verify mode" $UiAgent '(?s)Startup Lifecycle Re-Sync.*lifecycle-resync\.md'
+Assert-FileContains "3.5 UI-Agent uses tracked process state as phase authority" $UiAgent '(?s)planning/lifecycle/process-state\.yaml.*primaer'
+Assert-FileContains "3.6 UI-Agent keeps Concord scratch supplementary only" $UiAgent '(?s)concord/scratch/process-state\.yaml.*nur.*Session-Cache'
+Assert-FileNotContains "3.7 UI-Agent no longer selects phase directly from Concord scratch" $UiAgent 'Liest die aktuelle Phase aus `\.concord/scratch/process-state\.yaml`'
 
 # Test 4: Fresh agent can re-sync without old local scratch
 Write-Host ""

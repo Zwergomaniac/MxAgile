@@ -67,6 +67,12 @@ Assert-FileContains "2.2 mockup-analysis.md already requires browser execution" 
 Assert-FileContains "2.3 materialization policy requires browser execution for executable" $MatPol 'browser execution.*Playwright'
 Assert-FileExists "2.4 fixture Y exists (executable role-dependent labels)" (Join-Path $FixDir "fixture-Y-executable-mockup-role-dependent-labels.yaml")
 
+# Test 2b: User intent selects evidence depth, even outside Verify lifecycle phase
+Write-Host "TEST 2b: Full gap requests cannot silently route to static Analyze only" -ForegroundColor Cyan
+Assert-FileContains "2b.1 complete gap/blocker requests require static plus runtime/browser evidence" $AnaPol 'Full/complete gaps, blockers, or differences.*Static contracts/model plus browser/runtime observation'
+Assert-FileContains "2b.2 unavailable runtime keeps a full-coverage claim partial" $AnaPol '(?s)explicitly partial\s+static result'
+Assert-FileContains "2b.3 UI-Agent request-depth override does not advance lifecycle phase" $UiAgent '(?s)Request-depth override.*kein Phasenwechsel'
+
 # Test 3: Static mockup does not require scenario explosion
 Write-Host ""
 Write-Host "TEST 3: Static mockup does not require scenario explosion" -ForegroundColor Cyan

@@ -78,6 +78,9 @@ try {
     Assert-True 'R3 missing harness attestation remains unknown' ($noAttestation.integration.status -eq 'unknown') 'Support was guessed'
     $unassessed = Invoke-DelegationCapability -SessionHarness 'other'
     Assert-True 'R3 an attested but unassessed harness remains unknown' ($unassessed.integration.status -eq 'unknown') 'Unknown host was guessed'
+    $concord = Invoke-DelegationCapability -SessionHarness 'concord'
+    Assert-True 'Concord delegation remains unknown without a verified live harness contract' `
+        ($concord.integration.status -eq 'unknown' -and $concord.integration.named_agents -eq 'unknown' -and $concord.integration.generic_fork -eq 'unknown') 'Concord support was inferred'
 
     $genericAdapter = Join-Path $tempRoot '.mxagile/adapters/generic/agent-delegation.yaml'
     $genericOriginal = Get-Content $genericAdapter -Raw
@@ -134,10 +137,14 @@ try {
     Assert-True 'Deterministic task-to-wave provenance remains helper-first with no model' `
         ($realityFixture.deterministic_work[0].work_kind -eq 'task_wave_provenance' -and $realityFixture.deterministic_work[0].route -eq 'helper_first' -and $null -eq $realityFixture.deterministic_work[0].preferred_profile) 'Deterministic work was assigned a model profile'
     Assert-True 'Every present harness adapter declares identity, status, model and concurrency evidence' $allAdaptersValid 'Adapter inventory contains an incomplete declaration'
-    $handoffFields = @('mission_id','task','agent_type','scope','authority_references','artifact_paths','source_fingerprints','allowed_tools','forbidden_mutations','expected_result_schema','model_resolution')
+    $handoffFields = @('mission_id','delivery_context','task','agent_type','scope','authority_references','artifact_paths','source_fingerprints','allowed_tools','forbidden_mutations','expected_result_schema','model_resolution')
     $missingHandoffFields = @($handoffFields | Where-Object { $_ -notin @($handoffSchema.required) })
     Assert-True 'R8 handoff carries mission, bounded scope, authority, tools, mutations, schema and budget' `
         ($missingHandoffFields.Count -eq 0 -and $handoffSchema.additionalProperties -eq $false -and $null -ne $handoffSchema.properties.context_budget_tokens) "Handoff fields missing: $($missingHandoffFields -join ', ')"
+    $deliveryContextFields = @('wave_id','work_package_id','project_root','branch','worktree','base_head','operating_mode','authorization','write_scope','forbidden_scope','required_artifacts','verification_expectations','commit_expectation','resync_conditions','required_skills','loaded_skills','required_capabilities','available_capabilities','required_evidence_sources','evidence_destinations','output_artifacts','requested_model_profile','resolved_model','effective_model','effective_model_status')
+    $missingDeliveryContextFields = @($deliveryContextFields | Where-Object { $_ -notin @($handoffSchema.properties.delivery_context.required) })
+    Assert-True 'Write-capable child handoff binds authorization, repository position, scope and verification' `
+        ($missingDeliveryContextFields.Count -eq 0 -and $handoffSchema.properties.schema_version.const -eq '1.3') "Delivery context fields missing: $($missingDeliveryContextFields -join ', ')"
     Assert-True 'Handoff and result schemas carry explicit model-resolution observability' `
         ($handoffSchema.properties.model_resolution.required -contains 'fallback_used' -and $resultSchema.properties.model_resolution.required -contains 'resolved_model') 'Model resolution contract incomplete'
     Assert-True 'Handoff and current result schema identify the requested agent type' `
@@ -152,6 +159,8 @@ try {
         ($missingResultFields.Count -eq 0 -and $resultSchema.additionalProperties -eq $false) "Result fields missing: $($missingResultFields -join ', ')"
 
     $policy = Get-Content $PolicyPath -Raw
+    Assert-True 'Write-capable child requires a valid parent Delivery Context and cannot repair missing authorization' `
+        (($policy -match 'parent MUST have a valid Delivery Context') -and ($policy -match 'Never dispatch a write-capable child') -and ($policy -match 'read-only\s+handoff')) 'Child-agent authorization inheritance is incomplete'
     Assert-True 'R4 deterministic repair stays with helpers' (($policy -match 'Do not delegate YAML quoting') -and ($policy -match 'schema checks')) 'Deterministic routing missing'
     Assert-True 'Bounded semantic work requires a persisted pre-analysis decision and actual live spawn' `
         (($policy -match 'MUST make') -and ($policy -match 'Save-MxAgileRoutingDecision') -and ($policy -match 'MUST be attempted') -and ($policy -match 'actually exposed by the current session')) 'Executable route gate missing'

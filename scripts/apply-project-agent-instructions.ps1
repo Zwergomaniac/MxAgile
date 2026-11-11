@@ -348,34 +348,36 @@ reading canonical lifecycle contracts.
 1. **Lifecycle Re-Sync FIRST** — check `.mxagile/` and `.concord/scratch/process-state.yaml`;
     read `.mxagile/policies/lifecycle-resync.md` and reconstruct delivery position before Brain or
     generic orientation. Git history is not lifecycle state; do not run `git log` to infer delivery position.
+    This is a precondition before detailed implementation planning, delegation, or any model write.
+    Do not treat tool availability or LIVE-SP detection as delivery authorization.
 2. **Tool authority before commands** — Before any CLI/MCP/tool command or external/tool-provided skill,
-    read `.mxagile/policies/tool-instruction-conflict.md`. For Mendix, consume current C2; do not
-    redetect or infer health. Never choose by PATH or skill load order, or fall back from
-    LIVE-SP-CURRENT after MCP failure. Use the current session's discovered tool interface.
-    Honor C2 `tool_authority.user_interaction`; do not show a CLOSED-AUTONOM / LIVE-SP / Other choice
-    or confirm mode when `mode_choice_required` is false. Ask on ambiguity only after recheck if
-    `question_policy` permits.
+    read `.mxagile/policies/tool-instruction-conflict.md`. Use current C2; never redetect/infer health.
+    Never choose by PATH or skill load order or fall back after LIVE-SP-CURRENT MCP failure. Use the
+    current session's discovered tool interface and C2 interaction policy; ask only at unresolved mutation.
 3. **External changes** — after Re-Sync, if `.mxagile/policies/external-change-reconciliation.md`
     is installed, use its read-only report and bounded impact route. Missing baseline means
     `BASELINE_REQUIRED`, not automatic history scanning or baseline adoption.
-4. **Project Brain after Re-Sync** — Brain is supplementary, not lifecycle state. Empty Brain:
-    continue from canonical project artifacts.
+4. **Project Brain after Re-Sync** — supplementary only; empty Brain means canonical project artifacts, not Git.
 5. **New project or orientation** — use `.mxagile/policies/user-orientation.md`; orientation never
     blocks the user's substantive request.
-6. **Mandatory bounded-semantic routing gate** — before substantive semantic analysis, read
+6. **Mandatory bounded-semantic routing gate** — before semantic analysis, read
     `.mxagile/policies/agent-delegation.md` and persist the routing decision before analysis. If
-    required, MUST invoke that live harness tool with a bounded handoff. A declaration is not a
-    spawn; use the current session's discovered tool interface; never invent names or signatures.
-7. **Optional capabilities, on demand only** — read `.mxagile/policies/capability-discovery.md`;
+    required, MUST invoke that live harness tool with a bounded handoff; a declaration is not a
+    spawn. Use the current session's discovered tool interface; never invent names or signatures.
+7. **Optional capabilities, on demand only** — read `.mxagile/policies/capability-discovery.md` on demand;
     never at startup. Installed does not mean usable; never assume health; query only that capability.
     Unavailable capability never blocks the normal path.
 
-8. **Install/update** — follow `.mxagile/policies/update-contract.md` without another question; read
-    `.mxagile/state/last-update-result.json`. Report framework and compatibility separately; use
-    `CONTRACTS_RE_SYNCED` only after re-reads; otherwise `UPDATE_INSTALLED_RESTART_REQUIRED` /
-    `NOT_VERIFIED`. Say `korrekt aktualisiert` only when permitted.
+8. **Install/update** — follow `.mxagile/policies/update-contract.md` without another question and read
+    `.mxagile/state/last-update-result.json`. Report framework/compatibility separately; use
+    `CONTRACTS_RE_SYNCED` only after re-reads, else `UPDATE_INSTALLED_RESTART_REQUIRED` / `NOT_VERIFIED`.
+    Say `korrekt aktualisiert` only when permitted.
 9. **Finding-linked work** — consume active canonical Findings and their current Project Status
     disposition. `FINDINGS.md` is narrative, never the sole authority.
+
+10. **DevBoard** — "DevBoard starten" means the read-only MxAgile project board, not the Mendix app or `mxcli serve`.
+    Run `python -B .mxagile/tools/serve_project_board.py --port 0` (`py -3` if needed); keep it
+    running and report its URL. `--open` is optional.
 
 Full startup and interruption procedure: `.mxagile/policies/lifecycle-resync.md`.
 '@

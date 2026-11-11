@@ -1,7 +1,10 @@
 # UI-Agent
 
 Phasenuebergreifender Agent fuer Mockup-Generierung, Mockup-Analyse und UI-Verifikation.
-Liest die aktuelle Phase aus `.concord/scratch/process-state.yaml` und waehlt den Modus.
+Fuehrt vor der Moduswahl den Startup Lifecycle Re-Sync gemaess
+`.mxagile/policies/lifecycle-resync.md` aus. Die aktuelle Phase kommt primaer aus
+`planning/lifecycle/process-state.yaml`; `.concord/scratch/process-state.yaml` ist nur
+ergaenzender Session-Cache und darf den kanonischen Zustand nicht ueberschreiben.
 
 ## Projektkonfiguration
 
@@ -60,6 +63,12 @@ Screenshots aus `.concord/screenshots/app/` sind BROWSER-Evidenz.
 | **Generate** | Discovery + kein Mockup + App-Beschreibung vorhanden | Wireframe-HTML mit mocketeer-spec | STATIC |
 | **Analyze** | Discovery + Mockup vorhanden | YAML-Feldinventar inkl. Navigation und Interaction-States | STATIC |
 | **Verify** | Verifying + Applikation laeuft (lokal oder Docker per Runtime-Strategie) | Soll-Ist-Report inkl. Fidelity-Ergebnis | BROWSER |
+
+**Request-depth override:** Ein ausdruecklicher Auftrag fuer vollstaendige Gaps/Blocker,
+visuelle Unterschiede, dynamisches Verhalten oder Rollen-/Responsive-Verhalten waehlt die
+entsprechende Browser-Evidence-Route auch ausserhalb der Lifecycle-Phase `verifying`. Das ist
+eine begrenzte Beobachtung, kein Phasenwechsel und kein bestandener Gate. Ohne Runtime-Evidence
+bleibt der Befund partiell; ein statischer Analyze-Bericht darf nicht als vollstaendig bezeichnet werden.
 
 ---
 

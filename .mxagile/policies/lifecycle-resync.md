@@ -234,6 +234,46 @@ Wird Arbeit ausserhalb jeder registrierten Wave beobachtet (alle Waves `done`, k
 Mission), wird dies als solches gemeldet. Sie wird nicht anhand von Zeitstempeln, Git-Naehe oder
 Namen einer Wave zugeordnet.
 
+### Delivery-Autorisierung vor Implementation und Delegation
+
+Nach dem Startup-Re-Sync darf der Agent fachliche Candidate Work Packages oder Proposed Slices
+skizzieren. Vor einer kanonischen Wave-Reservierung, Implementierungsdelegation oder einem
+Implementierungs-/Mendix-Write muss er jedoch den gueltigen Delivery Context bestaetigen:
+
+- Projektroot, Branch und aktueller HEAD
+- installierter Framework-/Runtime-Zustand und Operating Mode
+- aktive Mission samt Ziel, Scope und Blockern
+- Wave in `execution-waves.md` UND registrierter Wave-Block in `process-state.yaml`
+- passende Readiness-/Implementierungs-Gates und Task-Scope
+- bekannte parallele Branches/Worktrees und Reservations, soweit im Projekt deterministisch ermittelbar
+
+Fehlt der Kontext oder widersprechen sich Quellen, ist das Ergebnis `UNKNOWN`/`CONFLICT` und
+Implementation, schreibende Delegation und Mendix-Modellwrites bleiben gesperrt. Der Agent sichert
+zuerst den beobachteten Zustand, fuehrt den begrenzten Re-Sync aus und klassifiziert unregistrierte
+Arbeit als Recovery. Er weist sie NICHT anhand von Wave-Nummer, Commit-Naehe oder Zeitstempel einer
+neuen Wave zu. Vorlaeufige Arbeit bleibt Candidate Work Package, bis der kanonische Lifecycle sie
+autorisiert und registriert hat.
+
+Operating Mode beantwortet ausschliesslich, welcher technische Write-Kanal nach Autorisierung
+zulaessig ist. `LIVE-SP-CURRENT` oder ein verfuegbares Studio-Pro-MCP autorisiert selbst keinen
+Write. Kann der aktive Harness diese Precondition technisch nicht erzwingen, muss der Agent sie
+unmittelbar vor jedem ersten Write und jeder schreibenden Delegation explizit pruefen.
+
+### Re-Sync nach Interrupt/Resume
+
+Nach einer Nutzerunterbrechung wird die angefragte Beobachtung ausgefuehrt, ohne die bestehende
+Mission/Wave umzudeuten. Vor dem naechsten Write prueft der Agent inkrementell aktuellen Branch,
+HEAD, Mission, aktive/registrierte Wave und relevante Gates erneut. Child-Agents und Background-
+Prozesse werden nur ueber tatsaechlich verfuegbare Harness-/Prozessinformationen geprueft; nicht
+beobachtbare Arbeit bleibt `UNKNOWN` und wird nicht als beendet oder unveraendert angenommen.
+Bei Drift werden alte Gates/Delegationsergebnisse nicht weiterverwendet, bis ihre Source-Fingerprints
+und ihr Delivery Context erneut bestaetigt sind.
+
+"DevBoard starten" ist eine OBSERVATION der read-only MxAgile-Projektion, kein Mendix-Appstart.
+Der kanonisch installierte Einstieg ist `.mxagile/tools/serve_project_board.py`; `--port 0` waehlt
+einen freien Loopback-Port und der Launcher gibt die tatsaechliche URL aus. Das Board ist niemals
+Lifecycle-Autoritaet.
+
 Fuer den Implementing-Resume gilt: das Implementierungs-Fortschritt ist aus der
 `implementation-checklist.yaml` direkt ablesbar (status: done/pending/blocked/failed).
 `resume_from` im process-state ist ein ergaenzender Hinweis, kein Ersatz.

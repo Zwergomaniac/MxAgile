@@ -92,14 +92,32 @@ $startupBlockText = if ($startupBlockMatch.Success) {
 $startupBlockBytes = if ($null -ne $startupBlockText) {
     [System.Text.Encoding]::UTF8.GetByteCount($startupBlockText)
 } else { [int]::MaxValue }
-Assert-True "inject script: LF-normalized startup router stays within 3.2 KB" `
-    ($startupBlockBytes -le 3200) "Measured startup block is $startupBlockBytes LF-normalized UTF-8 bytes"
+Assert-True "inject script: LF-normalized startup router stays within 3.4 KB" `
+    ($startupBlockBytes -le 3400) "Measured startup block is $startupBlockBytes LF-normalized UTF-8 bytes"
 
 Assert-FileContains "inject script: Re-Sync First heading in startup block" `
     $injectScriptPath 'Lifecycle Re-Sync First|Re-Sync First'
 
 Assert-FileContains "inject script: Lifecycle Re-Sync step 1 defined" `
     $injectScriptPath 'Lifecycle Re-Sync FIRST|Re-Sync FIRST'
+
+Assert-FileContains "inject script: delivery authorization precedes detailed planning and model writes" `
+    $injectScriptPath 'precondition before detailed implementation planning, delegation, or any model write'
+
+Assert-FileContains "inject script: LIVE-SP/tool availability is not delivery authorization" `
+    $injectScriptPath 'Do not treat tool availability or LIVE-SP detection as delivery authorization'
+
+Assert-FileContains "lifecycle policy: recovery and authorization gate is defined" `
+    (Join-Path $ScriptDir '.mxagile\policies\lifecycle-resync.md') 'Delivery-Autorisierung vor Implementation und Delegation'
+
+Assert-FileContains "lifecycle policy: interrupt resume rechecks before write" `
+    (Join-Path $ScriptDir '.mxagile\policies\lifecycle-resync.md') 'Vor dem naechsten Write prueft der Agent inkrementell'
+
+Assert-FileContains "startup router: DevBoard is not a Mendix app or mxcli serve" `
+    $injectScriptPath 'DevBoard starten.*read-only MxAgile project board, not the Mendix app or `mxcli serve`'
+
+Assert-FileContains "startup router: DevBoard uses canonical installed launcher and free port" `
+    $injectScriptPath 'python -B \.mxagile/tools/serve_project_board\.py --port 0'
 
 Assert-FileContains "inject script: Brain after Re-Sync defined" `
     $injectScriptPath 'Brain.*after.*Re-Sync|after.*Re-Sync.*Brain|Project Brain after'

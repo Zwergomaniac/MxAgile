@@ -4,6 +4,26 @@ Diese Regeln werden primaer vom **UI-Agent** (`agents/ui-agent.md`) ausgefuehrt.
 In Discovery generiert oder analysiert der UI-Agent Mockups und erzeugt das YAML-Feldinventar.
 In Verifying vergleicht er das Inventar gegen die laufende App.
 
+## Request-Depth Routing
+
+Choose evidence depth from the user's requested outcome, not only the current lifecycle phase.
+This selects observation work; it does not advance lifecycle phases or satisfy a gate.
+
+| Request intent | Minimum evidence route |
+|---|---|
+| Structural inventory or model-only question, with no visual/runtime claim | Static source/model analysis; no app start by default |
+| Visual difference between a mockup and an existing app | Render the active target and inspect a current app capture; use the UI-Agent Verify path and `visual-verification` skill |
+| Full/complete gaps, blockers, or differences against an existing app | Static contracts/model plus browser/runtime observation of the requested pages, material states, roles, and viewports; Analyze-only is insufficient |
+| Dynamic behavior, interaction, role-dependent visibility, or responsive behavior | Playwright/equivalent interaction and rendered-state evidence is mandatory for each materially distinct scenario |
+
+Do not expand every UI request into all pages × roles × states. Derive a bounded scenario set from
+the requested scope and `verification-scenario.md`; reuse evidence only when its reference revision,
+scope, and freshness match. If runtime/browser evidence is unavailable, return an explicitly partial
+static result, enumerate the missing evidence, and do not claim complete gaps, parity, or blockers.
+The caller must ensure `mockup-analysis` and, where required, `visual-verification` are loaded in the
+agent that performs the work; capability/configuration presence alone does not prove a skill or tool
+is loaded in that child context.
+
 ## Reference Preflight and Evidence Reuse
 
 Run this preflight for every Analyze or Verify invocation, including a direct or ad-hoc

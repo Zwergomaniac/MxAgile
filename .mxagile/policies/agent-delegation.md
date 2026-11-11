@@ -63,6 +63,12 @@ save a compact completed result, retrieve it through the result reader, and expl
 consume it before reconciliation. A declaration, handoff file, or simulated invocation
 is not a successful spawn.
 
+Before a child that may write is spawned, the parent MUST have a valid Delivery Context under
+`policies/lifecycle-resync.md`. A child cannot create authorization the parent does not have:
+without a current mission, canonically planned and registered Wave, assigned work package,
+required gates, and mutation-boundary operating-mode evidence, use `MAIN_AGENT` or a read-only
+handoff. Never dispatch a write-capable child to recover from an invalid or unknown parent context.
+
 Do not delegate YAML quoting, schema checks, regex/provenance mapping, Git index
 checks, framework updates, lifecycle re-sync, or final planning decisions.
 
@@ -97,10 +103,18 @@ defaults, but neither establishes the effective limit of an arbitrary session.
 The handoff conforms to `.mxagile/schemas/delegation-handoff.schema.json` and contains
 only mission/delegation IDs, the concrete task, bounded scope and paths, authority
 references, necessary artifact paths and fingerprints, allowed tools, forbidden
-mutations, expected result schema, and an optional supported context budget/profile.
-Do not attach the repository, conversation history, secrets, full historical reports,
-or unrelated authority material. State a read-only scope unless a specific mutation
-is explicitly authorized; lifecycle authority is never delegated.
+mutations, expected result schema, the mandatory `delivery_context` envelope, and an
+optional supported context budget/profile. The envelope binds canonical Wave/work-package IDs,
+project root, branch/worktree, base HEAD, operating mode, `read_only` or `authorized_write`,
+write/forbidden scope, required artifacts, verification and commit expectations, re-sync
+conditions, required and loaded Skills, required/available capabilities, required evidence sources,
+evidence destinations, and output artifacts. Record requested profile, resolved model, and effective
+model separately. `effective_model_status: not_observable` is valid; a task title, parent model, or
+requested profile is never host confirmation. Do not attach the repository, conversation history,
+secrets, full historical reports, or unrelated authority material. A null/unknown branch, HEAD, mode,
+authorization, required skill, or required capability cannot grant a write/verification scope.
+State a read-only scope unless a specific mutation is explicitly authorized; lifecycle authority is
+never delegated.
 
 For delegated runtime/browser/parity work, the coordinating agent resolves the runtime once
 and places the non-secret `resolved_runtime_recipe` in the active mission/verification
