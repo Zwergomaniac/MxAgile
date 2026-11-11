@@ -336,7 +336,7 @@ def _base_checks(
     mission_id = request.get("mission_id")
     wave_id = request.get("wave_id")
     if not isinstance(mission_id, str) or not isinstance(wave_id, str):
-        findings.append(_finding("MISSION_WAVE_REQUIRED", "mission_id and wave_id are required.", "unavailable"))
+        findings.append(_finding("MISSION_WAVE_REQUIRED", "No canonical Mission/active Wave; no Wave is inferred.", "needs_human", recovery="human_resolution"))
         return findings, checked, None
 
     if facts.mission.get("mission_id") != mission_id:
@@ -356,13 +356,13 @@ def _base_checks(
 
     epoch_mission = (facts.context_epoch.get("mission") or {}).get("id")
     if epoch_mission != mission_id:
-        findings.append(_finding("EPOCH_MISSION_MISMATCH", "Context Epoch belongs to a different Mission.", "fail"))
+        findings.append(_finding("EPOCH_MISSION_MISMATCH", "Context Epoch belongs to a different Mission.", "fail", recovery="resync"))
     repository = facts.context_epoch.get("repository") or {}
     if repository.get("branch") != facts.branch:
-        findings.append(_finding("BRANCH_STALE", "Current branch differs from the Context Epoch.", "fail"))
+        findings.append(_finding("BRANCH_STALE", "Current branch differs from the Context Epoch.", "fail", recovery="resync"))
     checkpoint_head = str(repository.get("commit") or "")
     if not checkpoint_head or not (facts.head or "").startswith(checkpoint_head):
-        findings.append(_finding("HEAD_STALE", "Current HEAD differs from the Context Epoch.", "fail"))
+        findings.append(_finding("HEAD_STALE", "Current HEAD differs from the Context Epoch.", "fail", recovery="resync"))
 
     for blocker in facts.mission.get("blockers") or []:
         radius = blocker.get("blast_radius")
@@ -694,6 +694,24 @@ def _protected_child_scope(paths: list[str]) -> bool:
     return any(_scope_matches(protected, paths) for protected in PROTECTED_LIFECYCLE_PATHS)
 
 
+def delivery_authorization(facts: ProjectFacts, operation_class: str, request_id: str = "host-pretool") -> dict[str, Any]:
+    """Delivery authorization derived only from canonical state; used by host enforcement adapters."""
+    request = {
+        "request_id": request_id,
+        "gate_id": f"GATE-mutation-{operation_class}",
+        "mission_id": facts.mission.get("mission_id"),
+        "wave_id": facts.mission.get("active_wave"),
+    }
+    findings, checked, wave = _base_checks(facts, request)
+    if wave is not None and wave.get("phase") != "implementing":
+        # An implementing phase is the canonical record of the developer's explicit approval.
+        findings.append(_finding("MUTATION_PHASE_BLOCKED", f"Active Wave is {wave.get('phase')}; implementation writes require implementing.", "fail", recovery="human_resolution"))
+    findings.append(_finding("MODEL_SCOPE_NOT_OBSERVABLE", "Per-unit Mendix model scope is not observable at the host tool boundary.", "advisory"))
+    findings.append(_finding("PROJECT_IDENTITY_NOT_OBSERVED", "Tool-route project identity is not verified by the host adapter.", "advisory"))
+    checked.append(f"operation_class:{operation_class}")
+    return _finish(facts, request, "mutation", findings, checked)
+
+
 def can_delegate(facts: ProjectFacts, request: dict[str, Any]) -> dict[str, Any]:
     findings, checked, wave = _base_checks(facts, request)
     if wave is None:
@@ -748,6 +766,9 @@ def can_delegate(facts: ProjectFacts, request: dict[str, Any]) -> dict[str, Any]
     if wave:
         context = handoff.get("delivery_context") or {}
         findings.extend(_validate_delivery_context(facts, request, context))
+        write_classes = set(handoff.get("write_classes") or [])
+        if "LIFECYCLE_WRITE" in write_classes:
+            findings.append(_finding("LIFECYCLE_AUTHORITY_DELEGATED", "Lifecycle writes cannot be delegated to a child.", "fail"))
         if context.get("authorization") == "authorized_write":
             mutation_request = {
                 **request,
@@ -758,8 +779,15 @@ def can_delegate(facts: ProjectFacts, request: dict[str, Any]) -> dict[str, Any]
             mutation_result = can_mutate(facts, mutation_request)
             findings.extend(mutation_result["must_findings"])
         elif context.get("authorization") == "read_only":
+            if write_classes - {"EVIDENCE_WRITE"}:
+                findings.append(_finding("READ_ONLY_CHILD_WRITE_CLASS", "A read-only child may only hold EVIDENCE_WRITE.", "fail"))
+            destination = str(handoff.get("evidence_destination") or "").rstrip("/") + "/"
+            for path in context.get("write_scope") or []:
+                if "EVIDENCE_WRITE" not in write_classes or destination == "/" or not str(path).startswith(destination):
+                    findings.append(_finding("EVIDENCE_SCOPE_ESCAPE", f"Write scope is outside the evidence destination: {path}", "fail"))
             bounded_reads = set(handoff.get("artifact_paths") or []) | {
-                item.get("path") for item in handoff.get("source_fingerprints") or [] if isinstance(item, dict)
+                item.get("path") for item in [*(handoff.get("source_fingerprints") or []), *(handoff.get("input_sources") or [])]
+                if isinstance(item, dict)
             }
             for path in (handoff.get("scope") or {}).get("paths") or []:
                 if path not in bounded_reads:
