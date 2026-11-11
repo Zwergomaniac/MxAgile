@@ -13,7 +13,7 @@
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "gate_id": { "type": "string", "minLength": 1 },
-    "gate_type": { "type": "string", "enum": ["transition", "mutation", "delegation"] },
+    "gate_type": { "type": "string", "enum": ["transition", "mutation", "delegation", "visual_verification"] },
     "verdict": { "type": "string", "enum": ["pass", "fail", "needs_human", "partial", "unavailable"] },
     "run_id": { "type": ["string", "null"] },
     "mission_id": { "type": ["string", "null"] },
@@ -45,9 +45,55 @@
     },
     "checked_roles": { "type": "array", "items": { "type": "string" } },
     "checked_states": { "type": "array", "items": { "type": "string" } },
-    "created_at": { "type": "string", "format": "date-time" }
+    "created_at": { "type": "string", "format": "date-time" },
+    "round": { "type": "integer", "minimum": 1 },
+    "visual": { "$ref": "#/definitions/visual" },
+    "event": {
+      "type": "object",
+      "description": "Audit candidate only; never canonical lifecycle state.",
+      "additionalProperties": false,
+      "required": ["type", "run_id"],
+      "properties": {
+        "type": { "type": "string", "pattern": "^[a-z][a-z_]*$" },
+        "run_id": { "type": ["string", "null"] },
+        "parent_run_id": { "type": ["string", "null"] }
+      }
+    }
   },
   "definitions": {
+    "visual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mockup_revision", "page", "route", "roles", "states", "requirements", "decisions", "verification_mode", "evidence", "input_fingerprint"],
+      "properties": {
+        "mockup_revision": { "type": "string", "minLength": 1 },
+        "page": { "type": "string", "minLength": 1 },
+        "html_first_source": { "type": ["string", "null"] },
+        "route": { "type": "string" },
+        "roles": { "type": "array", "items": { "type": "string" } },
+        "states": { "type": "array", "items": { "type": "string" } },
+        "requirements": { "type": "array", "items": { "type": "string" } },
+        "decisions": { "type": "array", "items": { "type": "string" } },
+        "verification_mode": { "type": "string", "enum": ["static", "runtime"] },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "state", "kind", "layer", "path", "sha256"],
+            "properties": {
+              "role": { "type": "string" },
+              "state": { "type": "string" },
+              "kind": { "type": "string", "enum": ["screenshot", "trace", "dom_snapshot", "manifest"] },
+              "layer": { "type": "string", "enum": ["static", "runtime"] },
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        },
+        "input_fingerprint": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
     "reference": {
       "type": "object",
       "required": ["kind", "reference", "sha256"],

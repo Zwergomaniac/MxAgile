@@ -144,7 +144,7 @@ try {
     $deliveryContextFields = @('wave_id','work_package_id','project_root','branch','worktree','base_head','operating_mode','authorization','write_scope','forbidden_scope','required_artifacts','verification_expectations','commit_expectation','resync_conditions','required_skills','loaded_skills','required_capabilities','available_capabilities','required_evidence_sources','evidence_destinations','output_artifacts','requested_model_profile','resolved_model','effective_model','effective_model_status')
     $missingDeliveryContextFields = @($deliveryContextFields | Where-Object { $_ -notin @($handoffSchema.properties.delivery_context.required) })
     Assert-True 'Write-capable child handoff binds authorization, repository position, scope and verification' `
-        ($missingDeliveryContextFields.Count -eq 0 -and $handoffSchema.properties.schema_version.const -eq '1.3') "Delivery context fields missing: $($missingDeliveryContextFields -join ', ')"
+        ($missingDeliveryContextFields.Count -eq 0 -and @($handoffSchema.properties.schema_version.enum) -contains '1.3' -and @($handoffSchema.properties.schema_version.enum) -contains '1.4') "Delivery context fields missing: $($missingDeliveryContextFields -join ', ')"
     Assert-True 'Handoff and result schemas carry explicit model-resolution observability' `
         ($handoffSchema.properties.model_resolution.required -contains 'fallback_used' -and $resultSchema.properties.model_resolution.required -contains 'resolved_model') 'Model resolution contract incomplete'
     Assert-True 'Handoff and current result schema identify the requested agent type' `
