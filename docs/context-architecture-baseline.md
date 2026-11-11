@@ -1303,3 +1303,95 @@ Task artifact for that historical operation.
 Terminology is unchanged: Mission is the durable user objective/scope/completion boundary;
 Acceptance Campaign is a Wave-scoped verification grouping; work packages remain optional Task
 grouping or delegation handoff. None is added as a required intermediate planning level.
+
+## Mendix-Concord Reality Hardening (2026-11-11)
+
+### Scope and Evidence Boundary
+
+This analysis was performed in the MxAgile framework repository, not in the downstream Mendix
+project or its active Concord process. No downstream `AGENTS.md`, `CLAUDE.md`, Company Layer,
+user-global Concord configuration, SessionStart log, process environment, stdout/stderr, exit code,
+or loaded-instruction transcript was available. The current VS Code tool session did not expose the
+Concord or Studio-Pro-MCP tool namespaces. Consequently, the exact production startup path and the
+reported effective hook execution remain `NOT_OBSERVABLE`; they are not classified as “hook absent”
+or “hook failed.”
+
+### Confirmed Framework Facts
+
+- `.vscode/mcp.json` in this framework repository declares `concord-v2-mcp` as a stdio server and
+  `mendix-studio-pro` as an HTTP server at `localhost:7782`. This proves configuration only, not a
+  live endpoint, same-project identity, loaded instructions, or write authorization.
+- The configured Concord shim `scripts/start-concord-mcp.ps1` resolves a root `.mcp.json`. This
+  framework workspace has no root `.mcp.json`; it does have `.vscode/mcp.json`. The shim therefore
+  cannot be used to prove the consumer project's Concord startup. The downstream project may have
+  a different configuration; this needs its read-only inventory before any correction.
+- `install-core.ps1` structurally normalizes Claude `.claude/settings.json`, removing only
+  unambiguous mxcli provisioning/bootstrap SessionStart hooks and preserving foreign/unknown hooks.
+  The normalization does not emit a Lifecycle Re-Sync. The opt-in Claude compaction adapter is
+  separate and requires explicit hook installation. No Concord SessionStart adapter is verified.
+- Managed project instructions place Lifecycle Re-Sync before Brain and generic orientation, but
+  startup delivery authorization is instruction-driven; no universal pre-tool hook can intercept
+  Studio-Pro-MCP writes. The Mendix-Concord host's support for such interception is unknown.
+- The C2/operating-mode contract separates LIVE-SP routing from operation authorization. A
+  successful C2 route selects a permitted tool; it does not create mission, wave, scope, or gate
+  authority. Capability tests verify this distinction.
+- The Concord agent-delegation adapter is explicitly `unknown` for named agents, generic fork, and
+  model selection. Concord MCP is a capability source, not a verified agent harness. Other hosts'
+  delegation contracts do not transfer to Concord.
+- The canonical UI-Agent previously read `.concord/scratch/process-state.yaml` directly to select
+  its mode, contradicting the lifecycle authority contract. It now requires Startup Re-Sync and
+  treats tracked `planning/lifecycle/process-state.yaml` as primary; scratch remains supplementary.
+- Deep visual/runtime contracts already exist: Analyze/Verify preflight, executable mockup
+  materialization, seven-dimensional parity, role/state coverage, and the Mendix-aware Playwright
+  path. The UI-Agent previously bound Analyze to Discovery (`STATIC`) and Verify to Verifying
+  (`BROWSER`), with no explicit request-intent override for a full gap/blocker request.
+- Design Contract `source_superseded_by` was already preserved in story-spec provenance, but the
+  canonical Requirement schema had no successor field and the artifact index had no REQ-to-REQ
+  supersession edge. The worked example also pointed the new REQ back to the old REQ. These are
+  concrete pipeline defects, independent of the unknown Concord hook.
+- The Board server already had bounded background snapshot revalidation, metadata signatures, and
+  source-churn retries. The browser had no revision polling. The Waves register was lexicographic;
+  the separate Timeline API is newest-first for pagination and Recent Activity.
+- Active bundle revision authority and Page-inventory drift were already computed, but a Page Hub
+  without a matching `screen_ids` binding could fall back to its old mockup path. HTML-first source
+  visibility was registry-only, and the source preview was labeled generically while allowing
+  scripts in a sandbox.
+
+### Root-Cause Classification
+
+| Classification | Finding |
+|---|---|
+| PRIMARY ROOT CAUSE (framework) | Delivery authorization and tool routing are separate policies, but the Concord path has no verified instruction-injection/SessionStart contract and no universal tool-level mutation guard. The effective first broken invariant in the reported run cannot be located without downstream host evidence. |
+| CONTRIBUTING FACTOR | UI-Agent phase selection trusted local Concord scratch rather than re-syncing the tracked lifecycle state; this is corrected in the canonical agent source and generated projections. |
+| CONTRIBUTING FACTOR | Lifecycle phase alone selected STATIC Analyze versus BROWSER Verify; a request-depth evidence matrix now makes full gap/visual/dynamic intent require browser evidence without advancing lifecycle phase. |
+| CONTRIBUTING FACTOR | Write-capable child context previously omitted explicit skills, capabilities, evidence destinations, and effective-model observability; the existing Handoff envelope is expanded. It remains host-consumed, not a Concord-enforced hook. |
+| PRIMARY ROOT CAUSE (pipeline) | Canonical REQ supersession had no canonical `superseded_by` field or graph edge, allowing old accepted requirements to remain active without a machine-readable successor. It is now explicit, projected, and linked; ambiguous mappings are not inferred. |
+| PROJECTION DEFECT | The Board did not refresh its browser snapshot, and Page Hub could mix an old inventory target with a newer accepted target without making the active revision primary. Both projection behaviors are corrected; the Board remains read-only. |
+| PROJECTION LIMITATION | Unregistered HTML is not exhaustively discovered from arbitrary Mendix model/theme code. The Board now says “not registered in UI inventory” rather than claiming the source does not exist; unknown candidate associations remain unresolved. |
+| PREVIEW LIMITATION | The Board cannot assemble a Mendix runtime page from source HTML. Its source preview is now labeled as a raw fragment/document source preview, lists direct CSS/JS references, disables script execution, and is explicitly not runtime or parity evidence. |
+| UNSUPPORTED HOST CAPABILITY | Concord's named-agent/fork and model-selection support, effective child model, and loaded-skill evidence remain unknown. The reported “Opus requested / Sonnet 4.6 shown” cannot be resolved from this repository. |
+
+### Changes and Verification
+
+The framework now: polls a cached projection revision every two seconds; sorts Wave IDs in stable
+natural order; renders Project Timeline oldest-to-newest while retaining newest-first API paging and
+Recent Activity; starts the installed Board on a free loopback port with optional browser opening;
+requires a canonical delivery envelope for write-capable children; makes supersession explicit; and
+reports active-target drift, preview class, and direct CSS/JS dependencies. Startup instructions now
+state that LIVE-SP/tool availability is not delivery authorization. These measures strengthen the
+framework contract but do not claim a host-enforced Concord write intercept.
+
+Focused checks passed during implementation, including Startup Priority, SessionStart normalization,
+Lifecycle State, C2/C1 routing, Delegation/Handoff, Project Status, Artifact Index, Board HTTP,
+Board Performance, External Reconciliation, Gallery, Injection, Core Provenance, and Chromium
+Page-Hub viewport checks. The current full Release Gate result is recorded separately from the
+historical 2026-11-03 FAIL/INCOMPLETE baseline after its single final run.
+
+### Still Required for the Downstream Concord Finding
+
+To determine whether the reported session used a different host path, collect read-only evidence
+from that downstream project: effective `AGENTS.md`/`CLAUDE.md` and Company Layer instructions;
+the actual `.vscode/mcp.json` and any `.mcp.json`/global Concord config; whether the session was new,
+reused, or compacted; Concord process CWD/environment; exact child command; hook event/output/exit
+code; active tool inventory; and post-incident branch/HEAD/lifecycle state. Until then, host startup,
+instruction loading, C1 invocation, tool presence, and effective child model remain unverified.

@@ -58,6 +58,26 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-agent-delegation.ps1"])
 
+    def test_ui_and_artifact_lifecycle_policies_have_targeted_suites(self):
+        expected = {
+            ".mxagile/policies/design-contract-intake.md": {
+                "test-design-contract-identity.ps1", "test-ac-faithfulness.ps1", "test-role-access-semantics.ps1",
+                "test-wp2-lifecycle-extensions.ps1",
+            },
+            ".mxagile/policies/impact-resolution.md": {
+                "test-revision-lifecycle.ps1", "test-verification-lifecycle.ps1", "test-impact-resolver.ps1",
+            },
+            ".mxagile/policies/mockup-analysis.md": {
+                "test-mockup-materialization.ps1", "test-scope-aware-verification.ps1",
+            },
+        }
+        for path, suites in expected.items():
+            with self.subTest(path=path):
+                plan = impact.select([path])
+                self.assertEqual(plan["unmapped"], [])
+                self.assertEqual(plan["tier"], 2)
+                self.assertTrue(suites.issubset(set(plan["suites"])))
+
     def test_c0_collector_paths_select_only_the_telemetry_fixture(self):
         plan = impact.select([
             "scripts/context_telemetry_model.py",
