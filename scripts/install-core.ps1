@@ -676,6 +676,26 @@ try {
         Write-Host "[OK] Distributed .mxagile/tools/$delegationTool."
     }
 
+    # Control plane (experimental product path): read-only guard, host adapter, child acceptance.
+    $controlPlaneSource = Join-Path (Split-Path -Parent $PSScriptRoot) 'experiments/control-plane'
+    $controlPlaneDest = Join-Path $destToolsDir 'control-plane'
+    New-Item -ItemType Directory -Path $controlPlaneDest -Force | Out-Null
+    foreach ($controlPlaneFile in @('guard.py', 'enforcement.py', 'child_contract.py', 'control-plane-verdict.schema.json')) {
+        $controlPlaneFileSource = Join-Path $controlPlaneSource $controlPlaneFile
+        if (-not (Test-Path -LiteralPath $controlPlaneFileSource -PathType Leaf)) {
+            throw "Control-plane component not found: $controlPlaneFileSource"
+        }
+        Copy-Item -LiteralPath $controlPlaneFileSource -Destination (Join-Path $controlPlaneDest $controlPlaneFile) -Force
+    }
+    Write-Host '[OK] Distributed .mxagile/tools/control-plane/ (guard, host adapter, child acceptance).'
+    $hookRegistration = & (Join-Path $PSScriptRoot 'Register-MxAgileControlPlaneHook.ps1') -SettingsPath (Join-Path $ProjectRoot '.claude\settings.json')
+    $hookStatus = ($hookRegistration | ConvertFrom-Json).status
+    if ($hookStatus -eq 'UNKNOWN_OWNERSHIP') {
+        Write-Host "[WARN] CONTROL_PLANE_HOOK: UNKNOWN_OWNERSHIP - .claude/settings.json left unchanged; enforcement is NOT active." -ForegroundColor Yellow
+    } else {
+        Write-Host "[OK] CONTROL_PLANE_HOOK: $hookStatus (Claude Code PreToolUse)."
+    }
+
     $mxcliResolverSource = Join-Path $PSScriptRoot "Resolve-MxAgileMxcli.ps1"
     if (-not (Test-Path -LiteralPath $mxcliResolverSource -PathType Leaf)) {
         throw "Resolve-MxAgileMxcli.ps1 not found in script directory: $mxcliResolverSource"
@@ -871,6 +891,10 @@ try {
                 ".mxagile/tools/git_index_integrity.py",
                 ".mxagile/tools/test_harness_cleanup.py",
                 ".mxagile/tools/mendix_merge_preflight.py",
+                ".mxagile/tools/control-plane/guard.py",
+                ".mxagile/tools/control-plane/enforcement.py",
+                ".mxagile/tools/control-plane/child_contract.py",
+                ".mxagile/tools/control-plane/control-plane-verdict.schema.json",
                 ".mxagile/tools/requirements.txt"
             )
         }
