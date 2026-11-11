@@ -384,14 +384,14 @@ try {
         Write-Host "---"
         Write-Host ""
 
-        $updateLayerArgs = @(
-            "-RepositoryUrl", $CompanyLayerGitUrl,
-            "-Ref",           $CompanyLayerRef,
-            "-ProjectRoot",   $ProjectRoot
-        )
-        if ($NonInteractive) { $updateLayerArgs += "-NonInteractive" }
+        $updateLayerParams = @{
+            RepositoryUrl = $CompanyLayerGitUrl
+            Ref           = $CompanyLayerRef
+            ProjectRoot   = $ProjectRoot
+        }
+        if ($NonInteractive) { $updateLayerParams.NonInteractive = $true }
 
-        & $updateLayerScript @updateLayerArgs
+        & $updateLayerScript @updateLayerParams
         $layerExitCode = $LASTEXITCODE
 
         # Exit codes from update-layer.ps1:

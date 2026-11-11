@@ -14,6 +14,9 @@
 #   Tests Test-SchemaVersionChangeProceedsWithoutMigration and
 #   Test-SchemaVersionSameNoPromptRequired verify this behaviour directly.
 
+[CmdletBinding()]
+param([string[]]$SelectedTests = @())
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -1348,6 +1351,76 @@ function Test-PS51RuntimeDiagnostic {
     Write-Host "  PASSED"
 }
 
+function Test-CompanyLayerSetupWrapperBindsNamedUpdateArguments {
+    Write-Host "Running Test-CompanyLayerSetupWrapperBindsNamedUpdateArguments..."
+    $project = New-TempProject
+    $distribution = Join-Path $env:TEMP "mxagile-wrapper-dist-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+    $layerDir = Join-Path $project ".mxagile\layers\test-layer"
+    $scriptDir = Join-Path $distribution "scripts"
+    $companyUrl = "https://example.invalid/company/layer.git"
+    $coreArgsPath = Join-Path $project "core-args.json"
+    $layerArgsPath = Join-Path $project "layer-args.json"
+    $setupScript = Join-Path (Split-Path $ScriptsDir -Parent) "mxagile-setup-company-layer.ps1"
+    New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $layerDir -Force | Out-Null
+    New-Item -ItemType File -Path (Join-Path $project ".mxagile\lifecycle.yaml") -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $layerDir "provenance.json") -Value '{"layerId":"test-layer","installedVersion":"1.0.0","sourceCommit":"oldcommit"}' -Encoding UTF8
+
+    $fakeCore = @'
+[CmdletBinding()]
+param(
+    [string]$ProjectRoot, [string]$CompanyLayerSource, [string]$CompanyLayerSourceType,
+    [string]$CompanyLayerRef, [bool]$IsUpdate, [string]$ProvenanceFlavor,
+    [string]$ProvenanceCoreSource, [string]$ProvenanceCoreSourceType,
+    [string]$ProvenanceCoreRef, [string]$ProvenanceCoreSubdir, [string]$ProvenanceCoreCommit
+)
+[ordered]@{ ProjectRoot = $ProjectRoot; IsUpdate = $IsUpdate; ProvenanceFlavor = $ProvenanceFlavor } |
+    ConvertTo-Json -Compress | Set-Content -LiteralPath $env:MXAGILE_TEST_CORE_ARGS -Encoding UTF8
+$global:LASTEXITCODE = 0
+'@
+    $fakeLayer = @'
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)][string]$RepositoryUrl,
+    [string]$Ref = 'main',
+    [Parameter(Mandatory)][string]$ProjectRoot,
+    [switch]$CheckOnly,
+    [switch]$NonInteractive
+)
+[ordered]@{ RepositoryUrl = $RepositoryUrl; Ref = $Ref; ProjectRoot = $ProjectRoot; NonInteractive = [bool]$NonInteractive } |
+    ConvertTo-Json -Compress | Set-Content -LiteralPath $env:MXAGILE_TEST_LAYER_ARGS -Encoding UTF8
+$global:LASTEXITCODE = 0
+'@
+    [System.IO.File]::WriteAllText((Join-Path $scriptDir "install-core.ps1"), $fakeCore, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText((Join-Path $scriptDir "update-layer.ps1"), $fakeLayer, [System.Text.UTF8Encoding]::new($false))
+
+    $previousCorePath = $env:MXAGILE_TEST_CORE_ARGS
+    $previousLayerPath = $env:MXAGILE_TEST_LAYER_ARGS
+    $env:MXAGILE_TEST_CORE_ARGS = $coreArgsPath
+    $env:MXAGILE_TEST_LAYER_ARGS = $layerArgsPath
+    try {
+        $output = & pwsh -NoProfile -NonInteractive -File $setupScript `
+            -ProjectRoot $project -DistributionSource $distribution -CompanyLayerGitUrl $companyUrl `
+            -CompanyLayerRef main -NonInteractive 2>&1
+        $exitCode = $LASTEXITCODE
+        Assert-Equal $exitCode 0 "Company Layer setup wrapper must complete the update call: $($output -join ' ')"
+        $core = Get-Content -LiteralPath $coreArgsPath -Raw | ConvertFrom-Json
+        $layer = Get-Content -LiteralPath $layerArgsPath -Raw | ConvertFrom-Json
+        Assert-Equal $core.ProjectRoot $project "Core updater receives named ProjectRoot"
+        Assert-Equal ([bool]$core.IsUpdate) $true "Core updater receives update mode"
+        Assert-Equal $layer.RepositoryUrl $companyUrl "Layer updater receives named RepositoryUrl"
+        Assert-Equal $layer.Ref "main" "Layer updater receives named ref main"
+        Assert-Equal $layer.ProjectRoot $project "Layer updater receives named ProjectRoot"
+        Assert-Equal ([bool]$layer.NonInteractive) $true "Layer updater receives NonInteractive switch"
+        Write-Host "  PASSED"
+    } finally {
+        $env:MXAGILE_TEST_CORE_ARGS = $previousCorePath
+        $env:MXAGILE_TEST_LAYER_ARGS = $previousLayerPath
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $distribution -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # =============================================================================
 # -- Test runner ---------------------------------------------------------------
 # =============================================================================
@@ -1387,6 +1460,7 @@ $tests = @(
     # schemaVersion semantics (2)
     "Test-SchemaVersionChangeProceedsWithoutMigration",
     "Test-SchemaVersionSameNoPromptRequired",
+    "Test-CompanyLayerSetupWrapperBindsNamedUpdateArguments",
     # Sparse acquisition / long-path safety (3)
     "Test-SparseAcquisitionExcludesIrrelevantContent",
     "Test-AcquisitionDoesNotModifyGlobalGitConfig",
@@ -1404,6 +1478,12 @@ $tests = @(
     "Test-BrownfieldSuccessfulUpdate",
     "Test-BrownfieldRollback"
 )
+
+if ($SelectedTests.Count -gt 0) {
+    $unknownTests = @($SelectedTests | Where-Object { $_ -notin $tests })
+    if ($unknownTests.Count -gt 0) { throw "Unknown selected tests: $($unknownTests -join ', ')" }
+    $tests = @($tests | Where-Object { $_ -in $SelectedTests })
+}
 
 Write-Host ""
 Write-Host "=======================================" -ForegroundColor Cyan
