@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -28,6 +29,7 @@ sys.path.insert(0, str(SCRIPTS))
 import board_smoke
 import build_project_status
 import project_compatibility
+import serve_project_board
 from test_board_http import write_board_fixture
 
 SMOKE = SCRIPTS / "board_smoke.py"
@@ -265,6 +267,38 @@ class BoardSmokeTests(unittest.TestCase):
             self.assertIn("decisions", report["routes_checked"], "other routes are still evaluated")
         finally:
             remove_screenshots(report)
+
+    @unittest.skipUnless(browser_available(), "no Playwright/Chromium: browser-only case skipped, not passed")
+    def test_page_hub_actions_fit_tiles_at_narrow_desktop_viewport(self) -> None:
+        project = make_project(self.base, "page-hub-responsive")
+        server = serve_project_board.ProjectBoardServer(project, project / ".mxagile/board", 0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch()
+                page = browser.new_page(viewport={"width": 1101, "height": 860})
+                page.goto(f"http://127.0.0.1:{server.server_port}/#pages/PAGE-002", wait_until="networkidle")
+                page.locator(".hub-tiles").wait_for()
+                for width in (1101, 1200, 1440):
+                    with self.subTest(viewport=width):
+                        page.set_viewport_size({"width": width, "height": 860})
+                        measurements = page.locator(".hub-tile .target-open").evaluate_all(
+                            "elements => elements.map(element => {"
+                            "const button = element.getBoundingClientRect();"
+                            "const tile = element.closest('.hub-tile').getBoundingClientRect();"
+                            "return {buttonLeft: button.left, buttonRight: button.right, tileLeft: tile.left, tileRight: tile.right};"
+                            "})"
+                        )
+                        self.assertTrue(measurements)
+                        self.assertTrue(all(item["buttonLeft"] >= item["tileLeft"] - 1 and item["buttonRight"] <= item["tileRight"] + 1 for item in measurements), measurements)
+                        self.assertLessEqual(page.locator("html").evaluate("element => element.scrollWidth"), width + 1)
+                browser.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
 
     @unittest.skipUnless(browser_available(), "no Playwright/Chromium: browser-only case skipped, not passed")
     def test_older_board_payload_without_projection_display_warns_instead_of_failing(self) -> None:

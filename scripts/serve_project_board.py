@@ -7,17 +7,30 @@ import hashlib
 import json
 import mimetypes
 import os
+import posixpath
 import re
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError as exc:
+    if exc.name != "yaml":
+        raise
+    print(
+        "DevBoard dependency PyYAML is missing. Install with the selected Python: "
+        "python -m pip install -r .mxagile/tools/requirements.txt",
+        file=sys.stderr,
+    )
+    raise SystemExit(2) from exc
 
 from build_project_status import ProjectUiConfigError, build_health, build_status, build_status_summary, resolve_project_ui_settings
 from project_compatibility import is_standalone_interaction_artifact, safe_file
@@ -769,6 +782,60 @@ def _html_source_location(project_root: Path, page: dict) -> tuple[str, str] | N
     return canonical, PurePosixPath(*parts[:4]).as_posix()
 
 
+class _PreviewDependencyParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.dependencies: list[tuple[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = {key.lower(): value for key, value in attrs}
+        if tag.lower() == "script" and attributes.get("src"):
+            self.dependencies.append(("javascript", str(attributes["src"])))
+        elif tag.lower() == "link" and "stylesheet" in (attributes.get("rel") or "").lower().split() and attributes.get("href"):
+            self.dependencies.append(("stylesheet", str(attributes["href"])))
+
+
+def _preview_dependencies(project_root: Path, page: dict) -> list[dict[str, str | None]]:
+    location = _html_source_location(project_root, page)
+    source_file = _design_preview_file_for(project_root, page)
+    if location is None or source_file is None:
+        return []
+    try:
+        source_text = source_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return []
+    parser = _PreviewDependencyParser()
+    try:
+        parser.feed(source_text)
+        parser.close()
+    except Exception:
+        return []
+
+    source_path, feature_root = location
+    source_parent = PurePosixPath(source_path).parent
+    dependencies: dict[tuple[str, str], dict[str, str | None]] = {}
+    for kind, reference in parser.dependencies[:24]:
+        parsed = urlsplit(reference.strip())
+        canonical_path = None
+        availability = "invalid_path"
+        if parsed.scheme or parsed.netloc or parsed.path.startswith("/"):
+            availability = "external_not_loaded"
+        elif parsed.path and "\\" not in parsed.path and "%" not in parsed.path:
+            candidate = posixpath.normpath(f"{source_parent.as_posix()}/{parsed.path}")
+            if candidate.startswith(feature_root.rstrip("/") + "/") and ".." not in PurePosixPath(candidate).parts:
+                canonical_path = candidate
+                asset = _no_symlink_components(project_root, canonical_path)
+                availability = "available" if asset is not None and asset.is_file() else "missing"
+        dependencies[(kind, reference)] = {
+            "kind": kind,
+            "reference": reference,
+            "canonical_path": canonical_path,
+            "availability": availability,
+            "preview_behavior": "blocked" if kind == "javascript" else "loaded_if_available",
+        }
+    return list(dependencies.values())
+
+
 def resolve_design_preview_file(project_root: Path, page_id: str, resource_path: str = "") -> Path | None:
     page = load_page_inventory(project_root, page_id)
     if page is None:
@@ -854,11 +921,20 @@ def build_page_previews(project_root: Path, status: dict, only_page_id: str | No
         html_setting = settings.get("html_first", {})
         mockup_setting = settings.get("mockup_driven", {})
 
-        target = next((item for item in targets if page_id in item.get("screen_ids", [])), None)
-        reference_path = (target or {}).get("canonical_path") or page.get("target_mockup") or page.get("source_mockup")
+        mockup_name = page.get("mockup_name")
+        target = next((item for item in targets if isinstance(mockup_name, str) and item.get("mockup_name") == mockup_name), None)
+        if target is None:
+            target = next((item for item in targets if page_id in item.get("screen_ids", [])), None)
+        if isinstance(mockup_name, str):
+            reference_path = target.get("canonical_path") if target and target.get("availability") == "available" else None
+        else:
+            reference_path = page.get("target_mockup") or page.get("source_mockup")
         reference_available = bool(
             isinstance(reference_path, str) and resolve_reference_file(project_root, status, reference_path)
         )
+        inventory_revision = page.get("target_revision") if isinstance(page.get("target_revision"), str) else None
+        active_revision = target.get("revision_id") if isinstance(target, dict) and isinstance(target.get("revision_id"), str) else None
+        inventory_drift = (target.get("inventory_drift") or {}).get("state", "unknown") if isinstance(target, dict) else "not_observable"
 
         page_runs = [run for run in gallery if run.get("screen_id") == page_id]
         current_runs = [run for run in page_runs if not run.get("historical")]
@@ -921,6 +997,9 @@ def build_page_previews(project_root: Path, status: dict, only_page_id: str | No
                 "path": reference_path,
                 "availability": "available" if reference_available else "unknown",
                 "url": f"/reference/{reference_path}" if reference_available else None,
+                "active_revision": active_revision,
+                "inventory_revision": inventory_revision,
+                "inventory_drift": inventory_drift,
             },
             "parity_status": parity_status,
             "authority_conflicts": {
@@ -935,7 +1014,12 @@ def build_page_previews(project_root: Path, status: dict, only_page_id: str | No
                 "availability": "available" if source_exists else ("missing" if html_source else "not_configured"),
                 "preview_url": f"/design-preview/{page_id}/" if source_exists else None,
                 "source_url": f"/design-preview-source/{page_id}/?view=source" if source_exists else None,
-                "preview_class": "DESIGN PREVIEW",
+                "dependencies": _preview_dependencies(project_root, page) if source_exists else [],
+                "preview_class": (
+                    "RAW_FRAGMENT_PREVIEW" if source_exists and _is_html_fragment(project_root, {"path": html_source, "availability": "available"})
+                    else "HTML_DOCUMENT_SOURCE_PREVIEW" if source_exists
+                    else "UNAVAILABLE"
+                ),
             },
             "runtime_status": {"state": runtime_state, "source": "recorded_readiness"},
             "last_verification_evidence": last_evidence,
@@ -943,15 +1027,17 @@ def build_page_previews(project_root: Path, status: dict, only_page_id: str | No
     return {"availability": "available", "items": pages}
 
 
-def _design_preview_shell(page_id: str) -> bytes:
+def _design_preview_shell(page_id: str, preview_label: str, source_relative_path: str) -> bytes:
     safe_id = page_id.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    safe_label = preview_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    encoded_source_path = "/".join(quote(part) for part in PurePosixPath(source_relative_path).parts)
     document = (
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
         "<title>Design Preview</title><style>html,body{margin:0;min-height:100%;font:13px 'Segoe UI',sans-serif;background:#f1f3f1;color:#18211d}"
         "header{padding:9px 14px;background:#1d2925;color:#fff;font:11px Consolas,monospace;letter-spacing:.04em}"
         "iframe{display:block;width:100%;height:calc(100vh - 35px);border:0;background:#fff}</style></head><body>"
-        f"<header>DESIGN PREVIEW · {safe_id} · NOT MENDIX RUNTIME EVIDENCE</header>"
-        f"<iframe title=\"Design Preview {safe_id}\" sandbox=\"allow-scripts\" src=\"/design-preview-source/{safe_id}/\"></iframe>"
+        f"<header>{safe_label} · {safe_id} · SCRIPTS DISABLED · NOT MENDIX RUNTIME EVIDENCE</header>"
+        f"<iframe title=\"{safe_label} {safe_id}\" sandbox src=\"/design-preview-source/{safe_id}/{encoded_source_path}\"></iframe>"
         "</body></html>"
     )
     return document.encode("utf-8")
@@ -1054,7 +1140,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             self.send_header("X-MxAgile-Evidence-Class", "DESIGN_PREVIEW")
             self.send_header(
                 "Content-Security-Policy",
-                "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; "
+                "default-src 'self' data: blob:; script-src 'none'; "
                 "style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; "
                 "font-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
             )
@@ -1324,7 +1410,15 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             if "/" in page_id or resolve_design_preview_file(self.project_root, page_id) is None:
                 self.send_error(404)
                 return
-            self._send(200, _design_preview_shell(page_id), "text/html; charset=utf-8", is_preview=True)
+            page = load_page_inventory(self.project_root, page_id)
+            location = _html_source_location(self.project_root, page) if isinstance(page, dict) else None
+            fragment = _is_html_fragment(self.project_root, {
+                "path": page.get("html_source") if isinstance(page, dict) else None,
+                "availability": "available",
+            })
+            preview_label = "RAW HTML FRAGMENT PREVIEW" if fragment else "HTML DOCUMENT SOURCE PREVIEW"
+            source_relative_path = PurePosixPath(location[0]).relative_to(PurePosixPath(location[1])).as_posix() if location else ""
+            self._send(200, _design_preview_shell(page_id, preview_label, source_relative_path), "text/html; charset=utf-8", is_preview=True)
             return
 
         if parsed.path.startswith("/design-preview-source/"):
@@ -1576,7 +1670,7 @@ def _is_html_fragment(project_root: Path, html_source: dict) -> bool | None:
     if text is None:
         return None
     head = text[:8192].lower()
-    return "<html" not in head and "<link" not in head and "<style" not in head
+    return not any(marker in head for marker in ("<!doctype html", "<html"))
 
 
 def build_page_hub(project_root: Path, status: dict, page_id: str, *, bound_runs: list[dict], timeline_events: list[dict]) -> dict | None:
@@ -1622,7 +1716,9 @@ def build_page_hub(project_root: Path, status: dict, page_id: str, *, bound_runs
     report_items.sort(key=lambda item: (item.get("verified_at") or "", item["report_path"]), reverse=True)
 
     entries = [entry for entry in status.get("verification", {}).get("evidence", {}).get("entries", []) if entry.get("screen_id") == page_id]
-    targets = [target for target in status.get("project", {}).get("active_targets", {}).get("items", []) if page_id in (target.get("screen_ids") or [])]
+    targets = [target for target in status.get("project", {}).get("active_targets", {}).get("items", [])
+               if page_id in (target.get("screen_ids") or [])
+               or (inventory.get("mockup_name") and target.get("mockup_name") == inventory.get("mockup_name"))]
     ledger = [item for item in status.get("project", {}).get("revision_ledger", {}).get("items", []) if page_id in (item.get("screens") or [])]
     decisions = [item for item in status.get("decisions", {}).get("items", []) if page_id in (item.get("affected_screens") or [])]
     requirement_index = {item["id"]: item for item in status.get("requirements", {}).get("items", [])}
@@ -1645,6 +1741,13 @@ def build_page_hub(project_root: Path, status: dict, page_id: str, *, bound_runs
         attention.append({"code": "HTML_SOURCE_PRESENT_SETTING_OFF", "text": "Eine HTML-Quelle liegt vor, die Projekt-Einstellung html_first ist jedoch aus (Einstellung ≠ Artefakt)."})
     if preview["reference"]["availability"] != "available":
         attention.append({"code": "REFERENCE_UNAVAILABLE", "text": "Die Referenz (Mockup) ist nicht auffindbar."})
+    if preview["reference"].get("inventory_drift") in ("mismatch", "unknown"):
+        page_revision = preview["reference"].get("inventory_revision") or "UNKNOWN"
+        active_revision = preview["reference"].get("active_revision") or "UNKNOWN"
+        attention.append({
+            "code": "ACTIVE_TARGET_INVENTORY_DRIFT",
+            "text": f"Page-Inventar bindet {page_revision}; aktive Mockup-Revision ist {active_revision}.",
+        })
     reference_path = preview["reference"].get("path")
     checked_against = report_items[0].get("target_mockup") if report_items else None
     if reference_path and checked_against and reference_path != checked_against:
@@ -1846,6 +1949,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Serve the read-only MxAgile project board on loopback.")
     parser.add_argument("--project-root", type=Path, default=default_project_root())
     parser.add_argument("--port", type=int, default=8765, help="loopback port; 0 lets the operating system choose a free port (printed in the ready line)")
+    parser.add_argument("--open", action="store_true", help="open the board URL in the default browser")
     args = parser.parse_args()
     root = args.project_root.resolve()
     ui_root = root / ".mxagile" / "board"
@@ -1858,7 +1962,14 @@ def main() -> int:
         print(f"Project board could not bind to loopback ({type(exc).__name__})", file=sys.stderr)
         return 2
     # flush: a parent process reading the pipe (Board smoke, --port 0) must see the ready line immediately
-    print(f"MxAgile Board: http://127.0.0.1:{server.server_port}/", flush=True)
+    url = f"http://127.0.0.1:{server.server_port}/"
+    print(f"MxAgile Board: {url}", flush=True)
+    if args.open:
+        try:
+            if not webbrowser.open(url, new=2):
+                print("Default browser could not be opened; use the URL above.", file=sys.stderr)
+        except Exception as exc:
+            print(f"Default browser could not be opened ({type(exc).__name__}); use the URL above.", file=sys.stderr)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

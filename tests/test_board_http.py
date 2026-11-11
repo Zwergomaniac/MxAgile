@@ -82,6 +82,53 @@ class ProjectUiSettingsTests(unittest.TestCase):
 
 
 class BoardHttpTests(unittest.TestCase):
+    def test_page_hub_uses_current_active_revision_and_reports_inventory_drift(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-reference-drift-") as temporary:
+            root = Path(temporary)
+            inventory = root / "planning/ui-inventory/PAGE-001.yaml"
+            inventory.parent.mkdir(parents=True)
+            inventory.write_text(
+                "page_id: PAGE-001\npage_name: Navigation_Sidebar\nmockup_name: Portal\n"
+                "target_revision: REV-005\ntarget_mockup: planning/target-mockups/Portal/_history/REV-005/index.html\n",
+                encoding="utf-8",
+            )
+            active_path = "planning/target-mockups/Portal/_history/REV-037/index.html"
+            status = {
+                "project": {"active_targets": {"items": [{
+                    "mockup_name": "Portal", "availability": "available", "revision_id": "REV-037",
+                    "canonical_path": active_path, "screen_ids": [],
+                    "inventory_drift": {"state": "mismatch", "mismatched_screen_ids": ["PAGE-001"], "unknown_screen_ids": []},
+                }]}},
+                "verification": {"gallery": [], "gallery_state": "available", "parity_reports": [], "evidence": {"entries": []}},
+                "findings": {"availability": "available", "items": []},
+                "runtime": {"recorded_readiness": None},
+            }
+            with patch.object(serve_project_board, "resolve_project_ui_settings", return_value={"settings": {
+                "html_first": {"effective": False, "scope": "project"},
+                "mockup_driven": {"effective": "guided", "scope": "project"},
+            }}), patch.object(serve_project_board, "resolve_reference_file", return_value=Path(temporary) / "reference.html"):
+                preview = serve_project_board.build_page_previews(root, status)["items"][0]
+                hub = serve_project_board.build_page_hub(root, status, "PAGE-001", bound_runs=[], timeline_events=[])
+            self.assertEqual(preview["reference"]["path"], active_path)
+            self.assertEqual(preview["reference"]["active_revision"], "REV-037")
+            self.assertEqual(preview["reference"]["inventory_revision"], "REV-005")
+            self.assertEqual(preview["reference"]["inventory_drift"], "mismatch")
+            self.assertIn("ACTIVE_TARGET_INVENTORY_DRIFT", [item["code"] for item in hub["attention"]])
+
+    def test_board_launcher_opens_the_bound_port_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-launcher-") as temporary:
+            root = Path(temporary)
+            (root / ".mxagile/board").mkdir(parents=True)
+            (root / ".mxagile/board/index.html").write_text("<html></html>", encoding="utf-8")
+            arguments = ["serve_project_board.py", "--project-root", str(root), "--port", "0", "--open"]
+            with patch.object(serve_project_board.sys, "argv", arguments), \
+                 patch.object(serve_project_board.ProjectBoardServer, "serve_forever", side_effect=KeyboardInterrupt), \
+                 patch.object(serve_project_board.webbrowser, "open", return_value=True) as open_browser:
+                self.assertEqual(serve_project_board.main(), 0)
+        open_browser.assert_called_once()
+        self.assertRegex(open_browser.call_args.args[0], r"^http://127\.0\.0\.1:\d+/$")
+        self.assertEqual(open_browser.call_args.kwargs, {"new": 2})
+
     def test_builder_kit_board_discovery_is_fast_and_does_not_infer_session_delegation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mxagile-board-builder-kit-") as temporary:
             root = Path(temporary)
@@ -244,7 +291,7 @@ class BoardHttpTests(unittest.TestCase):
                 self.assertEqual(page["authority_conflicts"]["availability"], "not_observable")
                 self.assertEqual(page["runtime_status"]["state"], "APPLICATION_REACHABLE")
                 self.assertEqual(page["last_verification_evidence"]["status"], "NOT_LOADED")
-                self.assertEqual(page["html_source"]["preview_class"], "DESIGN PREVIEW")
+                self.assertEqual(page["html_source"]["preview_class"], "HTML_DOCUMENT_SOURCE_PREVIEW")
                 self.assertIsNotNone(page["html_source"]["preview_url"])
 
                 with urlopen(f"http://127.0.0.1:{server.server_port}/api/gallery?screen_id=PAGE-001") as response:
@@ -272,10 +319,25 @@ class BoardHttpTests(unittest.TestCase):
             )
             feature = root / "themesource/Module/public/overview"
             feature.mkdir(parents=True)
-            (feature / "Overview.html").write_text("<!doctype html><title>Feature</title>", encoding="utf-8")
+            (feature / "Overview.html").write_text(
+                '<link rel="stylesheet" href="styles.css"><script src="behavior.js"></script><div>Feature fragment</div>',
+                encoding="utf-8",
+            )
             (feature / "styles.css").write_text("body { color: green; }", encoding="utf-8")
+            (feature / "behavior.js").write_text("document.body.dataset.executed = 'yes';", encoding="utf-8")
             (feature.parent / "outside.css").write_text("body { color: red; }", encoding="utf-8")
             self.assertIsNone(serve_project_board.resolve_design_preview_file(root, "PAGE-001", "../outside.css"))
+            preview_status = {
+                "project": {"active_targets": {"items": []}},
+                "verification": {"gallery": [], "gallery_state": "available"},
+                "findings": {"availability": "available", "items": []},
+                "runtime": {},
+            }
+            preview_page = serve_project_board.build_page_previews(root, preview_status)["items"][0]
+            dependencies = {item["kind"]: item for item in preview_page["html_source"]["dependencies"]}
+            self.assertEqual(preview_page["html_source"]["preview_class"], "RAW_FRAGMENT_PREVIEW")
+            self.assertEqual(dependencies["stylesheet"]["availability"], "available")
+            self.assertEqual(dependencies["javascript"]["preview_behavior"], "blocked")
 
             server, thread = self.start_server(root)
             try:
@@ -283,10 +345,13 @@ class BoardHttpTests(unittest.TestCase):
                 with urlopen(f"{base_url}/design-preview/PAGE-001/") as response:
                     shell = response.read().decode("utf-8")
                     self.assertEqual(response.headers["X-MxAgile-Evidence-Class"], "DESIGN_PREVIEW")
-                self.assertIn("DESIGN PREVIEW", shell)
+                    self.assertIn("script-src 'none'", response.headers["Content-Security-Policy"])
+                self.assertIn("RAW HTML FRAGMENT PREVIEW", shell)
+                self.assertNotIn("allow-scripts", shell)
+                self.assertIn("/design-preview-source/PAGE-001/Overview.html", shell)
                 self.assertIn("NOT MENDIX RUNTIME EVIDENCE", shell)
                 with urlopen(f"{base_url}/design-preview-source/PAGE-001/") as response:
-                    self.assertIn("<title>Feature</title>", response.read().decode("utf-8"))
+                    self.assertIn("<div>Feature fragment</div>", response.read().decode("utf-8"))
                     self.assertEqual(response.headers["X-MxAgile-Evidence-Class"], "DESIGN_PREVIEW")
                 with urlopen(f"{base_url}/design-preview-source/PAGE-001/styles.css") as response:
                     self.assertIn("color: green", response.read().decode("utf-8"))

@@ -371,7 +371,7 @@ function renderRequirementTable(container, requirements) {
   const table = node("table", "data-table");
   const head = document.createElement("thead");
   const header = document.createElement("tr");
-  for (const label of ["Requirement", "Status", "Assessment (abgeleitet)", "Wave / Workpackage", "Source"]) header.append(node("th", "", label));
+  for (const label of ["Requirement", "Status", "Superseded by", "Assessment (abgeleitet)", "Wave / Workpackage", "Source"]) header.append(node("th", "", label));
   head.append(header);
   const body = document.createElement("tbody");
   for (const req of requirements) {
@@ -382,12 +382,15 @@ function renderRequirementTable(container, requirements) {
     idCell.append(internalLink(`${req.id} · ${req.title || "Untitled"}`, `requirement/${encodeURIComponent(req.id)}`));
     const statusCell = document.createElement("td");
     statusCell.append(stateBadge(req.status || "UNKNOWN"));
+    const successorCell = document.createElement("td");
+    if (req.superseded_by) successorCell.append(internalLink(req.superseded_by, `requirement/${encodeURIComponent(req.superseded_by)}`));
+    else successorCell.textContent = req.status === "superseded" ? "SUCCESSOR UNKNOWN" : "—";
     const assignCell = node("td", "count-pair", assignments.length ? assignments.join(", ") : "UNMAPPED");
     const assessmentCell = document.createElement("td");
     if (req.delivery_assessment) assessmentCell.append(stateBadge(req.delivery_assessment.label));
     const sourceCell = document.createElement("td");
     sourceCell.append(sourceLink("requirement", req.id));
-    row.append(idCell, statusCell, assessmentCell, assignCell, sourceCell);
+    row.append(idCell, statusCell, successorCell, assessmentCell, assignCell, sourceCell);
     body.append(row);
   }
   table.append(head, body);
@@ -670,7 +673,7 @@ function renderUiPages() {
       actions.append(externalLink("DESIGN PREVIEW", page.html_source.preview_url, "preview-type preview-design"));
       actions.append(externalLink("HTML Source", page.html_source.source_url, "preview-type preview-source"));
     } else if (page.implementation_mode === "HTML_FIRST") {
-      actions.append(node("span", "state warn", "HTML source unavailable"));
+      actions.append(node("span", "state warn", "HTML source not registered or unavailable"));
     }
     const evidenceLink = internalLink("Verification Evidence", `page/${encodeURIComponent(page.page_id)}`);
     evidenceLink.className = "preview-type preview-evidence";
@@ -931,6 +934,11 @@ function renderDetail(parts) {
     if (!requirement) return root.append(empty("Requirement unavailable"));
     root.append(sectionTitle(`${requirement.id} · ${requirement.title || "Untitled"}`, requirement.status || "UNKNOWN"));
     root.append(stateBadge(requirement.status || "UNKNOWN"));
+    if (requirement.status === "superseded") {
+      root.append(requirement.superseded_by
+        ? internalLink(`Superseded by ${requirement.superseded_by}`, `requirement/${encodeURIComponent(requirement.superseded_by)}`)
+        : stateBadge("SUCCESSOR UNKNOWN"));
+    }
     root.append(sourceLink("requirement", requirement.id));
     renderAssessmentBlock(requirement);
     renderEntityTimeline("requirement", requirement.id);
@@ -1742,7 +1750,7 @@ async function renderTimeline() {
   const params = hashQuery();
   root.append(sectionTitle("Project Timeline", "Was ist im Projekt passiert – rekonstruiert aus kanonischen Artefakten und Git (abgeleitet, nie gespeichert)"));
   root.append(timelineFilterBar(params));
-  const explain = node("p", "muted timeline-note", "Neueste zuerst. Wichtiges hervorgehoben, Routine zusammengefasst. ");
+  const explain = node("p", "muted timeline-note", "Chronologisch älter → neuer. Wichtiges hervorgehoben, Routine zusammengefasst. ");
   explain.append(withTip(node("span", "hint", "ⓘ Wie wird zugeordnet?"), "Beziehungen zu Waves, Requirements oder Pages erscheinen nur, wenn sie aus Artefakten oder Change-Sets belegt sind. „nur erwähnt“ und „nicht zugeordnet“ bleiben sichtbar schwach. Zeitnähe, Dateinamen und Commit-Texte ordnen nichts zu."));
   root.append(explain);
   const stream = node("div", "timeline-stream");
@@ -1768,11 +1776,16 @@ async function renderTimeline() {
       if (result.index.state === "BUILDING") setTimeout(() => { if (token === timelineView.token && routeParts()[0] === "timeline") load(cursor); }, 1500);
       return;
     }
-    if (!cursor) timelineView.events = [];
-    timelineView.events.push(...result.events);
+    const chronologicalPage = result.events.slice().sort((left, right) =>
+      left.occurred_epoch - right.occurred_epoch || left.event_id.localeCompare(right.event_id));
+    const previousHeight = cursor ? stream.scrollHeight : 0;
+    const previousScrollY = cursor ? window.scrollY : 0;
+    if (!cursor) timelineView.events = chronologicalPage;
+    else timelineView.events.unshift(...chronologicalPage);
     clear(stream);
     if (!timelineView.events.length) stream.append(empty("Keine Ereignisse für diesen Filter."));
     renderMomentStream(stream, groupMoments(timelineView.events));
+    if (cursor) requestAnimationFrame(() => window.scrollTo(0, previousScrollY + stream.scrollHeight - previousHeight));
     clear(footer);
     footer.append(node("span", "muted", `${timelineView.events.length} von ${result.total} Ereignissen · Index ${result.index.head || ""}${result.index.incremental ? " (inkrementell)" : ""} · ${result.index.rule_version || ""}`));
     if (result.next_cursor) {
@@ -2125,7 +2138,7 @@ async function renderPageHub(pageId) {
   const header = node("header", "hub-header");
   header.append(node("div", "eyebrow", `PAGE · ${data.page_id}`), node("h2", "", data.title || data.page_name));
   const mode = data.implementation.mode === "HTML_FIRST" ? "HTML-first" : data.implementation.mode === "MENDIX_NATIVE" ? "Mendix-nativ" : "Modus unbekannt";
-  const htmlState = data.visuals.design_preview.availability === "available" ? "HTML-Quelle vorhanden" : data.visuals.design_preview.availability === "missing" ? "HTML-Quelle fehlt" : "keine HTML-Quelle konfiguriert";
+  const htmlState = data.visuals.design_preview.availability === "available" ? "HTML-Quelle registriert" : data.visuals.design_preview.availability === "missing" ? "registrierter HTML-Pfad fehlt" : "keine HTML-Quelle im UI-Inventar registriert";
   header.append(node("div", "hub-modeline", `Einstellung: ${mode} · ${htmlState} · Mendix-Seite: ${data.page_name}`));
   if (data.purpose) header.append(node("p", "hub-purpose muted", data.purpose.length > 260 ? `${data.purpose.slice(0, 260)} …` : data.purpose));
   hub.append(header);
@@ -2142,15 +2155,28 @@ async function renderPageHub(pageId) {
   if (reference.availability === "available") {
     referenceTile.append(externalLink("Mockup öffnen ↗", reference.url, "target-open"), lazyFrame("Vorschau einblenden", reference.url));
   }
+  if (reference.active_revision) {
+    referenceTile.append(node("small", "hub-tile-sub", `AKTIV ${reference.active_revision} · INVENTAR ${reference.inventory_revision || "UNKNOWN"}`));
+  }
   const design = data.visuals.design_preview;
+  const designLabel = design.fragment ? "RAW HTML FRAGMENT PREVIEW" : "HTML DOCUMENT SOURCE PREVIEW";
   const designTile = hubTile("UMSETZUNG · HTML-QUELLE", design.path ? pathLabel(design.path) : null,
     design.availability === "available" ? "vorhanden" : design.availability === "missing" ? "fehlt" : "nicht konfiguriert",
     design.availability === "available" ? "good" : design.availability === "missing" ? "bad" : "muted");
   if (design.availability === "available") {
-    designTile.append(externalLink("Design Preview öffnen ↗", design.preview_url, "target-open"), externalLink("Quelle ↗", design.source_url, "source-link"), lazyFrame("Vorschau einblenden", design.preview_url));
-    if (design.fragment) designTile.append(node("p", "muted", "Die HTML-Quelle ist ein Fragment ohne eingebundene Styles und Skripte (diese lädt Mendix zur Laufzeit). Die Vorschau zeigt daher nur die Struktur, nicht das Aussehen – dafür sind die Captures da."));
+    designTile.append(node("small", "preview-class", designLabel), externalLink("HTML source preview öffnen ↗", design.preview_url, "target-open"), externalLink("Quelle ↗", design.source_url, "source-link"), lazyFrame("Vorschau einblenden", design.preview_url));
+    designTile.append(node("p", "muted", design.fragment
+      ? "Fragmentvorschau ohne Mendix-Host-/Runtime-Kontext; Scripts sind deaktiviert. Nicht appgetreu, keine Parity-Evidenz."
+      : "Quellvorschau ohne Script-Ausführung; nicht gleichbedeutend mit einer laufenden Mendix-Page."));
+    for (const dependency of design.dependencies || []) {
+      const row = node("div", "preview-dependency");
+      const label = `${dependency.kind === "stylesheet" ? "CSS" : "JS"} · ${pathLabel(dependency.canonical_path || dependency.reference)}`;
+      row.append(node("span", "muted", label), stateBadge(dependency.availability === "available" ? "available" : dependency.availability === "missing" ? "MISSING" : "NOT_LOADED"));
+      if (dependency.kind === "javascript") row.append(node("small", "muted", "not executed in preview"));
+      designTile.append(row);
+    }
   } else if (design.availability === "not_configured") {
-    designTile.append(node("p", "muted", "Für diese Page ist keine HTML-Quelle im UI-Inventar hinterlegt (nicht HTML-first oder nicht erfasst)."));
+    designTile.append(node("p", "muted", "Keine HTML-Quelle im UI-Inventar registriert; daraus folgt nicht, dass im Projekt keine HTML-/JS-Artefakte existieren."));
   } else {
     designTile.append(node("p", "muted", "Der im Inventar genannte Pfad existiert im Projekt nicht."));
   }

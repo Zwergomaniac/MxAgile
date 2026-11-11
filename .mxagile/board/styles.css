@@ -327,6 +327,9 @@ a { color: inherit; }
 .hub-attention { margin: 8px 0 16px; }
 .hub-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
 .hub-tile { padding: 12px 14px; border: 1px solid var(--line); background: #17211e; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.hub-tile .target-open { box-sizing: border-box; justify-self: start; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.preview-class { color: var(--amber); font: 10px var(--mono); overflow-wrap: anywhere; }
+.preview-dependency { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; font: 10px var(--mono); }
 .hub-tile-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .hub-tile-sub { color: #c4d1ca; font: 12px var(--mono); overflow-wrap: anywhere; }
 .hub-preview > summary, .hub-sources > summary, .hub-report > summary { cursor: pointer; color: var(--muted); font: 11.5px var(--mono); }

@@ -243,6 +243,12 @@ status, checklist done/total only when checklist provenance is explicit, linked
 Requirements, and relevant Findings/Decisions/Evidence by canonical IDs. Tasks
 without `wave_id` appear in an unmapped count. Workpackages appear only when
 `workpackage_id` is explicit; no task ordering or title is used to invent one.
+The Wave register is ordered by natural Wave ID (numeric suffix ascending, stable
+case-insensitive fallback), not filesystem enumeration. `process-state.yaml` has
+no canonical Wave timestamps, so the register does not infer chronology from
+created/started/completed dates. Project Timeline renders recorded events by
+derived `occurred_epoch`, oldest to newest; its API cursor and Recent Activity
+remain newest-first. Current Work keeps the active mission/Wave prominent.
 
 ### Requirements
 
@@ -277,8 +283,14 @@ lifecycle data. Read-only source links and mockup links use a new tab with
 ## Local Reference Serving
 
 The spike uses a Python standard-library HTTP server bound only to
-`127.0.0.1`. `/api/status` rebuilds the projection on demand. The board page is
-served from the Core-owned `.mxagile/board/` payload. Mockup requests are
+`127.0.0.1`. A background validator checks the existing source-metadata
+signature at a bounded interval (normally 2 seconds); the signature covers the
+canonical status files and artifact roots used by the projection. A changed
+signature rebuilds the cached snapshot, with bounded retries when files change
+during the build. `/api/status` serves that snapshot rather than forcing a full
+rebuild per request. `/api/revision` exposes its source fingerprint and projection
+state without a second scan. The board page is served from the Core-owned
+`.mxagile/board/` payload. Mockup requests are
 accepted only when their path is authorized by an available ACTIVE_TARGET in
 the current generated Contract:
 
@@ -301,16 +313,22 @@ The local V1 spike is delivered as static HTML/CSS/JavaScript under
 `.mxagile/tools/`. Start it from the consumer project with:
 
 ```powershell
-python .mxagile/tools/serve_project_board.py --project-root .
+python -B .mxagile/tools/serve_project_board.py --project-root . --port 0
 ```
 
-It binds only `127.0.0.1` (default port 8765). The start screen is Portfolio;
+It binds only `127.0.0.1`, prints the selected URL, and accepts `--open` to open
+the default browser. The browser polls `/api/revision` every 2 seconds and
+reloads the status projection only after a fresh fingerprint changes; it keeps
+the current route, scroll position, and open details. Polling pauses while the
+tab is hidden, and transient build/write errors are retried on the next poll.
+The start screen is Portfolio;
 because there is no canonical project registry, V1 shows the one explicitly
 selected project rather than scanning sibling directories. Project Overview
 has the ACTIVE_TARGET strip, attention indicators and tabs for Waves / Work-
 packages, Requirements, Verification / Evidence, Findings, and Decisions.
 
-The browser reads only `/api/status`. `/reference/<path>` is allow-listed from
+The browser reads `/api/status` and its lightweight `/api/revision` endpoint.
+`/reference/<path>` is allow-listed from
 available ACTIVE_TARGET records and confines SPA assets to `reference_root`;
 single-file targets permit only their exact canonical path. `/source/<path>`
 permits only exact available Contract source references. The server rejects
