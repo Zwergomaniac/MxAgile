@@ -96,6 +96,9 @@ try {
     Assert-True 'project-owned lifecycle state is preserved byte-identically' ($preserved.Count -eq $owned.Count) "preserved=$($preserved.Count)/$($owned.Count)"
     Invoke-Git $project add -A
     Invoke-Git $project commit -qm 'update MxAgile Core'
+    $handoffSchema = Get-Content (Join-Path $project '.mxagile/schemas/delegation-handoff.schema.json') -Raw | ConvertFrom-Json
+    $versions = @($handoffSchema.properties.schema_version.enum)
+    Assert-True 'installed handoff schema accepts existing 1.3 and new 1.4 handoffs' ($versions -contains '1.3' -and $versions -contains '1.4') ($versions -join ',')
 
     Write-Host '--- 4. Guard before re-sync must not pass ---' -ForegroundColor Cyan
     $transition = @{ gate_type = 'transition'; mission_id = 'MISSION-2026-11-11-upgrade'; wave_id = 'W01'; target_phase = 'implementing'; authorization = @{ status = 'confirmed'; reference = 'acceptance-test' } }
@@ -111,6 +114,9 @@ try {
     $done = $transition.Clone(); $done.target_phase = 'done'
     $illegal = Invoke-Guard $project $done
     Assert-True 'illegal transition remains refused after upgrade' ($illegal.verdict -eq 'fail') $illegal.verdict
+    $payload = @{ tool_name = 'Write'; tool_input = @{ file_path = 'javascriptsource/orders/x.js' }; cwd = $project } | ConvertTo-Json -Compress
+    $hook = ($payload | & python (Join-Path $RepoRoot 'experiments/control-plane/enforcement.py')) -join "`n" | ConvertFrom-Json
+    Assert-True 'host enforcement denies an implementation write while the Wave is not implementing' ($hook.hookSpecificOutput.permissionDecision -eq 'deny' -and $hook.hookSpecificOutput.permissionDecisionReason -match 'MUTATION_PHASE_BLOCKED') ($hook | ConvertTo-Json -Compress)
 } finally {
     $env:MXCLI_TEST_BINARY = $previousBinary
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue

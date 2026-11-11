@@ -277,6 +277,94 @@ checks provenance PREVIOUS -> CURRENT, Doctor, project-owned file preservation a
 active transaction, proves the guard refuses before re-sync, then re-syncs and uses the guard. It
 returns UNAVAILABLE (exit 2) without a cached mxcli or when HEAD equals the baseline commit.
 
+## Phase 1B: Mandatory Enforcement
+
+### Enforcement point inventory
+
+MxAgile has no framework-owned mutation chokepoint today: agents mutate through host tools.
+`scripts/mxcli-exec-guarded.ps1` is referenced nowhere and is not a real path.
+
+| Path | Host mechanism | Class | Phase 1B |
+|---|---|---|---|
+| Studio-Pro-MCP / Concord MCP write tools | `mcp__mendix-studio-pro__*`, `mcp__concord__*` | IMPLEMENTATION_WRITE (read verbs: READ) | enforced by adapter |
+| mxcli model mutation | Bash `mxcli exec/create/alter/...` | IMPLEMENTATION_WRITE | enforced by adapter |
+| Direct file edit | Write/Edit/MultiEdit/NotebookEdit | by path: IMPLEMENTATION / EVIDENCE / LIFECYCLE / FRAMEWORK / DERIVED | IMPLEMENTATION enforced |
+| Shell file edit outside known patterns | Bash | READ (not detectable) | **not enforced** |
+| Git mutation | Bash `git commit/push/...` | EXTERNAL_SIDE_EFFECT | classified only |
+| Child spawn | Agent/Task tool | CHILD_SPAWN | enforced by adapter (handoff + `can_delegate`) |
+| Core / Company / Project Layer update, migration | `mxagile-setup*`, `install-core`, `update-layer`, `canonicalize_artifacts` | FRAMEWORK_WRITE | intentionally open (recovery path) |
+| Lifecycle transition | write to `planning/lifecycle/`, `planning/mission/` | LIFECYCLE_WRITE | main agent only; never delegable |
+| Evidence / verification write | `planning/evidence/`, `.concord/evidence/`, parity, campaigns | EVIDENCE_WRITE | lightweight; bounded for children |
+| Derived projection rebuild | `.mxagile/state/`, routing/result records, `requirements/`, `specs/` | DERIVED_PROJECTION_WRITE | lightweight |
+| Unknown host tool | any | IMPLEMENTATION_WRITE | fail-closed |
+
+### Architecture choice
+
+Option D (hybrid), Phase 1B subset: `guard.py` stays the read-only authority;
+`enforcement.py` is a host PreToolUse adapter that classifies each call, skips the guard for
+lightweight classes and turns guard verdicts into allow/deny for IMPLEMENTATION_WRITE and
+CHILD_SPAWN; `child_contract.py` accepts or rejects a finished child deterministically. Host hooks
+alone (A) are not the authority because of the known SessionStart/hook reality gaps; a central
+wrapper (B) cannot intercept host-native tools; tool-specific adapters (C) would duplicate the
+decision. A guard exception or unclassifiable call is a deny (`GUARD_UNAVAILABLE`).
+
+Mutation authorization is derived from canonical state only: active Mission and registered active
+Wave in `implementing` (the canonical record of developer approval), fresh Context Epoch, no
+update/migration blocker, non-BLOCKED Doctor. Missing Mission/Wave yields `MISSION_WAVE_REQUIRED`
+with `human_resolution`; no Wave is inferred.
+
+### Visual verification gate and child contract
+
+- Routing: a mockup-vs-app request with gaps/dynamics/visual terms resolves to
+  `runtime_visual_verification`, never static analysis.
+- Handoff: the existing delegation handoff is extended to 1.4 (`run_id`, `capability`,
+  `route_decision_reference`, `write_classes`, `evidence_destination`, `required_tools`,
+  `input_sources`, `output_contract`, `parent_observations`, `authorization_reference`). 1.3
+  handoffs stay valid; handoffs are not persisted consumer artifacts.
+- A verifier is `read_only` with `EVIDENCE_WRITE` bounded to its evidence destination;
+  `LIFECYCLE_WRITE` can never be delegated.
+- Acceptance (`ACCEPTED`/`PARTIAL`/`REJECTED`/`STALE`/`NEEDS_HUMAN`): output contract, run_id
+  correlation, forbidden writes (Git-observed; implementation/page changes always surfaced),
+  update/migration state, base HEAD, input fingerprints. Model scope outside `CLOSED-AUTONOM`
+  is `MODEL_SCOPE_NOT_OBSERVABLE` and caps the result at `PARTIAL`.
+- Gate: schema, input fingerprint (`identity@digest` per mockup revision, REQ, decision, page
+  implementation, role/state set, contract; no directory hashes, no timestamps), must findings
+  (round < 2: `FAIL` + repair round; round 2: `NEEDS_HUMAN`), evidence existence/hash/destination,
+  per role/state coverage. Static-only or incomplete runtime coverage is at most `PARTIAL`; none
+  is `UNAVAILABLE`. A child claim can lower, never raise the result. `PASS` only permits the
+  lifecycle owner to record `ui_verification`; it never sets a Wave state.
+
+### Enforcement status
+
+- Technically enforced (when the adapter is wired as Claude Code PreToolUse hook): implementation
+  file writes, Mendix MCP write tools, mxcli mutations and non-read-only child spawns are denied
+  without valid derived delivery authorization or a validated handoff.
+- Advisory: child result acceptance and the visual gate are deterministic but must be invoked by
+  the main agent; recording lifecycle consequences stays with existing gates; shell writes outside
+  the known patterns; Git mutations.
+- Host-dependent: the adapter speaks the Claude Code PreToolUse format. It is not installed into
+  consumer projects in Phase 1B. Concord, VS Code Copilot hooks and Copilot CLI need adapters.
+- Not observable: per-unit Mendix model scope, unsaved Studio Pro edits, tool-route project
+  identity at the hook boundary, actual child tool calls beyond Git-visible changes.
+
+### Event readiness (audit only)
+
+Guard, adapter, gate and acceptance results carry an `event` candidate (`delivery_authorized`,
+`delivery_blocked`, `child_started`, `child_completed`, `child_rejected`, `gate_evaluated`,
+`gate_invalidated`, `repair_round_started`, `recovery_required`) with an ephemeral `run_id`
+(`RUN-<12 hex>`) and `parent_run_id`. Nothing is persisted. Events document what canonical
+evaluation decided; they never become lifecycle truth (`event says verified` does not imply
+`verified`). No event taxonomy is fixed yet.
+
+### Phase 2 follow-ups
+
+Wire and migrate the adapter into generated host settings via the existing settings merge;
+Concord/VS Code adapters; Studio-Pro model-unit observation; mandatory acceptance in the delegated
+result reader; append-only run/event log with schema/versioning, size limits, parent/child
+correlation, review rounds, interrupt/resume, compaction recovery, update/migration history,
+retention/archival; DevBoard timeline, recent activity and current runs as projections. Re-use the
+private SAK (`D:\User Testing\spec-agent-kit`) as reference for these.
+
 ## Open Findings and Limits
 
 - `OPEN_QUESTION`: the supplied SAK snapshot has no Git metadata or license file; exact revision,

@@ -27,7 +27,7 @@ class ImpactTests(unittest.TestCase):
     def test_control_plane_experiment_selects_guard_and_baseline_upgrade_suites(self):
         plan = impact.select(["experiments/control-plane/guard.py", "experiments/control-plane/control-plane-verdict.schema.json"])
         self.assertEqual(plan["unmapped"], [])
-        self.assertEqual(plan["suites"], ["test-control-plane-upgrade-from-baseline.ps1", "test_control_plane_guard.py"])
+        self.assertEqual(plan["suites"], ["test-control-plane-upgrade-from-baseline.ps1", "test_control_plane_guard.py", "test_control_plane_phase1b.py"])
 
     def test_company_layer_update_lifecycle_selects_safety_suites_and_release_gate(self):
         plan = impact.select([
