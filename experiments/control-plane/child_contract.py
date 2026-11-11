@@ -166,6 +166,7 @@ def build_visual_handoff(
         "output_contract": OUTPUT_CONTRACT,
         "parent_observations": parent_observations,
         "authorization_reference": authorization_reference,
+        "verification_contract": contract,
     }
 
 
@@ -274,6 +275,9 @@ def accept_child_result(
     elif verdict.get("run_id") != handoff.get("run_id"):
         findings.append({"code": "CORRELATION_MISMATCH", "summary": "Verdict run_id differs from the handoff run_id."})
         demote("REJECTED")
+    elif verdict.get("verdict") == "needs_human":
+        findings.append({"code": "CHILD_REPORTED_NEEDS_HUMAN", "summary": "The child reported a problem that needs a human decision."})
+        demote("NEEDS_HUMAN")
 
     facts = guard.load_project_facts(root)
     integrity, _ = guard._lifecycle_integrity(facts)
@@ -327,3 +331,32 @@ def accept_child_result(
                   "STALE": "recovery_required", "NEEDS_HUMAN": "recovery_required"}[status]
     return {"status": status, "findings": findings, "forbidden_changes": forbidden, "gate": gate,
             "event": {"type": event_type, "run_id": handoff.get("run_id"), "parent_run_id": handoff.get("parent_run_id")}}
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Mandatory child result acceptance.")
+    parser.add_argument("command", choices=["accept"])
+    parser.add_argument("--project-root", required=True)
+    parser.add_argument("--handoff", required=True)
+    parser.add_argument("--verdict")
+    args = parser.parse_args(argv)
+    root = Path(args.project_root).resolve()
+    try:
+        handoff = json.loads((root / args.handoff).read_text(encoding="utf-8"))
+        verdict_path = guard._safe_project_file(root, args.verdict) if args.verdict else None
+        verdict = json.loads(verdict_path.read_text(encoding="utf-8")) if verdict_path and verdict_path.is_file() else None
+        contract = handoff.get("verification_contract")
+        if not isinstance(contract, dict):
+            raise ValueError("handoff has no verification_contract")
+        result = accept_child_result(root, handoff, verdict, contract)
+    except Exception as exc:  # acceptance that cannot run is never an acceptance
+        result = {"status": "NEEDS_HUMAN", "findings": [{"code": "ACCEPTANCE_UNAVAILABLE", "summary": type(exc).__name__}],
+                  "forbidden_changes": [], "gate": None, "event": {"type": "recovery_required", "run_id": None, "parent_run_id": None}}
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

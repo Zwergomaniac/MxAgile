@@ -21,7 +21,12 @@ from typing import Any
 import yaml
 from jsonschema import Draft7Validator
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
+_HERE = Path(__file__).resolve().parent
+# Installed: .mxagile/tools/control-plane/ next to .mxagile/tools/build_project_status.py; repo: scripts/.
+SCRIPTS_DIR = next(
+    (candidate for candidate in (_HERE.parent, _HERE.parents[1] / "scripts") if (candidate / "build_project_status.py").is_file()),
+    _HERE.parents[1] / "scripts",
+)
 
 PRODUCER = "mxagile-control-plane-experiment/0.1"
 RECOVERY_BY_SOURCE = {

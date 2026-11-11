@@ -33,7 +33,7 @@ if ($result.schema_version -eq '1.1' -and [string]::IsNullOrWhiteSpace([string]$
 $allowedProperties = @(
     'schema_version', 'mission_id', 'delegation_id', 'agent_type', 'completed_at', 'scope', 'source_fingerprints',
     'conclusion', 'findings', 'provenance', 'affected_ids', 'unknowns', 'conflicts',
-    'decision_candidates', 'evidence_references', 'model_profile', 'model_resolution'
+    'decision_candidates', 'evidence_references', 'model_profile', 'model_resolution', 'acceptance'
 )
 $unexpectedProperties = @($result.PSObject.Properties.Name | Where-Object { $_ -notin $allowedProperties })
 if ($unexpectedProperties.Count -gt 0) { throw 'Delegation result contains fields outside its compact schema.' }
@@ -86,10 +86,13 @@ foreach ($fingerprint in @($result.source_fingerprints)) {
     $currentHash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($currentHash -ne $fingerprint.sha256) { $staleReferences += [string]$fingerprint.path }
 }
-$reusable = ($staleReferences.Count -eq 0)
+$acceptanceStatus = if ($result.PSObject.Properties['acceptance']) { [string]$result.acceptance.status } else { 'NOT_REQUIRED' }
+$current = ($staleReferences.Count -eq 0)
+$reusable = $current -and ($acceptanceStatus -in @('ACCEPTED', 'NOT_REQUIRED'))
 [ordered]@{
-    state = if ($reusable) { 'CURRENT' } else { 'STALE' }
+    state = if (-not $current) { 'STALE' } elseif ($acceptanceStatus -in @('ACCEPTED', 'NOT_REQUIRED')) { 'CURRENT' } else { $acceptanceStatus }
     reusable = $reusable
+    acceptance = $acceptanceStatus
     mission_id = $result.mission_id
     delegation_id = $result.delegation_id
     stale_references = @($staleReferences)

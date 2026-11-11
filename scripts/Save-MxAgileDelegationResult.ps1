@@ -16,7 +16,7 @@ $input = Get-Content -LiteralPath $InputFile -Raw -Encoding UTF8 | ConvertFrom-J
 $allowedProperties = @(
     'schema_version', 'mission_id', 'delegation_id', 'agent_type', 'scope', 'references', 'conclusion',
     'findings', 'provenance', 'affected_ids', 'unknowns', 'conflicts', 'decision_candidates',
-    'evidence_references', 'model_profile', 'model_resolution'
+    'evidence_references', 'model_profile', 'model_resolution', 'verdict_reference'
 )
 $actualProperties = @($input.PSObject.Properties.Name)
 $unexpected = @($actualProperties | Where-Object { $_ -notin $allowedProperties })
@@ -106,6 +106,37 @@ $result = [ordered]@{
     model_profile = $input.model_profile
     model_resolution = $input.model_resolution
 }
+
+# A child spawned through the control plane has a canonical handoff; its result is never accepted unchecked.
+$handoffRelative = ".concord/delegation-handoffs/$($input.delegation_id).json"
+if (Test-Path -LiteralPath (Join-Path $ProjectRoot $handoffRelative) -PathType Leaf) {
+    $acceptor = @(
+        (Join-Path $PSScriptRoot 'control-plane/child_contract.py'),
+        (Join-Path (Split-Path -Parent $PSScriptRoot) 'experiments/control-plane/child_contract.py')
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
+    $verdictReference = if ($actualProperties -contains 'verdict_reference') { [string]$input.verdict_reference } else { '' }
+    $classified = $null
+    if ($acceptor -and $python) {
+        $acceptArgs = @('-B', $acceptor, 'accept', '--project-root', $ProjectRoot, '--handoff', $handoffRelative)
+        if ($verdictReference) { $acceptArgs += @('--verdict', $verdictReference) }
+        $PSNativeCommandUseErrorActionPreference = $false
+        $raw = & $python.Source @acceptArgs 2>$null
+        try { $classified = ($raw -join "`n") | ConvertFrom-Json -ErrorAction Stop } catch { $classified = $null }
+    }
+    if ($null -eq $classified -or [string]::IsNullOrWhiteSpace([string]$classified.status)) {
+        $classified = [pscustomobject]@{ status = 'NEEDS_HUMAN'; findings = @([pscustomobject]@{ code = 'ACCEPTANCE_UNAVAILABLE' }); gate = $null; event = [pscustomobject]@{ run_id = $null } }
+    }
+    $result['acceptance'] = [ordered]@{
+        status = [string]$classified.status
+        gate_result = if ($classified.gate) { [string]$classified.gate.gate_result } else { $null }
+        finding_codes = @($classified.findings | ForEach-Object { [string]$_.code })
+        run_id = $classified.event.run_id
+        handoff_reference = $handoffRelative
+        verdict_reference = if ($verdictReference) { $verdictReference } else { $null }
+    }
+}
 $resultJson = $result | ConvertTo-Json -Depth 20
 $resultJson = $resultJson + "`n"
 
@@ -130,12 +161,13 @@ $checkpointPath = $checkpoint.Path
 $checkpointRaw = $checkpoint.RawYaml
 if ($checkpointRaw -notmatch "(?m)^\s*-\s+id:\s*`"?$([regex]::Escape([string]$input.delegation_id))`"?\s*$") {
     $lineEnding = if ($checkpointRaw.Contains("`r`n")) { "`r`n" } else { "`n" }
-    $emptyArtifacts = [regex]::Match($checkpointRaw, '(?m)^artifacts:\s*\[\]\s*$')
+    $artifactYaml = ($artifactYaml -replace "`r?`n", $lineEnding)
+    $emptyArtifacts = [regex]::Match($checkpointRaw, '(?m)^artifacts:[ \t]*\[\][ \t]*(?=\r?$)')
     if ($emptyArtifacts.Success) {
         $replacement = "artifacts:$lineEnding$($artifactYaml.TrimEnd())"
         $checkpointRaw = $checkpointRaw.Remove($emptyArtifacts.Index, $emptyArtifacts.Length).Insert($emptyArtifacts.Index, $replacement)
     } else {
-        $artifactSection = [regex]::Match($checkpointRaw, '(?m)^artifacts:\s*$')
+        $artifactSection = [regex]::Match($checkpointRaw, '(?m)^artifacts:[ \t]*(?=\r?$)')
         if (-not $artifactSection.Success) { throw 'Active checkpoint has no artifacts section.' }
         $nextSection = [regex]::new('(?m)^[^\s#][^:\r\n]*:').Match($checkpointRaw, $artifactSection.Index + $artifactSection.Length)
         $insertAt = if ($nextSection.Success) { $nextSection.Index } else { $checkpointRaw.Length }
@@ -148,7 +180,8 @@ if ($checkpointRaw -notmatch "(?m)^\s*-\s+id:\s*`"?$([regex]::Escape([string]$in
 
 [ordered]@{
     state = 'COMPLETED'
-    reusable = $true
+    reusable = (-not $result.Contains('acceptance')) -or $result['acceptance'].status -eq 'ACCEPTED'
+    acceptance = if ($result.Contains('acceptance')) { $result['acceptance'].status } else { 'NOT_REQUIRED' }
     mission_id = $result.mission_id
     delegation_id = $result.delegation_id
     result_reference = $relativeResultPath

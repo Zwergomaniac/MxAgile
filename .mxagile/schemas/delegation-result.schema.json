@@ -58,6 +58,20 @@
     "decision_candidates": { "type": "array", "items": { "type": "string" } },
     "evidence_references": { "type": "array", "items": { "type": "string" } },
     "model_profile": { "type": ["string", "null"], "enum": ["LIGHT", "MID", "HIGH", null] },
+    "acceptance": {
+      "type": "object",
+      "description": "Mandatory deterministic acceptance of a control-plane child. Absent for legacy read-only results (NOT_REQUIRED).",
+      "additionalProperties": false,
+      "required": ["status", "gate_result", "finding_codes", "run_id", "handoff_reference", "verdict_reference"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ACCEPTED", "PARTIAL", "REJECTED", "STALE", "NEEDS_HUMAN"] },
+        "gate_result": { "type": ["string", "null"] },
+        "finding_codes": { "type": "array", "items": { "type": "string" } },
+        "run_id": { "type": ["string", "null"] },
+        "handoff_reference": { "type": "string" },
+        "verdict_reference": { "type": ["string", "null"] }
+      }
+    },
     "model_resolution": {
       "type": "object",
       "additionalProperties": false,

@@ -160,7 +160,8 @@
         "observed_at": { "type": "string" }
       }
     },
-    "authorization_reference": { "type": ["string", "null"] }
+    "authorization_reference": { "type": ["string", "null"] },
+    "verification_contract": { "type": "object", "description": "Deterministic acceptance contract evaluated when the child result is saved." }
   },
   "allOf": [
     {

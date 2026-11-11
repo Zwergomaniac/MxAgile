@@ -112,7 +112,7 @@ class EnforcementTests(Phase1BFixture):
             ("mcp__mendix-studio-pro__create_page", "{}"): "IMPLEMENTATION_WRITE",
             ("Bash", "./mxcli.exe exec mdlsource/w1.mdl -p Fixture.mpr"): "IMPLEMENTATION_WRITE",
             ("Bash", "pwsh ./mxagile-setup.ps1"): "FRAMEWORK_WRITE",
-            ("Bash", "git commit -m x"): "EXTERNAL_SIDE_EFFECT",
+            ("Bash", "git commit -m x"): "CONTROLLED_MUTATION",
             ("Write", "planning/evidence/x.png"): "EVIDENCE_WRITE",
             ("Write", "planning/lifecycle/process-state.yaml"): "LIFECYCLE_WRITE",
             ("UnknownTool", ""): "IMPLEMENTATION_WRITE",

@@ -7,6 +7,7 @@ verdict into allow/deny. Critical classes fail closed when no valid decision is 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import uuid
@@ -24,12 +25,24 @@ FRAMEWORK_WRITE = "FRAMEWORK_WRITE"
 DERIVED_PROJECTION_WRITE = "DERIVED_PROJECTION_WRITE"
 CHILD_SPAWN = "CHILD_SPAWN"
 EXTERNAL_SIDE_EFFECT = "EXTERNAL_SIDE_EFFECT"
+CONTROLLED_MUTATION = "CONTROLLED_MUTATION"
+CONTEXT_INVALIDATING = "CONTEXT_INVALIDATING"
+HIGH_RISK_MUTATION = "HIGH_RISK_MUTATION"
+INTEGRATION_MUTATION = "INTEGRATION_MUTATION"
+VERIFICATION = "VERIFICATION"
+TOOLING_SERVICE = "TOOLING_SERVICE"
 
 # Classes that require a valid delivery decision; others stay lightweight.
-ENFORCED = {IMPLEMENTATION_WRITE, CHILD_SPAWN}
+ENFORCED = {IMPLEMENTATION_WRITE, CHILD_SPAWN, HIGH_RISK_MUTATION, INTEGRATION_MUTATION}
+_SEVERITY = [READ, TOOLING_SERVICE, VERIFICATION, EVIDENCE_WRITE, DERIVED_PROJECTION_WRITE, LIFECYCLE_WRITE,
+             CONTROLLED_MUTATION, CONTEXT_INVALIDATING, EXTERNAL_SIDE_EFFECT, FRAMEWORK_WRITE,
+             INTEGRATION_MUTATION, HIGH_RISK_MUTATION, IMPLEMENTATION_WRITE]
 READ_ONLY_AGENT_TYPES = {"Explore", "Plan", "claude-code-guide", "statusline-setup"}
 MENDIX_MCP_SERVERS = ("mendix-studio-pro", "concord")
-READ_VERB = re.compile(r"(?:^|_)(get|list|read|search|find|describe|inspect|query|show|status|probe|check|validate|diff)(?:_|$)", re.I)
+READ_VERB = re.compile(
+    r"(?:^|_)(get|list|read|search|find|describe|inspect|query|show|status|probe|check|validate|diff|discover|"
+    r"explain|analyze|analyse|lookup|fetch|resolve|summarize|help|docs|knowledge|info|context|refs|callers|callees)(?:_|$)",
+    re.I)
 PATH_CLASSES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("planning/lifecycle/", "planning/mission/", "planning/execution-waves.md", ".concord/context-epoch.yaml"), LIFECYCLE_WRITE),
     (("planning/evidence/", "planning/parity/", "planning/acceptance-campaigns/", "planning/wave-reports/", ".concord/screenshots/", ".concord/evidence/"), EVIDENCE_WRITE),
@@ -37,10 +50,24 @@ PATH_CLASSES: tuple[tuple[tuple[str, ...], str], ...] = (
     ((".mxagile/", ".claude/", ".github/", ".agents/", "AGENTS.md", "CLAUDE.md", "AGENT.md"), FRAMEWORK_WRITE),
     (("requirements/", "specs/", "planning/", "sprints/"), DERIVED_PROJECTION_WRITE),
 )
-MUTATING_SHELL = re.compile(r"\bmxcli(?:\.exe)?\b[^|;&]*\b(exec|create|alter|drop|apply|write)\b", re.I)
+MUTATING_SHELL = re.compile(r"\bmxcli(?:\.exe)?\b[^|;&]*\b(exec|create|alter|drop|apply|write|fix|rename|layout)\b", re.I)
 FRAMEWORK_SHELL = re.compile(r"(mxagile-setup|install-core|update-layer|update-mxcli|canonicalize_artifacts)", re.I)
-GIT_MUTATION = re.compile(r"\bgit\s+(commit|push|reset|rebase|merge|checkout|switch|tag|stash|clean)\b", re.I)
+GIT_CLASSES = {
+    "status": READ, "log": READ, "diff": READ, "show": READ, "blame": READ, "branch": READ, "rev-parse": READ,
+    "ls-files": READ, "fetch": READ, "add": CONTROLLED_MUTATION, "commit": CONTROLLED_MUTATION,
+    "checkout": CONTEXT_INVALIDATING, "switch": CONTEXT_INVALIDATING, "stash": CONTEXT_INVALIDATING,
+    "reset": HIGH_RISK_MUTATION, "clean": HIGH_RISK_MUTATION, "restore": HIGH_RISK_MUTATION,
+    "rm": HIGH_RISK_MUTATION, "push": HIGH_RISK_MUTATION, "tag": CONTROLLED_MUTATION,
+    "merge": INTEGRATION_MUTATION, "rebase": INTEGRATION_MUTATION, "cherry-pick": INTEGRATION_MUTATION,
+    "pull": INTEGRATION_MUTATION, "apply": INTEGRATION_MUTATION, "am": INTEGRATION_MUTATION,
+}
+VERIFICATION_SHELL = re.compile(r"(\bpytest\b|\bunittest\b|\bnpm\s+(run\s+)?test\b|\bplaywright\b|tests[/\\][\w./\\-]*test|\brun-impact-tests\b|\bproject_compatibility\b)", re.I)
+TOOLING_SHELL = re.compile(r"(serve_project_board|build_project_status|graphify|check-studio-pro-status|Get-MxAgileCapabilities)", re.I)
+WRITE_VERBS = re.compile(r"^(set-content|add-content|out-file|new-item|remove-item|move-item|copy-item|rename-item|rm|mv|cp|del|rmdir|mkdir|touch|tee|sed|truncate)$", re.I)
+NULL_REDIRECT = re.compile(r"\d?>&\d|\d?>\s*(\$null|/dev/null|nul)\b", re.I)
+REDIRECT_TARGET = re.compile(r"(?<![<\d])>>?\s*(\"[^\"]+\"|'[^']+'|[^\s;|&]+)")
 HANDOFF_MARKER = re.compile(r"MXAGILE_HANDOFF:\s*(\S+)")
+HANDOFF_DIR = ".concord/delegation-handoffs/"
 
 
 def new_run_id() -> str:
@@ -76,15 +103,50 @@ def classify_tool_call(root: Path, payload: dict[str, Any]) -> tuple[str, str]:
         return READ, tool
     if tool == "Bash":
         command = str(tool_input.get("command") or "")
-        if FRAMEWORK_SHELL.search(command):
-            return FRAMEWORK_WRITE, command
-        if MUTATING_SHELL.search(command):
-            return IMPLEMENTATION_WRITE, command
-        if GIT_MUTATION.search(command):
-            return EXTERNAL_SIDE_EFFECT, command
-        return READ, command
+        return classify_shell(root, command), command
     # Unknown host tools are not assumed harmless.
     return IMPLEMENTATION_WRITE, tool
+
+
+def _strip(token: str) -> str:
+    return token.strip().strip("\"'")
+
+
+def _classify_segment(root: Path, segment: str) -> str:
+    text = NULL_REDIRECT.sub(" ", segment).strip()
+    if not text:
+        return READ
+    if FRAMEWORK_SHELL.search(text):
+        return FRAMEWORK_WRITE
+    if MUTATING_SHELL.search(text):
+        return IMPLEMENTATION_WRITE
+    targets = [_strip(match) for match in REDIRECT_TARGET.findall(text)]
+    tokens = [_strip(token) for token in re.split(r"\s+", text) if token]
+    head = tokens[0].lower() if tokens else ""
+    if head == "git":
+        rest = tokens[1:]
+        while rest and rest[0] in {"-C", "-c"}:
+            rest = rest[2:]
+        subcommand = next((token for token in rest if not token.startswith("-")), "")
+        return GIT_CLASSES.get(subcommand.lower(), HIGH_RISK_MUTATION)
+    if VERIFICATION_SHELL.search(text):
+        return VERIFICATION
+    if TOOLING_SHELL.search(text):
+        return TOOLING_SERVICE
+    if WRITE_VERBS.match(head):
+        operands = [token for token in tokens[1:] if not token.startswith("-") and not re.match(r"^s?/.*/.*/\w*$", token)]
+        if not operands:
+            return IMPLEMENTATION_WRITE
+        targets.extend(operands if head.lower() in {"rm", "del", "remove-item", "rmdir", "mkdir", "touch", "new-item"} else operands[-1:])
+    if not targets:
+        return READ
+    return max((classify_path(root, target) for target in targets), key=_SEVERITY.index)
+
+
+def classify_shell(root: Path, command: str) -> str:
+    """Most restrictive class across chained segments; unknown write targets fail closed."""
+    segments = [part for part in re.split(r"&&|\|\||;|\r?\n|\|", command) if part.strip()]
+    return max((_classify_segment(root, segment) for segment in segments), key=_SEVERITY.index, default=READ)
 
 
 def _blocking(verdict: dict[str, Any]) -> tuple[str, str | None]:
@@ -105,6 +167,10 @@ def _spawn_decision(facts: guard.ProjectFacts, payload: dict[str, Any], run_id: 
     if handoff_path is None or not handoff_path.is_file():
         return {"decision": "deny", "reason": "CHILD_HANDOFF_UNAVAILABLE", "recovery": "inspect"}
     handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    canonical = f"{HANDOFF_DIR}{handoff.get('delegation_id')}.json"
+    if marker.group(1).replace("\\", "/") != canonical:
+        # Save-MxAgileDelegationResult reads this exact path, which makes acceptance mandatory.
+        return {"decision": "deny", "reason": f"CHILD_HANDOFF_NOT_CANONICAL: expected {canonical}", "recovery": "inspect"}
     if handoff.get("agent_type") != agent_type:
         return {"decision": "deny", "reason": "CHILD_AGENT_TYPE_MISMATCH", "recovery": "inspect"}
     request = {
@@ -173,7 +239,8 @@ def main() -> int:
     raw = sys.stdin.read(1_000_000)
     try:
         payload = json.loads(raw or "{}")
-        root = Path(payload.get("cwd") or ".")
+        # Claude sets CLAUDE_PROJECT_DIR for hooks; the tool-call cwd may be a subdirectory.
+        root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or ".")
         output = hook_output(decide(root, payload))
     except Exception as exc:
         output = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
