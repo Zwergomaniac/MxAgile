@@ -4,6 +4,9 @@ const $ = (selector) => document.querySelector(selector);
 const root = $("#view");
 const tabs = ["overview", "timeline", "waves", "requirements", "tasks", "verification", "pages", "findings", "decisions", "health"];
 let status = null;
+let loadInFlight = false;
+let revisionCheckInFlight = false;
+const REVISION_POLL_INTERVAL_MS = 2000;
 
 function node(tag, className = "", text = "") {
   const result = document.createElement(tag);
@@ -2402,8 +2405,12 @@ function renderProjectionState() {
   }
 }
 
-async function load() {
+async function load({ preserveUi = false, silent = false } = {}) {
+  if (loadInFlight) return;
+  loadInFlight = true;
   const button = $("#refresh");
+  const scrollY = preserveUi ? window.scrollY : 0;
+  const detailsState = preserveUi ? [...root.querySelectorAll("details")].map((item) => item.open) : [];
   button.disabled = true;
   try {
     const response = await fetch("/api/status", { cache: "no-store" });
@@ -2419,11 +2426,36 @@ async function load() {
     $("#board").hidden = false;
     renderView();
     renderProjectionState();
+    if (preserveUi) {
+      [...root.querySelectorAll("details")].forEach((item, index) => {
+        if (detailsState[index] !== undefined) item.open = detailsState[index];
+      });
+      requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    }
     void loadReconciliation();
   } catch {
-    $("#load-state").textContent = "Project status unavailable. The board did not infer missing state.";
+    if (!silent && !status) $("#load-state").textContent = "Project status unavailable. The board did not infer missing state.";
   } finally {
     button.disabled = false;
+    loadInFlight = false;
+  }
+}
+
+async function checkForRevision() {
+  if (!status || document.hidden || revisionCheckInFlight) return;
+  revisionCheckInFlight = true;
+  try {
+    const response = await fetch("/api/revision", { cache: "no-store" });
+    if (!response.ok) return;
+    const revision = await response.json();
+    if (revision.projection_state?.state !== "FRESH") return;
+    if (revision.source_fingerprint && revision.source_fingerprint !== status.source_fingerprint) {
+      await load({ preserveUi: true, silent: true });
+    }
+  } catch {
+    // Transient file writes or a restarting local server are retried by the next poll.
+  } finally {
+    revisionCheckInFlight = false;
   }
 }
 
@@ -2433,4 +2465,8 @@ document.addEventListener("click", (event) => {
 });
 window.addEventListener("hashchange", () => { if (status) renderView(); });
 $("#refresh").addEventListener("click", load);
+window.setInterval(checkForRevision, REVISION_POLL_INTERVAL_MS);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) void checkForRevision();
+});
 load();

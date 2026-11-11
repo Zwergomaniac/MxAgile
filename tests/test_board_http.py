@@ -105,6 +105,38 @@ class BoardHttpTests(unittest.TestCase):
         self.assertIsNone(result["agent_available_for_harness"])
         self.assertIsNone(result["agent_delegable"])
 
+    def test_open_board_observes_requirement_changes_without_manual_refresh(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mxagile-board-live-refresh-") as temporary:
+            root = Path(temporary)
+            write_board_fixture(root)
+            ui_root = root / ".mxagile/board"
+            ui_root.mkdir(parents=True)
+            server = serve_project_board.ProjectBoardServer(root, ui_root, 0, background_refresh=True)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_port}"
+            try:
+                with urlopen(f"{base_url}/api/revision") as response:
+                    initial_revision = json.loads(response.read())["source_fingerprint"]
+
+                requirement = root / "requirements/REQ-001.yml"
+                requirement.write_text(
+                    requirement.read_text(encoding="utf-8").replace("Fixture requirement 1", "Updated requirement"),
+                    encoding="utf-8",
+                )
+
+                deadline = time.monotonic() + 6
+                observed_revision = initial_revision
+                while time.monotonic() < deadline and observed_revision == initial_revision:
+                    time.sleep(0.1)
+                    with urlopen(f"{base_url}/api/revision") as response:
+                        payload = json.loads(response.read())
+                    if payload["projection_state"]["state"] == "FRESH":
+                        observed_revision = payload["source_fingerprint"]
+                self.assertNotEqual(observed_revision, initial_revision)
+            finally:
+                self.stop_server(server, thread)
+
     def start_server(self, root: Path):
         ui_root = root / ".mxagile/board"
         ui_root.mkdir(parents=True, exist_ok=True)

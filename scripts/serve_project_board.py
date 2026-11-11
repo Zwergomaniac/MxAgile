@@ -1142,6 +1142,20 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
             self._send(200, payload, "application/json; charset=utf-8")
             return
 
+        if parsed.path == "/api/revision":
+            try:
+                status = self.server.status_cache.get_summary()  # type: ignore[attr-defined]
+                payload = json.dumps({
+                    "source_fingerprint": status.get("source_fingerprint"),
+                    "projection_state": self.server.status_cache.projection_info(),  # type: ignore[attr-defined]
+                }, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            except Exception as exc:
+                self.log_error("REVISION_BUILD_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "revision_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            self._send(200, payload, "application/json; charset=utf-8")
+            return
+
         if parsed.path == "/api/timeline":
             filters = self.server.timeline.valid_filters(parse_qs(parsed.query, keep_blank_values=True))  # type: ignore[attr-defined]
             if filters is None:
