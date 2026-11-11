@@ -416,6 +416,7 @@
               "id": { "type": "string" },
               "title": { "type": ["string", "null"] },
               "status": { "type": ["string", "null"], "enum": ["draft", "accepted", "deferred", "superseded", null] },
+              "superseded_by": { "type": ["string", "null"], "pattern": "^(REQ-[0-9]{3,})?$" },
               "delivery_assessment": { "$ref": "#/definitions/delivery_assessment" },
               "canonical_path": { "type": "string" },
               "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }

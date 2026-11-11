@@ -92,6 +92,7 @@ CANONICAL_EDGE_REGISTRY = [
     # requirement
     ('requirement', 'derivedFrom',                  'DERIVED_FROM',   'page',              DECLARED),
     ('requirement', 'screens[]',                    'APPLIES_TO',     'page',              DECLARED),
+    ('requirement', 'superseded_by',                'SUPERSEDED_BY',  'requirement',       DECLARED),
     # spec
     ('spec',        'requirements[]',               'IMPLEMENTED_BY', 'requirement',       DECLARED),
     # task
@@ -486,6 +487,12 @@ def build_graph(artifacts):
             for screen_id in _as_list(content.get('screens')):
                 _emit_edge(edges, node_id, screen_id, 'APPLIES_TO', DECLARED,
                            'requirement.screens[]', all_artifact_ids, node_id)
+
+            # SUPERSEDED_BY: Requirement -> Requirement  (REQ.superseded_by)
+            superseded_by = content.get('superseded_by')
+            if superseded_by:
+                _emit_edge(edges, node_id, superseded_by, 'SUPERSEDED_BY', DECLARED,
+                           'requirement.superseded_by', all_artifact_ids, node_id)
 
         # ----------------------------------------------------------------
         # spec edges

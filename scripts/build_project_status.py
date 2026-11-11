@@ -2327,6 +2327,7 @@ def _build_status(
             "id": record["ID"],
             "title": record.get("title") if isinstance(record.get("title"), str) else None,
             "status": record.get("status") if record.get("status") in REQUIREMENT_STATUSES else None,
+            "superseded_by": record.get("superseded_by") if isinstance(record.get("superseded_by"), str) else None,
             "canonical_path": path,
             "content_hash": f"sha256:{hashes[path]}" if hashes.get(path) else None,
         }

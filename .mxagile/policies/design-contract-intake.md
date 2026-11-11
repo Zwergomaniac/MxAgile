@@ -192,6 +192,13 @@ When importing a source relationship (e.g., `req.superseded_by`, `dec.affected_r
 3. **Write a canonical reference** only after a valid canonical mapping (`MAPPED` or `DIRECT`) exists.
 4. **If no canonical mapping exists** yet, the canonical reference field remains unpopulated until Refinement.
 
+When a source requirement's `source_superseded_by` target is resolved, Refinement MUST record
+the canonical `superseded_by` ID on the old Requirement and set its status to `superseded`.
+This transition is allowed only after the source-to-canonical mapping and semantic identity are
+confirmed. If the target is pending, colliding, or ambiguous, do not infer a successor: keep the
+source relationship in `id_map`, leave the affected Requirement unaccepted with an explicit open
+item, and resolve the mapping before implementation relies on either version.
+
 Never copy a Design Contract ID directly into a canonical reference field because it
 syntactically resembles a canonical ID.
 

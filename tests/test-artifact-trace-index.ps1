@@ -120,6 +120,17 @@ try {
     Assert-Condition ($atEdge) "APPLIES_TO edge from REQ-03 to PAGE-CALENDAR was not created."
     Write-Host "[PASS] APPLIES_TO Edge"
 
+    # --- Test 8b: SUPERSEDED_BY Edge (old requirement -> canonical successor) ---
+    Write-Host "[TEST] Running: Requirement SUPERSEDED_BY Edge"
+    $req4FilePath = Join-Path $ReqDir "REQ-04.yml"
+    Set-Content -Path $req4FilePath -Value "ID: REQ-04`ntitle: Old requirement`ndescription: Replaced requirement`nstatus: superseded`nsuperseded_by: REQ-01"
+    & python $BuilderScriptPath $TestDir
+    $indexJson = Get-Content $IndexPath -Raw | ConvertFrom-Json
+    $supersededEdge = $indexJson.edges | Where-Object { $_.from -eq 'REQ-04' -and $_.to -eq 'REQ-01' -and $_.type -eq 'SUPERSEDED_BY' }
+    Assert-Condition ($supersededEdge) "SUPERSEDED_BY edge from REQ-04 to REQ-01 was not created."
+    Assert-Condition ($supersededEdge.provenance.source -eq 'requirement.superseded_by') "Requirement supersession edge provenance is missing."
+    Write-Host "[PASS] Requirement SUPERSEDED_BY Edge"
+
     # --- Test 9: Scenario node and COVERS edge ---
     Write-Host "[TEST] Running: Scenario node and COVERS edge"
     $scenFilePath = Join-Path $ScenDir "SCEN-01.yaml"

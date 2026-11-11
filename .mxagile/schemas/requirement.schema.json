@@ -26,6 +26,11 @@
       "default": "draft",
       "description": "draft: authored but not reviewed. accepted: approved for implementation. deferred: postponed. superseded: replaced by another requirement."
     },
+    "superseded_by": {
+      "type": "string",
+      "pattern": "^REQ-[0-9]{3,}$",
+      "description": "Canonical successor Requirement. Required when status is superseded; never infer from title or text similarity."
+    },
     "source": {
       "type": "string",
       "enum": ["native", "legacy", "migrated", "stakeholder", "security_review", "design_contract"],
@@ -164,5 +169,14 @@
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
       "description": "ISO date when this requirement was converted by the canonicalization lifecycle."
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "superseded" } },
+        "required": ["status"]
+      },
+      "then": { "required": ["superseded_by"] }
+    }
+  ]
 }

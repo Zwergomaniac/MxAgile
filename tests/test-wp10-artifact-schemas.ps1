@@ -140,6 +140,9 @@ Assert-Contains "A11: requirement schema has derivedFrom field" $ReqSchema '"der
 Assert-Contains "A12: requirement schema has acceptance_criteria field" $ReqSchema '"acceptance_criteria"'
 Assert-Contains "A13: requirement schema has migrated_from field" $ReqSchema '"migrated_from"'
 Assert-Contains "A14: task schema has action NOT description as primary display" $TaskSchema '"action"'
+Assert-Contains "A15: requirement schema records a canonical supersession successor" $ReqSchema '"superseded_by"'
+Assert-Contains "A16: superseded requirements require a successor" $ReqSchema '"const": "superseded"'
+Assert-Contains "A17: requirement successor uses canonical REQ IDs" $ReqSchema 'REQ-\[0-9\]\{3,\}'
 
 Write-Host ""
 

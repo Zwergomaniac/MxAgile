@@ -61,6 +61,7 @@ Represents an atomic, testable, traceable requirement.
 | Field | Type | Description |
 |---|---|---|
 | `status` | `draft\|accepted\|deferred\|superseded` | Default: `draft`. |
+| `superseded_by` | canonical `REQ-NNN` | Required when `status: superseded`; points from the old Requirement to its successor. Never inferred from text similarity. |
 | `source` | `native\|legacy\|migrated` | Provenance. |
 | `derivedFrom` | string (`PAGE-...`) | Page ID → creates `DERIVED_FROM` edge in artifact index. |
 | `target_users` | array of `{role, description}` | Affected user roles. |
@@ -75,6 +76,7 @@ Represents an atomic, testable, traceable requirement.
 **Artifact index consumption:**
 - `ID` → primary key (falls back to filename stem)
 - `derivedFrom` → `DERIVED_FROM` edge: Page → Requirement
+- `superseded_by` → `SUPERSEDED_BY` edge: old Requirement → successor Requirement
 
 **Example:**
 ```yaml
@@ -390,7 +392,7 @@ After Refinement:
 - Source `REQ-001` → canonical `REQ-001` (DIRECT, same content)
 - Source `REQ-007` → canonical `REQ-012` (MAPPED, new allocation due to collision)
 - Source `DEC-004` → canonical `DEC-009` (MAPPED, new allocation due to collision)
-- Canonical `REQ-012` has `superseded_by: REQ-001` (resolved from source `REQ-001`)
+- Canonical `REQ-001` is `status: superseded` with `superseded_by: REQ-012` (resolved from source `REQ-001.superseded_by: REQ-007`)
 - Canonical `DEC-009` governs `REQ-012` (resolved from source mapping)
 - Pre-existing canonical `REQ-007` and `DEC-004` untouched.
 

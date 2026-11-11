@@ -268,6 +268,16 @@ STEP 1 — Identify change scope from revision manifest
     change_scope: (human description)
     requirements: [REQ-NNN, ...] (populated by create_revision.py)
 
+  Before downstream work continues, reconcile affected canonical Requirements against the
+  accepted source revision. A revision's `requirements[]` is an impact list, not proof that every
+  listed Requirement was replaced. Keep semantically retained Requirements accepted. When the
+  accepted source explicitly replaces a Requirement and the canonical successor mapping is known,
+  set the old Requirement to `status: superseded` with `superseded_by: REQ-NNN`. Do not delete the
+  old artifact. If source meaning or successor mapping is ambiguous, keep both records, set the
+  affected requirement work to unresolved (`draft` with an `open_items` entry), and require
+  Reconciliation before implementation treats either version as current. Never infer replacement
+  from file names, Wave numbers, timestamps, or text similarity alone.
+
 STEP 2 — Determine artifact staleness scope
   If change_classification == non_material AND confirmed by developer:
     → No staleness propagation. Update bundle_hash in affected page YAMLs only.

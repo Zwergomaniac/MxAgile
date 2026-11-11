@@ -2701,6 +2701,19 @@ class CurrentWorkAndAssessmentTests(unittest.TestCase):
       _, items, _ = build_project_status.wave_projection({"waves": waves})
       self.assertEqual([item["wave_id"] for item in items], ["W01", "W2", "W10", "Imported"])
 
+    def test_requirement_supersession_is_explicit_and_projected(self) -> None:
+        write_file(self.root, "requirements/REQ-001.yml", "ID: REQ-001\ntitle: Old requirement\ndescription: Old behavior.\nstatus: superseded\nsuperseded_by: REQ-002\n")
+        write_file(self.root, "requirements/REQ-002.yml", "ID: REQ-002\ntitle: Current requirement\ndescription: Current behavior.\nstatus: accepted\n")
+        requirements = self.status()["requirements"]["items"]
+        old = next(item for item in requirements if item["id"] == "REQ-001")
+        self.assertEqual((old["status"], old["superseded_by"]), ("superseded", "REQ-002"))
+
+        schema = json.loads((ROOT / ".mxagile/schemas/requirement.schema.json").read_text(encoding="utf-8-sig"))
+        valid = {"ID": "REQ-003", "title": "Old", "description": "Old.", "status": "superseded", "superseded_by": "REQ-002"}
+        invalid = {key: value for key, value in valid.items() if key != "superseded_by"}
+        self.assertEqual(list(Draft7Validator(schema).iter_errors(valid)), [])
+        self.assertTrue(list(Draft7Validator(schema).iter_errors(invalid)))
+
     def git(self, *args: str) -> None:
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
                        check=True, capture_output=True)
