@@ -145,6 +145,8 @@ RULES = (
      ("test-wp10-artifact-schemas.ps1", "test-artifact-trace-index.ps1", "test-graph-capability.ps1", "test-impact-resolver.ps1")),
     ((".mxagile/schemas/*", ".mxagile/templates/generic/ui-inventory/template.yaml", "docs/injection-contract.md"), 2,
      ("test_project_status.py", "test-negative-schema.ps1", "test-injection-contract.ps1")),
+    (("experiments/control-plane/*", "tests/test_control_plane_guard.py"), 2,
+     ("test_control_plane_guard.py", "test-control-plane-upgrade-from-baseline.ps1")),
     (("tests/run-impact-tests.py", "tests/test_test_impact.py", "tests/test-impact-tiers.ps1", "tests/README.md"), 1, ("test_test_impact.py",)),
     # `specs/*` is the GitHub Spec Kit / engineering-traceability path of MxAgile development (specification, plan,
      # contracts, task record, reports). It is versioned documentation, never runtime or product payload, so it is

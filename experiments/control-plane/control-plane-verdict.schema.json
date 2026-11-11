@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:experimental-control-plane-verdict",
+  "title": "Experimental MxAgile Control-Plane Gate Verdict",
+  "description": "Transient evaluator output (Phase 1). Never persisted in consumer projects and never lifecycle authority. A future persisted form must bump schema_version and ship through install-core plus a Doctor compatibility projection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "gate_id", "gate_type", "verdict", "run_id", "mission_id", "wave_id", "producer",
+    "input_references", "evidence_references", "must_findings", "should_findings", "scope",
+    "checked_roles", "checked_states", "created_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "gate_id": { "type": "string", "minLength": 1 },
+    "gate_type": { "type": "string", "enum": ["transition", "mutation", "delegation"] },
+    "verdict": { "type": "string", "enum": ["pass", "fail", "needs_human", "partial", "unavailable"] },
+    "run_id": { "type": ["string", "null"] },
+    "mission_id": { "type": ["string", "null"] },
+    "wave_id": { "type": ["string", "null"] },
+    "producer": { "type": "string", "minLength": 1 },
+    "input_references": { "type": "array", "items": { "$ref": "#/definitions/reference" } },
+    "evidence_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "must_findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "should_findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "paths"],
+      "properties": {
+        "summary": { "type": "string" },
+        "paths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "checked_roles": { "type": "array", "items": { "type": "string" } },
+    "checked_states": { "type": "array", "items": { "type": "string" } },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "definitions": {
+    "reference": {
+      "type": "object",
+      "required": ["kind", "reference", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "reference": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["code", "summary", "disposition"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "summary": { "type": "string", "minLength": 1 },
+        "disposition": { "type": "string", "enum": ["fail", "needs_human", "unavailable", "advisory"] },
+        "reference": { "type": "string" },
+        "recovery": {
+          "type": "string",
+          "enum": ["inspect", "resume", "retry_safe_step", "rollback", "human_resolution", "resync", "doctor"]
+        }
+      }
+    }
+  }
+}

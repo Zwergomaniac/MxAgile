@@ -24,6 +24,11 @@ class ImpactTests(unittest.TestCase):
     def test_installer_requires_integration(self):
         self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
 
+    def test_control_plane_experiment_selects_guard_and_baseline_upgrade_suites(self):
+        plan = impact.select(["experiments/control-plane/guard.py", "experiments/control-plane/control-plane-verdict.schema.json"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-control-plane-upgrade-from-baseline.ps1", "test_control_plane_guard.py"])
+
     def test_company_layer_update_lifecycle_selects_safety_suites_and_release_gate(self):
         plan = impact.select([
             "mxagile-setup-company-layer.ps1",
