@@ -2691,6 +2691,16 @@ class CurrentWorkAndAssessmentTests(unittest.TestCase):
     def wave(phase: str) -> dict:
         return {"phase": phase, "gates": {"gate_to_refinement": {"result": "passed"}, "gate_to_ready": {"result": "passed"}}}
 
+    def test_wave_inventory_uses_stable_natural_id_order(self) -> None:
+      waves = {
+        "W10": {**self.wave("planned"), "created_at": "2026-10-01"},
+        "W2": {**self.wave("implementing"), "created_at": "2026-10-30"},
+        "W01": self.wave("done"),
+        "Imported": self.wave("ready"),
+      }
+      _, items, _ = build_project_status.wave_projection({"waves": waves})
+      self.assertEqual([item["wave_id"] for item in items], ["W01", "W2", "W10", "Imported"])
+
     def git(self, *args: str) -> None:
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
                        check=True, capture_output=True)

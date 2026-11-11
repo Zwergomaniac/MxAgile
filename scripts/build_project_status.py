@@ -1366,7 +1366,15 @@ def wave_projection(process_state: dict[str, Any] | None) -> tuple[str, list[dic
     counts = {phase: 0 for phase in PHASES}
     counts["unknown"] = 0
     partial = False
-    for wave_id, state in sorted(waves_data.items(), key=lambda item: str(item[0])):
+
+    def wave_order(item: tuple[Any, Any]) -> tuple[Any, ...]:
+        identifier = str(item[0])
+        match = re.fullmatch(r"(.*?)(\d+)", identifier)
+        if match:
+            return (0, match.group(1).casefold(), int(match.group(2)), identifier.casefold())
+        return (1, identifier.casefold(), identifier)
+
+    for wave_id, state in sorted(waves_data.items(), key=wave_order):
         if not isinstance(state, dict):
             phase = None
             gates_data = {}
