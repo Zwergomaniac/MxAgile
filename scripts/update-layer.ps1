@@ -57,9 +57,15 @@ param (
 
     [string]$ProjectRoot = (Get-Location).Path,
 
+    [string[]]$ExpectedInstalledLayerIds = @(),
+
     [switch]$CheckOnly,
 
-    [switch]$NonInteractive
+    [switch]$NonInteractive,
+
+    [string]$TransactionPath = "",
+
+    [switch]$ResumeUpdate
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,6 +139,17 @@ function Assert-LayerBoundary {
     if (-not $normalized.StartsWith($allowedBase)) {
         throw "SECURITY: attempted write outside Layer boundary. Path: $DestPath  Boundary: $LayerRoot"
     }
+}
+
+function Update-Transaction {
+    param([System.Collections.IDictionary]$Fields)
+    if ([string]::IsNullOrWhiteSpace($TransactionPath) -or -not (Test-Path -LiteralPath $TransactionPath -PathType Leaf)) { return }
+    $transaction = Get-Content -LiteralPath $TransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    foreach ($key in $Fields.Keys) { $transaction[$key] = $Fields[$key] }
+    $transaction["updated_at"] = (Get-Date).ToUniversalTime().ToString('o')
+    $temporary = "$TransactionPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    [System.IO.File]::WriteAllText($temporary, (($transaction | ConvertTo-Json -Depth 30) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temporary -Destination $TransactionPath -Force
 }
 
 function Confirm-ArtifactManifestSafety {
@@ -245,6 +262,7 @@ $installedCommit      = $null
 $stateManifestPath    = $null
 $stateManifestBytes   = $null
 $stateManifestExisted = $false
+$rollbackSucceeded    = $false
 
 Write-Host ""
 Write-Host "=======================================" -ForegroundColor Cyan
@@ -366,6 +384,10 @@ try {
         }
     }
 
+    if ($ExpectedInstalledLayerIds.Count -gt 0 -and $targetLayerId -notin $ExpectedInstalledLayerIds) {
+        throw "TARGET_LAYER_ID_MISMATCH: repository target '$targetLayerId' is not among the installed Company Layer IDs ($($ExpectedInstalledLayerIds -join ', '))."
+    }
+
     # Resolve exact immutable commit SHA (CR-02: must not rely on mutable ref)
     Push-Location $TempCloneDir
     try {
@@ -381,6 +403,24 @@ try {
     Write-Host "Target version  : $targetVersion"
     Write-Host "Target commit   : $targetCommit"
     Write-Host ""
+    $resumeTransaction = $null
+    if ($ResumeUpdate) {
+        if ([string]::IsNullOrWhiteSpace($TransactionPath) -or -not (Test-Path -LiteralPath $TransactionPath -PathType Leaf)) {
+            throw "Resume requires the active update-transaction.json."
+        }
+        $resumeTransaction = Get-Content -LiteralPath $TransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        if ($resumeTransaction.state -ne 'UPDATE_IN_PROGRESS' -or
+            $resumeTransaction.target_company_layer.repository -ne $RepositoryUrl -or
+            $resumeTransaction.target_company_layer.ref -ne $Ref -or
+            $resumeTransaction.target_company_layer.id -ne $targetLayerId -or
+            $resumeTransaction.target_company_layer.commit -ne $targetCommit) {
+            throw "Resume target identity differs from the persisted Layer transaction; no Layer mutation performed."
+        }
+    }
+    Update-Transaction -Fields ([ordered]@{
+        current_stage = 'COMPANY_LAYER_PREFLIGHT'
+        target_company_layer = [ordered]@{ id = $targetLayerId; version = $targetVersion; commit = $targetCommit; repository = $RepositoryUrl; ref = $Ref }
+    })
 
     # =========================================================================
     # CR-01: Detect installed Layer state
@@ -388,6 +428,28 @@ try {
 
     $layerDir       = Join-Path $LayersDir $targetLayerId
     $provenancePath = Join-Path $layerDir "provenance.json"
+
+    if ($ResumeUpdate -and $resumeTransaction.rollback.available) {
+        $resumeBackupPath = [string]$resumeTransaction.rollback.backup_path
+        if ([string]::IsNullOrWhiteSpace($resumeBackupPath) -or -not (Test-Path -LiteralPath $resumeBackupPath -PathType Container)) {
+            throw "Resume transaction requires a rollback backup that is unavailable; manual recovery is required."
+        }
+        $backupPrefix = [System.IO.Path]::GetFullPath("${BackupBase}_${targetLayerId}_")
+        $resolvedBackup = [System.IO.Path]::GetFullPath($resumeBackupPath)
+        if (-not $resolvedBackup.StartsWith($backupPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Resume backup path is outside the expected MxAgile Layer backup namespace; no mutation performed."
+        }
+        $partialPath = Join-Path $LayersDir "$targetLayerId.partial-$([Guid]::NewGuid().ToString('N'))"
+        if (Test-Path -LiteralPath $layerDir -PathType Container) {
+            Move-Item -LiteralPath $layerDir -Destination $partialPath
+        }
+        Move-Item -LiteralPath $resolvedBackup -Destination $layerDir
+        $resumeTransaction.rollback.available = $false
+        $resumeTransaction.rollback.backup_path = $null
+        $resumeTransaction.rollback.restored_for_resume = $true
+        $resumeTransaction.rollback.partial_path = $partialPath
+        [System.IO.File]::WriteAllText($TransactionPath, (($resumeTransaction | ConvertTo-Json -Depth 30) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    }
 
     $layerDirExists   = Test-Path -LiteralPath $layerDir -PathType Container
     $provenanceExists = Test-Path -LiteralPath $provenancePath -PathType Leaf
@@ -583,6 +645,10 @@ try {
     Write-Host "Creating backup..."
     Copy-Item -LiteralPath $layerDir -Destination $backupPath -Recurse -Force
     Write-Host "[OK] Backup created at: $backupPath" -ForegroundColor Green
+    Update-Transaction -Fields ([ordered]@{
+        current_stage = 'COMPANY_LAYER_APPLY'
+        rollback = [ordered]@{ available = $true; core = $false; company_layer = $true; backup_path = $backupPath; performed = $false }
+    })
 
     # =========================================================================
     # CR-05: Ownership-safe apply — replace Layer-owned artifacts only
@@ -736,6 +802,12 @@ Previous version: $installedVersion
     $newProvenance | ConvertTo-Json | Set-Content -LiteralPath $provenancePath -Encoding utf8
 
     Write-Host "[OK] Provenance written." -ForegroundColor Green
+    Update-Transaction -Fields ([ordered]@{
+        company_layer_result = 'UPDATE_SUCCESSFUL'
+        company_layer_completed = $true
+        current_stage = 'COMPANY_LAYER_COMPLETE'
+        rollback = [ordered]@{ available = $false; core = $false; company_layer = $true; backup_path = $null; performed = $false }
+    })
 
     # =========================================================================
     # CR-06: Cleanup backup on success
@@ -797,6 +869,7 @@ Previous version: $installedVersion
             }
             Move-Item -LiteralPath $backupPath -Destination $layerDir -Force
             $backupPath = $null
+            $rollbackSucceeded = $true
             Write-Host "  [OK] Rollback successful — previous Layer state restored." -ForegroundColor Green
             Write-Host "       Provenance unchanged; installed version remains: $installedVersion" -ForegroundColor DarkGray
         } catch {
@@ -823,6 +896,14 @@ Previous version: $installedVersion
             Write-Host "  [WARN] Failed to restore state manifest: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
+
+    Update-Transaction -Fields ([ordered]@{
+        company_layer_result = if ($rollbackSucceeded) { 'UPDATE_FAILED_ROLLED_BACK' } else { 'UPDATE_FAILED' }
+        company_layer_completed = $false
+        failed_stage = if ($backupPath) { 'COMPANY_LAYER_ROLLBACK' } else { 'COMPANY_LAYER_UPDATE' }
+        failure = $_.Exception.Message
+        rollback = [ordered]@{ available = -not $rollbackSucceeded -and -not [string]::IsNullOrWhiteSpace($backupPath); core = $false; company_layer = $true; backup_path = $backupPath; performed = $rollbackSucceeded }
+    })
 
     Write-Host ""
     Write-Host "  Result: UPDATE_FAILED" -ForegroundColor Red

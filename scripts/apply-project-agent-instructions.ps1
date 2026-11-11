@@ -348,12 +348,12 @@ reading canonical lifecycle contracts.
 1. **Lifecycle Re-Sync FIRST** — check `.mxagile/` and `.concord/scratch/process-state.yaml`;
     read `.mxagile/policies/lifecycle-resync.md` and reconstruct delivery position before Brain or
     generic orientation. Git history is not lifecycle state; do not run `git log` to infer delivery position.
-    This is a precondition before detailed implementation planning, delegation, or any model write.
-    Do not treat tool availability or LIVE-SP detection as delivery authorization.
+    Pending `update-transaction.json` states `UPDATE_IN_PROGRESS`/`PARTIAL_UPDATE` block writes/delegation; follow recovery.
+    Before implementation planning, delegation, or model write, validate Delivery Context. Tool availability/LIVE-SP is not authorization.
 2. **Tool authority before commands** — Before any CLI/MCP/tool command or external/tool-provided skill,
-    read `.mxagile/policies/tool-instruction-conflict.md`. Use current C2; never redetect/infer health.
-    Never choose by PATH or skill load order or fall back after LIVE-SP-CURRENT MCP failure. Use the
-    current session's discovered tool interface and C2 interaction policy; ask only at unresolved mutation.
+    read `.mxagile/policies/tool-instruction-conflict.md`. Use current C2; never redetect health.
+    Never choose by PATH or skill load order or fall back after LIVE-SP-CURRENT MCP failure. Use observed
+    session tools and C2 interaction policy; ask only at an unresolved mutation boundary.
 3. **External changes** — after Re-Sync, if `.mxagile/policies/external-change-reconciliation.md`
     is installed, use its read-only report and bounded impact route. Missing baseline means
     `BASELINE_REQUIRED`, not automatic history scanning or baseline adoption.
@@ -372,8 +372,7 @@ reading canonical lifecycle contracts.
     `.mxagile/state/last-update-result.json`. Report framework/compatibility separately; use
     `CONTRACTS_RE_SYNCED` only after re-reads, else `UPDATE_INSTALLED_RESTART_REQUIRED` / `NOT_VERIFIED`.
     Say `korrekt aktualisiert` only when permitted.
-9. **Finding-linked work** — consume active canonical Findings and their current Project Status
-    disposition. `FINDINGS.md` is narrative, never the sole authority.
+9. **Finding-linked work** — use active canonical Findings and Project Status; `FINDINGS.md` is narrative, not authority.
 
 10. **DevBoard** — "DevBoard starten" means the read-only MxAgile project board, not the Mendix app or `mxcli serve`.
     Run `python -B .mxagile/tools/serve_project_board.py --port 0` (`py -3` if needed); keep it

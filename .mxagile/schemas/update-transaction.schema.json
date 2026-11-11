@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mxagile:update-transaction",
+  "title": "MxAgile Update Transaction",
+  "description": "Persistent operational recovery state for one Core/Company Layer update attempt. Not lifecycle authority; current provenance and a fresh Doctor remain authoritative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "update_attempt_id", "state", "started_at", "updated_at", "current_stage",
+    "previous_core", "target_core", "previous_company_layers", "target_company_layer", "completed_stages",
+    "failed_stage", "failure", "affected_generated_artifacts", "migrations_performed", "rollback",
+    "compatibility_status", "context_state", "restart_required", "resync_required", "resume_available", "resume_count"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "update_attempt_id": { "type": "string", "pattern": "^UPDATE-[A-Fa-f0-9-]+$" },
+    "state": {
+      "type": "string",
+      "enum": ["BLOCKED_BEFORE_MUTATION", "UPDATE_IN_PROGRESS", "PARTIAL_UPDATE", "UPDATE_FAILED_ROLLED_BACK", "UPDATE_INSTALLED_RESTART_REQUIRED", "COMPATIBILITY_NOT_VERIFIED", "READY"]
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "resumed_at": { "type": "string", "format": "date-time" },
+    "resume_count": { "type": "integer", "minimum": 0 },
+    "current_stage": { "type": "string", "minLength": 1 },
+    "previous_core": { "$ref": "#/definitions/core_identity" },
+    "target_core": { "$ref": "#/definitions/core_identity" },
+    "previous_company_layers": { "type": "array", "items": { "$ref": "#/definitions/layer_identity" } },
+    "target_company_layer": { "$ref": "#/definitions/layer_target" },
+    "completed_stages": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+    "failed_stage": { "type": ["string", "null"] },
+    "failure": { "type": ["string", "null"] },
+    "affected_generated_artifacts": { "type": "array", "items": { "type": "string" } },
+    "migrations_performed": { "type": "array", "items": { "type": "string" } },
+    "rollback": { "$ref": "#/definitions/rollback" },
+    "compatibility_status": { "type": "string", "enum": ["COMPATIBLE", "PARTIAL", "BLOCKED", "NOT_VERIFIED"] },
+    "context_state": { "type": "string", "enum": ["VALID", "STALE", "UNCHANGED"] },
+    "restart_required": { "type": "boolean" },
+    "resync_required": { "type": "boolean" },
+    "resume_available": { "type": "boolean" },
+    "doctor_status": { "type": ["string", "null"], "enum": ["COMPATIBLE", "PARTIAL", "BLOCKED", "NOT_VERIFIED", null] },
+    "company_layer_result": { "type": ["string", "null"], "enum": ["UPDATE_SUCCESSFUL", "UPDATE_FAILED_ROLLED_BACK", "UPDATE_FAILED", "NO_UPDATE_AVAILABLE", null] },
+    "company_layer_completed": { "type": "boolean" }
+  },
+  "definitions": {
+    "core_identity": {
+      "type": "object",
+      "required": ["version", "commit"],
+      "properties": {
+        "source": { "type": ["string", "null"] },
+        "source_type": { "type": ["string", "null"] },
+        "ref": { "type": ["string", "null"] },
+        "version": { "type": ["string", "null"] },
+        "commit": { "type": ["string", "null"] },
+        "installed_at": { "type": ["string", "null"] }
+      }
+    },
+    "layer_identity": {
+      "type": "object",
+      "required": ["id", "version", "commit"],
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": ["string", "null"] },
+        "commit": { "type": ["string", "null"] }
+      }
+    },
+    "layer_target": {
+      "type": "object",
+      "required": ["repository", "ref", "id", "version", "commit"],
+      "properties": {
+        "repository": { "type": ["string", "null"] },
+        "ref": { "type": ["string", "null"] },
+        "id": { "type": ["string", "null"] },
+        "version": { "type": ["string", "null"] },
+        "commit": { "type": ["string", "null"] }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "required": ["available", "core", "company_layer", "backup_path", "performed"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "core": { "type": "boolean" },
+        "company_layer": { "type": "boolean" },
+        "backup_path": { "type": ["string", "null"] },
+        "performed": { "type": "boolean" }
+      }
+    }
+  }
+}

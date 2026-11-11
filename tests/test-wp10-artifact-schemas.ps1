@@ -86,6 +86,7 @@ function Remove-TempDir {
 # Schema and template paths
 $SchemaDir      = Join-Path $RepoRoot ".mxagile\schemas"
 $ReqSchema      = Join-Path $SchemaDir "requirement.schema.json"
+$UpdateTxnSchema= Join-Path $SchemaDir "update-transaction.schema.json"
 $SpecSchema     = Join-Path $SchemaDir "spec.schema.json"
 $TaskSchema     = Join-Path $SchemaDir "task.schema.json"
 $TemplatesDir   = Join-Path $RepoRoot ".mxagile\templates\generic"
@@ -111,6 +112,7 @@ foreach ($pair in @(
     @{ Name = "A1: requirement.schema.json exists"; Path = $ReqSchema },
     @{ Name = "A2: spec.schema.json exists";        Path = $SpecSchema },
     @{ Name = "A3: task.schema.json exists";        Path = $TaskSchema }
+    @{ Name = "A3b: update-transaction.schema.json exists"; Path = $UpdateTxnSchema }
 )) {
     Assert-True $pair.Name (Test-Path -LiteralPath $pair.Path) "Not found: $($pair.Path)"
 }
@@ -119,6 +121,7 @@ foreach ($pair in @(
     @{ Name = "A4: requirement.schema.json is valid JSON"; Path = $ReqSchema },
     @{ Name = "A5: spec.schema.json is valid JSON";        Path = $SpecSchema },
     @{ Name = "A6: task.schema.json is valid JSON";        Path = $TaskSchema }
+    @{ Name = "A6b: update-transaction.schema.json is valid JSON"; Path = $UpdateTxnSchema }
 )) {
     if (Test-Path -LiteralPath $pair.Path) {
         try {
@@ -141,7 +144,7 @@ Assert-Contains "A12: requirement schema has acceptance_criteria field" $ReqSche
 Assert-Contains "A13: requirement schema has migrated_from field" $ReqSchema '"migrated_from"'
 Assert-Contains "A14: task schema has action NOT description as primary display" $TaskSchema '"action"'
 Assert-Contains "A15: requirement schema records a canonical supersession successor" $ReqSchema '"superseded_by"'
-Assert-Contains "A16: superseded requirements require a successor" $ReqSchema '"const": "superseded"'
+Assert-Contains "A16: legacy superseded requirements remain schema-valid for Doctor reconciliation" $ReqSchema 'remain schema-valid.*DECISION_REQUIRED'
 Assert-Contains "A17: requirement successor uses canonical REQ IDs" $ReqSchema 'REQ-\[0-9\]\{3,\}'
 
 Write-Host ""

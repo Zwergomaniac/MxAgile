@@ -109,6 +109,50 @@ If authoritative source provenance is absent or invalid:
 - Do not compensate through broad filesystem search
 - Prompt the user to run setup with the explicit `-DistributionSource` parameter
 
+## 5. Update Lifecycle, Partial State, and Context Invalidation
+
+The Company Layer setup is a multi-stage update. The canonical recovery record is
+`.mxagile/state/update-transaction.json` while a transaction is active; the installed
+files and their current provenance remain the source of truth for what is actually
+installed. `.mxagile/state/last-update-result.json` is only the last attempt's handoff,
+not current state. Compare its `installed_at`/commit and transaction ID with current
+`core-provenance.json` and Company Layer `provenance.json` before relying on it.
+
+Update states:
+
+| State | Meaning | Delivery |
+|---|---|---|
+| `BLOCKED_BEFORE_MUTATION` | Preflight or host permission stopped the operation before project mutation. A host-level denial may not be persistable because the installer never ran. | No update occurred; inspect current provenance, then retry only through the authorized host path. |
+| `UPDATE_IN_PROGRESS` | A transaction was persisted before Core mutation and has not reached a terminal update result. | Read-only diagnosis only; do not write or spawn a write-capable child. Resume only with the same source/ref target and `-ResumeUpdate`. |
+| `PARTIAL_UPDATE` | Core and Company Layer are at different targets, or a stage failed without a verified cross-layer rollback. | Delivery and delegation are blocked until the same-target resume or explicitly approved recovery completes. |
+| `UPDATE_FAILED_ROLLED_BACK` | A failed Layer stage restored its prior Layer projection and manifest; this does not imply Core rollback. | Reconcile current provenance; if Core changed, the overall transaction remains `PARTIAL_UPDATE`. |
+| `UPDATE_INSTALLED_RESTART_REQUIRED` | All requested update stages installed; the current session's loaded contracts are stale. | No new delivery write/delegation until the installed contracts and lifecycle are re-read. Restart only when the host cannot safely re-read them in-session. |
+| `COMPATIBILITY_NOT_VERIFIED` | Current Doctor evidence is missing, invalid, stale, or unavailable. | No compatibility claim; run the current installed Doctor and resolve the re-sync boundary before delivery. |
+| `READY` | Session-derived state after current provenance, final Doctor, installed contracts, and lifecycle re-sync are all verified. | Delivery may proceed within the re-synced mission/wave/scope. `READY` is not inferred from a historical handoff. |
+
+The canonical cross-layer strategy is resumable partial update, not automatic Core rollback.
+Core updates replace shared generated contracts and may touch consumer/host projections; the
+Company Layer updater owns a bounded backup/rollback only for the Layer directory and its state
+manifest. There is no safe repository-wide Core rollback. If Core succeeds and Layer fails,
+preserve the new Core, retain the previous Layer after its local rollback, persist `PARTIAL_UPDATE`,
+and allow only an explicit same-target resume or a reviewed recovery path. Never label this overall
+operation `UPDATE_SUCCESS`.
+
+The transaction records previous/target Core identity, previous/target Layer identity, completed
+stages, failed stage and exact failure, generated artifact paths, migrations, rollback/backup state,
+compatibility status, context state, and resume availability. The Layer updater writes the resolved
+target version/commit before applying artifacts and records rollback outcome. A new session checks
+the active transaction before normal work; `UPDATE_IN_PROGRESS` or `PARTIAL_UPDATE` is a mandatory
+delivery/child-write guard, not a suggestion.
+
+Context-invalidating events include Core/Company/Project Layer update, generated agent/skill/policy
+or schema replacement, branch/HEAD change, lifecycle-state change, external repository changes,
+conversation compaction, and newly consumed child-agent results. Use the existing lifecycle re-sync
+and source-fingerprint checks; do not create a second lifecycle state machine. A successful update
+sets the context stale and requires re-sync. If the host cannot safely reload the installed context,
+report `UPDATE_INSTALLED_RESTART_REQUIRED`; otherwise re-read, re-sync, and derive `READY` for that
+session. `COMPATIBILITY_NOT_VERIFIED` remains separate from the update installation outcome.
+
 ---
 
 ## 5. Update Discovery
@@ -255,6 +299,43 @@ If `generated_from_core_commit` differs from the installed `commit` in
 `core-provenance.json`, projections are **stale**. Re-run setup to regenerate.
 
 If no manifest exists, projections currency is **UNKNOWN** — they may or may not be current.
+
+## 8. Multi-Layer Update Transaction and Recovery
+
+The Company Layer setup updates Core before the installed Company Layer. Core and Layer do not
+share a safe repository-wide rollback: `update-layer.ps1` can restore only the Layer-owned directory
+and its state manifest. Therefore the canonical strategy is **resumable partial update**, not
+automatic Core rollback.
+
+`.mxagile/state/update-transaction.json` is the active operational transaction marker. It is not
+pipeline lifecycle authority and is removed only after all requested update stages, final Doctor,
+and last-result handoff have completed. `.mxagile/state/last-update-result.json` remains the
+last-attempt handoff; it is not current installed state. Current Core/Layer provenance and a fresh
+read-only Doctor outrank any historical handoff. A failed/in-progress transaction must be compared
+against those current records before resume.
+
+| State | Meaning and allowed work |
+|---|---|
+| `BLOCKED_BEFORE_MUTATION` | Preflight failed before Core/Layer mutation. Read-only diagnosis and correction of the blocking precondition are allowed. A host Permission denial that prevents the installer process from starting cannot be persisted by MxAgile; report the host's denial as observed evidence, not an installer result. |
+| `UPDATE_IN_PROGRESS` | Active transaction with persisted targets/stages. Read-only inspection only; no delivery writes or write-capable delegation. Resume only with the same Core source/ref/commit and Company Layer repository/ref using `-ResumeUpdate`. |
+| `PARTIAL_UPDATE` | Core and Company Layer differ, or a stage failed before cross-layer completion. Delivery and write delegation are prohibited. Preserve current provenance, Layer backup/rollback evidence, and exact failure; resume only the recorded target or perform an explicitly reviewed recovery. |
+| `UPDATE_FAILED_ROLLED_BACK` | A component updater restored its own prior projection. This is a component result; if Core already advanced, the overall transaction remains `PARTIAL_UPDATE`. |
+| `UPDATE_INSTALLED_RESTART_REQUIRED` | All requested update stages completed, but the currently loaded host context is stale. Re-read installed contracts and perform lifecycle Re-Sync in-session when safe; restart only when the host cannot safely reload them. No delivery write/delegation before that boundary. |
+| `COMPATIBILITY_NOT_VERIFIED` | Current Doctor could not produce a valid result. Installation status and compatibility remain separate; no healthy/READY claim. |
+| `READY` | Session-derived only after current Core/Layer provenance, final Doctor, installed contracts, and lifecycle position are verified. Never derive READY from the last-result handoff alone. |
+
+The transaction records previous and target Core/Layer identities, completed and failed stages,
+exact failure, affected generated artifact paths, migrations, Doctor/compatibility status,
+context-invalidated state, restart/Re-Sync requirements, and component rollback/resume evidence.
+Layer target version/commit is recorded after target manifest resolution and before Layer mutation.
+If the process ends with an active marker, the next session must detect it before normal delivery.
+
+Context-invalidating events include Core, Company Layer, or Project Layer updates; regeneration of
+agent/skill/policy/schema projections; branch/HEAD changes; lifecycle changes; external changes;
+conversation compaction; and child-agent results. Use the existing lifecycle Re-Sync and source
+fingerprints rather than introducing a second lifecycle state machine. A same-session re-read may
+be sufficient when the host safely exposes the installed contracts; otherwise the state remains
+`UPDATE_INSTALLED_RESTART_REQUIRED` until a fresh session performs Re-Sync.
 
 ---
 

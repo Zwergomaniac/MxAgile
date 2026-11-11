@@ -43,6 +43,13 @@ function Assert-DirExists     { param([string]$Path, [string]$Label)
     if (-not (Test-Path -LiteralPath $Path -PathType Container)) { throw "ASSERT FAILED [$Label]: dir not found: $Path" } }
 function Assert-FileNotExists { param([string]$Path, [string]$Label)
     if (Test-Path -LiteralPath $Path)                            { throw "ASSERT FAILED [$Label]: path should not exist: $Path" } }
+function Assert-UpdateTransactionSchema {
+    param([string]$Path, [string]$Label)
+    $schemaPath = Join-Path (Split-Path -Parent $PSScriptRoot) ".mxagile\schemas\update-transaction.schema.json"
+    $code = 'import json,sys; from jsonschema import Draft7Validator; schema=json.load(open(sys.argv[1], encoding="utf-8")); doc=json.load(open(sys.argv[2], encoding="utf-8")); value=doc.get("update_transaction", doc); errors=list(Draft7Validator(schema).iter_errors(value)); print("\n".join(error.message for error in errors)); raise SystemExit(bool(errors))'
+    & python -c $code $schemaPath $Path
+    Assert-Equal $LASTEXITCODE 0 $Label
+}
 
 # =============================================================================
 # Fixture factories
@@ -1351,6 +1358,138 @@ function Test-PS51RuntimeDiagnostic {
     Write-Host "  PASSED"
 }
 
+function New-UpdateTransactionFixture {
+    param([string]$ProjectRoot)
+    $path = Join-Path $ProjectRoot ".mxagile\state\update-transaction.json"
+    $transaction = [ordered]@{
+        schema_version = 1
+        update_attempt_id = "UPDATE-TEST"
+        state = "UPDATE_IN_PROGRESS"
+        current_stage = "COMPANY_LAYER_PREFLIGHT"
+        previous_core = @{ version = "1.1.0"; commit = "old-core-commit" }
+        target_core = @{ version = "1.2.0"; commit = "new-core-commit" }
+        previous_company_layers = @(@{ id = "test-layer"; version = "1.0.0"; commit = "old-layer-commit" })
+        target_company_layer = @{ repository = "fixture"; ref = "main"; id = $null; version = $null; commit = $null }
+        completed_stages = @("CORE_UPDATE")
+        failed_stage = $null
+        failure = $null
+        rollback = @{ available = $false; backup_path = $null; performed = $false }
+        resume_available = $true
+    }
+    [System.IO.File]::WriteAllText($path, ($transaction | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
+    return $path
+}
+
+function Test-UpdateTransactionRecordsTargetAndSuccess {
+    Write-Host "Running Test-UpdateTransactionRecordsTargetAndSuccess..."
+    $project = New-TempProject
+    $repo = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0"
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" | Out-Null
+    $transactionPath = New-UpdateTransactionFixture -ProjectRoot $project
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive -TransactionPath $transactionPath | Out-Null
+        Assert-Equal $LASTEXITCODE 0 "layer update with transaction should succeed"
+        $transaction = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json
+        Assert-Equal $transaction.state "UPDATE_IN_PROGRESS" "layer helper leaves cross-layer state for the wrapper to finalize"
+        Assert-Equal $transaction.target_company_layer.id "test-layer" "target layer ID is persisted"
+        Assert-Equal $transaction.target_company_layer.version "1.2.0" "target layer version is persisted"
+        Assert-True ($transaction.target_company_layer.commit -match '^[a-f0-9]{40}$') "target layer commit is persisted"
+        Assert-Equal $transaction.company_layer_result "UPDATE_SUCCESSFUL" "successful layer stage is persisted"
+        Assert-Equal $transaction.current_stage "COMPANY_LAYER_COMPLETE" "completed layer stage is persisted"
+        Assert-False ([bool]$transaction.rollback.available) "successful update removes rollback availability"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-UpdateTransactionRecordsRolledBackFailure {
+    Write-Host "Running Test-UpdateTransactionRecordsRolledBackFailure..."
+    $project = New-TempProject
+    $repo = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0" -BadDetailFileRef $true
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" | Out-Null
+    $transactionPath = New-UpdateTransactionFixture -ProjectRoot $project
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -ProjectRoot $project -NonInteractive -TransactionPath $transactionPath | Out-Null
+        Assert-Equal $LASTEXITCODE 1 "invalid target layer must fail"
+        $transaction = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json
+        Assert-Equal $transaction.target_company_layer.version "1.2.0" "failed attempt retains target layer version"
+        Assert-Equal $transaction.company_layer_result "UPDATE_FAILED_ROLLED_BACK" "failure after backup records rollback outcome"
+        Assert-True ([bool]$transaction.rollback.performed) "successful rollback is recorded"
+        Assert-True ($transaction.failure -match "detailFile|Validation failed") "exact failure is persisted"
+        $installed = Get-Content -LiteralPath (Join-Path $project ".mxagile\layers\test-layer\layer.json") -Raw | ConvertFrom-Json
+        Assert-Equal $installed.version "1.0.0" "previous installed layer remains after rollback"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-ResumeRestoresPersistedBackupBeforeRetry {
+    Write-Host "Running Test-ResumeRestoresPersistedBackupBeforeRetry..."
+    $project = New-TempProject
+    $repo = New-FakeLayerRepo -Id "test-layer" -Version "1.2.0"
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" -WriteStateManifest $true | Out-Null
+    $layerDir = Join-Path $project ".mxagile\layers\test-layer"
+    $backupPath = Join-Path (Join-Path $project ".mxagile") "tmp_layer_backup_test-layer_interrupted"
+    $transactionPath = Join-Path $project ".mxagile\state\update-transaction.json"
+    Copy-Item -LiteralPath $layerDir -Destination $backupPath -Recurse -Force
+    Set-Content -LiteralPath (Join-Path $layerDir "glossary.yml") -Value "PARTIAL CORRUPTED APPLY" -Encoding UTF8
+    $targetCommit = (& git -C $repo rev-parse HEAD).Trim()
+    $transaction = [ordered]@{
+        schema_version = 1; update_attempt_id = "UPDATE-INTERRUPTED"; state = "UPDATE_IN_PROGRESS"
+        current_stage = "COMPANY_LAYER_APPLY"; previous_core = @{ version = "1.1.0"; commit = "old-core" }
+        target_core = @{ version = "1.2.0"; commit = "new-core" }
+        previous_company_layers = @(@{ id = "test-layer"; version = "1.0.0"; commit = "old-layer" })
+        target_company_layer = @{ repository = $repo; ref = "main"; id = "test-layer"; version = "1.2.0"; commit = $targetCommit }
+        completed_stages = @("CORE_UPDATE"); failed_stage = $null; failure = $null
+        affected_generated_artifacts = @(); migrations_performed = @()
+        rollback = @{ available = $true; core = $false; company_layer = $true; backup_path = $backupPath; performed = $false }
+        compatibility_status = "NOT_VERIFIED"; context_state = "STALE"; restart_required = $false; resync_required = $true; resume_available = $true; resume_count = 0
+    }
+    [System.IO.File]::WriteAllText($transactionPath, ($transaction | ConvertTo-Json -Depth 20), [System.Text.UTF8Encoding]::new($false))
+    try {
+        pwsh -File $UpdateScript -RepositoryUrl $repo -Ref main -ProjectRoot $project -NonInteractive `
+            -TransactionPath $transactionPath -ResumeUpdate | Out-Null
+        Assert-Equal $LASTEXITCODE 0 "resume against the same target must complete"
+        $installed = Get-Content -LiteralPath (Join-Path $layerDir "provenance.json") -Raw | ConvertFrom-Json
+        Assert-Equal $installed.installedVersion "1.2.0" "target version is installed after resume"
+        Assert-FileNotExists $backupPath "consumed recovery backup is not reused as a new rollback source"
+        $partialDirs = @(Get-ChildItem -LiteralPath (Join-Path $project ".mxagile\layers") -Directory -Filter "test-layer.partial-*" -ErrorAction SilentlyContinue)
+        Assert-True ($partialDirs.Count -eq 1) "partially applied projection is retained for post-resume diagnosis"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-TargetLayerIdMismatchBlocksBeforeMutation {
+    Write-Host "Running Test-TargetLayerIdMismatchBlocksBeforeMutation..."
+    $project = New-TempProject
+    $repo = New-FakeLayerRepo -Id "other-layer" -Version "1.2.0"
+    Install-FakeLayer -ProjectRoot $project -LayerId "test-layer" -InstalledVersion "1.0.0" | Out-Null
+    $before = [System.IO.File]::ReadAllBytes((Join-Path $project ".mxagile\layers\test-layer\layer.json"))
+    try {
+        $output = & pwsh -NoProfile -File $UpdateScript -RepositoryUrl $repo -Ref main -ProjectRoot $project `
+            -ExpectedInstalledLayerIds @('test-layer') -NonInteractive 2>&1
+        Assert-Equal $LASTEXITCODE 1 "target Layer ID mismatch must fail before mutation"
+        Assert-True (($output -join "`n") -match 'TARGET_LAYER_ID_MISMATCH') "mismatch diagnostic must be explicit"
+        $after = [System.IO.File]::ReadAllBytes((Join-Path $project ".mxagile\layers\test-layer\layer.json"))
+        Assert-Equal $after.Length $before.Length "installed Layer file size is unchanged"
+        for ($index = 0; $index -lt $before.Length; $index++) {
+            Assert-Equal $after[$index] $before[$index] "installed Layer bytes are unchanged"
+        }
+        Assert-Equal (Get-BackupCount $project) 0 "no rollback backup is created before target identity validation"
+        Write-Host "  PASSED"
+    } finally {
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $repo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Test-CompanyLayerSetupWrapperBindsNamedUpdateArguments {
     Write-Host "Running Test-CompanyLayerSetupWrapperBindsNamedUpdateArguments..."
     $project = New-TempProject
@@ -1372,7 +1511,8 @@ param(
     [string]$ProjectRoot, [string]$CompanyLayerSource, [string]$CompanyLayerSourceType,
     [string]$CompanyLayerRef, [bool]$IsUpdate, [string]$ProvenanceFlavor,
     [string]$ProvenanceCoreSource, [string]$ProvenanceCoreSourceType,
-    [string]$ProvenanceCoreRef, [string]$ProvenanceCoreSubdir, [string]$ProvenanceCoreCommit
+    [string]$ProvenanceCoreRef, [string]$ProvenanceCoreSubdir, [string]$ProvenanceCoreCommit,
+    [switch]$DeferPostUpdateCompatibility
 )
 [ordered]@{ ProjectRoot = $ProjectRoot; IsUpdate = $IsUpdate; ProvenanceFlavor = $ProvenanceFlavor } |
     ConvertTo-Json -Compress | Set-Content -LiteralPath $env:MXAGILE_TEST_CORE_ARGS -Encoding UTF8
@@ -1384,10 +1524,18 @@ param(
     [Parameter(Mandatory)][string]$RepositoryUrl,
     [string]$Ref = 'main',
     [Parameter(Mandatory)][string]$ProjectRoot,
+    [string[]]$ExpectedInstalledLayerIds = @(),
+    [string]$TransactionPath = '',
     [switch]$CheckOnly,
     [switch]$NonInteractive
 )
-[ordered]@{ RepositoryUrl = $RepositoryUrl; Ref = $Ref; ProjectRoot = $ProjectRoot; NonInteractive = [bool]$NonInteractive } |
+$transaction = Get-Content -LiteralPath $TransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+$transaction.current_stage = 'COMPANY_LAYER_COMPLETE'
+$transaction.target_company_layer = @{ id = 'test-layer'; version = '1.2.0'; commit = ('a' * 40); repository = $RepositoryUrl; ref = $Ref }
+$transaction.company_layer_result = 'UPDATE_SUCCESSFUL'
+$transaction.company_layer_completed = $true
+$transaction | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $TransactionPath -Encoding UTF8
+[ordered]@{ RepositoryUrl = $RepositoryUrl; Ref = $Ref; ProjectRoot = $ProjectRoot; ExpectedInstalledLayerIds = @($ExpectedInstalledLayerIds); NonInteractive = [bool]$NonInteractive } |
     ConvertTo-Json -Compress | Set-Content -LiteralPath $env:MXAGILE_TEST_LAYER_ARGS -Encoding UTF8
 $global:LASTEXITCODE = 0
 '@
@@ -1406,16 +1554,120 @@ $global:LASTEXITCODE = 0
         Assert-Equal $exitCode 0 "Company Layer setup wrapper must complete the update call: $($output -join ' ')"
         $core = Get-Content -LiteralPath $coreArgsPath -Raw | ConvertFrom-Json
         $layer = Get-Content -LiteralPath $layerArgsPath -Raw | ConvertFrom-Json
+        $handoffPath = Join-Path $project ".mxagile\state\last-update-result.json"
+        $handoff = Get-Content -LiteralPath $handoffPath -Raw | ConvertFrom-Json
+        $transaction = $handoff.update_transaction
+        Assert-UpdateTransactionSchema -Path $handoffPath -Label "successful update transaction conforms to schema"
         Assert-Equal $core.ProjectRoot $project "Core updater receives named ProjectRoot"
         Assert-Equal ([bool]$core.IsUpdate) $true "Core updater receives update mode"
         Assert-Equal $layer.RepositoryUrl $companyUrl "Layer updater receives named RepositoryUrl"
         Assert-Equal $layer.Ref "main" "Layer updater receives named ref main"
         Assert-Equal $layer.ProjectRoot $project "Layer updater receives named ProjectRoot"
+        Assert-True ($layer.ExpectedInstalledLayerIds -contains 'test-layer') "Layer updater receives the detected installed layer identity"
         Assert-Equal ([bool]$layer.NonInteractive) $true "Layer updater receives NonInteractive switch"
+        Assert-Equal $transaction.state "UPDATE_INSTALLED_RESTART_REQUIRED" "complete update invalidates the current session context"
+        Assert-Equal $transaction.target_company_layer.version "1.2.0" "transaction carries target Company Layer version"
+        Assert-Equal $handoff.update_state "UPDATE_INSTALLED_RESTART_REQUIRED" "last result records the current attempt outcome"
+        Assert-Equal $handoff.compatibility_status "NOT_VERIFIED" "missing Doctor evidence is not promoted"
         Write-Host "  PASSED"
     } finally {
         $env:MXAGILE_TEST_CORE_ARGS = $previousCorePath
         $env:MXAGILE_TEST_LAYER_ARGS = $previousLayerPath
+        Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $distribution -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-CompanyLayerFailurePersistsPartialUpdateAfterCoreSuccess {
+    Write-Host "Running Test-CompanyLayerFailurePersistsPartialUpdateAfterCoreSuccess..."
+    $project = New-TempProject
+    $distribution = Join-Path $env:TEMP "mxagile-wrapper-partial-dist-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+    $layerDir = Join-Path $project ".mxagile\layers\test-layer"
+    $scriptDir = Join-Path $distribution "scripts"
+    $companyUrl = "https://example.invalid/company/layer.git"
+    $setupScript = Join-Path (Split-Path $ScriptsDir -Parent) "mxagile-setup-company-layer.ps1"
+    New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $layerDir -Force | Out-Null
+    New-Item -ItemType File -Path (Join-Path $project ".mxagile\lifecycle.yaml") -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $layerDir "provenance.json") -Value '{"layerId":"test-layer","installedVersion":"1.0.0","sourceCommit":"oldcommit"}' -Encoding UTF8
+    $distMxAgile = Join-Path $distribution '.mxagile'
+    New-Item -ItemType Directory -Path $distMxAgile -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $distMxAgile 'version.yaml') -Value 'version: "1.2.0"' -Encoding UTF8
+    & git -C $distribution init -q
+    & git -C $distribution config user.email 'fixture@example.invalid'
+    & git -C $distribution config user.name 'Fixture'
+    & git -C $distribution add --all
+    & git -C $distribution commit -q -m 'target distribution'
+
+    $fakeCore = @'
+[CmdletBinding()]
+param(
+    [string]$ProjectRoot, [string]$CompanyLayerSource, [string]$CompanyLayerSourceType,
+    [string]$CompanyLayerRef, [bool]$IsUpdate, [string]$ProvenanceFlavor,
+    [string]$ProvenanceCoreSource, [string]$ProvenanceCoreSourceType,
+    [string]$ProvenanceCoreRef, [string]$ProvenanceCoreSubdir, [string]$ProvenanceCoreCommit,
+    [switch]$DeferPostUpdateCompatibility
+)
+$stateDir = Join-Path $ProjectRoot '.mxagile/state'
+New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+[ordered]@{ schema_version = '1'; flavor = 'company-layer'; commit = $ProvenanceCoreCommit; version = '1.2.0'; installed_at = (Get-Date).ToString('o') } |
+    ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $stateDir 'core-provenance.json') -Encoding UTF8
+$global:LASTEXITCODE = 0
+'@
+    $fakeLayer = @'
+[CmdletBinding()]
+param([string]$RepositoryUrl, [string]$Ref, [string]$ProjectRoot, [string[]]$ExpectedInstalledLayerIds = @(), [string]$TransactionPath, [switch]$NonInteractive, [switch]$ResumeUpdate)
+$transaction = Get-Content -LiteralPath $TransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+$transaction.current_stage = 'COMPANY_LAYER_APPLY'
+$transaction.target_company_layer = @{ id = 'test-layer'; version = '1.2.0'; commit = ('b' * 40); repository = $RepositoryUrl; ref = $Ref }
+$shouldFail = $env:MXAGILE_TEST_LAYER_FAIL -eq '1'
+$transaction.company_layer_result = if ($shouldFail) { 'UPDATE_FAILED_ROLLED_BACK' } else { 'UPDATE_SUCCESSFUL' }
+$transaction.company_layer_completed = -not $shouldFail
+$transaction.failure = if ($shouldFail) { 'Validation failed: declared detailFile is missing' } else { $null }
+$transaction.rollback = @{ available = $false; core = $false; company_layer = $true; backup_path = $null; performed = $shouldFail }
+$transaction.current_stage = if ($shouldFail) { 'COMPANY_LAYER_APPLY' } else { 'COMPANY_LAYER_COMPLETE' }
+$transaction | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $TransactionPath -Encoding UTF8
+$global:LASTEXITCODE = if ($shouldFail) { 1 } else { 0 }
+'@
+    [System.IO.File]::WriteAllText((Join-Path $scriptDir "install-core.ps1"), $fakeCore, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText((Join-Path $scriptDir "update-layer.ps1"), $fakeLayer, [System.Text.UTF8Encoding]::new($false))
+
+    $previousLayerFail = $env:MXAGILE_TEST_LAYER_FAIL
+    $env:MXAGILE_TEST_LAYER_FAIL = '1'
+    try {
+        $output = & pwsh -NoProfile -NonInteractive -File $setupScript `
+            -ProjectRoot $project -DistributionSource $distribution -CompanyLayerGitUrl $companyUrl `
+            -CompanyLayerRef main -NonInteractive 2>&1
+        Assert-Equal $LASTEXITCODE 1 "partial company-layer failure must not report setup success: $($output -join ' ')"
+        $transactionPath = Join-Path $project ".mxagile\state\update-transaction.json"
+        $handoffPath = Join-Path $project ".mxagile\state\last-update-result.json"
+        $transaction = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json
+        $handoff = Get-Content -LiteralPath $handoffPath -Raw | ConvertFrom-Json
+        Assert-UpdateTransactionSchema -Path $transactionPath -Label "partial update transaction conforms to schema"
+        Assert-Equal $transaction.state "PARTIAL_UPDATE" "Core success plus Layer failure is a resumable partial update"
+        Assert-Equal $transaction.target_core.version "1.2.0" "target Core version is persisted before mutation"
+        Assert-True ($transaction.completed_stages -contains 'CORE_UPDATE') "successful Core stage is persisted before Layer failure"
+        Assert-Equal $transaction.target_company_layer.version "1.2.0" "failed attempt retains target Layer version"
+        Assert-Equal $transaction.failed_stage "COMPANY_LAYER_APPLY" "failed stage is persisted"
+        Assert-True ([bool]$transaction.rollback.performed) "Layer rollback evidence is persisted"
+        Assert-True ([bool]$transaction.resume_available) "partial update exposes a resume path"
+        Assert-Equal $handoff.update_state "PARTIAL_UPDATE" "last attempt handoff records partial state"
+        Assert-Equal $handoff.compatibility_status "NOT_VERIFIED" "Doctor is not claimed current for a mixed state"
+
+        $env:MXAGILE_TEST_LAYER_FAIL = '0'
+        $resumeOutput = & pwsh -NoProfile -NonInteractive -File $setupScript `
+            -ProjectRoot $project -DistributionSource $distribution -CompanyLayerGitUrl $companyUrl `
+            -CompanyLayerRef main -NonInteractive -ResumeUpdate 2>&1
+        Assert-Equal $LASTEXITCODE 0 "same-target resume must complete: $($resumeOutput -join ' ')"
+        $handoff = Get-Content -LiteralPath $handoffPath -Raw | ConvertFrom-Json
+        $transaction = $handoff.update_transaction
+        Assert-UpdateTransactionSchema -Path $handoffPath -Label "resumed update transaction conforms to schema"
+        Assert-Equal $transaction.state "UPDATE_INSTALLED_RESTART_REQUIRED" "resumed transaction is terminal and invalidates context"
+        Assert-Equal $transaction.resume_count 1 "resume count is preserved in the last-result handoff"
+        Assert-False (Test-Path -LiteralPath $transactionPath) "completed transaction marker is removed after handoff persistence"
+        Write-Host "  PASSED"
+    } finally {
+        $env:MXAGILE_TEST_LAYER_FAIL = $previousLayerFail
         Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $distribution -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -1461,6 +1713,11 @@ $tests = @(
     "Test-SchemaVersionChangeProceedsWithoutMigration",
     "Test-SchemaVersionSameNoPromptRequired",
     "Test-CompanyLayerSetupWrapperBindsNamedUpdateArguments",
+    "Test-CompanyLayerFailurePersistsPartialUpdateAfterCoreSuccess",
+    "Test-UpdateTransactionRecordsTargetAndSuccess",
+    "Test-UpdateTransactionRecordsRolledBackFailure",
+    "Test-ResumeRestoresPersistedBackupBeforeRetry",
+    "Test-TargetLayerIdMismatchBlocksBeforeMutation",
     # Sparse acquisition / long-path safety (3)
     "Test-SparseAcquisitionExcludesIrrelevantContent",
     "Test-AcquisitionDoesNotModifyGlobalGitConfig",

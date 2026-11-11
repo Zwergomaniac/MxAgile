@@ -102,10 +102,13 @@ Assert-FileContains "inject script: Lifecycle Re-Sync step 1 defined" `
     $injectScriptPath 'Lifecycle Re-Sync FIRST|Re-Sync FIRST'
 
 Assert-FileContains "inject script: delivery authorization precedes detailed planning and model writes" `
-    $injectScriptPath 'precondition before detailed implementation planning, delegation, or any model write'
+    $injectScriptPath 'Before implementation planning, delegation, or model write, validate Delivery Context'
 
 Assert-FileContains "inject script: LIVE-SP/tool availability is not delivery authorization" `
-    $injectScriptPath 'Do not treat tool availability or LIVE-SP detection as delivery authorization'
+    $injectScriptPath 'Tool availability/LIVE-SP is not authorization'
+
+Assert-FileContains "inject script: pending updates block writes and delegation" `
+    $injectScriptPath 'update-transaction\.json.*UPDATE_IN_PROGRESS.*PARTIAL_UPDATE.*block writes/delegation'
 
 Assert-FileContains "lifecycle policy: recovery and authorization gate is defined" `
     (Join-Path $ScriptDir '.mxagile\policies\lifecycle-resync.md') 'Delivery-Autorisierung vor Implementation und Delegation'

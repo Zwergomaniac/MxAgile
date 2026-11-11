@@ -50,6 +50,10 @@
     Skip the pre-mutation confirmation prompt. Use in CI, scripted invocations,
     and automated regression tests.
 
+.PARAMETER ResumeUpdate
+    Resume an existing UPDATE_IN_PROGRESS or PARTIAL_UPDATE only when Core and
+    Company Layer source/ref targets match the persisted transaction.
+
 .PARAMETER Wait
     Pause for a keypress before exiting. Intended for interactive/direct-launch
     scenarios (e.g. right-click "Run with PowerShell") where the window would
@@ -71,7 +75,8 @@ param (
     [string]$CompanyLayerGitUrl = $env:MXAGILE_COMPANY_LAYER_URL,
     [string]$CompanyLayerRef = "main",
     [switch]$NonInteractive,
-    [switch]$Wait
+    [switch]$Wait,
+    [switch]$ResumeUpdate
 )
 
 $ErrorActionPreference = "Stop"
@@ -118,6 +123,74 @@ $shouldWait = $Wait -or $isDirectLaunch
 
 $tempDistDir = $null
 $exitCode    = 0
+$updateTransactionPath = $null
+$updateTransaction = $null
+$coreMutationStarted = $false
+
+function Save-UpdateTransaction {
+    param([System.Collections.IDictionary]$Transaction)
+    $stateDir = Join-Path $ProjectRoot '.mxagile/state'
+    if (-not (Test-Path -LiteralPath $stateDir -PathType Container)) {
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+    }
+    $Transaction.updated_at = (Get-Date).ToUniversalTime().ToString('o')
+    $tempPath = "$updateTransactionPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    [System.IO.File]::WriteAllText($tempPath, (($Transaction | ConvertTo-Json -Depth 30) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $tempPath -Destination $updateTransactionPath -Force
+}
+
+function Get-PostUpdateDoctor {
+    param([string]$Root)
+    $doctor = [ordered]@{
+        executed = $false; exit_code = $null; compatibility = 'NOT_VERIFIED'; reason = 'PYTHON_UNAVAILABLE'
+        repair_status = $null; blocking_diagnostic_count = $null; safe_deterministic_count = $null
+        agent_repairable_count = $null; decision_required_count = $null; unsupported_count = $null; report = $null
+    }
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
+    $doctorPath = Join-Path $Root '.mxagile/tools/project_compatibility.py'
+    if (-not $python) { return $doctor }
+    if (-not (Test-Path -LiteralPath $doctorPath -PathType Leaf)) { $doctor.reason = 'DOCTOR_SCRIPT_UNAVAILABLE'; return $doctor }
+    try {
+        $PSNativeCommandUseErrorActionPreference = $false
+        $output = & $python.Source $doctorPath doctor --project-root $Root --format json 2>$null
+        $doctor.executed = $true
+        $doctor.exit_code = $LASTEXITCODE
+        if ($doctor.exit_code -notin @(0, 1, 2)) { $doctor.reason = "DOCTOR_EXIT_$($doctor.exit_code)"; return $doctor }
+        $report = ($output -join "`n") | ConvertFrom-Json -ErrorAction Stop
+        if ($report.stage -ne 'PROJECT_COMPATIBILITY_CHECKED' -or $report.read_only -ne $true -or
+            $report.compatibility -notin @('COMPATIBLE', 'PARTIAL', 'BLOCKED')) {
+            $doctor.reason = 'DOCTOR_OUTPUT_INVALID'
+            return $doctor
+        }
+        $doctor.compatibility = $report.compatibility
+        $doctor.reason = $null
+        $doctor.repair_status = $report.repair_status
+        $doctor.blocking_diagnostic_count = @($report.diagnostics | Where-Object { $_.blocking }).Count
+        $doctor.safe_deterministic_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'SAFE_DETERMINISTIC' }).Count
+        $doctor.agent_repairable_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'AGENT_REPAIRABLE' }).Count
+        $doctor.decision_required_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'DECISION_REQUIRED' }).Count
+        $doctor.unsupported_count = @($report.diagnostics | Where-Object { $_.repairability -eq 'UNSUPPORTED' }).Count
+        $doctor.report = $report
+    } catch { $doctor.reason = 'DOCTOR_EXECUTION_FAILED' }
+    return $doctor
+}
+
+function Save-UpdateHandoff {
+    param([System.Collections.IDictionary]$Transaction, [System.Collections.IDictionary]$Doctor)
+    $handoffPath = Join-Path $ProjectRoot '.mxagile/state/last-update-result.json'
+    $handoff = if (Test-Path -LiteralPath $handoffPath -PathType Leaf) {
+        Get-Content -LiteralPath $handoffPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+    } else { [ordered]@{ schema_version = 1 } }
+    $handoff.update_state = $Transaction.state
+    $handoff.update_transaction = $Transaction
+    $handoff.doctor = $Doctor
+    $handoff.compatibility_status = $Doctor.compatibility
+    $handoff.session_contract = [ordered]@{ state = 'RE_SYNC_REQUIRED'; policy = '.mxagile/policies/update-contract.md' }
+    $tempPath = "$handoffPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    [System.IO.File]::WriteAllText($tempPath, (($handoff | ConvertTo-Json -Depth 40) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $tempPath -Destination $handoffPath -Force
+}
 
 try {
     # =========================================================================
@@ -181,7 +254,7 @@ try {
 
     Write-Host "=======================================" -ForegroundColor Cyan
     Write-Host "This setup will:" -ForegroundColor White
-    if ($coreInstalled) {
+    if ($coreInstalled -or $layerInstalled) {
         Write-Host "  - update MxAgile Core" -ForegroundColor White
     } else {
         Write-Host "  - install MxAgile Core" -ForegroundColor White
@@ -339,9 +412,103 @@ try {
         throw "No Company Layer source configured. Pass -CompanyLayerGitUrl <git-url> or set MXAGILE_COMPANY_LAYER_URL."
     }
 
+    if ($coreInstalled) {
+        $updateTransactionPath = Join-Path $ProjectRoot '.mxagile/state/update-transaction.json'
+        $existingTransaction = $null
+        if (Test-Path -LiteralPath $updateTransactionPath -PathType Leaf) {
+            try { $existingTransaction = Get-Content -LiteralPath $updateTransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable }
+            catch { throw "Existing update-transaction.json is invalid; recovery is blocked before mutation: $($_.Exception.Message)" }
+        }
+        $pendingStates = @('UPDATE_IN_PROGRESS', 'PARTIAL_UPDATE')
+        if ($existingTransaction -and $existingTransaction.state -in $pendingStates) {
+            if (-not $ResumeUpdate) {
+                throw "A prior update is $($existingTransaction.state). Inspect .mxagile/state/update-transaction.json and rerun the same target with -ResumeUpdate after recovery review."
+            }
+            $resumeCoreCommit = if ($provenanceCoreCommit) { $provenanceCoreCommit } else { 'UNKNOWN' }
+            if ($existingTransaction.target_core.commit -ne $resumeCoreCommit -or
+                $existingTransaction.target_company_layer.repository -ne $CompanyLayerGitUrl -or
+                $existingTransaction.target_company_layer.ref -ne $CompanyLayerRef) {
+                throw "Resume target differs from the persisted update transaction; no mutation performed."
+            }
+            $updateTransaction = $existingTransaction
+            $updateTransaction.state = 'UPDATE_IN_PROGRESS'
+            $updateTransaction.current_stage = 'RESUME_PRECHECK'
+            $updateTransaction.failed_stage = $null
+            $updateTransaction.failure = $null
+            $updateTransaction.resumed_at = (Get-Date).ToUniversalTime().ToString('o')
+            $updateTransaction.resume_count = [int]$updateTransaction.resume_count + 1
+        } elseif ($ResumeUpdate) {
+            throw "-ResumeUpdate was supplied but no resumable update transaction exists."
+        } else {
+            $previousCore = $null
+            $coreProvenancePath = Join-Path $ProjectRoot '.mxagile/state/core-provenance.json'
+            if (Test-Path -LiteralPath $coreProvenancePath -PathType Leaf) {
+                try { $previousCore = Get-Content -LiteralPath $coreProvenancePath -Raw -Encoding UTF8 | ConvertFrom-Json }
+                catch { throw "Installed Core provenance is invalid; update is blocked: $($_.Exception.Message)" }
+            }
+            $targetCoreVersion = 'UNKNOWN'
+            $versionPath = Join-Path $distributionRoot '.mxagile/version.yaml'
+            if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
+                $versionText = Get-Content -LiteralPath $versionPath -Raw -Encoding UTF8
+                if ($versionText -match '(?m)^version:\s+"?([^"\s]+)') { $targetCoreVersion = $Matches[1] }
+            }
+            $previousLayers = @()
+            foreach ($layerId in $layerIds) {
+                $layerProvenancePath = Join-Path (Join-Path $layersDir $layerId) 'provenance.json'
+                if (Test-Path -LiteralPath $layerProvenancePath -PathType Leaf) {
+                    try {
+                        $layerProvenance = Get-Content -LiteralPath $layerProvenancePath -Raw -Encoding UTF8 | ConvertFrom-Json
+                        $previousLayers += [ordered]@{
+                            id = [string]$layerId
+                            version = [string]$layerProvenance.installedVersion
+                            commit = [string]$layerProvenance.sourceCommit
+                        }
+                    } catch { $previousLayers += [ordered]@{ id = [string]$layerId; version = 'UNKNOWN'; commit = 'UNKNOWN' } }
+                } else { $previousLayers += [ordered]@{ id = [string]$layerId; version = 'UNKNOWN'; commit = 'UNKNOWN' } }
+            }
+            $updateTransaction = [ordered]@{
+                schema_version = 1
+                update_attempt_id = "UPDATE-$([Guid]::NewGuid().ToString('N'))"
+                state = 'UPDATE_IN_PROGRESS'
+                started_at = (Get-Date).ToUniversalTime().ToString('o')
+                updated_at = (Get-Date).ToUniversalTime().ToString('o')
+                current_stage = 'PRECHECK_COMPLETE'
+                previous_core = [ordered]@{
+                    version = if ($previousCore) { $previousCore.version } else { 'UNKNOWN' }
+                    commit = if ($previousCore) { $previousCore.commit } else { 'UNKNOWN' }
+                    installed_at = if ($previousCore) { $previousCore.installed_at } else { $null }
+                }
+                target_core = [ordered]@{
+                    source = $provenanceCoreSource
+                    source_type = $provenanceCoreSourceType
+                    ref = $provenanceCoreRef
+                    version = $targetCoreVersion
+                    commit = if ($provenanceCoreCommit) { $provenanceCoreCommit } else { 'UNKNOWN' }
+                }
+                previous_company_layers = @($previousLayers)
+                target_company_layer = [ordered]@{ repository = $CompanyLayerGitUrl; ref = $CompanyLayerRef; id = $null; version = 'NOT_RESOLVED'; commit = 'NOT_RESOLVED' }
+                completed_stages = @()
+                failed_stage = $null
+                failure = $null
+                affected_generated_artifacts = @('.mxagile/', 'CLAUDE.md', 'AGENTS.md', 'AGENT.md', '.github/', '.agents/', '.claude/', '.opencode/', '.grok/', '.hermes/')
+                migrations_performed = @()
+                rollback = [ordered]@{ available = $false; core = $false; company_layer = $false; backup_path = $null; performed = $false }
+                compatibility_status = 'NOT_VERIFIED'
+                context_state = 'STALE'
+                restart_required = $false
+                resync_required = $true
+                resume_available = $true
+                resume_count = 0
+            }
+        }
+        Save-UpdateTransaction -Transaction $updateTransaction
+        $coreMutationStarted = $false
+    }
+
     # Step 6a: Core installation / update
     if (-not $layerInstalled) {
         # First-time setup: install Core AND Layer together
+        $coreMutationStarted = $true
         & $canonicalInstaller `
             -ProjectRoot              $ProjectRoot `
             -CompanyLayerSource       $CompanyLayerGitUrl `
@@ -353,10 +520,13 @@ try {
             -ProvenanceCoreSourceType $provenanceCoreSourceType `
             -ProvenanceCoreRef        $provenanceCoreRef `
             -ProvenanceCoreSubdir     $provenanceCoreSubdir `
-            -ProvenanceCoreCommit     $provenanceCoreCommit
+            -ProvenanceCoreCommit     $provenanceCoreCommit `
+            -DeferPostUpdateCompatibility:([bool]($null -ne $updateTransaction))
         $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) { throw "MxAgile Core/Layer installation failed with exit code $exitCode." }
     } else {
         # Layer already installed: update Core only (no -CompanyLayerSource)
+        $coreMutationStarted = $true
         & $canonicalInstaller `
             -ProjectRoot              $ProjectRoot `
             -IsUpdate                 $coreInstalled `
@@ -365,11 +535,26 @@ try {
             -ProvenanceCoreSourceType $provenanceCoreSourceType `
             -ProvenanceCoreRef        $provenanceCoreRef `
             -ProvenanceCoreSubdir     $provenanceCoreSubdir `
-            -ProvenanceCoreCommit     $provenanceCoreCommit
+            -ProvenanceCoreCommit     $provenanceCoreCommit `
+            -DeferPostUpdateCompatibility
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -ne 0) {
             throw "MxAgile Core update failed with exit code $exitCode."
+        }
+
+        if ($null -ne $updateTransaction) {
+            if ($updateTransaction.completed_stages -notcontains 'CORE_UPDATE') {
+                $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'CORE_UPDATE')
+            }
+            $updateTransaction.current_stage = 'COMPANY_LAYER_UPDATE'
+            $coreProvenancePath = Join-Path $ProjectRoot '.mxagile/state/core-provenance.json'
+            if (Test-Path -LiteralPath $coreProvenancePath -PathType Leaf) {
+                $installedCore = Get-Content -LiteralPath $coreProvenancePath -Raw -Encoding UTF8 | ConvertFrom-Json
+                $updateTransaction.target_core.version = $installedCore.version
+                $updateTransaction.target_core.commit = $installedCore.commit
+            }
+            Save-UpdateTransaction -Transaction $updateTransaction
         }
 
         # Step 6b: Independent Company Layer update
@@ -388,8 +573,11 @@ try {
             RepositoryUrl = $CompanyLayerGitUrl
             Ref           = $CompanyLayerRef
             ProjectRoot   = $ProjectRoot
+            ExpectedInstalledLayerIds = @($layerIds)
+            TransactionPath = $updateTransactionPath
         }
         if ($NonInteractive) { $updateLayerParams.NonInteractive = $true }
+        if ($ResumeUpdate) { $updateLayerParams.ResumeUpdate = $true }
 
         & $updateLayerScript @updateLayerParams
         $layerExitCode = $LASTEXITCODE
@@ -399,18 +587,73 @@ try {
         #   1 = UPDATE_FAILED
         #   2 = BLOCKED_INCOMPATIBLE
         #   3 = UNTRACKED_INSTALLATION
-        if ($layerExitCode -eq 1) {
+        if ($layerExitCode -ne 0) {
             throw "Company Layer update failed (exit code $layerExitCode)."
         }
-        # Exit codes 2 and 3 are diagnostic — not fatal for the overall setup.
-        # The Core update already succeeded; the Layer diagnostic is reported above.
-        $exitCode = if ($layerExitCode -gt 0) { $layerExitCode } else { 0 }
+        $exitCode = 0
+    }
+
+    if ($null -ne $updateTransaction) {
+        if (Test-Path -LiteralPath $updateTransactionPath -PathType Leaf) {
+            $updateTransaction = Get-Content -LiteralPath $updateTransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+        }
+        if ($updateTransaction.completed_stages -notcontains 'CORE_UPDATE') {
+            $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'CORE_UPDATE')
+        }
+        if ($updateTransaction.completed_stages -notcontains 'COMPANY_LAYER_UPDATE') {
+            $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'COMPANY_LAYER_UPDATE')
+        }
+        $updateTransaction.current_stage = 'POST_UPDATE_DOCTOR'
+        $updateTransaction.state = 'UPDATE_IN_PROGRESS'
+        Save-UpdateTransaction -Transaction $updateTransaction
+
+        $doctor = Get-PostUpdateDoctor -Root $ProjectRoot
+        $updateTransaction.doctor_status = $doctor.compatibility
+        $updateTransaction.compatibility_status = $doctor.compatibility
+        $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'DOCTOR')
+        $updateTransaction.current_stage = 'CONTEXT_RESYNC'
+        $updateTransaction.state = 'UPDATE_INSTALLED_RESTART_REQUIRED'
+        $updateTransaction.context_state = 'STALE'
+        $updateTransaction.resync_required = $true
+        $updateTransaction.restart_required = $false
+        $updateTransaction.resume_available = $false
+        Save-UpdateTransaction -Transaction $updateTransaction
+        Save-UpdateHandoff -Transaction $updateTransaction -Doctor $doctor
+        Remove-Item -LiteralPath $updateTransactionPath -Force -ErrorAction SilentlyContinue
     }
 
 } catch {
     Write-Host ""
     Write-Host "Setup failed!" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
+    if ($null -ne $updateTransaction -and -not [string]::IsNullOrWhiteSpace($updateTransactionPath)) {
+        if (Test-Path -LiteralPath $updateTransactionPath -PathType Leaf) {
+            try { $updateTransaction = Get-Content -LiteralPath $updateTransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable } catch { }
+        }
+        $blockedBeforeMutation = $updateTransaction.state -eq 'BLOCKED_BEFORE_MUTATION'
+        $updateTransaction.failure = $_.Exception.Message
+        $updateTransaction.failed_stage = if ($updateTransaction.current_stage) { $updateTransaction.current_stage } else { 'UNKNOWN' }
+        $updateTransaction.state = if ($blockedBeforeMutation) { 'BLOCKED_BEFORE_MUTATION' } elseif ($coreMutationStarted) { 'PARTIAL_UPDATE' } else { 'BLOCKED_BEFORE_MUTATION' }
+        $updateTransaction.context_state = if ($updateTransaction.state -eq 'PARTIAL_UPDATE') { 'STALE' } else { 'UNCHANGED' }
+        $updateTransaction.compatibility_status = 'NOT_VERIFIED'
+        $updateTransaction.resync_required = $updateTransaction.state -eq 'PARTIAL_UPDATE'
+        $updateTransaction.resume_available = $updateTransaction.state -eq 'PARTIAL_UPDATE'
+        $doctor = if ($updateTransaction.state -eq 'PARTIAL_UPDATE') { Get-PostUpdateDoctor -Root $ProjectRoot } else {
+            [ordered]@{
+                executed = $false; exit_code = $null; compatibility = 'NOT_VERIFIED'; reason = 'BLOCKED_BEFORE_MUTATION'
+                repair_status = $null; blocking_diagnostic_count = $null; safe_deterministic_count = $null
+                agent_repairable_count = $null; decision_required_count = $null; unsupported_count = $null; report = $null
+            }
+        }
+        $updateTransaction.compatibility_status = $doctor.compatibility
+        try {
+            Save-UpdateTransaction -Transaction $updateTransaction
+            Save-UpdateHandoff -Transaction $updateTransaction -Doctor $doctor
+            if ($updateTransaction.state -eq 'BLOCKED_BEFORE_MUTATION') {
+                Remove-Item -LiteralPath $updateTransactionPath -Force -ErrorAction SilentlyContinue
+            }
+        } catch { Write-Host "Update recovery state could not be persisted: $($_.Exception.Message)" -ForegroundColor Red }
+    }
     $exitCode = 1
 } finally {
     if ($null -ne $tempDistDir -and (Test-Path -LiteralPath $tempDistDir -PathType Container)) {

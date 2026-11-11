@@ -20,6 +20,7 @@ param (
     [string]$ProvenanceCoreRef        = "",
     [string]$ProvenanceCoreSubdir     = "",
     [string]$ProvenanceCoreCommit     = "",
+    [switch]$DeferPostUpdateCompatibility,
 
     # Explicit opt-in: run the bounded Board smoke after the Doctor handoff (never implied by CI or updates).
     [switch]$BoardSmoke
@@ -27,6 +28,9 @@ param (
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+$updateMutationStarted = $false
+$updateStage = 'PREFLIGHT'
+$updateTransactionPath = $null
 
 function Invoke-PostUpdateCompatibility {
     param([string]$Root, [string]$ToolsDir, [System.Collections.IDictionary]$CoreProvenance)
@@ -34,6 +38,14 @@ function Invoke-PostUpdateCompatibility {
     $result = [ordered]@{
         schema_version = 1
         installed_at = $CoreProvenance.installed_at
+        update_state = if ($CoreProvenance.install_mode -eq 'update') { 'UPDATE_INSTALLED_RESTART_REQUIRED' } else { 'INSTALL_COMPLETED' }
+        completed_stages = @('CORE_INSTALL', 'GENERATED_PROJECTIONS', 'DOCTOR')
+        failed_stage = $null
+        context_state = 'STALE'
+        restart_required = $false
+        resync_required = $true
+        rollback_available = $false
+        resume_available = $false
         framework = [ordered]@{
             update_successful = $true
             previous_version = $CoreProvenance.previous_version
@@ -254,6 +266,7 @@ try {
     if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
         throw "ProjectRoot directory not found: $ProjectRoot"
     }
+    $updateTransactionPath = Join-Path $ProjectRoot '.mxagile/state/update-transaction.json'
 
     if (Test-Path -LiteralPath (Join-Path $ProjectRoot '.git')) {
         $guardPython = Get-Command python -ErrorAction SilentlyContinue
@@ -379,6 +392,25 @@ try {
     # Materialize into mxagile-project.yaml after mxagile-init.ps1 runs (Step 1a).
     $mprProjectName = [System.IO.Path]::GetFileNameWithoutExtension($mprFiles[0].Name)
 
+    # mxcli init may regenerate host/project MCP configuration whose ownership and merge
+    # contract are not known to MxAgile Core. If initialization is required, fail before
+    # even additive project writes rather than overwriting a foreign host configuration.
+    $mxcliInitMarkersBefore = @('CLAUDE.md', 'AGENTS.md', 'AGENT.md')
+    $mxcliMarkersCompleteBefore = ($mxcliInitMarkersBefore | ForEach-Object {
+        Test-Path -LiteralPath (Join-Path $ProjectRoot $_) -PathType Leaf
+    } | Where-Object { $_ -eq $false } | Measure-Object).Count -eq 0
+    $mxcliInitProvenanceBefore = Join-Path (Join-Path (Join-Path $ProjectRoot '.mxagile') 'state') 'mxcli-init.txt'
+    $mxcliInitWouldRun = -not ($IsUpdate -and ((Test-Path -LiteralPath $mxcliInitProvenanceBefore -PathType Leaf) -or $mxcliMarkersCompleteBefore))
+    $hostMcpConfigPaths = @('.mcp.json', '.vscode/mcp.json', '.agents/mcp_config.json', '.cortex/mcp.json')
+    $existingHostMcpConfigs = @($hostMcpConfigPaths | Where-Object {
+        Test-Path -LiteralPath (Join-Path $ProjectRoot $_) -PathType Leaf
+    })
+    if ($mxcliInitWouldRun -and $existingHostMcpConfigs.Count -gt 0) {
+        throw "HOST_CONFIG_CONFLICT: mxcli init --all-tools would run while host/unknown MCP configuration exists ($($existingHostMcpConfigs -join ', ')); resolve ownership before setup. No project mutation has started."
+    }
+
+    $updateMutationStarted = $true
+    $updateStage = 'PROJECT_INITIALIZATION'
     Add-ContextModeRuntimeGitIgnore -Root $ProjectRoot
 
     # Step 1a: MxAgile directory scaffold  -  also installs mxcli.exe
@@ -772,11 +804,33 @@ try {
         } catch { }
     }
 
+    $stableSourceIdentity = $null
+    if ($ProvenanceCoreSourceType -eq 'git' -and -not [string]::IsNullOrWhiteSpace($ProvenanceCoreSource)) {
+        $stableSourceIdentity = if ($ProvenanceCoreCommit) {
+            "git:$ProvenanceCoreSource#$ProvenanceCoreCommit"
+        } elseif ($ProvenanceCoreRef) {
+            "git:$ProvenanceCoreSource@$ProvenanceCoreRef"
+        } else { "git:$ProvenanceCoreSource" }
+    } elseif ($ProvenanceCoreCommit) {
+        $stableSourceIdentity = "commit:$ProvenanceCoreCommit"
+    }
+    $stagingSource = $null
+    if (-not [string]::IsNullOrWhiteSpace($ProvenanceCoreSource)) {
+        $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        try {
+            $sourcePath = [System.IO.Path]::GetFullPath($ProvenanceCoreSource)
+            if ($sourcePath.StartsWith($tempRoot, [System.StringComparison]::OrdinalIgnoreCase)) { $stagingSource = $ProvenanceCoreSource }
+        } catch { }
+    }
+
     $coreProv = [ordered]@{
         schema_version        = "1"
         flavor                = $ProvenanceFlavor
         source                = $ProvenanceCoreSource
         source_type           = $ProvenanceCoreSourceType
+        source_identity       = $stableSourceIdentity
+        source_identity_status = if ($stableSourceIdentity) { 'STABLE' } else { 'NOT_STABLE' }
+        staging_source        = $stagingSource
         ref                   = $ProvenanceCoreRef
         commit                = if ($ProvenanceCoreCommit) { $ProvenanceCoreCommit } else { $null }
         version               = $coreVersion
@@ -1064,8 +1118,13 @@ try {
     Write-Host "[OK] Core installation complete." -ForegroundColor Green
     Write-Host "FRAMEWORK_INSTALLED (project compatibility is checked separately)."
 
-    Invoke-PostUpdateCompatibility -Root $ProjectRoot -ToolsDir $destToolsDir -CoreProvenance $coreProv
-    Invoke-BoardSmokeOffer -Root $ProjectRoot -ToolsDir $destToolsDir -Requested ([bool]$BoardSmoke) -IsUpdateRun ([bool]$IsUpdate)
+    if ($DeferPostUpdateCompatibility) {
+        Write-Host 'Post-update Doctor deferred to the enclosing multi-layer update transaction.' -ForegroundColor DarkYellow
+        Write-Host 'Board Smoke deferred until the enclosing multi-layer update transaction completes.' -ForegroundColor DarkYellow
+    } else {
+        Invoke-PostUpdateCompatibility -Root $ProjectRoot -ToolsDir $destToolsDir -CoreProvenance $coreProv
+        Invoke-BoardSmokeOffer -Root $ProjectRoot -ToolsDir $destToolsDir -Requested ([bool]$BoardSmoke) -IsUpdateRun ([bool]$IsUpdate)
+    }
 
     Write-Host ""
     Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
@@ -1090,5 +1149,22 @@ try {
     Write-Host ""
     Write-Host "[FAILED] Installation failed!" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
+    if ($IsUpdate -and $updateTransactionPath -and (Test-Path -LiteralPath $updateTransactionPath -PathType Leaf)) {
+        try {
+            $transaction = Get-Content -LiteralPath $updateTransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+            $transaction.state = if ($updateMutationStarted) { 'PARTIAL_UPDATE' } else { 'BLOCKED_BEFORE_MUTATION' }
+            $transaction.current_stage = $updateStage
+            $transaction.failed_stage = $updateStage
+            $transaction.failure = $_.Exception.Message
+            $transaction.compatibility_status = 'NOT_VERIFIED'
+            $transaction.context_state = if ($updateMutationStarted) { 'STALE' } else { 'UNCHANGED' }
+            $transaction.resync_required = [bool]$updateMutationStarted
+            $transaction.resume_available = [bool]$updateMutationStarted
+            $transaction.updated_at = (Get-Date).ToUniversalTime().ToString('o')
+            $transactionTempPath = "$updateTransactionPath.$([Guid]::NewGuid().ToString('N')).tmp"
+            [System.IO.File]::WriteAllText($transactionTempPath, (($transaction | ConvertTo-Json -Depth 30) + "`n"), [System.Text.UTF8Encoding]::new($false))
+            Move-Item -LiteralPath $transactionTempPath -Destination $updateTransactionPath -Force
+        } catch { Write-Host "Update transaction failure state could not be persisted: $($_.Exception.Message)" -ForegroundColor Red }
+    }
     exit 1
 }

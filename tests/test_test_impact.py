@@ -24,6 +24,22 @@ class ImpactTests(unittest.TestCase):
     def test_installer_requires_integration(self):
         self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
 
+    def test_company_layer_update_lifecycle_selects_safety_suites_and_release_gate(self):
+        plan = impact.select([
+            "mxagile-setup-company-layer.ps1",
+            "scripts/update-layer.ps1",
+            ".mxagile/schemas/update-transaction.schema.json",
+        ])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["tier"], 3)
+        self.assertTrue({
+            "test-layer-update.ps1",
+            "test-core-installer.ps1",
+            "test-core-provenance.ps1",
+            "test-startup-priority.ps1",
+            "test-wp10-artifact-schemas.ps1",
+        }.issubset(set(plan["suites"])))
+
     def test_spec_kit_traceability_paths_are_documentation_not_unknown_paths(self):
         paths = ["specs/001-board-redesign/spec.md", "specs/001-board-redesign/contracts/timeline-event.md",
                  "specs/001-board-redesign/reports/cs-2-bench.json", "specs/002-any-future-feature/tasks.md"]

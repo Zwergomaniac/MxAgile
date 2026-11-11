@@ -2712,7 +2712,30 @@ class CurrentWorkAndAssessmentTests(unittest.TestCase):
         valid = {"ID": "REQ-003", "title": "Old", "description": "Old.", "status": "superseded", "superseded_by": "REQ-002"}
         invalid = {key: value for key, value in valid.items() if key != "superseded_by"}
         self.assertEqual(list(Draft7Validator(schema).iter_errors(valid)), [])
-        self.assertTrue(list(Draft7Validator(schema).iter_errors(invalid)))
+        self.assertEqual(list(Draft7Validator(schema).iter_errors(invalid)), [])
+
+    def test_doctor_unsupported_breakdown_does_not_change_severity_or_blocking(self) -> None:
+        diagnostics = [
+            {"repairability": "UNSUPPORTED", "category": "FRESHNESS_UNKNOWN", "affected_board_area": "session", "severity": "INFO", "blocking": False},
+            {"repairability": "UNSUPPORTED", "category": "MISSING", "affected_board_area": "planning", "severity": "WARNING", "blocking": True},
+            {"repairability": "DECISION_REQUIRED", "category": "AUTHORITY_CONFLICT", "affected_board_area": "references", "severity": "ERROR", "blocking": True},
+        ]
+        summary = project_compatibility.diagnostic_summary(diagnostics)
+        self.assertEqual(summary["by_repairability"], {"DECISION_REQUIRED": 1, "UNSUPPORTED": 2})
+        self.assertEqual(summary["unsupported_by_category"], {"FRESHNESS_UNKNOWN": 1, "MISSING": 1})
+        self.assertEqual(summary["unsupported_by_area"], {"planning": 1, "session": 1})
+        self.assertEqual((summary["total"], summary["blocking"]), (3, 2))
+
+    def test_legacy_superseded_requirement_remains_schema_valid_but_requires_doctor_decision(self) -> None:
+        relative = "requirements/REQ-001.yml"
+        write_file(self.root, relative, "ID: REQ-001\ntitle: Legacy superseded\ndescription: Historical requirement.\nstatus: superseded\n")
+        status = self.status()
+        self.assertEqual(status["requirements"]["items"][0]["status"], "superseded")
+        diagnostics = [item for item in status["compatibility"]["diagnostics"]
+                       if item["source_path"] == relative and item["authority"] == "superseded_by"]
+        self.assertEqual(len(diagnostics), 1)
+        self.assertEqual((diagnostics[0]["category"], diagnostics[0]["repairability"], diagnostics[0]["blocking"]),
+                         ("REFERENCE_MISSING", "DECISION_REQUIRED", True))
 
     def git(self, *args: str) -> None:
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],

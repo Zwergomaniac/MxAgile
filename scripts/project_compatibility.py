@@ -552,6 +552,27 @@ def diagnostic_group(category: str, blocking: bool = False) -> str:
         return 'projection_health' if blocking else 'optional_metadata'
     return _DIAGNOSTIC_GROUP_BY_CATEGORY.get(category, 'projection_health')
 
+def diagnostic_summary(diagnostics: list[dict]) -> dict[str, Any]:
+    """Count existing Doctor findings without changing severity or blocking semantics."""
+    def counts(field: str, items: list[dict]) -> dict[str, int]:
+        result: dict[str, int] = {}
+        for item in items:
+            key = str(item.get(field) or 'UNKNOWN')
+            result[key] = result.get(key, 0) + 1
+        return dict(sorted(result.items()))
+
+    unsupported = [item for item in diagnostics if item.get('repairability') == 'UNSUPPORTED']
+    return {
+        'total': len(diagnostics),
+        'blocking': sum(1 for item in diagnostics if item.get('blocking') is True),
+        'by_severity': counts('severity', diagnostics),
+        'by_repairability': counts('repairability', diagnostics),
+        'by_category': counts('category', diagnostics),
+        'by_area': counts('affected_board_area', diagnostics),
+        'unsupported_by_category': counts('category', unsupported),
+        'unsupported_by_area': counts('affected_board_area', unsupported),
+    }
+
 
 DOCUMENT_RESULT_RULE_VERSION = 1
 _DOCUMENT_RESULT_CACHE_LIMIT = 8192
@@ -779,6 +800,21 @@ def compatibility_report(
             category = 'REFERENCE_MISSING' if not targets else 'REFERENCE_AMBIGUOUS'
             add(category, relative, 'findings', 'Superseded Finding must reference one different canonical Finding ID.',
                 blocking=True, repairability='DECISION_REQUIRED', authority='superseded_by')
+
+    for relative, value in documents.items():
+        if contract_for(relative)[0] != 'requirement' or value.get('status') != 'superseded':
+            continue
+        successor = value.get('superseded_by')
+        targets = requirement_identities.get(successor, []) if isinstance(successor, str) else []
+        if not isinstance(successor, str) or not successor:
+            category = 'REFERENCE_MISSING'
+        elif len(targets) != 1 or targets[0] == relative:
+            category = 'REFERENCE_MISSING' if not targets else 'REFERENCE_AMBIGUOUS'
+        else:
+            continue
+        add(category, relative, 'requirements',
+            'Superseded Requirement needs one different, unique canonical successor; no successor is inferred.',
+            blocking=True, repairability='DECISION_REQUIRED', authority='superseded_by')
 
     waves_doc = documents.get('planning/lifecycle/process-state.yaml', {}).get('waves', {})
     waves = set(waves_doc) if isinstance(waves_doc, dict) else set()
@@ -1330,13 +1366,22 @@ def main() -> int:
         print(json.dumps({'error': 'COMPATIBILITY_OPERATION_FAILED', 'action': 'Rerun Doctor and review the scoped repair plan.'}), file=sys.stderr)
         return 3
     smoke = run_board_smoke(root) if run_smoke else None
+    summary = diagnostic_summary(report['diagnostics'])
     if args.format == 'json':
         printable = dict(report)
+        printable['diagnostic_summary'] = summary
         if smoke is not None:
             printable['board_smoke'] = smoke
         print(json.dumps(printable, sort_keys=True, indent=2))
     else:
         print(f"PROJECT_COMPATIBILITY_CHECKED: {report['compatibility']} (read-only)")
+        print("DIAGNOSTIC SUMMARY (counts, not additional failures):")
+        for key, count in summary['by_repairability'].items():
+            print(f"  {key}: {count}")
+        if summary['unsupported_by_category']:
+            print("  UNSUPPORTED breakdown by category:")
+            for key, count in summary['unsupported_by_category'].items():
+                print(f"    {key}: {count}")
         for item in report['diagnostics']:
             location = item['source_path'] or item['affected_board_area']
             if item['line'] is not None:

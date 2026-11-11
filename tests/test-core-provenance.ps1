@@ -143,6 +143,12 @@ Assert ($sc -match 'core_installation:') 'E14: machine-readable YAML has core_in
 Assert ($sc -match 'core_currency:') 'E15: machine-readable YAML has core_currency block'
 Assert ($sc -match 'null.*never.*CURRENT|never.*CURRENT.*null|null.*not.*CURRENT|COMMIT_UNKNOWN') 'E16: null commit is never classified as CURRENT'
 Assert ($sc -match 'null.*null.*not.*match|null.*not.*prove.*currency|null.*do not prove|null values do not prove') 'E17: null == null is not proof of projection currency'
+Assert ($ic -match 'UPDATE_INSTALLED_RESTART_REQUIRED' -and $ic -match "context_state = 'STALE'" -and $ic -match 'resync_required') 'E18: Core update invalidates context and requires re-sync'
+Assert ($ic -match 'DeferPostUpdateCompatibility' -and $ic -match 'Board Smoke deferred') 'E19: multi-layer wrapper defers Doctor and Board Smoke until all layers finish'
+$updateTransactionSchemaPath = Join-Path $RepoRoot '.mxagile/schemas/update-transaction.schema.json'
+Assert (Test-Path -LiteralPath $updateTransactionSchemaPath) 'E20: update transaction has a canonical schema'
+$updateTransactionSchema = Get-Content -LiteralPath $updateTransactionSchemaPath -Raw -Encoding UTF8
+Assert ($updateTransactionSchema -match 'PARTIAL_UPDATE' -and $updateTransactionSchema -match 'previous_core' -and $updateTransactionSchema -match 'target_company_layer' -and $updateTransactionSchema -match 'rollback') 'E21: transaction schema preserves partial recovery state'
 
 # ──────────────────────────────────────────────────────────────
 # F  update-contract.md policy: complete and correct

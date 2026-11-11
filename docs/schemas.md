@@ -61,7 +61,7 @@ Represents an atomic, testable, traceable requirement.
 | Field | Type | Description |
 |---|---|---|
 | `status` | `draft\|accepted\|deferred\|superseded` | Default: `draft`. |
-| `superseded_by` | canonical `REQ-NNN` | Required when `status: superseded`; points from the old Requirement to its successor. Never inferred from text similarity. |
+| `superseded_by` | canonical `REQ-NNN` | Optional for backward compatibility; new supersession transitions must point from the old Requirement to its successor. Missing/ambiguous legacy links are Doctor `DECISION_REQUIRED`, never inferred from text similarity. |
 | `source` | `native\|legacy\|migrated` | Provenance. |
 | `derivedFrom` | string (`PAGE-...`) | Page ID → creates `DERIVED_FROM` edge in artifact index. |
 | `target_users` | array of `{role, description}` | Affected user roles. |
