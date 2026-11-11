@@ -365,6 +365,139 @@ correlation, review rounds, interrupt/resume, compaction recovery, update/migrat
 retention/archival; DevBoard timeline, recent activity and current runs as projections. Re-use the
 private SAK (`D:\User Testing\spec-agent-kit`) as reference for these.
 
+## Phase 1C: Host Distribution, Mandatory Acceptance, Concord
+
+### Product path decision
+
+| Component | Source | Installed to | Writes consumer state | Ownership |
+|---|---|---|---|---|
+| `guard.py` | `experiments/control-plane/` | `.mxagile/tools/control-plane/` | no (read-only) | FRAMEWORK_OWNED_GENERATED |
+| `enforcement.py` (Claude PreToolUse adapter) | same | same | no (stdout decision only) | FRAMEWORK_OWNED_GENERATED |
+| `child_contract.py` (acceptor, visual gate) | same | same | no (stdout verdict only) | FRAMEWORK_OWNED_GENERATED |
+| `control-plane-verdict.schema.json` | same | same | no | FRAMEWORK_OWNED_GENERATED |
+| `Register-MxAgileControlPlaneHook.ps1` | `scripts/` | not distributed (installer-time only) | `.claude/settings.json` MxAgile group only | entry FRAMEWORK_OWNED, file shared |
+| `Save-`/`Get-MxAgileDelegationResult.ps1` | `scripts/` | `.mxagile/tools/` | delegated result + checkpoint artifact (existing) | existing |
+
+The source of truth stays in `experiments/control-plane/` while the experiment runs; install-core
+copies it and lists it under `project_distributed` in Core provenance. Adapter → guard API:
+`guard.load_project_facts(root)` and `guard.delivery_authorization(facts, op_class, run_id)` /
+`guard.can_delegate(...)`; the guard resolves its helper scripts from `.mxagile/tools` when
+installed and from `scripts/` in this repository. Promotion out of `experiments/` is an
+integration decision, not part of Phase 1C.
+
+### Host registration
+
+install-core registers one structured `PreToolUse` group in `.claude/settings.json`:
+matcher `Write|Edit|MultiEdit|NotebookEdit|Bash|Task|Agent|mcp__.*`, command
+`python -B "$CLAUDE_PROJECT_DIR/.mxagile/tools/control-plane/enforcement.py" || exit 2`
+(Claude blocks on exit 2, so an unrunnable adapter or missing Python is a deny, not a silent
+allow). The MxAgile group is identified only by the marker
+`.mxagile/tools/control-plane/enforcement.py`, placed first, replaced in place on update and never
+duplicated; every other group and setting is preserved. Invalid JSON, a non-object `hooks`, a
+non-array `PreToolUse` or a group mixing the marker with foreign hooks is `UNKNOWN_OWNERSHIP`:
+the file stays byte-identical and install-core prints a WARN that enforcement is NOT active.
+`-Remove` drops only the MxAgile group. The adapter prefers `CLAUDE_PROJECT_DIR` over the
+tool-call `cwd` as project root.
+
+Migration: the baseline tag `mxagile-reality-hardening-2026-11-11` and the Phase 1/1B commits
+introduced no persistent host configuration, so the baseline tag is the complete upgrade baseline
+for the hook; `test-control-plane-upgrade-from-baseline.ps1` proves first registration, preserved
+developer hooks and an idempotent second update (`CONTROL_PLANE_HOOK: CURRENT`).
+
+### Concord and Studio Pro host reality
+
+- `OBSERVED` (read-only process inventory): `studiopro.exe → pwsh.exe → claude.exe →
+  Concord.Mcp.exe` and `Code.exe → claude.exe → Concord.Mcp.exe`. Concord is an MCP server plus a
+  Studio-Pro terminal integration; the agent host in both paths is Claude Code. Concord terminal
+  settings use `pwsh`, `allowAgentRunWithoutConfirm: true`, no fixed start directory.
+- `INFERRED`: the Studio-Pro-terminal Claude session loads the project `.claude/settings.json`, so
+  the same hook and the same guard decision apply; Concord MCP tools appear as
+  `mcp__concord-v2-mcp__*` and are classified like Mendix MCP tools (read verbs READ, everything
+  else IMPLEMENTATION_WRITE). Tests prove identical deny reasons for a Studio-Pro-MCP and a Concord
+  MCP write.
+- `NOT_OBSERVABLE` without a live authenticated host run: whether Concord's auto-run setting
+  changes hook execution, and the exact cwd of the terminal session.
+
+### Permissions
+
+No bypass mode is required or recommended. Claude PreToolUse hooks decide before the permission
+prompt; a deny blocks independently of auto-approval. Projects should keep a narrow permission
+allowlist (read tools, `git status/diff/log`, MxAgile read tools); the hook is the authority for
+mutations, the allowlist only reduces prompts.
+
+### Shell, Git and model scope
+
+Shell commands are split on `&&`, `||`, `;`, `|` and newlines; the most severe segment wins.
+Redirects and write verbs (`Set-Content`, `Out-File`, `sed -i`, `cp`, `mv`, `rm`, ...) are classified
+by target path; null redirects are ignored. Git: read verbs (`status`, `log`, `diff`, `show`,
+`fetch`, ...) READ, `add`/`commit`/`tag` CONTROLLED_MUTATION, `checkout`/`switch`/`stash`
+CONTEXT_INVALIDATING, `reset`/`clean`/`restore`/`rm`/`push` and unknown verbs HIGH_RISK_MUTATION
+(enforced), `merge`/`rebase`/`cherry-pick`/`pull`/`apply`/`am` INTEGRATION_MUTATION (enforced).
+Not detected: writes from interpreters
+(`python -c`, `node -e`, scripts) and obfuscated commands.
+
+Mendix model scope: `mxcli diff-local` reports changed units in `mprcontents/` (MPR v2), so saved
+model changes are Git-observable per unit and enter acceptance as implementation changes.
+Unsaved Studio Pro edits and MPR v1 projects remain `NOT_OBSERVABLE`.
+
+### Mandatory child acceptance
+
+When a canonical handoff `.concord/delegation-handoffs/<delegation_id>.json` exists,
+`Save-MxAgileDelegationResult.ps1` runs `child_contract.py accept` (handoff + optional
+`verdict_reference`) and stores the deterministic `acceptance` object in the delegated result.
+Python or acceptor unavailable → `NEEDS_HUMAN` / `ACCEPTANCE_UNAVAILABLE`, never ACCEPTED.
+`Get-MxAgileDelegationResult.ps1` reports `reusable: true` only for ACCEPTED (or results without a
+control-plane handoff, `NOT_REQUIRED`, which keeps the legacy contract). A child claim
+`needs_human` lowers acceptance; no child claim raises it. The handoff embeds its
+`verification_contract`, so the acceptor needs no second source. Spawn is denied unless the
+handoff sits at the canonical path (`CHILD_HANDOFF_NOT_CANONICAL`).
+
+Fixed in passing: the saver inserted the artifact entry with the script file's line endings
+(CRLF under `core.autocrlf`) into an LF checkpoint and swallowed the following blank line; the
+reader then reported `NOT_REFERENCED`. Line endings now follow the checkpoint.
+
+### Enforcement status after Phase 1C
+
+- Technically enforced in installed projects (Claude Code incl. Studio-Pro/Concord terminal):
+  implementation writes, Mendix/Concord MCP writes, mxcli mutations, high-risk and integration Git
+  operations, non-read-only child spawns. Verified by direct adapter calls and by the registered
+  command line under Git Bash; `NOT_EXECUTED`: a live authenticated Claude session.
+- Mandatory: child acceptance on save/read of delegated results with a control-plane handoff.
+- Advisory: lifecycle recording after a visual PASS; CONTROLLED_MUTATION and
+  CONTEXT_INVALIDATING Git operations (classified, re-sync catches the drift).
+- Consequence: `git push` is denied without delivery authorization; pushing is a developer action
+  outside an implementing Wave.
+- Not enforced: VS Code Copilot hooks, Copilot CLI, non-Claude hosts; interpreter-based writes.
+- Doctor: hook registration state is `NOT_IMPLEMENTED` in `project_compatibility`; install-core
+  output (`CONTROL_PLANE_HOOK: ...`) is the only signal today.
+
+### Phase 2 run/event persistence (design, not implemented)
+
+| Question | Decision candidate |
+|---|---|
+| Location | `.concord/runs/<YYYY-MM>/events.jsonl`, project-local, Git-ignored; never under `planning/` |
+| Format | append-only JSON Lines, one event per line, UTF-8, LF |
+| Schema/versioning | `.mxagile/schemas/run-event.schema.json`, `schema_version` per line; readers skip unknown majors |
+| Identity | `event_id` (ULID), `run_id`, `parent_run_id`, `delegation_id`, `mission_id`, `wave_id`, `epoch_id` |
+| Classes | `PROJECT_HISTORY` (gate/lifecycle consequences, update/migration), `RUN_AUDIT` (delivery/child/round/verdict), `DIAGNOSTIC` (guard unavailable, hook errors) |
+| Writer | only deterministic framework code (guard adapter, saver, gate, lifecycle tools); never an agent free-text write |
+| Concurrency | open-append-close per event, line < 4 KiB, no rewrite; partial last line is ignored on read |
+| Size/retention | monthly files, `DIAGNOSTIC` capped and rotated, `RUN_AUDIT` archived after N months, `PROJECT_HISTORY` kept |
+| Failure semantics | event write failure never changes a decision; it yields a DIAGNOSTIC on stderr |
+| Truth rule | events document evaluated outcomes; canonical state is re-derived, never read from events |
+| Review rounds / repair | `round` and `repair_round_started` correlate via `run_id` + `delegation_id` |
+| Interrupt/resume, compaction | resume re-derives from canonical sources; the log only explains what ran before |
+| Update/migration history | install-core/migration emit `PROJECT_HISTORY` with previous/current commit |
+| Privacy | no prompts, file contents or secrets; codes, ids, paths, hashes only |
+| DevBoard | two layers: current canonical state (existing projection) + operational history (timeline, recent activity, current runs) read from the log |
+
+### DevBoard target picture
+
+Layer 1 stays the canonical projection (Mission, Waves, gates, artifacts, Doctor). Layer 2 adds
+read-only operational history from the run/event log: current runs (open `run_id` without end
+event), recent activity, per-Wave timeline. Layer 2 can never change Layer 1; a missing or
+corrupt log only hides Layer 2.
+
 ## Open Findings and Limits
 
 - `OPEN_QUESTION`: the supplied SAK snapshot has no Git metadata or license file; exact revision,

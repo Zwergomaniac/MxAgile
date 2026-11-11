@@ -1607,6 +1607,21 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Control-plane experiment acceptance: installs the pre-experiment baseline tag (git archive) into a GUID temp project, adds legacy lifecycle state, updates to the current branch through install-core, checks Doctor/provenance/preservation, proves context invalidation before re-sync and guard use after re-sync. Uses the cached mxcli (MXCLI_TEST_BINARY); without it UNAVAILABLE, never PASS."
+    "Reason": "Control-plane experiment acceptance: installs the pre-experiment baseline tag (git archive) into a GUID temp project, adds legacy lifecycle state and a developer-owned Claude hook, updates to the current branch through install-core, checks Doctor/provenance/preservation, hook registration (first, single, foreign preserved, idempotent on second update), the installed adapter before/after re-sync, the HTML-first reality prompt and the registered command line via Git Bash (UNAVAILABLE note without Git Bash). Uses the cached mxcli (MXCLI_TEST_BINARY); without it UNAVAILABLE, never PASS."
+  },
+  {
+    "File": "test-control-plane-hook-registration.ps1",
+    "Tier": 1,
+    "FastGate": false,
+    "NetworkRequired": false,
+    "RealMxcliRequired": false,
+    "CreatesSubprocesses": true,
+    "FilesystemFixture": true,
+    "UsesGit": false,
+    "UsesSharedCache": false,
+    "UsesFixedTempPath": false,
+    "ModifiesGlobalState": false,
+    "ParallelSafe": true,
+    "Reason": "Phase 1C structured Claude PreToolUse registration in GUID temp settings files: fresh, idempotent rerun, foreign hooks and unrelated settings preserved, outdated entry replaced and moved first, invalid JSON / mixed group / non-array PreToolUse stay byte-identical with UNKNOWN_OWNERSHIP, -Remove keeps foreign groups."
   }
 ]
