@@ -461,15 +461,14 @@ reader then reported `NOT_REFERENCED`. Line endings now follow the checkpoint.
 - Technically enforced in installed projects (Claude Code incl. Studio-Pro/Concord terminal):
   implementation writes, Mendix/Concord MCP writes, mxcli mutations, high-risk and integration Git
   operations, non-read-only child spawns. Verified by direct adapter calls and by the registered
-  command line under Git Bash; `NOT_EXECUTED`: a live authenticated Claude session.
+  command line under Git Bash; a live Claude session followed in Phase 1D.
 - Mandatory: child acceptance on save/read of delegated results with a control-plane handoff.
 - Advisory: lifecycle recording after a visual PASS; CONTROLLED_MUTATION and
   CONTEXT_INVALIDATING Git operations (classified, re-sync catches the drift).
-- Consequence: `git push` is denied without delivery authorization; pushing is a developer action
-  outside an implementing Wave.
+- Consequence: `git push` is denied without delivery authorization (superseded in Phase 1D:
+  publication gate, host asks the developer).
 - Not enforced: VS Code Copilot hooks, Copilot CLI, non-Claude hosts; interpreter-based writes.
-- Doctor: hook registration state is `NOT_IMPLEMENTED` in `project_compatibility`; install-core
-  output (`CONTROL_PLANE_HOOK: ...`) is the only signal today.
+- Doctor: hook registration state was `NOT_IMPLEMENTED` in Phase 1C (added in Phase 1D).
 
 ### Phase 2 run/event persistence (design, not implemented)
 
@@ -497,6 +496,128 @@ Layer 1 stays the canonical projection (Mission, Waves, gates, artifacts, Doctor
 read-only operational history from the run/event log: current runs (open `run_id` without end
 event), recent activity, per-Wave timeline. Layer 2 can never change Layer 1; a missing or
 corrupt log only hides Layer 2.
+
+## Phase 1D: Live Host Reality
+
+### Live Claude Code verification
+
+`experiments/control-plane/live/claude-live-reality.ps1` (manual, costs model tokens, never in
+automatic gates): disposable consumer project, normal `install-core` path, real `claude -p`
+session (Claude Code 2.1.322, model haiku) in `--dangerously-skip-permissions` mode, i.e. the
+same permission mode the Studio-Pro terminal uses, so a host permission block cannot mask the
+result. A probe MCP server registered as `mendix-studio-pro` records every real `tools/call`.
+
+| Step | Observed result (2026-11-12) |
+|---|---|
+| install | `CONTROL_PLANE_HOOK: REGISTERED`; Doctor `installation_health: HEALTHY`, live `NOT_VERIFIED` |
+| negative (Wave `ready`, commit after checkpoint) | `Write` and `mcp__mendix-studio-pro__pg_patch_page` returned `PreToolUse:<tool> hook error: MxAgile control plane: HEAD_STALE, MUTATION_PHASE_BLOCKED \| recovery: resync`; target file absent; probe server received 0 calls; no Wave invented |
+| positive (Wave `implementing`, committed, re-synced) | same two calls executed: file created, probe server received `pg_patch_page` |
+
+Classification: hook loaded from the project `.claude/settings.json` `OBSERVED`; hook executed on
+the real call `OBSERVED`; project root resolved to the consumer project `OBSERVED` (decision based
+on its canonical state); block before mutation `OBSERVED` (bypass mode, so not a host permission
+block); allow after valid delivery context `OBSERVED`.
+
+### Concord / Studio Pro (read-only discovery, 2026-11-12)
+
+| # | Question | Result | Class |
+|---|---|---|---|
+| 1 | Host process | `studiopro.exe → pwsh.exe → claude.exe --dangerously-skip-permissions → Concord.Mcp.exe --stdio` | OBSERVED |
+| 2 | Configuration of the session | standard Claude Code CLI; Concord writes project `.mcp.json` (`concord-v2-mcp` stdio, `mendix-studio-pro` http `localhost:7782/mcp`, `CONCORD_PROJECT_ROOT`) | OBSERVED |
+| 3 | `.claude/settings.json` used | session transcripts carry `cwd` = project root, Claude loads project settings from there; hook execution in that very session | INFERRED (same binary and mode as the live test) |
+| 4 | Own Concord hook path | none found; Concord contributes MCP tools and the terminal, not an interception point | OBSERVED (absence in config), NOT_OBSERVABLE (internals) |
+| 5 | Visible MCP tools | Studio Pro 11.16 `tools/list`: 18 tools (`ped_*`, `pg_*`, `read_file`, `write_file`, `execute_handler`, `compile_java`, `glob`, ...); Concord: `concord_discover`, `concord_invoke` | OBSERVED |
+| 6 | Mendix mutation representation | `mcp__mendix-studio-pro__ped_update_document`, `ped_create_document`, `pg_patch_page`, `write_file` | OBSERVED (session history) |
+| 7 | Child representation | `Agent` tool | OBSERVED |
+| 8 | Interception options | Claude PreToolUse only | OBSERVED |
+| 9 | Root information | `CONCORD_PROJECT_ROOT` env for the MCP server; Claude `cwd`/`CLAUDE_PROJECT_DIR`; sessions also `cd` into `.concord/scratch/...` (why the adapter prefers `CLAUDE_PROJECT_DIR`) | OBSERVED |
+| 10 | Studio-Pro terminal vs. normal terminal | same `claude.exe`; Studio-Pro terminal starts it with `--dangerously-skip-permissions` (`allowAgentRunWithoutConfirm: true`), VS Code uses `--permission-mode=auto` | OBSERVED |
+
+Consequence: no separate Concord adapter is needed; Concord tools reach the same Claude hook and the
+same guard. Not proven live: a mutation inside the running Studio-Pro session, because the open
+project (CapTrack) has no control-plane registration (Doctor: `HOST_REGISTRATION_MISSING`) and must
+not be modified for a test. Status: `CONCORD_LIVE_HOOK = NOT_VERIFIED`, integration gap precisely
+known (registration via the update path; then the live script's negative/positive cases apply).
+
+Reality fixes from the observed tool list: `glob` was falsely classified as write (now READ).
+`concord_invoke` (generic intent proxy, `intentOrId`) and `execute_handler`/`compile_java` stay
+fail-closed (IMPLEMENTATION_WRITE): reads through `concord_invoke` are blocked outside an
+implementing Wave (known false positive, safe direction).
+
+### Doctor control-plane health
+
+`project_compatibility.py doctor` reports `control_plane` (JSON) / `CONTROL_PLANE_INSTALLATION`
+and `CONTROL_PLANE_LIVE` (human) without changing `compatibility` or exit codes: components,
+registration (`REGISTERED`, `HOST_REGISTRATION_MISSING`, `CONFIG_UNKNOWN_OWNERSHIP`), fail-closed
+command, matcher coverage, command target present, foreign group count, handoff schema 1.4
+(`SCHEMA_INCOMPATIBLE`), `ADAPTER_FILE_MISSING`. Installation health is `HEALTHY`, `DEGRADED` or
+`NOT_INSTALLED`; live verification is always `NOT_VERIFIED` (`LIVE_VERIFICATION_NOT_PERFORMED`),
+VS Code Copilot `HOST_UNSUPPORTED`. No new persistent status file.
+
+### Child acceptance hardening
+
+Found by the Phase 1D state tests: a child with only static evidence (gate `PARTIAL`) or no
+evidence (`UNAVAILABLE`) was booked `ACCEPTED`/reusable. Now the gate result feeds acceptance:
+`PARTIAL`/`UNAVAILABLE` → `PARTIAL`, gate `STALE`/`NEEDS_HUMAN` adopted, invalid verdict/evidence →
+`REJECTED`; a well-formed `FAIL` verdict stays an accepted child report of a failing UI. Verified
+through the real Save/Get scripts: input change during the child run → `STALE`; exit 0 with
+`REJECTED`/`PARTIAL`/`NEEDS_HUMAN` → parent sees exactly that state, `reusable: false`.
+
+### Publication gate
+
+`git push` is `PUBLICATION`: the adapter returns `ask` (`PUBLICATION_REQUIRES_DEVELOPER_APPROVAL`)
+in every state, so an implementing Wave never authorizes a push and the control plane never
+auto-approves one; the host asks the developer. Integration (`merge`, `rebase`, `pull`, ...) stays
+delivery-authorized.
+
+### Interpreter and code-execution bypass
+
+`KNOWN_BYPASS_PATH`: `python -c`, `node -e`, scripts, `pwsh -Command`, and code-execution MCP tools
+(observed: `mcp__plugin_context-mode_context-mode__ctx_execute`, heavily used in the Concord
+session) can write implementation files without classification.
+- A (closer to the write path): PreToolUse cannot see effects; a PostToolUse protected-path drift
+  check (Git status of implementation paths before/after) would detect, not prevent. Candidate.
+- B (classify by target/intent): not robust for arbitrary code; rejected.
+- C (fail-closed for all inline code): would block the dominant read usage; rejected for now.
+Integration is not declared bypass-safe while this path is open.
+
+### Mendix model scope (mxcli diff-local, MPR v2, read-only on the open LIVE-SP project)
+
+- Committed range: `Nanoflow: CAP_Core.NAV_GoTo_Beschaeft`, `Summary: 0 new, 1 modified, 0 deleted`:
+  unit type and qualified name are available → `OBSERVABLE` for saved, committed units.
+- Saved, uncommitted units: listed against `HEAD` → `OBSERVABLE` (observed in Phase 1C on a
+  fixture). Units changed only in properties MDL does not show (navigation, security) are listed
+  by property name per `mxcli diff-local --help` → `PARTIALLY_OBSERVABLE` (not reproduced live).
+  A 40-commit range did not finish within minutes on the live project → not usable as a hook-time
+  check.
+- Unsaved Studio Pro edits (LIVE-SP): `No local changes found` while Studio Pro was open; unsaved
+  state is not on disk → `NOT_OBSERVABLE`.
+
+### Phase 2 catalog (reconstructed with SAK as reference)
+
+SAK (`D:\User Testing\spec-agent-kit`, read-only): 17 event types (`run.started`, `round.started`,
+`station.started/finished`, `verdict.recorded`, `run.escalated/released/returned/approved/paused/
+resumed/merged/pushed/commit_attached/reviewed/aborted/taken_over`), envelope `sak.event/1` with
+ULID `event_id`, `ts`, `project`, `run_id`, `data`, `origin`; local `events.jsonl` append + flush,
+outbox reads only complete lines, invalid lines skipped and counted; event 8 KB, 30-day dashboard
+retention; board state from `run.json`/specs/Git, stations/verdicts from events. SAK gaps MxAgile
+must close: no parent/child ids, no sequence numbers, no fsync/append lock, no local rotation, no
+event-version migration, no explicit "events are not truth" rule, no validation before board use.
+
+| Area | MxAgile Phase 2 decision candidate |
+|---|---|
+| Event semantics | `run.started/completed`, `child.started/completed/rejected` (parent/child via `parent_run_id`), `lifecycle.resynced`, `delivery.authorized/blocked`, `publication.approval_required`, `verdict.received`, `gate.evaluated/invalidated`, `repair_round.started`, `run.escalated`, `update.installed`, `migration.step`, `recovery.required` |
+| Location / format | `.concord/runs/events-<YYYY-MM>.jsonl`, Git-ignored, JSONL, UTF-8, LF |
+| Schema / migration | `mxagile.event/1`; additive within a major; readers reject unknown majors; old majors converted by a deterministic idempotent importer (SAK pattern) |
+| Atomicity / append | one `write` of a complete line (< 8 KB) under an `O_EXCL` lock file with TTL; partial trailing line ignored |
+| Ordering / sequence | per-file monotonic `seq` plus ULID; readers order by `(ts, seq, event_id)` |
+| Crash recovery | skip and count invalid lines; never repair in place |
+| Retention / size / archive | monthly rotation; `DIAGNOSTIC` 30 days; `RUN_AUDIT` archived (zip) after 6 months; `PROJECT_HISTORY` kept |
+| Classes | `PROJECT_HISTORY`, `RUN_AUDIT`, `DIAGNOSTIC` |
+| Truth model | events = audit/history; lifecycle state only from canonical artifacts; events validated against the schema before any projection |
+| DevBoard | Current State from canonical artifacts; Timeline from validated events; Active Runs from `run.started` without completion, correlated parent/child; Recent Activity filtered to `PROJECT_HISTORY` + escalations |
+
+Not implemented in Phase 1D.
 
 ## Open Findings and Limits
 
