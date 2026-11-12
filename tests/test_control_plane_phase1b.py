@@ -225,7 +225,7 @@ class RealityRegressionTests(Phase1BFixture):
         self.assertEqual(spawn["decision"], "allow", spawn.get("reason"))
         self.assertEqual(spawn["event"], {"type": "child_started", "run_id": handoff["run_id"], "operation_class": "CHILD_SPAWN"})
         without_runtime = child_contract.accept_child_result(self.root, handoff, self.verdict(handoff, []), self.contract)
-        self.assertEqual((without_runtime["status"], without_runtime["gate"]["gate_result"]), ("ACCEPTED", "UNAVAILABLE"))
+        self.assertEqual((without_runtime["status"], without_runtime["gate"]["gate_result"]), ("PARTIAL", "UNAVAILABLE"))
         full = child_contract.accept_child_result(self.root, handoff, self.verdict(handoff, [self.evidence("default"), self.evidence("modal_open")]), self.contract)
         self.assertEqual((full["status"], full["gate"]["gate_result"]), ("ACCEPTED", "PASS"))
 

@@ -62,7 +62,7 @@ class HostParityTests(Phase1BFixture):
         self.assertIn("CHILD_HANDOFF_NOT_CANONICAL", moved["reason"])
 
 
-class MandatoryAcceptanceTests(Phase1BFixture):
+class AcceptanceFixture(Phase1BFixture):
     def setUp(self) -> None:
         super().setUp()
         subprocess.run(["pwsh", "-NoProfile", "-File", str(WRITE_EPOCH), "-ProjectRoot", str(self.root), "-MissionId", "MISSION-2026-11-11-cp"],
@@ -83,6 +83,8 @@ class MandatoryAcceptanceTests(Phase1BFixture):
         read = _pwsh(str(GET), "-ProjectRoot", str(self.root), "-DelegationId", handoff["delegation_id"])
         return saved, read
 
+
+class MandatoryAcceptanceTests(AcceptanceFixture):
     def test_accepted_result_is_reusable(self):
         handoff = self.visual_handoff(CLOSED)
         saved, read = self.save(handoff, self.verdict(handoff, [self.evidence("default"), self.evidence("modal_open")]))

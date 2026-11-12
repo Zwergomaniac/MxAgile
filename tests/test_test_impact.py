@@ -15,7 +15,7 @@ spec.loader.exec_module(impact)
 class ImpactTests(unittest.TestCase):
     def test_doctor_is_narrow(self):
         plan = impact.select(["scripts/project_compatibility.py"])
-        self.assertEqual(plan["suites"], ["test_parity_gallery.py", "test_project_status.py"])
+        self.assertEqual(plan["suites"], ["test_control_plane_phase1d.py", "test_parity_gallery.py", "test_project_status.py"])
         self.assertEqual(plan["tier"], 1)
 
     def test_board_includes_consumers(self):
@@ -28,12 +28,14 @@ class ImpactTests(unittest.TestCase):
         plan = impact.select(["experiments/control-plane/guard.py", "experiments/control-plane/control-plane-verdict.schema.json"])
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-control-plane-upgrade-from-baseline.ps1", "test_control_plane_guard.py",
-                                          "test_control_plane_phase1b.py", "test_control_plane_phase1c.py"])
+                                          "test_control_plane_phase1b.py", "test_control_plane_phase1c.py",
+                                          "test_control_plane_phase1d.py"])
 
     def test_control_plane_hook_registration_selects_registration_and_upgrade_suites(self):
         plan = impact.select(["scripts/Register-MxAgileControlPlaneHook.ps1"])
         self.assertEqual(plan["unmapped"], [])
-        self.assertEqual(plan["suites"], ["test-control-plane-hook-registration.ps1", "test-control-plane-upgrade-from-baseline.ps1"])
+        self.assertEqual(plan["suites"], ["test-control-plane-hook-registration.ps1", "test-control-plane-upgrade-from-baseline.ps1",
+                                          "test_control_plane_phase1d.py"])
 
     def test_company_layer_update_lifecycle_selects_safety_suites_and_release_gate(self):
         plan = impact.select([

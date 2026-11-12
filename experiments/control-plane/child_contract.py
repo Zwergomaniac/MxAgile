@@ -327,6 +327,17 @@ def accept_child_result(
         if status == "PARTIAL" and gate["gate_result"] == "PASS":
             gate["gate_result"], gate["allowed_consequence"] = "PARTIAL", "none"
             gate["reasons"].append("ACCEPTANCE_PARTIAL")
+        # A delivered-but-incomplete output contract must never be booked as an accepted child result.
+        gate_result = gate["gate_result"]
+        if gate_result in {"PARTIAL", "UNAVAILABLE"}:
+            findings.append({"code": "RUNTIME_EVIDENCE_INCOMPLETE", "summary": f"Visual gate is {gate_result}."})
+            demote("PARTIAL")
+        elif gate_result in {"STALE", "NEEDS_HUMAN"}:
+            findings.append({"code": f"GATE_{gate_result}", "summary": "; ".join(gate["reasons"])})
+            demote(gate_result)
+        elif gate_result == "FAIL" and any(r == "VERDICT_INVALID" or r.startswith("EVIDENCE_INVALID") for r in gate["reasons"]):
+            findings.append({"code": "EVIDENCE_INVALID", "summary": "; ".join(gate["reasons"])})
+            demote("REJECTED")
     event_type = {"ACCEPTED": "child_completed", "PARTIAL": "child_completed", "REJECTED": "child_rejected",
                   "STALE": "recovery_required", "NEEDS_HUMAN": "recovery_required"}[status]
     return {"status": status, "findings": findings, "forbidden_changes": forbidden, "gate": gate,
