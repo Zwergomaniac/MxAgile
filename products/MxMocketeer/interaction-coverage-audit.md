@@ -2,15 +2,26 @@
 
 ## Audit Status
 
-**FINDINGS — contract-only; REV37 fixture verification pending.** The requested
-`20261104_fte-plannung_rev37_functional-gaps-closed.html` is not present in the
-workspace. `input-resources/ui-ux/` contains only its README, and workspace searches
-did not locate the named file. A broader `D:\Mendix` search timed out. No claim below
-asserts that a particular field or behavior is present in REV37 or in its runtime.
+**FINDINGS — REV37 contract and runtime-source inspected read-only on 2026-11-12.**
+Source supplied by the user:
+`D:\MTC\Mendix\Projekte\CapTrack\CapTrack-devrick\input-resources\ui-ux\20261104_fte-plannung_rev37_functional-gaps-closed.html`.
+Size: 567,868 bytes, 5,579 lines. SHA-256:
+`515409263B6FD3B8417AD4C413FE47693B14FCB26866756E2E37A4FBA52C2F67`.
+No input file was changed, copied into the framework, or executed. Older revisions
+were not needed for the eight current-state cases. Browser interaction, cross-user
+execution and Mendix enforcement are **NOT VERIFIED**, not PASS.
 
-The audit therefore evaluates what the published contract can transport, not what the
-unavailable fixture actually declares. The eight case descriptions are taken from the
-user's request and are not represented as REV37 evidence.
+The embedded `#mocketeer-spec` starts on source line 377. JSON parses successfully;
+`mockup.id` is `fte-plannung`, revision 37, predecessor 36, schema version `1.0`.
+The product-specific layout contains 125 requirements, 61 decisions, 25 business
+rules, 14 `interaction_metadata` entries and 20 nested effects. It has no top-level
+`roles`, `screens` or `flows` arrays. The three top-level `permissions` records concern
+AppAdmin; other role/scope assertions occur in requirements and source code.
+Do not silently treat this layout as the generic contract or invent missing flow IDs.
+
+`DECLARED` below means an assertion in the supplied contract, preserving its original
+status, not independent confirmation of stakeholder approval. Source-code inspection
+is identified separately; it is not an `OBSERVED` browser outcome.
 
 Sources inspected: the migrated Design Contract and Business Flow material now embedded
 in `skills/mocketeer-design-contract/SKILL.md` and
@@ -42,13 +53,13 @@ DECLARED / INFERRED / OBSERVED / PROPOSED provenance model.
 
 ## Coverage Matrix
 
-The matrix rates the published model only. It does not claim that the unavailable
-REV37 fixture populates any of these fields.
+The matrix rates generic contract capability, not REV37 population. The fixture-specific
+evidence and classifications follow below; generic expressibility is not actual coverage.
 
 Codes: `AE` = ALREADY_EXPRESSIBLE; `EN` = EXPRESSIBLE_BUT_NOT_NORMALIZED;
 `RP` = PRESENT_ONLY_IN_REQUIREMENT_PROSE; `RT` = PRESENT_ONLY_IN_MOCKUP_RUNTIME;
 `IM` = INFERRED_BY_MXAGILE; `NE` = NOT_EXPRESSIBLE as a first-class structured
-relationship; `AM` = AMBIGUOUS / not verifiable from the missing fixture.
+relationship; `AM` = AMBIGUOUS / no runtime observation established.
 
 | Information element | 1 Transfer / decision | 2 User notification | 3 Revoked scope / save | 4 Team merge | 5 Historical month | 6 Center switch | 7 Team control | 8 Hierarchy sync |
 |---|---|---|---|---|---|---|---|---|
@@ -71,43 +82,72 @@ relationship; `AM` = AMBIGUOUS / not verifiable from the missing fixture.
 | Positive and negative role evidence | EN | EN | EN | EN | EN | EN | EN | EN |
 | Revision reconciliation of the whole chain | EN | EN | EN | EN | EN | EN | EN | EN |
 | DECLARED / INFERRED / OBSERVED / PROPOSED provenance | EN | EN | EN | EN | EN | EN | EN | EN |
-| Actual REV37 declaration/runtime evidence | AM | AM | AM | AM | AM | AM | AM | AM |
+| Browser/Mendix execution evidence | AM | AM | AM | AM | AM | AM | AM | AM |
+
+### Actual REV37 Evidence
+
+All contract IDs below occur in the JSON on line 377. Source line anchors refer to
+the hashed external file, not to generated framework files. `RT` in this table means
+runtime implementation source only; it does not assert successful execution.
+
+| Case | Actual declaration and structured metadata | Runtime-source anchor | Actual coverage / gap |
+|---|---|---|---|
+| 1 Transfer / decision | REQ-023, REQ-060; no dedicated transfer INT/effect chain | `canDecideTransfer`, `approveTransfer`, `rejectTransfer`, lines 833-883; notification actions 4875-4900 | RP + RT: target-unit decision guard and accept/reject branches exist in source; explicit notification observers/excluded scopes and stable causal links are not declared |
+| 2 Per-user notification | REQ-059 explicitly requires per-user acknowledgement and isolation | `getPendingNotifs`, 890-904; acknowledgement handlers 4901-4910; center state keys 5519 | RP + conflicting RT: `A.notifAck` stores notification IDs without a user key; center dataset separation is not per-user isolation |
+| 3 Revoked scope / save | REQ-121, DEC-056; no dedicated save-time INT/effect | `openEntryEditor`, 2515-2614; `commitMatrix` / `applyMatrixValue`, 4651-4705 | RP + RT: entry opening checks role/scope, but reviewed commit callbacks lack fresh role/scope authorization; period locks are not a replacement |
+| 4 Team migration / merge | REQ-084/085/086, DEC-041, RULE-TEAM-001; INT-TEAM-MEMBER-MIGRATION, EFF-FIRST-TEAM-MOVE, EFF-TEAM-REMOVE-MOVE, EFF-TEAM-MODE-OFF-MERGE | `mergeData`, `deptToFirst`, `teamToTeam`, `teamsToDept`, 5298-5320 | EN + RT: targets, data movement, source IDs and affected views are declared; sum/dedup/history invariants require execution evidence; observer scopes are not normalized |
+| 5 Historical month | REQ-090, DEC-043, RULE-HISTORY-001; INT-HISTORICAL-READONLY, EFF-HISTORICAL-MUTATION-BLOCK, EFF-HISTORICAL-NAVIGATION-REMAINS | historical predicates, wrappers and UI/capture guards, 5370-5413 | EN + RT: positive navigation and explicit negative mutating operations are declared; universal bypass-resistant enforcement is not proved by these UI paths |
+| 6 Center switch | REQ-099/101/102, DEC-046, RULE-CENTER-005; INT-CENTER-DATASET-SWITCH has ordered `result` prose but no nested effects | `persistActive`, `activate`, `bindDatasetSwitcher`, 5552-5557 | EN + RT: save old dataset -> restore new -> replace identity/roles -> default view -> render is explicit; effect IDs and testable scoped transition links are missing |
+| 7 Team control | REQ-116/118, DEC-051/053, RULE-TEAM-004; no dedicated control-change INT/effects | `myRoles`, `canEdit`, `canEditTeam`, 518-544; cached CU identity and dataset switch | RP + partial RT: role checks exist; no source-reviewed ownership-change transition proving immediate scope refresh and discard of unsaved edits |
+| 8 HierarchyTree team sync | REQ-046/117/122, DEC-049/052/057, RULE-TEAM-005; no dedicated sync INT/effects | only HierarchyTree-labelled runtime path found is center-match UI 5565-5576, not automatic team sync | RP: automatic add/rename/archive, assignment-independent visibility and closure prerequisites are declared, but no linked sync chain or executing team-sync path was located |
 
 ### Case Findings
 
-1. **Internal transfer and accept/reject notification.** Flow steps can identify role
-   actors and decision branches; requirements, decisions, screens, and downstream
-   artifacts have reference fields. The model does not bind the notification effect to
-   an allowed observer role plus a particular scope, nor record excluded scopes as
-   negative observers. The next decision step is not guaranteed to reference the
-   notification effect.
-2. **Per-user re-entry notification.** Role-level permissions and session persistence
-   do not express a per-user notification identity/dismissal key or prove that one
-   user's acknowledgement leaves another user's notification intact. This is a
-   material state/data rule, not just a visual notification effect.
-3. **Scope revoked during editing.** A no-permission state, permission effect, and
-   negative UPDATE/EXECUTE proof point are available. The contract does not state that
-   authorization is re-evaluated at save against current scope while the old page stays
-   open; this requires an explicit business assertion and runtime/model evidence.
-4. **Team deletion/merge.** Business rules, data semantics, flows, and downstream
-   references can describe the move. There is no normalized set of source/target
-   entities and invariants tying people, movements, planning values, and every affected
-   view into one reviewable effect chain.
-5. **Historical month.** Read-only/disabled states and permission rules can describe
-   preserved navigation and blocked writes. A month lifecycle precondition that
-   overrides otherwise valid roles across every mutating action is not a normalized
-   shared guard in the documented interaction contract.
-6. **Center/context switch.** A role-switch interaction and local/session persistence
-   can be described. The ordered save-old-context, load-new-data-space, recompute-scope,
-   and rebuild-role/department/team views sequence is not an explicit transaction or
-   linked state transition in the contract.
-7. **Team control changes role/owner.** Role-dependent UI states and permissions can
-   describe available actions. The contract does not normalize which observer sees
-   which changed action under which scope, or require those views to update together.
-8. **HierarchyTree team synchronization.** A system action/integration call, business
-   rule, requirement, and Mendix candidate can be recorded. The model does not require
-   a synchronization trigger, ownership/idempotency rule, assignment-independent
-   visibility rule, and affected view to be linked as one effect chain.
+1. **Transfer.** Target-unit authorization is implemented in the reviewed decision
+   path, but no transfer-specific interaction/effect IDs bind actor, preconditions,
+   notification recipient, accept/reject result and later observer views. Positive
+   target-role and negative out-of-scope test claims need explicit declaration, not
+   inference from `canEditTeam` alone.
+2. **Per-user notifications: material source/contract mismatch.** REQ-059 explicitly
+   says another user's notification remains. The collector filters on an ID-only
+   `A.notifAck` array and both acknowledgement handlers append only that ID. It also
+   scans departments/teams without an explicit visibility check in the collector.
+   Do not report user isolation or correct observer scope as covered. Verify with two
+   actual identities and record per-user persistence and exclusion expectations.
+3. **Revoked scope: material source/contract mismatch.** REQ-121 already supplies the
+   missing business assertion: save-time reauthorization and complete rejection with
+   no partial writes. `openEntryEditor` checks permission before creating the dialog;
+   its `efSave` callback later validates fields/period locks and mutates captured data
+   without a new `canEdit`/`canEditTeam` call. Matrix callbacks similarly retain their
+   captured context. This is a source-reviewed gap, not an executed exploit or a claim
+   about Mendix enforcement. Derive a negative UPDATE/EXECUTE proof point from REQ-121.
+4. **Team migration.** Unlike the preliminary contract-only assessment, REV37 already
+   declares concrete source/target moves and preservation criteria. The effects have
+   stable IDs, `source_ids`, `affected_roles` and named downstream views, but no
+   structured observer scopes or complete flow-step links. REQ-065/DEC-026's used-object
+   deactivation rule and REQ-085/`teamToTeam` removal need lifecycle reconciliation;
+   do not silently choose deletion semantics. Sum, deduplication and historical
+   preservation checks remain required rather than inferred from `mergeData`.
+5. **Historical month.** Explicit negative operation expectations already exist in
+   EFF-HISTORICAL-MUTATION-BLOCK; EFF-HISTORICAL-NAVIGATION-REMAINS carries the positive
+   counterpart. The predicate matches REQ-090's current-year acceptance criterion.
+   Capture listeners, disabled controls and wrappers are only mockup source evidence;
+   test already-open editors, keyboard/blur paths and backend guards independently.
+6. **Center switch.** The ordered business sequence is already DECLARED in the custom
+   metadata and RULE-CENTER-005, and is recognizable in the source. It must not be
+   described as wholly absent. Normalization is missing: one prose result replaces
+   typed effects and source/target scope assertions. REQ-099 explicitly limits this
+   to a demo identity switch, not a production center-switch capability.
+7. **Team control.** Immediate effect, retained history and discard of unsaved changes
+   are explicitly DECLARED in REQ-118/DEC-053. Existing role predicates and cached
+   `CU.roles` do not establish that change propagation happens immediately. No
+   dedicated stable interaction/effect chain was found. New and removed owners/scopes
+   need both positive and negative checks linked to REQ-118 and REQ-121.
+8. **HierarchyTree.** Automatic team synchronization is DECLARED, not merely inferred.
+   The located REV37 center-match path builds a synthetic candidate and links a center;
+   it does not prove team add/rename/archive synchronization. Require evidence for the
+   trigger, identity/idempotency, no-E4 visibility, archive preservation and month-close
+   prerequisites; no new schema or fictitious flow IDs were added to fill the gap.
 
 ## Minimal Contract Decision
 
@@ -117,14 +157,16 @@ each flow step's `effects[]` must resolve to a stable nested `effect_id`, and or
 step ordering/branches should continue to use flow transitions rather than parallel
 `caused_by` / `next_interaction` links.
 
-If the REV37 read-only audit confirms the stated requirements, the smallest likely
-extension is an optional effect-level observation declaration that records observer
+REV37 confirms the requirements but also shows an existing custom `interaction_metadata`
+layout. First define compatibility/intake mapping and stable effect-reference resolution
+for that layout; do not flatten away its assertions or imply it already has generic flows.
+The smallest likely additive extension is an optional effect-level declaration of observer
 role, observation scope, and expected visibility (positive or explicitly negative),
 plus a separate provenance value `DECLARED | INFERRED | OBSERVED | PROPOSED` for
 interaction/effect assertions. Keep existing effect `status` for lifecycle and do not
 promote INFERRED or OBSERVED facts to DECLARED. This is a **recommendation only**;
-no schema was changed because the missing REV37 may already carry product-specific
-`interaction_metadata` that must be reconciled before defining compatibility.
+no schema was changed. The actual metadata, legacy field names and lifecycle/status
+values must be reconciled before defining backward-compatible storage of these assertions.
 
 ## Reconciliation and Evidence Rules
 
@@ -139,8 +181,16 @@ no schema was changed because the missing REV37 may already carry product-specif
 
 ## Follow-up Needed
 
-Re-run the fixture-specific matrix against the exact REV37 HTML before applying any
-schema change. For each of the eight cases, record source IDs, actual interaction/effect
-IDs, whether the statement is DECLARED/INFERRED/OBSERVED/PROPOSED, and the referenced
-screen/flow/requirement/decision/business rule. Update the recommendation only from
-that evidence.
+Notification acknowledgement, save-time reauthorization and missing HierarchyTree
+execution are application divergences for the next Mocketeer/Product Owner revision
+round. After accepted clarification/revision, route their affected IDs through MxAgile
+Reconciliation. Do not repair the external app or encode project-specific fixes into
+this framework. The read-only findings remain fachliche evidence, not implementation.
+
+The read-only contract/source inspection is complete; runtime acceptance is not.
+Run the eight cases with explicit user/role/scope identities, particularly two-user
+notification isolation and authorization revoked while an editor remains open. Record
+positive and explicit negative observations separately and link them to the IDs above.
+Then verify the real Mendix model/backend and reconcile only affected proof points.
+No source app, legacy revision, framework schema, or business assertion was modified
+by this audit. Reports and test evidence in the framework are the only audit outputs.
