@@ -102,13 +102,13 @@ if (Test-Path $promptPath) {
 }
 
 # ──────────────────────────────────────────────────────────────
-# 3  Golden mockup HTML embedded in the generation skill
+# 3  Golden mockup HTML asset
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[3] Golden mockup HTML embedded in mocketeer-mockup-generation/SKILL.md"
-$gmPath = Join-Path $MocketeerSkillRoot 'mocketeer-mockup-generation/SKILL.md'
-$gmSkill = if (Test-Path $gmPath) { Get-Content $gmPath -Raw -Encoding UTF8 } else { '' }
-if ($gmSkill -match '(?s)GOLDEN_MOCKUP_BEGIN\r?\n(.*?)\r?\nGOLDEN_MOCKUP_END') {
-    $html = $Matches[1]
+Write-Host "`n[3] Golden mockup HTML asset"
+$gmPath = Join-Path $MocketeerSkillRoot 'mocketeer-mockup-generation/assets/golden-mockup.html'
+Assert (Test-Path $gmPath -PathType Leaf) 'Golden HTML asset exists'
+if (Test-Path $gmPath -PathType Leaf) {
+    $html = Get-Content $gmPath -Raw -Encoding UTF8
 
     # Complete HTML document
     Assert ($html -match '(?i)<!doctype html>')                 'Contains <!doctype html>'
@@ -512,7 +512,7 @@ Assert ($rtFile.Length -gt 500)     'refinement-transformations.md non-trivial c
 # Agent Builder setup routes through the single host-neutral bundle
 Assert ($abFile -match 'mocketeer-refinement/SKILL\.md') 'agent-builder-setup.md lists the refinement skill'
 Assert ($abFile -match 'seven individual files') 'agent-builder-setup.md instructs seven independent skills'
-Assert ($abFile -match 'complete domain knowledge') 'agent-builder-setup.md states knowledge is embedded in each skill'
+Assert ($abFile -match 'substantive domain knowledge' -and $abFile -match 'Golden HTML is a separate optional asset') 'agent-builder-setup.md documents inline domain knowledge and optional Golden asset'
 
 # All four edit classes defined
 foreach ($class in @('LOCAL_EDIT', 'CROSS_CUTTING_EDIT', 'STRUCTURAL_REFACTOR', 'FULL_REGENERATION')) {

@@ -5,6 +5,60 @@ description: elicits goals, users, requirements, decisions, roles, rules, assump
 
 # Mocketeer Discovery
 
+## Session Initialization
+
+On the first Mocketeer request in a new session, read all seven `mocketeer-*/SKILL.md`
+files once, including their substantive inline knowledge. Do not choose an isolated
+skill before understanding the shared product model. Do not follow asset or reference
+links during bootstrap. The seven skills are:
+
+- `mocketeer-discovery`: establish WHAT/WHY, scope, actors, evidence and open questions.
+- `mocketeer-design-contract`: preserve that intent as the embedded contract and stable IDs.
+- `mocketeer-business-flows`: connect actors, screens, states and effects into journeys.
+- `mocketeer-mockup-generation`: turn confirmed intent into the clickable HTML + contract.
+- `mocketeer-refinement`: classify and execute scoped changes to an existing artifact.
+- `mocketeer-preservation`: verify unchanged knowledge, IDs and append-only revision history.
+- `mocketeer-handoff`: assess readiness and transfer source intent to MxAgile without
+  bypassing its downstream gates or canonical source-to-ID mapping.
+
+Understand the responsibilities, terminology, artifact flow and handoffs before work:
+Discovery -> Design Contract + Business Flows -> Generation -> Refinement + Preservation
+-> Handoff. Requirements are WHAT/WHY; decisions select alternatives. Evidence labels
+`DECLARED`, `INFERRED`, `OBSERVED`, `PROPOSED` are not lifecycle states or approvals.
+Unknown permissions/observers are not forbidden. Preserve confirmed intent; stop on
+preservation failure, unresolved decisive conflicts, or unavailable required authority.
+
+The inline product contract governs upstream design intent. Existing framework schemas
+remain at `.mxagile/schemas/` (including `business-flow.schema.json`, `page.schema.json`,
+`revision.schema.json`); load only the schema needed for actual validation. MxAgile
+policies own downstream lifecycle, acceptance and implementation. Golden HTML is an
+example, never business authority or a substitute schema.
+
+Keep `MOCKETEER_BOOTSTRAP` only in transient session context: the seven loaded skill
+identities and their available product/skill revisions or content fingerprints, plus
+the retained shared model. Do not write a persistent business artifact or claim a
+runtime hook enforces these instructions. If revision metadata is unavailable, do not
+invent it; a notified or uncertain relevant update requires rereading the entries.
+
+## Task Execution and Recovery
+
+For a second task in the same session, reuse the verified shared model; do not reread
+all seven skills or the full knowledge per task. Apply only the skills needed for the
+current workflow. Load additional references, schemas and assets only when required
+and not already retained at the applicable revision. Discovery does not automatically
+load Golden HTML or technical references. Task switching alone does not reset bootstrap.
+
+A new session or relevant skill/product update invalidates bootstrap and requires all
+seven entries again. After Context Compaction, never trust a completion flag alone:
+check that the shared model and current revisions are actually retained. If missing
+or uncertain, reread the seven entries or reconstruct the missing baseline from the
+authoritative skill entries before execution. If required entries/resources are
+unavailable, request access and stop the affected work; never replace the model with
+simplified host-specific semantics. Microsoft Copilot, Claude and Concord use the same
+contract; their access mechanism does not change it.
+
+## Discovery Workflow
+
 1. Use the complete discovery assessment and Design Contract guidance included below.
 2. Elicit goal, scope, actors, data scope, key journeys, business rules, exceptions,
    decisions, and unresolved questions in business language.

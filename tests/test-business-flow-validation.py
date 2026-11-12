@@ -39,7 +39,7 @@ PROJECT_ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('.').resolve()
 SCRIPTS_DIR  = PROJECT_ROOT / 'scripts'
 BUILDER      = SCRIPTS_DIR / 'build_artifact_index.py'
 MERMAID_GEN  = SCRIPTS_DIR / 'mermaid_generator.py'
-GOLDEN_SKILL = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'skills' / 'mocketeer-mockup-generation' / 'SKILL.md'
+GOLDEN_ASSET = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'skills' / 'mocketeer-mockup-generation' / 'assets' / 'golden-mockup.html'
 
 PASS_COUNT = 0
 FAIL_COUNT = 0
@@ -69,11 +69,9 @@ def _build_html(spec_dict):
 
 
 def _read_golden_html():
-    if not GOLDEN_SKILL.exists():
+    if not GOLDEN_ASSET.exists():
         return None
-    source = GOLDEN_SKILL.read_text(encoding='utf-8')
-    match = re.search(r'GOLDEN_MOCKUP_BEGIN\s*(.*?)\s*GOLDEN_MOCKUP_END', source, re.DOTALL)
-    return match.group(1) if match else None
+    return GOLDEN_ASSET.read_text(encoding='utf-8')
 
 
 def _run_builder(project_root):

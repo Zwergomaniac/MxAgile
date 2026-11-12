@@ -5,6 +5,12 @@ description: verifies stable ids, append-only revision history, scoped deltas, a
 
 # Mocketeer Preservation
 
+## Session Entry
+
+At first Mocketeer work in a session, read all seven skills once and follow
+`mocketeer-discovery` Session Initialization and recovery rules. Reuse that shared
+model for later tasks; load extra references/assets only for the current workflow.
+
 Use the preservation and revision-ledger guidance in the fully loaded
 `mocketeer-design-contract` and `mocketeer-refinement` skills.
 

@@ -295,7 +295,19 @@ try {
                 $projectedContent = Get-Content -LiteralPath $projectedSkill -Raw -Encoding UTF8
                 Assert-True "Mocketeer projection is generated: $platformRoot/$skillName" ($projectedContent -match '# GENERATED - DO NOT EDIT - Source: \.mxagile/') 'Generated source marker missing'
                 Assert-True "Mocketeer projection name is valid: $platformRoot/$skillName" ($projectedContent -match "(?s)^---\s*`r?`nname: $skillName`r?`n") 'Frontmatter name does not match canonical skill name'
+                $sourceContent = Get-Content -LiteralPath $sourceSkill -Raw -Encoding UTF8
+                $withoutHeader = $projectedContent -replace '(?m)^# (?:GENERATED - DO NOT EDIT - Source:|WARNING:|Manual changes will be overwritten\.).*\r?\n', ''
+                Assert-True "Mocketeer semantics match source: $platformRoot/$skillName" ($withoutHeader.Replace("`r`n", "`n") -ceq $sourceContent.Replace("`r`n", "`n")) 'Projected domain content differs from canonical source'
             }
+        }
+    }
+    $goldenSource = Join-Path $fixtureMxagile 'skills/mocketeer-mockup-generation/assets/golden-mockup.html'
+    Assert-True 'Golden HTML is a separate installed asset' (Test-Path -LiteralPath $goldenSource -PathType Leaf) 'Golden asset missing'
+    foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
+        $projectedGolden = Join-Path $FixtureDir "$platformRoot/mocketeer-mockup-generation/assets/golden-mockup.html"
+        Assert-True "Golden asset exists: $platformRoot" (Test-Path -LiteralPath $projectedGolden -PathType Leaf) 'Projected Golden asset missing'
+        if (Test-Path -LiteralPath $projectedGolden -PathType Leaf) {
+            Assert-True "Golden asset bytes match source: $platformRoot" ((Get-FileHash -LiteralPath $projectedGolden).Hash -eq (Get-FileHash -LiteralPath $goldenSource).Hash) 'Golden asset was changed during projection'
         }
     }
     $businessFlowSource = Join-Path $fixtureMxagile 'skills/mocketeer-business-flows/SKILL.md'
@@ -306,6 +318,55 @@ try {
     Assert-True 'Legacy bundled master skill is replaced by the canonical design-contract skill' ($updatedMaster -match 'DESIGN CONTRACT' -and $updatedMaster -notmatch 'Old master') 'Legacy master content remains'
     Assert-True 'Legacy reference copies are retired on update' (-not (Test-Path -LiteralPath (Join-Path $FixtureDir '.claude/skills/mocketeer-design-contract/references/stale-reference.md'))) 'Stale reference remains'
     Assert-True 'Legacy bundle manifest is retired on update' (-not (Test-Path -LiteralPath (Join-Path $FixtureDir '.claude/skills/mocketeer-design-contract/bundle-manifest.json'))) 'Legacy bundle manifest remains'
+
+    $generatorScript = Join-Path $ScriptsDir 'generate-mxagile-platform-skills.ps1'
+    $projectionHashes = @{}
+    foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
+        foreach ($skillName in $mocketeerSkillNames) {
+            foreach ($file in (Get-ChildItem -LiteralPath (Join-Path $FixtureDir "$platformRoot/$skillName") -Recurse -File)) {
+                $projectionHashes[$file.FullName] = (Get-FileHash -LiteralPath $file.FullName).Hash
+            }
+        }
+    }
+    $rerunOutput = & powershell.exe -NonInteractive -NoProfile -File $generatorScript -ProjectRoot $FixtureDir 2>&1
+    Assert-True 'Mocketeer update generator succeeds' ($LASTEXITCODE -eq 0) ($rerunOutput -join "`n")
+    foreach ($path in $projectionHashes.Keys) {
+        Assert-True "Mocketeer unchanged update reproduces bytes: $($path.Substring($FixtureDir.Length))" ((Get-FileHash -LiteralPath $path).Hash -eq $projectionHashes[$path]) 'Projection changed on rerun'
+    }
+
+    $updatedSourcePath = Join-Path $fixtureMxagile 'skills/mocketeer-discovery/SKILL.md'
+    $updatedSource = Get-Content -LiteralPath $updatedSourcePath -Raw -Encoding UTF8
+    [IO.File]::WriteAllText($updatedSourcePath, $updatedSource + "`nFixture skill revision update.`n", [Text.UTF8Encoding]::new($false))
+    $updateOutput = & powershell.exe -NonInteractive -NoProfile -File $generatorScript -ProjectRoot $FixtureDir 2>&1
+    Assert-True 'Changed Mocketeer source update succeeds' ($LASTEXITCODE -eq 0) ($updateOutput -join "`n")
+    foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
+        $updatedProjection = Get-Content -LiteralPath (Join-Path $FixtureDir "$platformRoot/mocketeer-discovery/SKILL.md") -Raw -Encoding UTF8
+        Assert-True "Skill update reaches $platformRoot" ($updatedProjection -match 'Fixture skill revision update\.') 'New source revision did not reach host'
+    }
+
+    foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
+        $foreignPath = Join-Path $FixtureDir "$platformRoot/mocketeer-discovery/SKILL.md"
+        $ownedContent = Get-Content -LiteralPath $foreignPath -Raw -Encoding UTF8
+        [IO.File]::WriteAllText($foreignPath, "---`nname: mocketeer-discovery`ndescription: foreign skill`n---`nForeign host content.`n", [Text.UTF8Encoding]::new($false))
+        $foreignHash = (Get-FileHash -LiteralPath $foreignPath).Hash
+        $conflictOutput = & powershell.exe -NonInteractive -NoProfile -File $generatorScript -ProjectRoot $FixtureDir 2>&1
+        Assert-True "Foreign skill conflict fails closed: $platformRoot" ($LASTEXITCODE -ne 0 -and ($conflictOutput -join "`n") -match 'SKILL_PROJECTION_CONFLICT') 'Foreign skill was not rejected'
+        Assert-True "Foreign skill bytes preserved: $platformRoot" ((Get-FileHash -LiteralPath $foreignPath).Hash -eq $foreignHash) 'Foreign skill was overwritten'
+        [IO.File]::WriteAllText($foreignPath, $ownedContent, [Text.UTF8Encoding]::new($false))
+    }
+
+    $frameworkFixture = Join-Path $FixtureDir 'source-only-framework'
+    New-Item -ItemType Directory -Path (Join-Path $frameworkFixture '.mxagile/skills'), (Join-Path $frameworkFixture '.mxagile/agents') -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $MxagileSourceDir 'skills/discovery.md') -Destination (Join-Path $frameworkFixture '.mxagile/skills/discovery.md')
+    New-Item -ItemType Directory -Path (Join-Path $frameworkFixture 'products/MxMocketeer') -Force | Out-Null
+    Copy-Item -LiteralPath $productSkillSource -Destination (Join-Path $frameworkFixture 'products/MxMocketeer/skills') -Recurse
+    $frameworkOutput = & powershell.exe -NonInteractive -NoProfile -File $generatorScript -ProjectRoot $frameworkFixture 2>&1
+    Assert-True 'Source-only framework generation succeeds' ($LASTEXITCODE -eq 0) ($frameworkOutput -join "`n")
+    Assert-True 'General MxAgile projection remains generated' (Test-Path -LiteralPath (Join-Path $frameworkFixture '.claude/skills/mxagile-discovery/SKILL.md')) 'General framework projection was removed'
+    foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
+        $extraMocketeer = @(Get-ChildItem -LiteralPath (Join-Path $frameworkFixture $platformRoot) -Directory -Filter 'mocketeer-*')
+        Assert-True "Framework product sources do not produce local host copies: $platformRoot" ($extraMocketeer.Count -eq 0) 'Product sources were projected inside framework repository'
+    }
 
 } finally {
     Write-Host "`nCleaning up fixture project: $FixtureDir" -ForegroundColor DarkGray

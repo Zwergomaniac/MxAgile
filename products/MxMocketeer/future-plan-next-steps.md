@@ -1,8 +1,8 @@
-> **SUPERSEDED (2026-11-12):** The seven full skills are canonical under
+> **SUPERSEDED (2026-11-12):** The seven substantive skills are canonical under
 > `products/MxMocketeer/skills/mocketeer-*/SKILL.md`. `install-core.ps1` copies those
 > sources into consumer `.mxagile/skills/`; the existing generator creates host
-> projections. Do not create a master skill, ZIP, separate reference files, or host-
-> specific content copies. The plan and paths below are historical and do not describe
+> projections. Keep domain knowledge inline and load large assets/details on demand.
+> Do not create a master skill, ZIP or host-specific semantic copies. Paths below are historical, not
 > the current product layout. See `products/MxMocketeer/knowledge-migration.md`.
 
 Jetzt habe ich das vollständige Bild. Lasse mich den Plan formulieren.

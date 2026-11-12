@@ -148,22 +148,7 @@ function Generate-BundledSkills {
     $skillsDir = Join-Path $mxagileRoot 'skills'
     $skillFiles = @{}
     foreach ($skillFile in (Get-ChildItem -LiteralPath $skillsDir -Filter 'SKILL.md' -File -Recurse)) {
-        $skillFiles[$skillFile.BaseName] = $skillFile.FullName
-    }
-
-    # In the framework development repository, product-owned Mocketeer sources are
-    # projected directly until install-core stages them into a consumer .mxagile tree.
-    $productSkillRoot = Join-Path $ProjectRoot 'products/MxMocketeer/skills'
-    if (Test-Path -LiteralPath $productSkillRoot -PathType Container) {
-        foreach ($skillDir in (Get-ChildItem -LiteralPath $productSkillRoot -Directory -Filter 'mocketeer-*')) {
-            $skillFilePath = Join-Path $skillDir.FullName 'SKILL.md'
-            if (-not (Test-Path -LiteralPath $skillFilePath -PathType Leaf)) {
-                throw "Product skill is missing SKILL.md: $skillFilePath"
-            }
-            if (-not $skillFiles.ContainsKey($skillDir.Name)) {
-                $skillFiles[$skillDir.Name] = $skillFilePath
-            }
-        }
+        $skillFiles[$skillFile.Directory.Name] = $skillFile.FullName
     }
 
     foreach ($skillName in @($skillFiles.Keys | Sort-Object)) {
@@ -180,6 +165,20 @@ function Generate-BundledSkills {
         )
         foreach ($outputPath in $outputs) {
             Write-GeneratedBundledSkill -OutputPath $outputPath -Content $generatedContent
+            foreach ($resourceKind in @('assets', 'references')) {
+                $resourceRoot = Join-Path $skillFile.Directory.FullName $resourceKind
+                if (-not (Test-Path -LiteralPath $resourceRoot -PathType Container)) { continue }
+                foreach ($resource in (Get-ChildItem -LiteralPath $resourceRoot -Recurse -File)) {
+                    $relativePath = $resource.FullName.Substring($skillFile.Directory.FullName.Length).TrimStart('\', '/')
+                    $destination = Join-Path (Split-Path -Parent $outputPath) $relativePath
+                    if ($DryRun) {
+                        Write-Host "  [DRY RUN] $destination"
+                    } else {
+                        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $destination))
+                        Copy-Item -LiteralPath $resource.FullName -Destination $destination -Force
+                    }
+                }
+            }
         }
     }
 }

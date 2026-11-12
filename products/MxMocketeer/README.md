@@ -11,12 +11,8 @@ products/MxMocketeer/
     agent-builder-setup.md    — packaging and host setup guide
     README.md
 
-    skills/mocketeer-*/SKILL.md — seven full, canonical product skills
-    .mxagile/skills/mocketeer-*/SKILL.md — installer-owned consumer copies
-    .claude/skills/mocketeer-*/SKILL.md — generated Claude projections after setup
-    .github/skills/mocketeer-*/SKILL.md — generated Copilot projections after setup
-    .agents/skills/mocketeer-*/SKILL.md — generated portable/Concord projections
-
+    skills/mocketeer-*/SKILL.md — seven substantive, canonical product skills
+    skills/mocketeer-mockup-generation/assets/golden-mockup.html — optional example
     tests/
         preservation-acceptance.md
         test-mocketeer-validation.ps1
@@ -27,8 +23,9 @@ products/MxMocketeer/
 
 1. Paste `system-prompt.md` into the Agent **Instructions** field.
 2. Add the seven `skills/mocketeer-*/SKILL.md` files to Microsoft Copilot as seven
-    independent Skills. Each file includes complete domain guidance and the required
-    two-field YAML frontmatter; no separate references are needed.
+    independent Skills. Each file includes substantive domain guidance and the required
+    two-field YAML frontmatter. Make the generation skill's Golden HTML asset separately
+    retrievable as described in `agent-builder-setup.md`.
 3. For consumer repositories, run the normal MxAgile setup/update. `install-core.ps1`
     copies these seven product skills into `.mxagile/skills/`, then
     `generate-mxagile-platform-skills.ps1` projects them into Claude, Copilot, and
@@ -64,10 +61,22 @@ Canonical schema content: `skills/mocketeer-design-contract/SKILL.md`
 
 ## Golden Reference Mockup
 
-The complete Golden Mockup HTML example is embedded in
-`skills/mocketeer-mockup-generation/SKILL.md`; it is sample material, not business authority.
+The complete Golden Mockup HTML is
+`skills/mocketeer-mockup-generation/assets/golden-mockup.html`; it is sample material,
+not business authority. Load it only for a needed generation example, visual calibration
+or Golden check, never automatically during bootstrap or Discovery.
 
 The mockup demonstrates: multiple roles, positive/negative permissions, search/filter, create dialog, validation, role-switching, empty state, spec-footer, traceability attributes, stable IDs, and a complete Design Contract.
+
+## Session Loading
+
+At first Mocketeer work in a new session, read all seven SKILL.md once. They retain
+the shared product model, domain contracts and quality gates. Reuse this knowledge
+for subsequent tasks; apply needed skills and load additional resources only on demand.
+Keep bootstrap status only in transient context, tied to the available skill revision.
+New sessions or relevant updates require bootstrap again; after Context Compaction,
+verify and reconstruct missing baseline knowledge before work. See the Discovery
+skill's Session Initialization contract and `agent-builder-setup.md` for host access.
 
 ## Validation
 
@@ -79,7 +88,7 @@ pwsh products/MxMocketeer/tests/test-mocketeer-validation.ps1
 
 The product suite validates Design Contract compatibility and preservation.
 `tests/test_mocketeer_skills.py` validates seven distinct skill triggers, exact
-frontmatter, full embedded source knowledge, and absence of separate reference copies.
+frontmatter, retained inline domain knowledge, session loading rules and lazy Golden assets.
 `tests/test-injection-contract.ps1` validates host projections;
 `tests/test-core-installer.ps1 -SelectedTests Test-GenericInstallation` validates the
 fresh consumer install path.
@@ -90,3 +99,9 @@ MxMocketeer is an upstream design product. Its seven full canonical skills live 
 `products/MxMocketeer/skills/`. `install-core.ps1` copies them into consumer
 `.mxagile/skills/`; the existing generator creates host discovery projections. MxAgile
 policies remain authoritative for intake, reconciliation, planning, and verification.
+
+Mocketeer host copies are not versioned or generated alongside the product in this
+framework repository. Consumer installation/update and disposable packaging/test
+fixtures generate `.claude/skills/mocketeer-*`, `.github/skills/mocketeer-*` and
+`.agents/skills/mocketeer-*` from staged sources. General MxAgile projections retain
+their existing ownership contract. See `docs/injection-contract.md`.

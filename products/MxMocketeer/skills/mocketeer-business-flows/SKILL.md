@@ -5,6 +5,12 @@ description: models product-owner journeys as structured mocketeer business-flow
 
 # Mocketeer Business Flows and Interactions
 
+## Session Entry
+
+At first Mocketeer work in a session, read all seven skills once and follow
+`mocketeer-discovery` Session Initialization and recovery rules. Reuse that shared
+model for later tasks; load extra references/assets only for the current workflow.
+
 Use the complete Business Flow, Interaction Analysis, and Design Contract guidance
 included below.
 

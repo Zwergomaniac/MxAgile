@@ -66,6 +66,16 @@ function Test-GenericInstallation {
             }
         }
         $businessFlowSkill = Join-Path $mxagilePath 'skills/mocketeer-business-flows/SKILL.md'
+        $goldenSource = Join-Path $mxagilePath 'skills/mocketeer-mockup-generation/assets/golden-mockup.html'
+        Assert-Condition (Test-Path $goldenSource -PathType Leaf) "Installer must deliver the separate Golden HTML asset."
+        foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
+            $goldenProjection = Join-Path $projectRoot "$platformRoot/mocketeer-mockup-generation/assets/golden-mockup.html"
+            Assert-Condition (Test-Path $goldenProjection -PathType Leaf) "Fresh install must project Golden asset to $platformRoot."
+            Assert-Condition ((Get-FileHash -LiteralPath $goldenProjection).Hash -eq (Get-FileHash -LiteralPath $goldenSource).Hash) "Fresh-install Golden bytes must match for $platformRoot."
+            foreach ($skillName in $mocketeerSkillNames) {
+                Assert-Condition (Test-Path (Join-Path $projectRoot "$platformRoot/$skillName/SKILL.md") -PathType Leaf) "Fresh install must expose every session entry on $platformRoot ($skillName)."
+            }
+        }
         $businessFlowContent = Get-Content -LiteralPath $businessFlowSkill -Raw -Encoding UTF8
         Assert-Condition ($businessFlowContent -match 'FLOWSTEP-001' -and $businessFlowContent -match 'Mermaid is generated from structured steps') "Fresh install must deliver full Business Flow guidance inside its SKILL.md."
         Assert-Condition (-not (Test-Path (Join-Path $mxagilePath 'skills/mocketeer/references'))) "Fresh install must not require a separate Mocketeer references directory."
@@ -94,6 +104,21 @@ function Test-GenericInstallation {
         }
         $afterEventStatus = @(& git -C $projectRoot status --porcelain --untracked-files=all)
         Assert-Condition ((($afterEventStatus -join "`n") -eq ($beforeEventStatus -join "`n"))) "Writing run events or locks must not dirty the consumer working tree. before=[$($beforeEventStatus -join '; ')] after=[$($afterEventStatus -join '; ')]"
+
+        $mocketeerHashes = @{}
+        foreach ($root in @('.mxagile/skills', '.claude/skills', '.github/skills', '.agents/skills')) {
+            foreach ($skillName in $mocketeerSkillNames) {
+                foreach ($file in (Get-ChildItem -LiteralPath (Join-Path $projectRoot "$root/$skillName") -Recurse -File)) {
+                    $mocketeerHashes[$file.FullName] = (Get-FileHash -LiteralPath $file.FullName).Hash
+                }
+            }
+        }
+        & pwsh -NoProfile -File $installerPath -ProjectRoot $projectRoot -IsUpdate:True
+        Assert-Condition ($LASTEXITCODE -eq 0) "Core update must reproduce the Fresh Install Mocketeer payload."
+        foreach ($path in $mocketeerHashes.Keys) {
+            Assert-Condition ((Get-FileHash -LiteralPath $path).Hash -eq $mocketeerHashes[$path]) "Fresh Install and Core update must reproduce identical Mocketeer bytes: $path"
+        }
+        Write-Host "Mocketeer Fresh Install / Core update parity PASSED."
 
         Write-Host "Test-GenericInstallation PASSED."
     }

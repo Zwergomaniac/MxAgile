@@ -91,6 +91,29 @@ then, retain the structured normalizer.
 
 ---
 
+## Mocketeer Product Ownership
+
+`products/MxMocketeer/skills/mocketeer-*/` is the sole canonical Mocketeer skill source,
+including its Golden HTML asset. Mocketeer is an upstream product, not an additional
+copy of the general `.mxagile/skills/*.md` framework source.
+
+| Path | Category | Producer | Scope and rerun behavior |
+|---|---|---|---|
+| Consumer `.mxagile/skills/mocketeer-*/` | COPY | `install-core.ps1` | Stage the same seven product directories on Fresh Install and Core update |
+| Consumer `.claude/skills/mocketeer-*/` | GENERATE | `generate-mxagile-platform-skills.ps1` | Generate from staged consumer source; identical inputs reproduce identical skill/asset bytes |
+| Consumer `.github/skills/mocketeer-*/` | GENERATE | Same generator | Same canonical content; no simplified Microsoft Copilot semantics |
+| Consumer `.agents/skills/mocketeer-*/` | GENERATE | Same generator | Same canonical content for portable/Concord discovery |
+
+The framework repository does not retain these Mocketeer host copies. Packaging and
+tests stage canonical sources in disposable consumer fixtures and use the same
+generator; there is no direct `products/` fallback in framework generation. This
+exception does not remove or change deliberately versioned general `mxagile-*`
+projections. A foreign skill directory or unowned SKILL.md at a target fails with
+`SKILL_PROJECTION_CONFLICT` without overwriting its content. Only a known legacy
+bundle with verified manifest hashes may be replaced.
+
+---
+
 ## Managed Block Contract
 
 ### Marker Format

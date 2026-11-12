@@ -4,7 +4,47 @@
 Verify that MxMocketeer iteratively modifies a non-trivial HTML file without losing unaffected confirmed content or contract knowledge.
 
 ## Preparation
-Upload `source/knowledge/golden-mockup.html` and use the suggested prompt "Refine an existing mockup".
+Upload `skills/mocketeer-mockup-generation/assets/golden-mockup.html` and use the suggested prompt "Refine an existing mockup".
+
+## Session Loading Host Matrix
+
+Run separately in Microsoft Copilot and Claude/Concord with the same canonical skills
+and asset. Record the host/version, skill revision or hashes, prompts and observable
+resource-read trace. A statement that the agent read files is not sufficient evidence.
+If the host exposes no read trace, record NOT_VERIFIABLE rather than PASS. These checks
+have not been executed by the static test suite.
+
+| Case | Expected observable resource behavior |
+|---|---|
+| New session, first Discovery request | All seven SKILL.md read once before execution; shared process and authorities understood; no Golden asset or automatic technical references |
+| Second Discovery task, same session | Retained model reused; no full seven-skill/knowledge reload |
+| Task switch needing a specific reference/schema | Only that workflow's missing required resources loaded; no general reference sweep |
+| Generation with sufficient confirmed inputs | Golden HTML not automatically loaded merely because generation was selected |
+| Explicit visual calibration or Golden check | Generation's Golden asset read; source bytes and semantics unchanged |
+| Relevant skill/product update notified | Bootstrap invalidated and all seven updated entries read before further execution |
+| Context Compaction with missing baseline | No blind reuse of a flag; entries reread or missing authoritative baseline demonstrably reconstructed |
+| Cross-host comparison | Same terminology, authority boundaries, handoffs, gates and lazy-load rules; missing access blocks affected work rather than simplifying semantics |
+
+Keep test traces as verification evidence, not a new persistent business bootstrap state.
+
+## Microsoft Copilot Session Smoke
+
+Current evidence status: **NOT_VERIFIED**; no live Agent Builder retrieval trace was
+available in this framework environment. Record host/version and source revision.
+
+1. Configure the seven canonical skills, identical optional Golden asset and main
+  prompt. Start a fresh session and verify all seven named entries are retrievable.
+2. Ask: "Describe Mocketeer's complete product process and the responsibility of each
+  of its seven skills." Expect Discovery -> Design Contract/Flows -> Generation ->
+  Refinement/Preservation -> Handoff, correct authorities and gates. The trace must
+  show one seven-skill bootstrap, not an isolated task-based skill selection.
+3. Ask a second Discovery question in the same session. Expect reuse of the shared
+  model, no complete seven-skill reread and no Golden asset retrieval.
+4. Switch to generation with sufficient confirmed inputs, then request an explicit
+  Golden verification/calibration. The asset is loaded only when actually relevant;
+  generation alone does not require it. Additional references are demand-driven.
+5. Record observable reads and outputs. Without an actual read trace, keep load-once
+  and lazy-resource claims NOT_VERIFIED rather than trusting the agent's self-report.
 
 ## Test Sequence
 

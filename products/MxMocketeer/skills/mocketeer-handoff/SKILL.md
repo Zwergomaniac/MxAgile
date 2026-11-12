@@ -5,6 +5,12 @@ description: assesses mocketeer contract maturity and prepares an evidence-prese
 
 # Mocketeer Handoff
 
+## Session Entry
+
+At first Mocketeer work in a session, read all seven skills once and follow
+`mocketeer-discovery` Session Initialization and recovery rules. Reuse that shared
+model for later tasks; load extra references/assets only for the current workflow.
+
 Use the complete handoff, readiness, provenance, and interaction guidance included
 below. MxAgile policies remain authoritative for downstream lifecycle actions.
 

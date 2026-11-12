@@ -5,6 +5,12 @@ description: classifies and safely applies a requested change to an existing moc
 
 # Mocketeer Refinement
 
+## Session Entry
+
+At first Mocketeer work in a session, read all seven skills once and follow
+`mocketeer-discovery` Session Initialization and recovery rules. Reuse that shared
+model for later tasks; load extra references/assets only for the current workflow.
+
 Use the complete transformation, preservation, and revision guidance included below.
 
 1. Read the full source HTML and embedded contract before classifying the change.

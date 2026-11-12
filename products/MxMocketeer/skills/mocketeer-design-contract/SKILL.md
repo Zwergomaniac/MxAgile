@@ -5,6 +5,12 @@ description: creates or validates the embedded mocketeer design contract schema,
 
 # Mocketeer Design Contract
 
+## Session Entry
+
+At first Mocketeer work in a session, read all seven skills once and follow
+`mocketeer-discovery` Session Initialization and recovery rules. Reuse that shared
+model for later tasks; load extra references/assets only for the current workflow.
+
 Use the complete Design Contract schema and migration guidance included below before
 changing or validating the embedded `#mocketeer-spec` JSON.
 
