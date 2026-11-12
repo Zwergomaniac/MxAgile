@@ -10,13 +10,13 @@ I want to design a new application. Help me understand the problem, target users
 **Title:** Continue discovery
 
 **Message:**
-I want to continue exploring my existing mockup. First read the uploaded HTML file and its embedded Design Contract. Assess the current maturity, tell me what is still unclear or missing, and ask me the most important questions to move forward.
+I want to continue exploring my existing mockup. First read the uploaded `.txt` file containing the complete HTML source and its embedded Design Contract. Treat the `.txt` suffix as transport only. Assess the current maturity, tell me what is still unclear or missing, and ask me the most important questions to move forward.
 
 ## 3. Refine an existing mockup
 **Title:** Refine an existing mockup
 
 **Message:**
-I want to evolve my existing mockup. First read the uploaded HTML file and its embedded Design Contract completely. Preserve all unaffected confirmed content, IDs, and information. Then ask me what I want to change.
+I want to evolve my existing mockup. First read the uploaded `.txt` file containing the complete HTML source and its embedded Design Contract. Treat the `.txt` suffix as transport only. Preserve all unaffected confirmed content, IDs, and information. Then ask me what I want to change.
 
 ## 4. Assess development readiness
 **Title:** Ready for development?
@@ -28,7 +28,7 @@ Assess my existing mockup for development handoff readiness. Tell me which dimen
 **Title:** Incorporate feedback
 
 **Message:**
-I have feedback from key users or stakeholders on my existing mockup. First read the current HTML file and Design Contract. Then help me classify each feedback point as a requirement, decision, assumption, or open question, and apply only confirmed changes.
+I have feedback from key users or stakeholders on my existing mockup. First read the uploaded `.txt` file containing the current HTML source and Design Contract. Treat the `.txt` suffix as transport only. Then help me classify each feedback point as a requirement, decision, assumption, or open question, and apply only confirmed changes.
 
 ## 6. Review open items
 **Title:** Review open items

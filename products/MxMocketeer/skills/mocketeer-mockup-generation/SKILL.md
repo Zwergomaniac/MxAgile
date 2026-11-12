@@ -73,7 +73,7 @@ Role names in a Design Contract express business/test identity; they are not ins
 
 ## Optional Golden Asset
 
-Load `assets/golden-mockup.html` only when mockup generation needs a concrete example,
+Load `assets/golden-mockup.txt` only when mockup generation needs a concrete example,
 visual calibration, or a Golden Mockup check. Generation alone does not require the
 asset if the inline guidance and confirmed inputs suffice. Never load it during
 session bootstrap or Discovery. The example is not business authority.

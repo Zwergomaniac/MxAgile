@@ -23,8 +23,10 @@ Set-Clipboard -Value ($prompt.Replace("`r`n", "`n").Replace("`r", "`n"))
 ## Canonical Skills and Host Discovery
 The seven canonical skill files are under `skills/mocketeer-*/SKILL.md`.
 Each retains substantive domain knowledge and exact `name`/`description` YAML
-frontmatter. The complete Golden HTML is a separate optional asset at
-`skills/mocketeer-mockup-generation/assets/golden-mockup.html`. No other knowledge
+frontmatter. The complete Golden HTML source is a separate optional `.txt` asset at
+`skills/mocketeer-mockup-generation/assets/golden-mockup.txt`. Its contents are the
+complete HTML document; `.txt` is used because Microsoft Copilot accepts the mockup
+upload as text rather than `.html`. No other knowledge
 was moved to references merely to make the entries smaller.
 
 For Microsoft Copilot Agent Builder, add the seven individual files as seven Skills:
@@ -39,11 +41,12 @@ skills/mocketeer-mockup-generation/SKILL.md
 skills/mocketeer-handoff/SKILL.md
 ```
 
-Associate `assets/golden-mockup.html` with the generation skill, preserving the
-relative asset path where the host supports skill directories. If Agent Builder
-manages skills as separate files, expose the identical HTML as a separately named
-retrievable asset, not as another skill or inline Instructions. Resolve the skill's
-relative asset name to that resource without changing its content or semantics.
+Associate `assets/golden-mockup.txt` with the generation skill, preserving the
+relative asset path where the host supports skill directories. The asset is HTML
+source text and must remain byte-identical; do not convert it to prose. If Agent Builder
+manages skills as separate files, expose the `.txt` as a separately named retrievable
+asset, not as another skill or inline Instructions. Resolve the skill's relative asset
+name to that resource without changing its content or semantics.
 There is no ZIP or combined master skill.
 
 Before publishing, verify that the agent can explicitly retrieve all seven named
@@ -102,7 +105,8 @@ observable retrieval trace is available here. Use the short acceptance procedure
 Limit scope during pilot operation:
 - Enable SharePoint/cloud search only if the Product Owner needs access to shared project sources.
 - Do not enable Outlook, Teams, or web search by default — this reduces the risk of irrelevant or confidential information entering the design process.
-- HTML mockup files can be uploaded directly in the chat as input for refinement.
+- For Microsoft Copilot, upload the complete mockup source as a `.txt` file containing
+	the HTML document and embedded Design Contract. Treat the suffix as transport only.
 
 ## Suggested Prompts
 Use the six entries from `suggested-prompts.md`. If fewer slots are available, use prompts 1, 2, 4, 3 (in that order).

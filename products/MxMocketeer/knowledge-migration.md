@@ -16,7 +16,7 @@ migrated without retaining reference-file copies.
 | `knowledge/mendix-design-guide.txt` | `MIGRATE_TO_SKILL_CORE` | Full Mendix candidate and role/UserRole guidance embedded in `skills/mocketeer-mockup-generation/SKILL.md` |
 | `knowledge/mxagile-handoff.txt` | `MIGRATE_TO_SKILL_CORE` | Full product-side handoff content embedded in `skills/mocketeer-handoff/SKILL.md`; MxAgile lifecycle policies remain downstream authority |
 | `knowledge/interaction-analysis.md` | `MIGRATE_TO_SKILL_CORE` | Full cross-role/scope interaction guidance embedded in `skills/mocketeer-business-flows/SKILL.md` |
-| `knowledge/golden-mockuphtml.txt` | `MOVE_TO_ASSET` | Full example at `skills/mocketeer-mockup-generation/assets/golden-mockup.html`; load only for a needed generation example, calibration or Golden check; never business authority |
+| `knowledge/golden-mockuphtml.txt` | `MOVE_TO_ASSET` | Full HTML source at `skills/mocketeer-mockup-generation/assets/golden-mockup.txt`; `.txt` supports Copilot upload and the contents remain HTML; load only for a needed generation example, calibration or Golden check; never business authority |
 | `system-prompt.md` | `RETAIN_AS_PRODUCT_DOCUMENTATION` | Always-on identity, safety, and stop conditions; stays within the Agent Builder limit |
 | `suggested-prompts.md` | `RETAIN_AS_PRODUCT_DOCUMENTATION` | Product Owner entry-point configuration |
 | `agent-builder-setup.md` | `RETAIN_AS_PRODUCT_DOCUMENTATION` | Host packaging and installation guide |
@@ -26,7 +26,8 @@ The seven skills are authored once under `products/MxMocketeer/skills/`. The nor
 installer copies them into consumer `.mxagile/skills/`; the existing generator
 projects those installed files to Claude, GitHub Copilot, and portable/Concord paths.
 Microsoft Copilot users add the same seven `SKILL.md` files manually and associate the
-unchanged Golden asset with generation. No ZIP, flattened master, duplicate reference
+unchanged `golden-mockup.txt` HTML-source asset with generation. User mockup sources are
+uploaded as `.txt` containing the complete HTML document. No ZIP, flattened master, duplicate reference
 source or host-specific domain source is maintained.
 
 ## Projection Closure Decision

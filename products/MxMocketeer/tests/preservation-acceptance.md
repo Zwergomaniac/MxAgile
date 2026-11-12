@@ -4,7 +4,7 @@
 Verify that MxMocketeer iteratively modifies a non-trivial HTML file without losing unaffected confirmed content or contract knowledge.
 
 ## Preparation
-Upload `skills/mocketeer-mockup-generation/assets/golden-mockup.html` and use the suggested prompt "Refine an existing mockup".
+Upload `skills/mocketeer-mockup-generation/assets/golden-mockup.txt` as the mockup source and use the suggested prompt "Refine an existing mockup". The `.txt` contains the complete HTML document and embedded Contract; do not convert its contents to prose.
 
 ## Session Loading Host Matrix
 
@@ -162,7 +162,7 @@ Validates safe large-artifact refinement via the CROSS_CUTTING_EDIT / LOCAL_EDIT
 This sequence requires a Revision 11+ mockup with multiple StickyHeader components.
 
 ### Preparation
-Upload a multi-screen mockup (Revision 11+) where StickyHeader components display "2024".
+Upload a `.txt` file containing a multi-screen HTML mockup (Revision 11+) where StickyHeader components display "2024".
 Use the suggested prompt "Refine an existing mockup".
 
 ### Transformation Iteration 1 — Cross-cutting year change

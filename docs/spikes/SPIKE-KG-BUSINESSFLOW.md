@@ -518,7 +518,7 @@ The M365 agent is **MxMocketeer v3**, packaged at `products/MxMocketeer/`.
 | System Prompt | `system-prompt.md` | Paste into Instructions field |
 | Knowledge 1 | `references/design-contract.md` | Upload as knowledge file |
 | Knowledge 2 | `references/discovery-assessment.md` | Upload as knowledge file |
-| Knowledge 3 | `assets/golden-mockup.html` | Upload as knowledge file |
+| Knowledge 3 | `assets/golden-mockup.txt` (HTML source) | Upload as text knowledge file; `.txt` is required for Copilot upload |
 | Knowledge 4 | `references/mendix-design-guide.md` | Upload as knowledge file |
 | Knowledge 5 | `references/mxagile-handoff.md` | Upload as knowledge file |
 | Setup guide | `agent-builder-setup.md` | Reference for configurator only |
@@ -568,7 +568,7 @@ No existing sections removed or altered.
 
 | File | Reason unchanged |
 |---|---|
-| `assets/golden-mockup.html` | Phase 2 implementation task: the golden reference mockup will be updated to include a structured flow example. Not changed in this spike. |
+| `assets/golden-mockup.txt` (complete HTML source) | Phase 2 implementation task: the golden reference mockup will be updated to include a structured flow example. Not changed in this spike. Copilot upload uses `.txt`. |
 | `references/mendix-design-guide.md` | No overlap with Knowledge Graph or Business Flow capabilities. |
 
 ---
@@ -586,7 +586,7 @@ After Phase 2 implementation, produce a new M365 package:
    - `knowledge/knowledge-graph.txt`
    - `references/business-flows.md`
 4. **Unchanged — no action required**:
-   - `assets/golden-mockup.html` (re-upload only when golden mockup is updated in Phase 2)
+  - `assets/golden-mockup.txt` (HTML source; upload as text only when the Golden mockup is updated in Phase 2)
    - `references/mendix-design-guide.md`
 5. **Suggested Prompts** — unchanged; no action required.
 6. **Agent name** — unchanged: MxMocketeer v3.
@@ -638,7 +638,7 @@ When deploying the updated package, the configurator must:
 | Replace knowledge file | `references/mxagile-handoff.md` |
 | Upload new knowledge file | `references/business-flows.md` |
 | Upload new knowledge file | `knowledge/knowledge-graph.txt` |
-| No action | `assets/golden-mockup.html` (until Phase 2 golden mockup update) |
+| No action | `assets/golden-mockup.txt` HTML source (until Phase 2 golden mockup update) |
 | No action | `references/mendix-design-guide.md` |
 
 ---

@@ -13,7 +13,7 @@ model for later tasks; load extra references/assets only for the current workflo
 
 Use the complete transformation, preservation, and revision guidance included below.
 
-1. Read the full source HTML and embedded contract before classifying the change.
+1. Read the full uploaded `.txt` mockup source and embedded contract before classifying the change. Microsoft Copilot requires `.txt` transport; the file contents remain HTML, not plain prose.
 2. Choose `LOCAL_EDIT`, `CROSS_CUTTING_EDIT`, `STRUCTURAL_REFACTOR`, or
    `FULL_REGENERATION` from the actual execution characteristics.
 3. For targeted edits, resolve stable targets and preconditions; fail closed on ambiguity,

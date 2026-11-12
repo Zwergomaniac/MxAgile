@@ -12,7 +12,7 @@ products/MxMocketeer/
     README.md
 
     skills/mocketeer-*/SKILL.md — seven substantive, canonical product skills
-    skills/mocketeer-mockup-generation/assets/golden-mockup.html — optional example
+    skills/mocketeer-mockup-generation/assets/golden-mockup.txt — optional HTML-source example
     tests/
         preservation-acceptance.md
         test-mocketeer-validation.ps1
@@ -43,9 +43,9 @@ installer/generator paths.
 
 **New design:** Start a conversation → answer focused questions → receive HTML mockup.
 
-**Refinement:** Upload existing HTML → request change → agent reads current mockup and Design Contract, preserves unrelated content, produces next complete revision.
+**Refinement:** In Microsoft Copilot, upload the existing mockup as `.txt` containing the complete HTML source → request change → agent reads the source and Design Contract, preserves unrelated content, produces the next complete HTML revision.
 
-**Handoff:** Upload finalized mockup → request readiness review → open business questions identified → hand to development / MxAgile.
+**Handoff:** Upload the finalized mockup as `.txt` containing the complete HTML source → request readiness review → open business questions identified → hand off to development / MxAgile.
 
 ## Design Contract
 
@@ -61,10 +61,11 @@ Canonical schema content: `skills/mocketeer-design-contract/SKILL.md`
 
 ## Golden Reference Mockup
 
-The complete Golden Mockup HTML is
-`skills/mocketeer-mockup-generation/assets/golden-mockup.html`; it is sample material,
-not business authority. Load it only for a needed generation example, visual calibration
-or Golden check, never automatically during bootstrap or Discovery.
+The complete Golden Mockup HTML source is
+`skills/mocketeer-mockup-generation/assets/golden-mockup.txt`; it is sample material,
+not business authority. The `.txt` extension supports Copilot upload; its content remains
+HTML. Load it only for a needed generation example, visual calibration or Golden check,
+never automatically during bootstrap or Discovery.
 
 The mockup demonstrates: multiple roles, positive/negative permissions, search/filter, create dialog, validation, role-switching, empty state, spec-footer, traceability attributes, stable IDs, and a complete Design Contract.
 

@@ -301,10 +301,10 @@ try {
             }
         }
     }
-    $goldenSource = Join-Path $fixtureMxagile 'skills/mocketeer-mockup-generation/assets/golden-mockup.html'
+    $goldenSource = Join-Path $fixtureMxagile 'skills/mocketeer-mockup-generation/assets/golden-mockup.txt'
     Assert-True 'Golden HTML is a separate installed asset' (Test-Path -LiteralPath $goldenSource -PathType Leaf) 'Golden asset missing'
     foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
-        $projectedGolden = Join-Path $FixtureDir "$platformRoot/mocketeer-mockup-generation/assets/golden-mockup.html"
+        $projectedGolden = Join-Path $FixtureDir "$platformRoot/mocketeer-mockup-generation/assets/golden-mockup.txt"
         Assert-True "Golden asset exists: $platformRoot" (Test-Path -LiteralPath $projectedGolden -PathType Leaf) 'Projected Golden asset missing'
         if (Test-Path -LiteralPath $projectedGolden -PathType Leaf) {
             Assert-True "Golden asset bytes match source: $platformRoot" ((Get-FileHash -LiteralPath $projectedGolden).Hash -eq (Get-FileHash -LiteralPath $goldenSource).Hash) 'Golden asset was changed during projection'

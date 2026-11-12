@@ -90,7 +90,7 @@ Nur noch ~30% des heutigen Umfangs:
 
 ### Was in Knowledge bleibt
 
-- [golden-mockup.html](products/MxMocketeer/assets/golden-mockup.html) — 26 KB Referenz-HTML, zu groß für einen Skill, und RAG-Retrieval ist hier akzeptabel (wird nur bei Generierung gebraucht)
+- [golden-mockup.txt](products/MxMocketeer/skills/mocketeer-mockup-generation/assets/golden-mockup.txt) — HTML-Quelltext als Copilot-kompatibler Textupload; nur bei tatsächlichem Generierungs-/Prüfbedarf laden
 - [mendix-design-guide.md](products/MxMocketeer/references/mendix-design-guide.md) — Hintergrundwissen, kein kritischer Pfad
 
 ### Dateistruktur (neu)
@@ -112,7 +112,7 @@ products/MxMocketeer/
         handoff.md
 
     knowledge/                    — REDUZIERT
-        golden-mockup.html     — bleibt (Referenz-Beispiel)
+        golden-mockup.txt     — HTML-Quelltext, als .txt für Copilot bereitgestellt
         mendix-design-guide.md   — bleibt (Hintergrund)
 
     tests/

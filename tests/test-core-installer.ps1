@@ -66,10 +66,10 @@ function Test-GenericInstallation {
             }
         }
         $businessFlowSkill = Join-Path $mxagilePath 'skills/mocketeer-business-flows/SKILL.md'
-        $goldenSource = Join-Path $mxagilePath 'skills/mocketeer-mockup-generation/assets/golden-mockup.html'
+        $goldenSource = Join-Path $mxagilePath 'skills/mocketeer-mockup-generation/assets/golden-mockup.txt'
         Assert-Condition (Test-Path $goldenSource -PathType Leaf) "Installer must deliver the separate Golden HTML asset."
         foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
-            $goldenProjection = Join-Path $projectRoot "$platformRoot/mocketeer-mockup-generation/assets/golden-mockup.html"
+            $goldenProjection = Join-Path $projectRoot "$platformRoot/mocketeer-mockup-generation/assets/golden-mockup.txt"
             Assert-Condition (Test-Path $goldenProjection -PathType Leaf) "Fresh install must project Golden asset to $platformRoot."
             Assert-Condition ((Get-FileHash -LiteralPath $goldenProjection).Hash -eq (Get-FileHash -LiteralPath $goldenSource).Hash) "Fresh-install Golden bytes must match for $platformRoot."
             foreach ($skillName in $mocketeerSkillNames) {

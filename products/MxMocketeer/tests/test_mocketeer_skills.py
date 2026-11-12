@@ -39,7 +39,7 @@ class MocketeerSkillTests(unittest.TestCase):
             for skill_name in EXPECTED_SKILLS:
                 target = REPOSITORY_ROOT / host_root / skill_name
                 self.assertFalse((target / "SKILL.md").exists(), str(target))
-                self.assertFalse((target / "assets/golden-mockup.html").exists(), str(target))
+                self.assertFalse((target / "assets/golden-mockup.txt").exists(), str(target))
         generator = (REPOSITORY_ROOT / "scripts/generate-mxagile-platform-skills.ps1").read_text(encoding="utf-8")
         self.assertNotIn("products/MxMocketeer/skills", generator)
 
@@ -79,12 +79,14 @@ class MocketeerSkillTests(unittest.TestCase):
     def test_golden_mockup_is_a_lazy_asset(self) -> None:
         skill_root = SKILL_ROOT / "mocketeer-mockup-generation"
         text = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        golden = (skill_root / "assets/golden-mockup.html").read_text(encoding="utf-8")
+        golden = (skill_root / "assets/golden-mockup.txt").read_text(encoding="utf-8")
         self.assertIn("<!doctype html>", golden)
         self.assertIn('id="mocketeer-spec"', golden)
         self.assertNotIn("<!doctype html>", text)
         self.assertNotIn("GOLDEN_MOCKUP_BEGIN", text)
-        self.assertIn("assets/golden-mockup.html", text)
+        self.assertIn("assets/golden-mockup.txt", text)
+        self.assertIn("Copilot uploads use `.txt` containing HTML", (PRODUCT_ROOT / "system-prompt.md").read_text(encoding="utf-8"))
+        self.assertIn("treat contents as source, not prose", (PRODUCT_ROOT / "system-prompt.md").read_text(encoding="utf-8"))
 
     def test_contract_new_session_bootstraps_all_seven_skills(self) -> None:
         discovery = (SKILL_ROOT / "mocketeer-discovery/SKILL.md").read_text(encoding="utf-8")

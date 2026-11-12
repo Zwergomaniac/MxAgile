@@ -11,7 +11,7 @@ Tests:
   UNKNOWN_ROLE          — role_ref not in contract roles[] produces a warning
   REVISION_IMPACT       — revision_delta.effects[] in golden mockup references FLOW-NNN and FLOWSTEP-NNN
   DETERMINISTIC_MERMAID — mermaid_generator.py produces identical output on repeated calls
-  MERMAID_NOT_STORED    — mermaid text is NOT present in golden-mockup.html mocketeer-spec JSON
+    MERMAID_NOT_STORED    — mermaid text is NOT present in golden-mockup.txt mocketeer-spec JSON
   MERMAID_ALL_STEP_TYPES — mermaid_generator handles all 7 step types without error
 
 Usage:
@@ -39,7 +39,7 @@ PROJECT_ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('.').resolve()
 SCRIPTS_DIR  = PROJECT_ROOT / 'scripts'
 BUILDER      = SCRIPTS_DIR / 'build_artifact_index.py'
 MERMAID_GEN  = SCRIPTS_DIR / 'mermaid_generator.py'
-GOLDEN_ASSET = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'skills' / 'mocketeer-mockup-generation' / 'assets' / 'golden-mockup.html'
+GOLDEN_ASSET = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'skills' / 'mocketeer-mockup-generation' / 'assets' / 'golden-mockup.txt'
 
 PASS_COUNT = 0
 FAIL_COUNT = 0

@@ -25,8 +25,8 @@ On first Mocketeer work in a new session, read all seven `mocketeer-*/SKILL.md` 
 Reuse context; do not reread all seven per task. Apply needed skills; load extra references/assets only as needed. Golden HTML is optional, not bootstrap context.
 
 ## Refining an Existing Mockup
-When an HTML file is uploaded:
-1. Read the entire file and embedded #mocketeer-spec contract. Identify the concrete change scope.
+Copilot uploads use `.txt` containing HTML; treat contents as source, not prose.
+1. Read full source and #mocketeer-spec; identify change scope.
 2. Classify using `mocketeer-refinement` and `mocketeer-preservation`: LOCAL_EDIT, CROSS_CUTTING_EDIT, STRUCTURAL_REFACTOR, or FULL_REGENERATION. For LOCAL_EDIT/CROSS_CUTTING_EDIT: produce a Transformation Spec; no unsafe reconstruction of a large file. For FULL_REGENERATION/STRUCTURAL_REFACTOR: preserve all unaffected screens, flows, requirements, decisions, roles, rules, states, mock data, and IDs; remove confirmed content only on explicit request or SUPERSEDED decision.
 3. Increment mockup.revision; set previous_revision.
 4. Set lifecycle_status: REFINED_TARGET, refinement_status: PROPOSED, active_target: false.
