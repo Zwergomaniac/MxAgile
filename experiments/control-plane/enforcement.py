@@ -29,6 +29,7 @@ CONTROLLED_MUTATION = "CONTROLLED_MUTATION"
 CONTEXT_INVALIDATING = "CONTEXT_INVALIDATING"
 HIGH_RISK_MUTATION = "HIGH_RISK_MUTATION"
 INTEGRATION_MUTATION = "INTEGRATION_MUTATION"
+PUBLICATION = "PUBLICATION"
 VERIFICATION = "VERIFICATION"
 TOOLING_SERVICE = "TOOLING_SERVICE"
 
@@ -36,11 +37,11 @@ TOOLING_SERVICE = "TOOLING_SERVICE"
 ENFORCED = {IMPLEMENTATION_WRITE, CHILD_SPAWN, HIGH_RISK_MUTATION, INTEGRATION_MUTATION}
 _SEVERITY = [READ, TOOLING_SERVICE, VERIFICATION, EVIDENCE_WRITE, DERIVED_PROJECTION_WRITE, LIFECYCLE_WRITE,
              CONTROLLED_MUTATION, CONTEXT_INVALIDATING, EXTERNAL_SIDE_EFFECT, FRAMEWORK_WRITE,
-             INTEGRATION_MUTATION, HIGH_RISK_MUTATION, IMPLEMENTATION_WRITE]
+             INTEGRATION_MUTATION, HIGH_RISK_MUTATION, PUBLICATION, IMPLEMENTATION_WRITE]
 READ_ONLY_AGENT_TYPES = {"Explore", "Plan", "claude-code-guide", "statusline-setup"}
 MENDIX_MCP_SERVERS = ("mendix-studio-pro", "concord")
 READ_VERB = re.compile(
-    r"(?:^|_)(get|list|read|search|find|describe|inspect|query|show|status|probe|check|validate|diff|discover|"
+    r"(?:^|_)(get|list|read|search|find|glob|describe|inspect|query|show|status|probe|check|validate|diff|discover|"
     r"explain|analyze|analyse|lookup|fetch|resolve|summarize|help|docs|knowledge|info|context|refs|callers|callees)(?:_|$)",
     re.I)
 PATH_CLASSES: tuple[tuple[tuple[str, ...], str], ...] = (
@@ -57,7 +58,7 @@ GIT_CLASSES = {
     "ls-files": READ, "fetch": READ, "add": CONTROLLED_MUTATION, "commit": CONTROLLED_MUTATION,
     "checkout": CONTEXT_INVALIDATING, "switch": CONTEXT_INVALIDATING, "stash": CONTEXT_INVALIDATING,
     "reset": HIGH_RISK_MUTATION, "clean": HIGH_RISK_MUTATION, "restore": HIGH_RISK_MUTATION,
-    "rm": HIGH_RISK_MUTATION, "push": HIGH_RISK_MUTATION, "tag": CONTROLLED_MUTATION,
+    "rm": HIGH_RISK_MUTATION, "push": PUBLICATION, "tag": CONTROLLED_MUTATION,
     "merge": INTEGRATION_MUTATION, "rebase": INTEGRATION_MUTATION, "cherry-pick": INTEGRATION_MUTATION,
     "pull": INTEGRATION_MUTATION, "apply": INTEGRATION_MUTATION, "am": INTEGRATION_MUTATION,
 }
@@ -199,7 +200,10 @@ def decide(project_root: str | Path, payload: dict[str, Any]) -> dict[str, Any]:
     except Exception:  # an unclassifiable call is treated as critical
         op_class, detail = IMPLEMENTATION_WRITE, "unclassifiable"
     result: dict[str, Any] = {"operation_class": op_class, "detail": detail}
-    if op_class not in ENFORCED:
+    if op_class == PUBLICATION:
+        # Remote publication is never authorized by delivery state; the developer decides in the host.
+        result.update({"decision": "ask", "reason": "PUBLICATION_REQUIRES_DEVELOPER_APPROVAL", "recovery": "human_resolution"})
+    elif op_class not in ENFORCED:
         result.update({"decision": "allow", "reason": "not an enforced operation class"})
     else:
         try:
@@ -217,7 +221,7 @@ def decide(project_root: str | Path, payload: dict[str, Any]) -> dict[str, Any]:
             result.update({"decision": "deny", "reason": f"GUARD_UNAVAILABLE: {type(exc).__name__}", "recovery": "inspect"})
     result["event"] = {
         "type": ("child_started" if op_class == CHILD_SPAWN else "delivery_authorized") if result["decision"] == "allow" and op_class in ENFORCED
-        else ("delivery_blocked" if result["decision"] == "deny" else None),
+        else ("delivery_blocked" if result["decision"] == "deny" else ("publication_approval_required" if op_class == PUBLICATION else None)),
         "run_id": (result.get("verdict") or {}).get("run_id") or run_id,
         "operation_class": op_class,
     }
