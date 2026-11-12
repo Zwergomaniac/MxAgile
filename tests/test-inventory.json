@@ -1607,7 +1607,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Control-plane experiment acceptance: installs the pre-experiment baseline tag (git archive) into a GUID temp project, adds legacy lifecycle state and a developer-owned Claude hook, updates to the current branch through install-core, checks Doctor/provenance/preservation, hook registration (first, single, foreign preserved, idempotent on second update), the installed adapter before/after re-sync, the HTML-first reality prompt and the registered command line via Git Bash (UNAVAILABLE note without Git Bash). Uses the cached mxcli (MXCLI_TEST_BINARY); without it UNAVAILABLE, never PASS."
+    "Reason": "Control-plane upgrade acceptance: installs the pre-experiment baseline tag (git archive) into a GUID temp project, adds legacy lifecycle state and a developer-owned Claude hook, updates through install-core, checks Doctor/provenance/preservation, hook idempotence/foreign preservation, event writer/schema distribution and gitignore, lazy resync start/completed events, installed adapter before/after re-sync, HTML-first reality prompt and registered command under Git Bash (UNAVAILABLE note without Git Bash). Uses cached mxcli; without it UNAVAILABLE, never PASS."
   },
   {
     "File": "test-control-plane-hook-registration.ps1",

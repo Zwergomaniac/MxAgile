@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import threading
@@ -1295,7 +1296,8 @@ BOARD_SMOKE_FAILING_RESULTS = ('FAIL', 'TIMEOUT', 'ERROR')
 BOARD_SMOKE_EXIT_CODE = 4
 
 CONTROL_PLANE_DIR = '.mxagile/tools/control-plane'
-CONTROL_PLANE_COMPONENTS = ('guard.py', 'enforcement.py', 'child_contract.py', 'control-plane-verdict.schema.json')
+CONTROL_PLANE_COMPONENTS = ('guard.py', 'enforcement.py', 'child_contract.py', 'control-plane-verdict.schema.json',
+                           'run_events.py', 'run-event.schema.json')
 CONTROL_PLANE_MARKER = '.mxagile/tools/control-plane/enforcement.py'
 CONTROL_PLANE_REQUIRED_MATCHERS = ('Write', 'Edit', 'Bash', 'Agent', 'mcp__')
 
@@ -1310,6 +1312,7 @@ def control_plane_health(root: Path) -> dict:
     components = {name: (root / CONTROL_PLANE_DIR / name).is_file() for name in CONTROL_PLANE_COMPONENTS}
     registration: dict[str, Any] = {'state': 'HOST_REGISTRATION_MISSING', 'foreign_pre_tool_groups': 0,
                                     'fail_closed': False, 'matcher_complete': False, 'command_target_present': False}
+    registration['python_available'] = shutil.which('python') is not None
     settings_path = root / '.claude/settings.json'
     if settings_path.is_file():
         try:
@@ -1359,6 +1362,8 @@ def control_plane_health(root: Path) -> dict:
             finding('REGISTRATION_NOT_FAIL_CLOSED', 'Registered command does not end with `|| exit 2`.')
         if not registration['matcher_complete']:
             finding('REGISTRATION_MATCHER_INCOMPLETE', 'Matcher does not cover Write/Edit/Bash/Agent/mcp__ tools.')
+        if not registration['python_available']:
+            finding('ADAPTER_RUNTIME_UNAVAILABLE', 'The registered `python` executable is not on the Doctor process PATH.')
     handoff_schema = root / '.mxagile/schemas/delegation-handoff.schema.json'
     try:
         versions = json.loads(handoff_schema.read_text(encoding='utf-8-sig'))['properties']['schema_version']['enum']
@@ -1366,6 +1371,15 @@ def control_plane_health(root: Path) -> dict:
             finding('SCHEMA_INCOMPATIBLE', 'Installed delegation handoff schema does not accept 1.4.')
     except (OSError, ValueError, KeyError, TypeError):
         finding('SCHEMA_INCOMPATIBLE', 'Installed delegation handoff schema is missing or unreadable.')
+    event_schema_path = root / CONTROL_PLANE_DIR / 'run-event.schema.json'
+    try:
+        event_schema = json.loads(event_schema_path.read_text(encoding='utf-8-sig'))
+        if jsonschema is None:
+            finding('SCHEMA_VALIDATION_UNAVAILABLE', 'jsonschema is unavailable; run-event schema could not be checked.')
+        else:
+            jsonschema.Draft7Validator.check_schema(event_schema)
+    except (OSError, ValueError, jsonschema.exceptions.SchemaError if jsonschema else ValueError):
+        finding('SCHEMA_INCOMPATIBLE', 'Installed run-event schema is missing, unreadable or invalid.')
 
     if not any(components.values()) and registration['state'] == 'HOST_REGISTRATION_MISSING':
         installation = 'NOT_INSTALLED'
@@ -1376,7 +1390,7 @@ def control_plane_health(root: Path) -> dict:
     concord = (root / '.mcp.json').is_file() and 'concord' in (root / '.mcp.json').read_text(encoding='utf-8-sig', errors='replace')
     return {
         'installation_health': installation,
-        'potentially_active': installation == 'HEALTHY',
+        'potentially_active': installation == 'HEALTHY' and registration['python_available'],
         'components': components,
         'claude_registration': registration,
         'findings': findings,

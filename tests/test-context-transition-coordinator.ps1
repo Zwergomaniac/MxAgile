@@ -372,6 +372,10 @@ try {
         (-not [string]::IsNullOrEmpty($postResult3.MissionObjective)) `
         "Mission objective lost after resync"
 
+    Assert-True "3-7e: uninstalled legacy project has empty run history" `
+        ($postResult3.RunHistoryState -eq 'EMPTY' -and @($postResult3.UnresolvedRuns).Count -eq 0) `
+        "Expected empty non-authoritative history, got: $($postResult3.RunHistoryState)"
+
 } finally {
     Remove-Item -Recurse -Force $tempDir3 -ErrorAction SilentlyContinue
 }

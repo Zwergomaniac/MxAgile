@@ -25,7 +25,7 @@ CLOSED = {**LIVE, "operating_mode": "CLOSED-AUTONOM"}
 class Phase1BFixture(GuardFixture):
     def setUp(self) -> None:
         super().setUp()
-        self.write(".gitignore", ".concord/\n")
+        self.write(".gitignore", ".concord/\n.mxagile/state/runs/\n")
         self.write("input-resources/ui-ux/orders/index.html", "<html>orders REV-037</html>\n")
         self.write("docs/fixture/REQ-001.md", "Orders overview shows a filter.\n")
         self.write("docs/fixture/DEC-001.md", "Modal confirms deletion.\n")
@@ -46,23 +46,25 @@ class Phase1BFixture(GuardFixture):
     def hook(self, tool_name: str, tool_input: dict) -> dict:
         return enforcement.decide(self.root, {"tool_name": tool_name, "tool_input": tool_input, "cwd": str(self.root)})
 
-    def visual_handoff(self, observations: dict = CLOSED) -> dict:
+    def visual_handoff(self, observations: dict = CLOSED, parent_run_id: str | None = None,
+                       delegation_id: str = "DELEGATION-V1") -> dict:
         facts = enforcement.guard.load_project_facts(self.root)
         handoff = child_contract.build_visual_handoff(
-            facts, self.contract, agent_type="mxagile-ui-agent", delegation_id="DELEGATION-V1",
-            route_decision_reference=".concord/routing-decisions/ROUTE-V1.json", parent_observations=observations)
+            facts, self.contract, agent_type="mxagile-ui-agent", delegation_id=delegation_id,
+            route_decision_reference=".concord/routing-decisions/ROUTE-V1.json", parent_observations=observations,
+            parent_run_id=parent_run_id)
         route = {
             "schema_version": "1.0", "mission_id": MISSION, "decision_id": "ROUTE-V1", "recorded_at": "2026-11-11T10:00:00Z",
             "session_identity": None, "work_package": handoff["delivery_context"]["work_package_id"],
             "requested_agent_type": "mxagile-ui-agent", "work_class": "bounded_semantic", "scope": handoff["scope"],
             "artifact_count": len(handoff["scope"]["paths"]), "semantic": True, "deterministic": False,
             "capability_state": "supported", "requested_profile": "MID", "route": "DELEGATE", "reason": "runtime visual verification",
-            "fallback_reason": None, "delegation_attempted": False, "spawn_outcome": "pending", "delegation_id": "DELEGATION-V1",
+            "fallback_reason": None, "delegation_attempted": False, "spawn_outcome": "pending", "delegation_id": delegation_id,
             "result_reference": None, "main_consumed": False, "compaction_occurred": False, "result_reused": False,
             "stale_result_rejected": False, "batch_restarted": False, "source_fingerprints": handoff["source_fingerprints"],
         }
         self.write(".concord/routing-decisions/ROUTE-V1.json", json.dumps(route))
-        self.write(".concord/delegation-handoffs/DELEGATION-V1.json", json.dumps(handoff))
+        self.write(f".concord/delegation-handoffs/{delegation_id}.json", json.dumps(handoff))
         return handoff
 
     def evidence(self, state: str, layer: str = "runtime", role: str = "User") -> dict:
@@ -135,7 +137,12 @@ class EnforcementTests(Phase1BFixture):
         self.assertIn("GUARD_UNAVAILABLE", result["reason"])
 
     def test_child_spawn_requires_a_validated_handoff(self):
-        self.assertEqual(self.hook("Agent", {"subagent_type": "Explore", "prompt": "look"})["decision"], "allow")
+        allowed = self.hook("Agent", {"subagent_type": "Explore", "prompt": "look"})
+        self.assertEqual(allowed["decision"], "allow")
+        event = next(event for event in enforcement.run_events.read_events(self.root)["events"]
+                     if event["event_type"] == "child_started")
+        self.assertEqual(event["correlation"], {})
+        self.assertEqual(enforcement.run_events.validate_event(event), [])
         denied = self.hook("Agent", {"subagent_type": "mxagile-implementation-agent", "prompt": "build pages"})
         self.assertEqual(denied["decision"], "deny")
         self.assertIn("CHILD_HANDOFF_MISSING", denied["reason"])

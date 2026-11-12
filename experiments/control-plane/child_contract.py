@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -113,6 +114,7 @@ def build_visual_handoff(
     route_decision_reference: str,
     parent_observations: dict[str, Any],
     authorization_reference: str | None = None,
+    parent_run_id: str | None = None,
 ) -> dict[str, Any]:
     root = facts.root
     sources = [{"kind": "mockup_revision", "identity": contract["mockup"]["identity"], "path": contract["mockup"]["path"]}]
@@ -156,7 +158,7 @@ def build_visual_handoff(
         "model_resolution": {"model_selection": "unknown", "profile_resolution": "unknown", "resolution": "not_requested",
                              "resolved_model": None, "requested_reasoning_effort": None, "fallback_used": False, "fallback_reason": None},
         "run_id": enforcement.new_run_id(),
-        "parent_run_id": None,
+        "parent_run_id": parent_run_id or os.environ.get("MXAGILE_PARENT_RUN_ID"),
         "capability": RUNTIME_VISUAL,
         "route_decision_reference": route_decision_reference,
         "write_classes": ["EVIDENCE_WRITE"],
@@ -344,6 +346,61 @@ def accept_child_result(
             "event": {"type": event_type, "run_id": handoff.get("run_id"), "parent_run_id": handoff.get("parent_run_id")}}
 
 
+def _record_acceptance_events(root: Path, handoff: dict[str, Any], verdict: dict[str, Any] | None,
+                              result: dict[str, Any], verdict_reference: str | None) -> None:
+    status = result.get("status")
+    run_id = handoff.get("run_id") or enforcement.new_run_id()
+    parent_run_id = handoff.get("parent_run_id")
+    mission_id = handoff.get("mission_id")
+    wave_id = (handoff.get("delivery_context") or {}).get("wave_id")
+    correlation = {"delegation_id": handoff.get("delegation_id"),
+                   "handoff_reference": f".concord/delegation-handoffs/{handoff.get('delegation_id')}.json"}
+    if verdict_reference:
+        correlation["verdict_reference"] = verdict_reference
+    payload = {"acceptance_status": status, "result_reference": f".concord/delegated-results/{handoff.get('delegation_id')}.json",
+               "input_fingerprint": (verdict.get("visual") or {}).get("input_fingerprint", {}) if verdict else {},
+               "evidence_references": [item.get("path") for item in (verdict.get("visual") or {}).get("evidence", []) if item.get("path")] if verdict else []}
+    events: list[tuple[str, dict]] = []
+    if verdict is not None:
+        events.append(("verdict_received", {"verdict": verdict.get("verdict"), "round": verdict.get("round")}))
+    if status == "STALE":
+        prior_pass = next((event for event in reversed(enforcement.run_events.read_events(root, limit=5000)["events"])
+                           if event["event_type"] == "gate_evaluated"
+                           and event["payload"].get("gate_result") == "PASS"
+                           and event["correlation"].get("delegation_id") == handoff.get("delegation_id")), None)
+        if prior_pass:
+            correlation["gate_event_id"] = prior_pass["event_id"]
+        events.append(("gate_invalidated", {"gate_result": "STALE",
+                                             "reason_codes": [item.get("code") for item in result.get("findings", [])],
+                                             "input_fingerprint": payload["input_fingerprint"]}))
+    gate = result.get("gate")
+    if isinstance(gate, dict):
+        if gate.get("gate_result") == "STALE":
+            events.append(("gate_invalidated", {"gate_result": "STALE", "reason_codes": gate.get("reasons", []),
+                                                  "input_fingerprint": payload["input_fingerprint"]}))
+        elif gate.get("gate_result") == "FAIL" and str(gate.get("allowed_consequence", "")).startswith("repair round"):
+            events.append(("repair_round_started", {"round": (verdict or {}).get("round", 1) + 1,
+                                                     "reason_codes": gate.get("reasons", [])}))
+        events.append(("gate_evaluated", {"gate_result": gate.get("gate_result"),
+                                           "reason_codes": gate.get("reasons", []),
+                                           "input_fingerprint": payload["input_fingerprint"],
+                                           "evidence_references": payload["evidence_references"]}))
+    events.append(("child_completed", {"acceptance_status": status, "result_reference": payload["result_reference"]}))
+    result_type = {"ACCEPTED": "child_accepted", "PARTIAL": "child_partial", "REJECTED": "child_rejected",
+                   "STALE": "child_stale", "NEEDS_HUMAN": "child_needs_human"}.get(status)
+    if result_type:
+        events.append((result_type, {**payload, "reason_codes": [item.get("code") for item in result.get("findings", [])]}))
+    for event_type, event_payload in events:
+        try:
+            enforcement.run_events.append_event(
+                root, event_type, run_id=run_id, parent_run_id=parent_run_id,
+                mission_id=mission_id, wave_id=wave_id, capability=handoff.get("capability"),
+                actor="child_result_acceptor", host="mxagile", correlation=correlation, payload=event_payload,
+            )
+        except Exception as exc:
+            print(f"MxAgile event audit unavailable: {type(exc).__name__}", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -362,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(contract, dict):
             raise ValueError("handoff has no verification_contract")
         result = accept_child_result(root, handoff, verdict, contract)
+        _record_acceptance_events(root, handoff, verdict, result, args.verdict)
     except Exception as exc:  # acceptance that cannot run is never an acceptance
         result = {"status": "NEEDS_HUMAN", "findings": [{"code": "ACCEPTANCE_UNAVAILABLE", "summary": type(exc).__name__}],
                   "forbidden_changes": [], "gate": None, "event": {"type": "recovery_required", "run_id": None, "parent_run_id": None}}

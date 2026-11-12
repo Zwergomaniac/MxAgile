@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mxagile.dev/schemas/run-event.schema.json",
+  "title": "MxAgile Run Event",
+  "description": "Append-only operational audit record. Never a source of lifecycle authority.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "event_id", "event_type", "event_class", "occurred_at", "sequence", "run_id", "parent_run_id", "project_identity", "mission_id", "wave_id", "actor", "capability", "host", "correlation", "payload"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "event_id": {"type": "string", "pattern": "^EVT-[0-9a-f]{32}$"},
+    "event_type": {"enum": ["run_started", "run_completed", "run_interrupted", "run_resumed", "run_abandoned", "lifecycle_resync_started", "lifecycle_resync_completed", "context_stale", "delivery_authorized", "delivery_blocked", "publication_requested", "child_started", "child_completed", "child_accepted", "child_partial", "child_rejected", "child_stale", "child_needs_human", "verdict_received", "gate_evaluated", "gate_invalidated", "repair_round_started", "escalation_required", "update_started", "update_partial", "update_completed", "migration_started", "migration_completed", "recovery_required", "unknown_tool_classification", "adapter_unavailable", "host_registration_missing", "event_write_failed"]},
+    "event_class": {"enum": ["PROJECT_HISTORY", "RUN_AUDIT", "DIAGNOSTIC"]},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "run_id": {"type": "string", "pattern": "^RUN-[A-Za-z0-9-]{4,80}$"},
+    "parent_run_id": {"type": ["string", "null"], "pattern": "^RUN-[A-Za-z0-9-]{4,80}$"},
+    "project_identity": {"type": "string", "minLength": 1, "maxLength": 80},
+    "mission_id": {"type": ["string", "null"], "maxLength": 100},
+    "wave_id": {"type": ["string", "null"], "maxLength": 80},
+    "actor": {"type": "string", "minLength": 1, "maxLength": 100},
+    "capability": {"type": ["string", "null"], "maxLength": 100},
+    "host": {"enum": ["claude_code", "concord", "studio_pro", "mxagile", "unknown"]},
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "delegation_id": {"type": "string", "maxLength": 100},
+        "request_id": {"type": "string", "maxLength": 100},
+        "handoff_reference": {"type": "string", "maxLength": 500},
+        "result_reference": {"type": "string", "maxLength": 500},
+        "verdict_reference": {"type": "string", "maxLength": 500},
+        "gate_event_id": {"type": "string", "maxLength": 100}
+      }
+    },
+    "payload": {
+      "type": "object",
+      "maxProperties": 32,
+      "properties": {
+        "reason_codes": {"type": "array", "maxItems": 32, "items": {"type": "string", "maxLength": 100}},
+        "recovery": {"type": "string", "maxLength": 100},
+        "operation_class": {"type": "string", "maxLength": 80},
+        "tool_name": {"type": "string", "maxLength": 160},
+        "acceptance_status": {"enum": ["ACCEPTED", "PARTIAL", "REJECTED", "STALE", "NEEDS_HUMAN"]},
+        "gate_result": {"enum": ["PASS", "PARTIAL", "FAIL", "STALE", "UNAVAILABLE", "NEEDS_HUMAN"]},
+        "verdict": {"enum": ["pass", "partial", "fail", "stale", "unavailable", "needs_human"]},
+        "round": {"type": "integer", "minimum": 1},
+        "input_fingerprint": {"type": "object", "maxProperties": 64, "additionalProperties": {"type": "string", "maxLength": 200}},
+        "evidence_references": {"type": "array", "maxItems": 64, "items": {"type": "string", "maxLength": 500}},
+        "result_reference": {"type": "string", "maxLength": 500},
+        "source_commit": {"type": "string", "maxLength": 80},
+        "target_commit": {"type": "string", "maxLength": 80}
+      },
+      "additionalProperties": true
+    }
+  }
+}

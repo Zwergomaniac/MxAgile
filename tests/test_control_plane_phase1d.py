@@ -36,8 +36,10 @@ class DoctorControlPlaneHealthTests(unittest.TestCase):
     def install(self) -> None:
         target = self.root / ".mxagile/tools/control-plane"
         target.mkdir(parents=True)
-        for name in project_compatibility.CONTROL_PLANE_COMPONENTS:
+        for name in ("guard.py", "enforcement.py", "child_contract.py", "control-plane-verdict.schema.json"):
             shutil.copy2(ROOT / "experiments/control-plane" / name, target / name)
+        for name in ("run_events.py", "run-event.schema.json"):
+            shutil.copy2(ROOT / "scripts" / name, target / name)
         (self.root / ".mxagile/schemas").mkdir(parents=True)
         shutil.copy2(ROOT / ".mxagile/schemas/delegation-handoff.schema.json", self.root / ".mxagile/schemas")
         subprocess.run(["pwsh", "-NoProfile", "-File", str(REGISTER), "-SettingsPath", str(self.root / ".claude/settings.json")],
@@ -100,16 +102,38 @@ class PublicationGateTests(Phase1BFixture):
                 self.assertEqual((result["operation_class"], result["decision"]), ("PUBLICATION", "ask"))
                 self.assertEqual(enforcement.hook_output(result)["hookSpecificOutput"]["permissionDecision"], "ask")
         self.assertEqual(self.hook("Bash", {"command": "git merge feature"})["decision"], "allow")
+        event_types = [event["event_type"] for event in enforcement.run_events.read_events(self.root)["events"]]
+        self.assertIn("delivery_authorized", event_types)
+        self.assertEqual(event_types.count("publication_requested"), 3)
 
 
 class ChildAcceptanceStateTests(AcceptanceFixture):
     def test_input_change_during_child_run_is_stale(self):
         handoff = self.visual_handoff(CLOSED)
         verdict = self.verdict(handoff, [self.evidence("default"), self.evidence("modal_open")])
+        accepted, _ = self.save(handoff, verdict)
+        self.assertEqual(accepted["acceptance"], "ACCEPTED")
+        pass_event = next(event for event in enforcement.run_events.read_events(self.root)["events"]
+                          if event["event_type"] == "gate_evaluated" and event["payload"].get("gate_result") == "PASS")
         self.write("input-resources/ui-ux/orders/index.html", "<html>orders REV-038</html>\n")
         saved, read = self.save(handoff, verdict)
         self.assertEqual((saved["acceptance"], saved["reusable"]), ("STALE", False))
         self.assertEqual((read["state"], read["reusable"]), ("STALE", False))
+        events = enforcement.run_events.read_events(self.root)["events"]
+        invalidation = next(event for event in events if event["event_type"] == "gate_invalidated")
+        self.assertEqual(invalidation["correlation"]["gate_event_id"], pass_event["event_id"])
+        self.assertIn(pass_event, events)
+
+    def test_child_acceptance_events_keep_parent_correlation_and_execution_order(self):
+        parent = "RUN-aabbccddeeff"
+        handoff = self.visual_handoff(CLOSED, parent_run_id=parent)
+        saved, _ = self.save(handoff, self.verdict(handoff, [self.evidence("default"), self.evidence("modal_open")]))
+        self.assertEqual(saved["acceptance"], "ACCEPTED")
+        events = [event for event in enforcement.run_events.read_events(self.root)["events"] if event["run_id"] == handoff["run_id"]]
+        self.assertEqual([event["event_type"] for event in events],
+                         ["verdict_received", "gate_evaluated", "child_completed", "child_accepted"])
+        self.assertTrue(all(event["parent_run_id"] == parent for event in events))
+        self.assertEqual([event["sequence"] for event in events], [1, 2, 3, 4])
 
     def test_successful_child_exit_is_not_delivery_success(self):
         cases = {

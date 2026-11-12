@@ -164,6 +164,36 @@ if (-not [string]::IsNullOrEmpty($CompactionSummary)) {
 }
 
 # ---------------------------------------------------------------------------
+# Rebuild run context from validated events, without treating it as lifecycle authority
+# ---------------------------------------------------------------------------
+$runHistoryState = 'UNAVAILABLE'
+$unresolvedRuns = @()
+$staleRunInputs = @()
+$unobservableRunInputs = @()
+$runHistoryCanonical = $null
+$invalidRunEventLines = 0
+$partialRunEventTails = 0
+$runEventScript = Join-Path $ProjectRoot '.mxagile\tools\control-plane\run_events.py'
+if (-not (Test-Path -LiteralPath $runEventScript)) { $runEventScript = Join-Path $PSScriptRoot 'run_events.py' }
+$python = Get-Command python -ErrorAction SilentlyContinue
+if ($python -and (Test-Path -LiteralPath $runEventScript)) {
+    $runHistoryOutput = & $python.Source -B $runEventScript --project-root $ProjectRoot resume 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        try {
+            $runHistory = (($runHistoryOutput -join "`n") | ConvertFrom-Json)
+            $unresolvedRuns = @($runHistory.unresolved_runs)
+            $staleRunInputs = @($unresolvedRuns | Where-Object { $_.input_state -eq 'STALE' })
+            $unobservableRunInputs = @($unresolvedRuns | Where-Object { $_.input_state -eq 'NOT_OBSERVABLE' })
+            $runHistoryCanonical = $runHistory.canonical_state
+            $invalidRunEventLines = [int]$runHistory.event_log.invalid_lines
+            $partialRunEventTails = [int]$runHistory.event_log.partial_tail_files
+            $runHistoryState = if ($invalidRunEventLines -gt 0 -or $partialRunEventTails -gt 0) { 'DEGRADED' }
+                elseif ($runHistory.event_log.total_valid -eq 0) { 'EMPTY' } else { 'AVAILABLE' }
+        } catch { $runHistoryState = 'INVALID' }
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Step 7: Verify idempotency ID if supplied
 # ---------------------------------------------------------------------------
 if (-not [string]::IsNullOrEmpty($ExpectedTransitionRequestId)) {
@@ -217,6 +247,13 @@ Write-Host "Post-compaction Re-Sync completed: $($checkpoint.EpochId)" -Foregrou
 Write-Host "Mission: $($checkpoint.MissionId) — $($checkpoint.MissionObjective)" -ForegroundColor Cyan
 Write-Host "Phase: $($checkpoint.CurrentPhase)" -ForegroundColor Cyan
 Write-Host "Next action: $($checkpoint.NextAction)" -ForegroundColor Cyan
+Write-Host "Run history: $runHistoryState; unresolved=$($unresolvedRuns.Count); stale-inputs=$($staleRunInputs.Count); unobservable-inputs=$($unobservableRunInputs.Count); invalid-lines=$invalidRunEventLines; partial-tails=$partialRunEventTails" -ForegroundColor Gray
+if ($runHistoryCanonical) {
+    Write-Host "Run context canonical re-read: Mission=$($runHistoryCanonical.mission_id); Wave=$($runHistoryCanonical.wave_id)/$($runHistoryCanonical.wave_phase); HEAD=$($runHistoryCanonical.head); branch=$($runHistoryCanonical.branch); blockers=$(@($runHistoryCanonical.lifecycle_findings) -join ',')" -ForegroundColor Gray
+}
+foreach ($run in $unresolvedRuns) {
+    Write-Host "  RUN $($run.run_id): $($run.status) / $($run.input_state) / $($run.reconciliation_state)" -ForegroundColor Yellow
+}
 if ($conflicts.Count -gt 0) {
     Write-Host "Re-Sync conflicts (diagnostic): $($conflicts -join '; ')" -ForegroundColor Yellow
 }
@@ -237,6 +274,13 @@ return [PSCustomObject]@{
     CheckpointValid           = $true
     ResyncConflicts           = [string[]]$conflicts.ToArray()
     StaleClaimsCount          = $staleClaimsCount
+    RunHistoryState           = $runHistoryState
+    UnresolvedRuns            = $unresolvedRuns
+    StaleRunInputs             = $staleRunInputs
+    UnobservableRunInputs      = $unobservableRunInputs
+    InvalidRunEventLines       = $invalidRunEventLines
+    PartialRunEventTails       = $partialRunEventTails
+    CanonicalRunState          = $runHistoryCanonical
     PostCompactionTime        = $now
     RequiresUserInput         = $requiresUserInput
 }

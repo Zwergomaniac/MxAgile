@@ -353,6 +353,22 @@ if (-not (Test-Path -LiteralPath $concordDir -PathType Container)) {
 
 $targetPath = Join-Path $concordDir "context-epoch.yaml"
 $tmpPath    = Join-Path $concordDir "context-epoch.yaml.tmp"
+$resyncRunId = "RUN-$([Guid]::NewGuid().ToString('N').Substring(0, 12))"
+function Write-ResyncEvent {
+    param([string]$EventType)
+    $writer = Join-Path $ProjectRoot '.mxagile/tools/control-plane/run_events.py'
+    if (-not (Test-Path -LiteralPath $writer)) { $writer = Join-Path $PSScriptRoot 'run_events.py' }
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $python -or -not $git -or -not (Test-Path -LiteralPath $writer)) { return }
+    & $git.Source -C $ProjectRoot check-ignore --quiet -- '.mxagile/state/runs/events-PROJECT_HISTORY-2099-12.jsonl' 2>$null
+    if ($LASTEXITCODE -ne 0) { return }
+    $payload = @{ epoch_id = $EpochId; rollover_reason = $RolloverReason; current_phase = $detectedPhase } | ConvertTo-Json -Compress
+    $eventCode = 'import json,sys; from pathlib import Path; sys.path.insert(0,str(Path(sys.argv[1]).resolve().parent)); import run_events; run_events.append_event(Path(sys.argv[2]),sys.argv[3],run_id=sys.argv[4],mission_id=sys.argv[5] or None,wave_id=sys.argv[6] or None,actor="lifecycle_resync",host="mxagile",payload=json.loads(sys.argv[7]))'
+    & $python.Source -B -c $eventCode $writer $ProjectRoot $EventType $resyncRunId $MissionId $detectedWave $payload | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Warning "Lifecycle event audit unavailable: $EventType" }
+}
+Write-ResyncEvent 'lifecycle_resync_started'
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [System.IO.File]::WriteAllText($tmpPath, $yaml, $utf8NoBom)
@@ -374,6 +390,7 @@ if (Test-Path -LiteralPath $targetPath) {
 Move-Item -LiteralPath $tmpPath -Destination $targetPath -Force
 
 Write-Host "Checkpoint written: $targetPath" -ForegroundColor Green
+Write-ResyncEvent 'lifecycle_resync_completed'
 
 # ---------------------------------------------------------------------------
 # Optional: handoff copy to planning/lifecycle/

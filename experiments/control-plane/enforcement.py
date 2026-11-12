@@ -17,6 +17,12 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import guard  # noqa: E402
 
+try:
+    import run_events
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+    import run_events  # type: ignore[no-redef]
+
 READ = "READ"
 IMPLEMENTATION_WRITE = "IMPLEMENTATION_WRITE"
 EVIDENCE_WRITE = "EVIDENCE_WRITE"
@@ -73,6 +79,46 @@ HANDOFF_DIR = ".concord/delegation-handoffs/"
 
 def new_run_id() -> str:
     return f"RUN-{uuid.uuid4().hex[:12]}"
+
+
+def _persist_event(root: Path, result: dict[str, Any], payload: dict[str, Any], run_id: str) -> None:
+    event_type = result.get("event", {}).get("type")
+    if not event_type:
+        return
+    tool_name = str(payload.get("tool_name") or "")
+    host = "concord" if "concord" in tool_name.lower() else (
+        "studio_pro" if "mendix-studio-pro" in tool_name.lower() else "claude_code")
+    verdict = result.get("verdict") or {}
+    codes = [item.get("code") for item in verdict.get("must_findings", []) if item.get("code")]
+    if event_type == "child_started":
+        handoff = result.get("handoff") or {}
+        run_id = handoff.get("run_id") or run_id
+        parent_run_id = handoff.get("parent_run_id")
+        mission_id = handoff.get("mission_id")
+        wave_id = (handoff.get("delivery_context") or {}).get("wave_id")
+        capability = handoff.get("capability")
+        correlation = {key: value for key, value in {
+            "delegation_id": handoff.get("delegation_id"),
+            "handoff_reference": result.get("handoff_reference"),
+        }.items() if value is not None}
+    else:
+        parent_run_id = None
+        mission_id = verdict.get("mission_id")
+        wave_id = verdict.get("wave_id")
+        capability = None
+        correlation = {}
+    try:
+        run_events.append_event(
+            root, event_type, run_id=run_id, parent_run_id=parent_run_id,
+            mission_id=mission_id, wave_id=wave_id, capability=capability,
+            actor=tool_name or "claude_code", host=host, correlation=correlation,
+            payload={key: value for key, value in {
+                "reason_codes": codes, "recovery": result.get("recovery"),
+                "operation_class": result.get("operation_class"), "tool_name": tool_name,
+            }.items() if value is not None},
+        )
+    except Exception as exc:
+        print(f"MxAgile event audit unavailable: {type(exc).__name__}", file=sys.stderr)
 
 
 def classify_path(root: Path, raw: str) -> str:
@@ -187,14 +233,17 @@ def _spawn_decision(facts: guard.ProjectFacts, payload: dict[str, Any], run_id: 
     }
     verdict = guard.can_delegate(facts, request)
     if verdict["verdict"] == "pass":
-        return {"decision": "allow", "reason": "can_delegate pass", "verdict": verdict}
+        return {"decision": "allow", "reason": "can_delegate pass", "verdict": verdict,
+            "handoff": handoff, "handoff_reference": canonical}
     reason, recovery = _blocking(verdict)
-    return {"decision": "deny", "reason": reason, "recovery": recovery, "verdict": verdict}
+    return {"decision": "deny", "reason": reason, "recovery": recovery, "verdict": verdict,
+            "handoff": handoff, "handoff_reference": canonical}
 
 
 def decide(project_root: str | Path, payload: dict[str, Any]) -> dict[str, Any]:
     root = Path(project_root).resolve()
-    run_id = new_run_id()
+    requested_run_id = os.environ.get("MXAGILE_RUN_ID", "")
+    run_id = requested_run_id if re.fullmatch(r"RUN-[A-Za-z0-9-]{4,80}", requested_run_id) else new_run_id()
     try:
         op_class, detail = classify_tool_call(root, payload)
     except Exception:  # an unclassifiable call is treated as critical
@@ -221,10 +270,11 @@ def decide(project_root: str | Path, payload: dict[str, Any]) -> dict[str, Any]:
             result.update({"decision": "deny", "reason": f"GUARD_UNAVAILABLE: {type(exc).__name__}", "recovery": "inspect"})
     result["event"] = {
         "type": ("child_started" if op_class == CHILD_SPAWN else "delivery_authorized") if result["decision"] == "allow" and op_class in ENFORCED
-        else ("delivery_blocked" if result["decision"] == "deny" else ("publication_approval_required" if op_class == PUBLICATION else None)),
+        else ("delivery_blocked" if result["decision"] == "deny" else ("publication_requested" if op_class == PUBLICATION else None)),
         "run_id": (result.get("verdict") or {}).get("run_id") or run_id,
         "operation_class": op_class,
     }
+    _persist_event(root, result, payload, run_id)
     return result
 
 

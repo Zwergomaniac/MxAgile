@@ -125,8 +125,9 @@ try {
     Assert-True 'no active update transaction remains after a clean update' (-not (Test-Path (Join-Path $project '.mxagile/state/update-transaction.json'))) 'transaction left behind'
     $preserved = @($owned.Keys | Where-Object { (Get-FileHash (Join-Path $project $_)).Hash -eq $ownedHashes[$_] })
     Assert-True 'project-owned lifecycle state is preserved byte-identically' ($preserved.Count -eq $owned.Count) "preserved=$($preserved.Count)/$($owned.Count)"
-    $installedAdapter = @('guard.py', 'enforcement.py', 'child_contract.py', 'control-plane-verdict.schema.json') | Where-Object { -not (Test-Path (Join-Path $project ".mxagile/tools/control-plane/$_")) }
+    $installedAdapter = @('guard.py', 'enforcement.py', 'child_contract.py', 'control-plane-verdict.schema.json', 'run_events.py', 'run-event.schema.json') | Where-Object { -not (Test-Path (Join-Path $project ".mxagile/tools/control-plane/$_")) }
     Assert-True 'update distributes the control-plane adapter into .mxagile/tools/control-plane' (@($installedAdapter).Count -eq 0) "missing=$($installedAdapter -join ',')"
+    Assert-True 'runtime run/event store is gitignored' ((Get-Content (Join-Path $project '.gitignore') -Raw) -match '(?m)^\.mxagile/state/runs/$') 'event store ignore rule missing'
     Assert-True 'update reports the hook registration' (($update -join "`n") -match 'CONTROL_PLANE_HOOK: REGISTERED') (($update | Select-String 'CONTROL_PLANE_HOOK') -join ';')
     $groups = @(Get-PreToolGroups $project)
     $ownedGroups = @($groups | Where-Object { Test-OwnedGroup $_ })
@@ -167,6 +168,8 @@ try {
 
     Write-Host '--- 5. Re-sync, then use the new guard on the upgraded project ---' -ForegroundColor Cyan
     & pwsh -NoProfile -File (Join-Path $RepoRoot 'scripts/Write-MxAgileEpochCheckpoint.ps1') -ProjectRoot $project -MissionId 'MISSION-2026-11-11-upgrade' | Out-Null
+    $runEvents = (& python (Join-Path $project '.mxagile/tools/control-plane/run_events.py') --project-root $project read | ConvertFrom-Json)
+    Assert-True 're-sync lazily initializes audit history with start/completed events' (@($runEvents.events | Where-Object { $_.event_type -in @('lifecycle_resync_started', 'lifecycle_resync_completed') }).Count -ge 2) "events=$($runEvents.total_valid)"
     $ready = Invoke-Guard $project $transition
     Assert-True 'upgraded legacy project passes the transition guard after re-sync' ($ready.verdict -eq 'pass') (($ready.must_findings | ForEach-Object code) -join ',')
     Assert-True 'legacy Wave without testability_gate is tolerated, not required' (@($ready.should_findings | ForEach-Object code) -contains 'LEGACY_GATE_NOT_RECORDED') 'advisory missing'

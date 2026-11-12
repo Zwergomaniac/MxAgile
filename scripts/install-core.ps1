@@ -221,7 +221,7 @@ function Add-ContextModeRuntimeGitIgnore {
         [System.IO.File]::ReadAllText($gitignorePath)
     } else { '' }
     $existing = @($content -split '\r?\n' | ForEach-Object { $_.Trim().TrimStart('/').Replace('\', '/') })
-    $required = @('.context-mode/', '.github/context-mode/')
+    $required = @('.context-mode/', '.github/context-mode/', '.mxagile/state/runs/')
     $missing = @($required | Where-Object { $_ -notin $existing })
     if ($missing.Count -eq 0) { return }
 
@@ -687,7 +687,12 @@ try {
         }
         Copy-Item -LiteralPath $controlPlaneFileSource -Destination (Join-Path $controlPlaneDest $controlPlaneFile) -Force
     }
-    Write-Host '[OK] Distributed .mxagile/tools/control-plane/ (guard, host adapter, child acceptance).'
+    foreach ($runEventFile in @(@{ Source = (Join-Path $PSScriptRoot 'run_events.py'); Name = 'run_events.py' },
+                                 @{ Source = (Join-Path $PSScriptRoot 'run-event.schema.json'); Name = 'run-event.schema.json' })) {
+        if (-not (Test-Path -LiteralPath $runEventFile.Source -PathType Leaf)) { throw "Run event component missing: $($runEventFile.Source)" }
+        Copy-Item -LiteralPath $runEventFile.Source -Destination (Join-Path $controlPlaneDest $runEventFile.Name) -Force
+    }
+    Write-Host '[OK] Distributed .mxagile/tools/control-plane/ (guard, adapter, acceptor, run-event writer/schema).'
     $hookRegistration = & (Join-Path $PSScriptRoot 'Register-MxAgileControlPlaneHook.ps1') -SettingsPath (Join-Path $ProjectRoot '.claude\settings.json')
     $hookStatus = ($hookRegistration | ConvertFrom-Json).status
     if ($hookStatus -eq 'UNKNOWN_OWNERSHIP') {
@@ -895,6 +900,8 @@ try {
                 ".mxagile/tools/control-plane/enforcement.py",
                 ".mxagile/tools/control-plane/child_contract.py",
                 ".mxagile/tools/control-plane/control-plane-verdict.schema.json",
+                ".mxagile/tools/control-plane/run_events.py",
+                ".mxagile/tools/control-plane/run-event.schema.json",
                 ".mxagile/tools/requirements.txt"
             )
         }
