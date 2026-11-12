@@ -15,11 +15,13 @@ spec.loader.exec_module(impact)
 class ImpactTests(unittest.TestCase):
     def test_doctor_is_narrow(self):
         plan = impact.select(["scripts/project_compatibility.py"])
-        self.assertEqual(plan["suites"], ["test_control_plane_phase1d.py", "test_parity_gallery.py", "test_project_status.py"])
+        self.assertEqual(plan["suites"], ["test_control_plane_phase1d.py", "test_control_plane_phase2.py", "test_parity_gallery.py", "test_project_status.py"])
         self.assertEqual(plan["tier"], 1)
 
     def test_board_includes_consumers(self):
-        self.assertIn("test-board-authority.ps1", impact.select([".mxagile/board/board.js"])["suites"])
+        suites = impact.select([".mxagile/board/board.js"])["suites"]
+        self.assertIn("test-board-authority.ps1", suites)
+        self.assertIn("test_run_activity_board.py", suites)
 
     def test_installer_requires_integration(self):
         self.assertEqual(impact.select(["scripts/install-core.ps1"])["tier"], 3)
@@ -29,13 +31,25 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-control-plane-upgrade-from-baseline.ps1", "test_control_plane_guard.py",
                                           "test_control_plane_phase1b.py", "test_control_plane_phase1c.py",
-                                          "test_control_plane_phase1d.py"])
+                                          "test_control_plane_phase1d.py", "test_control_plane_phase2.py"])
 
     def test_control_plane_hook_registration_selects_registration_and_upgrade_suites(self):
         plan = impact.select(["scripts/Register-MxAgileControlPlaneHook.ps1"])
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-control-plane-hook-registration.ps1", "test-control-plane-upgrade-from-baseline.ps1",
                                           "test_control_plane_phase1d.py"])
+
+    def test_run_event_writer_selects_contract_persistence_board_and_upgrade_suites(self):
+        plan = impact.select(["scripts/run_events.py", "scripts/run-event.schema.json"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["tier"], 2)
+        self.assertEqual(plan["suites"], ["test-control-plane-upgrade-from-baseline.ps1", "test_control_plane_phase2.py",
+                                          "test_run_activity_board.py", "test_run_events.py"])
+
+    def test_post_compaction_resync_selects_resume_reconciliation_suites(self):
+        plan = impact.select(["scripts/Invoke-MxAgilePostCompactionResync.ps1"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["suites"], ["test-context-transition-coordinator.ps1", "test_run_events.py"])
 
     def test_company_layer_update_lifecycle_selects_safety_suites_and_release_gate(self):
         plan = impact.select([
@@ -248,6 +262,7 @@ class ImpactTests(unittest.TestCase):
             "test_board_performance.py",
             "test_parity_gallery.py",
             "test_project_status.py",
+            "test_run_activity_board.py",
         ])
 
     def test_generated_agent_projection_selects_projection_consumers(self):

@@ -349,21 +349,17 @@ with `human_resolution`; no Wave is inferred.
 
 ### Event readiness (audit only)
 
-Guard, adapter, gate and acceptance results carry an `event` candidate (`delivery_authorized`,
+In Phase 1B these components only returned an event candidate (`delivery_authorized`,
 `delivery_blocked`, `child_started`, `child_completed`, `child_rejected`, `gate_evaluated`,
-`gate_invalidated`, `repair_round_started`, `recovery_required`) with an ephemeral `run_id`
-(`RUN-<12 hex>`) and `parent_run_id`. Nothing is persisted. Events document what canonical
-evaluation decided; they never become lifecycle truth (`event says verified` does not imply
-`verified`). No event taxonomy is fixed yet.
+`gate_invalidated`, `repair_round_started`, `recovery_required`) with ephemeral IDs. Phase 2 now
+persists the deterministic subset described below. Events document what canonical evaluation
+decided; they never become lifecycle truth (`event says verified` does not imply `verified`).
 
 ### Phase 2 follow-ups
 
-Wire and migrate the adapter into generated host settings via the existing settings merge;
-Concord/VS Code adapters; Studio-Pro model-unit observation; mandatory acceptance in the delegated
-result reader; append-only run/event log with schema/versioning, size limits, parent/child
-correlation, review rounds, interrupt/resume, compaction recovery, update/migration history,
-retention/archival; DevBoard timeline, recent activity and current runs as projections. Re-use the
-private SAK (`D:\User Testing\spec-agent-kit`) as reference for these.
+Remaining after Phase 2: Concord/VS Code adapters; Studio-Pro model-unit observation; update/migration
+event producers; archival and major-schema migration; lifecycle-owned event for every canonical
+transition. Re-use the private SAK (`D:\User Testing\spec-agent-kit`) as reference.
 
 ## Phase 1C: Host Distribution, Mandatory Acceptance, Concord
 
@@ -470,32 +466,41 @@ reader then reported `NOT_REFERENCED`. Line endings now follow the checkpoint.
 - Not enforced: VS Code Copilot hooks, Copilot CLI, non-Claude hosts; interpreter-based writes.
 - Doctor: hook registration state was `NOT_IMPLEMENTED` in Phase 1C (added in Phase 1D).
 
-### Phase 2 run/event persistence (design, not implemented)
+### Phase 2 run/event persistence (implemented subset)
 
 | Question | Decision candidate |
 |---|---|
-| Location | `.concord/runs/<YYYY-MM>/events.jsonl`, project-local, Git-ignored; never under `planning/` |
-| Format | append-only JSON Lines, one event per line, UTF-8, LF |
-| Schema/versioning | `.mxagile/schemas/run-event.schema.json`, `schema_version` per line; readers skip unknown majors |
-| Identity | `event_id` (ULID), `run_id`, `parent_run_id`, `delegation_id`, `mission_id`, `wave_id`, `epoch_id` |
-| Classes | `PROJECT_HISTORY` (gate/lifecycle consequences, update/migration), `RUN_AUDIT` (delivery/child/round/verdict), `DIAGNOSTIC` (guard unavailable, hook errors) |
-| Writer | only deterministic framework code (guard adapter, saver, gate, lifecycle tools); never an agent free-text write |
-| Concurrency | open-append-close per event, line < 4 KiB, no rewrite; partial last line is ignored on read |
-| Size/retention | monthly files, `DIAGNOSTIC` capped and rotated, `RUN_AUDIT` archived after N months, `PROJECT_HISTORY` kept |
-| Failure semantics | event write failure never changes a decision; it yields a DIAGNOSTIC on stderr |
-| Truth rule | events document evaluated outcomes; canonical state is re-derived, never read from events |
-| Review rounds / repair | `round` and `repair_round_started` correlate via `run_id` + `delegation_id` |
-| Interrupt/resume, compaction | resume re-derives from canonical sources; the log only explains what ran before |
-| Update/migration history | install-core/migration emit `PROJECT_HISTORY` with previous/current commit |
-| Privacy | no prompts, file contents or secrets; codes, ids, paths, hashes only |
-| DevBoard | two layers: current canonical state (existing projection) + operational history (timeline, recent activity, current runs) read from the log |
+| Location | `.mxagile/state/runs/events-<CLASS>-<YYYY-MM>.jsonl`, project-local and `.gitignore`d; never under `planning/` |
+| Format | append-only JSON Lines, UTF-8, LF; lazy creation keeps eventless legacy consumers valid |
+| Schema/versioning | `scripts/run-event.schema.json`, installed at `.mxagile/tools/control-plane/run-event.schema.json`; integer `schema_version: 1`; additive unknown envelope fields are accepted, unknown event types/major versions rejected |
+| Identity | `event_id` (`EVT-` + UUID hex), `run_id`, optional `parent_run_id`, local path-derived `project_identity`, Mission/Wave, actor/capability/host, correlation references, structured payload |
+| Classes | `PROJECT_HISTORY` (lifecycle resync/update/migration), `RUN_AUDIT` (delivery/child/round/verdict), `DIAGNOSTIC` (adapter/registration/event writer failures) |
+| Producers | Guard adapter emits relevant authorization/block/publication and child-start events; Save/Get acceptor emits verdict/gate/child completion/acceptance/invalidation/repair; checkpoint writer emits resync start/completion |
+| Ordering | `sequence` is monotonic per `run_id` across files/classes; a short project append lock protects sequence allocation and append. Different run IDs have no global causal order; UI sorts by UTC timestamp then run/sequence |
+| Atomicity / crash | validate before append; one compact line < 8 KiB, flush + fsync; readers skip/count invalid complete lines and ignore partial tail; next append truncates only that partial tail |
+| Limits / retention | 5 MiB per monthly stream, 100 MiB total; `DIAGNOSTIC` 30 days, `RUN_AUDIT` 180 days, `PROJECT_HISTORY` retained; no zip archive yet |
+| Failure semantics | event write failure never changes authorization or acceptance; producer warns on stderr |
+| Truth rule | events document evaluated outcomes; they are never read by lifecycle evaluators and never authorize a transition |
+| Interrupt/resume | Existing `Invoke-MxAgilePostCompactionResync.ps1` calls `run_events.py resume`; re-reads Guard facts (Mission/Wave/HEAD/branch/blockers), verifies unresolved child inputs against the canonical handoff, reports `RESULT_UNKNOWN` / `NEEDS_RECONCILIATION` and `STALE`; event log alone cannot prove a process is still alive |
+| Update/migration history | event vocabulary is reserved; update/migration producers are not wired in this increment |
+| Privacy | no prompts or file contents; reason codes, IDs, allowlisted references and fingerprints only |
+| DevBoard | Current State remains the existing artefact projection; separate Run Activity API/UI renders validated run events, unresolved runs and allowlisted evidence/reference links |
 
 ### DevBoard target picture
 
-Layer 1 stays the canonical projection (Mission, Waves, gates, artifacts, Doctor). Layer 2 adds
-read-only operational history from the run/event log: current runs (open `run_id` without end
 event), recent activity, per-Wave timeline. Layer 2 can never change Layer 1; a missing or
-corrupt log only hides Layer 2.
+Layer 1 stays the canonical projection (Mission, Waves, gates, artifacts, Doctor). Layer 2 is a
+read-only Run Activity view with filters (Delivery, Child Agents, Verification, Gates, Recovery,
+Updates/Migrations, Warnings/Blocks), chronological events and unresolved runs. A start without a
+terminal event is `RESULT_UNKNOWN`, not proof of `RUNNING`, success, or failure. Event appends
+change the existing `/api/revision` response; polling refreshes only Run Activity when canonical
+status is unchanged. Corrupt/missing history never changes Layer 1.
+
+Implemented producers are deterministic: enforcement, child acceptance, and the checkpoint
+writer. A caller may set `MXAGILE_RUN_ID` to correlate parent-tool events; handoffs can carry
+`parent_run_id` explicitly (or via `MXAGILE_PARENT_RUN_ID`). Without either, the system does not
+invent a parent. Resume output includes current Guard facts plus unresolved run/event correlation;
+the agent must still re-sync and independently revalidate inputs before resuming work.
 
 ## Phase 1D: Live Host Reality
 
@@ -604,20 +609,31 @@ retention; board state from `run.json`/specs/Git, stations/verdicts from events.
 must close: no parent/child ids, no sequence numbers, no fsync/append lock, no local rotation, no
 event-version migration, no explicit "events are not truth" rule, no validation before board use.
 
-| Area | MxAgile Phase 2 decision candidate |
+| SAK mechanism | MxAgile disposition |
 |---|---|
-| Event semantics | `run.started/completed`, `child.started/completed/rejected` (parent/child via `parent_run_id`), `lifecycle.resynced`, `delivery.authorized/blocked`, `publication.approval_required`, `verdict.received`, `gate.evaluated/invalidated`, `repair_round.started`, `run.escalated`, `update.installed`, `migration.step`, `recovery.required` |
-| Location / format | `.concord/runs/events-<YYYY-MM>.jsonl`, Git-ignored, JSONL, UTF-8, LF |
-| Schema / migration | `mxagile.event/1`; additive within a major; readers reject unknown majors; old majors converted by a deterministic idempotent importer (SAK pattern) |
-| Atomicity / append | one `write` of a complete line (< 8 KB) under an `O_EXCL` lock file with TTL; partial trailing line ignored |
-| Ordering / sequence | per-file monotonic `seq` plus ULID; readers order by `(ts, seq, event_id)` |
-| Crash recovery | skip and count invalid lines; never repair in place |
-| Retention / size / archive | monthly rotation; `DIAGNOSTIC` 30 days; `RUN_AUDIT` archived (zip) after 6 months; `PROJECT_HISTORY` kept |
-| Classes | `PROJECT_HISTORY`, `RUN_AUDIT`, `DIAGNOSTIC` |
-| Truth model | events = audit/history; lifecycle state only from canonical artifacts; events validated against the schema before any projection |
-| DevBoard | Current State from canonical artifacts; Timeline from validated events; Active Runs from `run.started` without completion, correlated parent/child; Recent Activity filtered to `PROJECT_HISTORY` + escalations |
+| Strict versioned event envelope and validation before ingest | ADAPT_FOR_MXAGILE: Draft-7 schema; reject invalid event types/major, allow additive unknown envelope fields |
+| JSONL append, flush, complete-line reads | DIRECTLY_USEFUL: adopt append-only JSONL, validate, flush + fsync, ignore partial tail and repair only that tail on next append |
+| Separate run JSON as state authority | HARMFUL_FOR_MXAGILE: no second `run-state.json`; events are the only run-history store and remain audit-only |
+| `run_id`, round, station, verdict and escalation events | ADAPT_FOR_MXAGILE: correlate by run/parent/delegation; do not copy SAK station names as lifecycle semantics |
+| Per-run local event log, dashboard SQLite ingest | ADAPT_FOR_MXAGILE: local monthly class streams; no database, outbox, remote ingest or portfolio merge |
+| Outbox cursor (byte offset + first-line identity), complete-line batching and push lock | NOT_NEEDED: MxAgile is local-only; partial tails are handled locally, no remote publication queue or network lock |
+| Dashboard ingest validates each event, stores only parsed contract objects, `INSERT OR IGNORE` deduplicates by event ID | ADAPT_FOR_MXAGILE: validate before local projection and count invalid lines; local append locks serialize sequence allocation; no central database |
+| Dashboard event queries order by `(ts,event_id)`, recent-descending versus incremental-ascending | ADAPT_FOR_MXAGILE: event history is oldest-to-newest; `sequence` is per run, so parallel runs are never causally linearized |
+| Legacy pipeline migration: dry-run first, explicit apply, deterministic IDs, unmappable entries reported, existing runs preserved | DIRECTLY_USEFUL for future import tooling; do not infer MxAgile lifecycle state from imported events; no importer is implemented |
+| Dashboard SQL schema migrations v1/v2 and retained old table for rollback | NOT_NEEDED: no local event database; project install/update continues through `install-core`, with event files lazily created |
+| SAK run-ID lexical format | NOT_NEEDED: preserve existing `RUN-<12 hex>` IDs from Phase 1 |
+| Local lock-file TTL, run-lock state machine | ADAPT_FOR_MXAGILE: bounded OS append locks, no run lock/parallel lifecycle state |
+| 8 KB event limit and dashboard 30-day retention | ADAPT_FOR_MXAGILE: 8 KiB line, 5 MiB/month/class stream, 100 MiB total, class-specific 30/180-day retention |
+| SAK board's current state plus run/event projection | DIRECTLY_USEFUL: existing MxAgile Current State remains canonical; separate Run Activity projection |
+| SAK ticker from Git, project aggregation | NOT_NEEDED: Git history already has its own MxAgile Timeline; no central dashboard aggregation |
+| Event replay as run state | HARMFUL_FOR_MXAGILE: no event-sourced lifecycle replay; additive v1 reader, canonical state re-derived |
+| SAK explicit non-canonical event rule | ADAPT_FOR_MXAGILE: strengthen as a non-negotiable contract (events never authorize transitions) |
 
-Not implemented in Phase 1D.
+Phase 2 implements the run-event schema, writer, bounded retention, Guard/Child/Resync producers,
+resume reconciliation in the existing post-compaction routine, and separate DevBoard Run
+Activity/Unresolved Runs view. Update/migration producers, append archives, automatic parent-run
+ID provisioning, post-execution drift, and a complete lifecycle-transition producer remain
+NOT_IMPLEMENTED.
 
 ## Open Findings and Limits
 
@@ -631,7 +647,7 @@ Not implemented in Phase 1D.
   active-tool, model-unit identity, and runtime ownership signals on every host.
 - `NOT_IMPLEMENTED`: universal pre-tool enforcement across Claude Code, VS Code Claude, Concord,
   Copilot, Studio-Pro-MCP, and mxcli; the prototype alone cannot prevent a host from bypassing it.
-- `NOT_IMPLEMENTED`: model-unit write scoping, runtime leases, automatic repair/resume, event
-  stream, merge, push, or deployment automation.
+- `NOT_IMPLEMENTED`: model-unit write scoping, runtime leases, automatic repair/resume, update/
+  migration event producers, event archival, merge, push, or deployment automation.
 - `MEASUREMENT_REQUIRED`: compare blocked unauthorized/stale operations, missed scope violations,
   false-positive blocks, and safe-work throughput before proposing promotion from the experiment.
