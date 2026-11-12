@@ -89,6 +89,34 @@ try {
     Copy-Item -Path $MxagileSourceDir -Destination $fixtureMxagile -Recurse -Force
     Write-Host "  Copied .mxagile/ from: $MxagileSourceDir"
 
+    $productSkillSource = Join-Path $RepoRoot 'products/MxMocketeer/skills'
+    $fixtureSkillRoot = Join-Path $fixtureMxagile 'skills'
+    foreach ($skillSource in (Get-ChildItem -LiteralPath $productSkillSource -Directory -Filter 'mocketeer-*')) {
+        $skillDestination = Join-Path $fixtureSkillRoot $skillSource.Name
+        New-Item -ItemType Directory -Path $skillDestination -Force | Out-Null
+        Copy-Item -Path (Join-Path $skillSource.FullName '*') -Destination $skillDestination -Recurse -Force
+    }
+
+    # The known interim one-skill package is retired only when its manifest hashes verify.
+    $legacyMaster = Join-Path $FixtureDir '.claude/skills/mocketeer-design-contract'
+    $legacyReferences = Join-Path $legacyMaster 'references'
+    New-Item -ItemType Directory -Path $legacyReferences -Force | Out-Null
+    $legacySkillPath = Join-Path $legacyMaster 'SKILL.md'
+    $legacyReferencePath = Join-Path $legacyReferences 'stale-reference.md'
+    [System.IO.File]::WriteAllText($legacySkillPath, "---`nname: mocketeer-design-contract`ndescription: obsolete bundled master skill`n---`n# Old master`n", [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($legacyReferencePath, "obsolete reference copy`n", [System.Text.UTF8Encoding]::new($false))
+    $legacyManifest = [ordered]@{
+        schema_version = 1
+        managed_by = 'skill-bundle-v1'
+        skill_name = 'mocketeer-design-contract'
+        bundle_sha256 = 'sha256:' + ('a' * 64)
+        files = @(
+            [ordered]@{ path = 'SKILL.md'; sha256 = (Get-FileHash -LiteralPath $legacySkillPath -Algorithm SHA256).Hash.ToLowerInvariant() },
+            [ordered]@{ path = 'references/stale-reference.md'; sha256 = (Get-FileHash -LiteralPath $legacyReferencePath -Algorithm SHA256).Hash.ToLowerInvariant() }
+        )
+    }
+    $legacyManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $legacyMaster 'bundle-manifest.json') -Encoding UTF8
+
     # Run setup-agent-system.ps1
     Write-Host "  Running setup-agent-system.ps1..."
     $setupOutput = & powershell.exe -NonInteractive -NoProfile -File $SetupScript -ProjectRoot $FixtureDir 2>&1
@@ -241,6 +269,43 @@ try {
         $copilotSysCheck = Get-ChildItem $copilotSkillsDir -Directory | Where-Object { $_.Name -like "*system-check*" }
         Assert-True "Copilot: mxagile-system-check present" ($null -ne $copilotSysCheck -and @($copilotSysCheck).Count -gt 0) "mxagile-system-check not in .github/skills/"
     }
+
+    # ======================================================================
+    # Section 7: Installer-delivered Mocketeer directory skills
+    # ======================================================================
+    Write-Host "`n--- Section 7: Mocketeer skills delivered from canonical .mxagile source ---" -ForegroundColor Cyan
+
+    $mocketeerSkillNames = @(
+        'mocketeer-discovery',
+        'mocketeer-design-contract',
+        'mocketeer-refinement',
+        'mocketeer-preservation',
+        'mocketeer-business-flows',
+        'mocketeer-mockup-generation',
+        'mocketeer-handoff'
+    )
+    foreach ($skillName in $mocketeerSkillNames) {
+        $sourceSkill = Join-Path $FixtureDir ".mxagile/skills/$skillName/SKILL.md"
+        Assert-True "Mocketeer source skill exists: $skillName" (Test-Path -LiteralPath $sourceSkill -PathType Leaf) "Missing $sourceSkill"
+
+        foreach ($platformRoot in @('.claude/skills', '.github/skills', '.agents/skills')) {
+            $projectedSkill = Join-Path $FixtureDir "$platformRoot/$skillName/SKILL.md"
+            Assert-True "Mocketeer projection exists: $platformRoot/$skillName" (Test-Path -LiteralPath $projectedSkill -PathType Leaf) "Missing $projectedSkill"
+            if (Test-Path -LiteralPath $projectedSkill -PathType Leaf) {
+                $projectedContent = Get-Content -LiteralPath $projectedSkill -Raw -Encoding UTF8
+                Assert-True "Mocketeer projection is generated: $platformRoot/$skillName" ($projectedContent -match '# GENERATED - DO NOT EDIT - Source: \.mxagile/') 'Generated source marker missing'
+                Assert-True "Mocketeer projection name is valid: $platformRoot/$skillName" ($projectedContent -match "(?s)^---\s*`r?`nname: $skillName`r?`n") 'Frontmatter name does not match canonical skill name'
+            }
+        }
+    }
+    $businessFlowSource = Join-Path $fixtureMxagile 'skills/mocketeer-business-flows/SKILL.md'
+    $businessFlowContent = Get-Content -LiteralPath $businessFlowSource -Raw -Encoding UTF8
+    Assert-True 'Mocketeer Business Flow knowledge is embedded in its skill' ($businessFlowContent -match 'Flow-to-Verification Traceability' -and $businessFlowContent -match 'DECLARED') 'Full Business Flow/Interaction content is missing'
+    Assert-True 'Mocketeer is not delivered as separate reference files' (-not (Test-Path -LiteralPath (Join-Path $fixtureMxagile 'skills/mocketeer/references'))) 'Unexpected separate references directory'
+    $updatedMaster = Get-Content -LiteralPath (Join-Path $FixtureDir '.claude/skills/mocketeer-design-contract/SKILL.md') -Raw -Encoding UTF8
+    Assert-True 'Legacy bundled master skill is replaced by the canonical design-contract skill' ($updatedMaster -match 'DESIGN CONTRACT' -and $updatedMaster -notmatch 'Old master') 'Legacy master content remains'
+    Assert-True 'Legacy reference copies are retired on update' (-not (Test-Path -LiteralPath (Join-Path $FixtureDir '.claude/skills/mocketeer-design-contract/references/stale-reference.md'))) 'Stale reference remains'
+    Assert-True 'Legacy bundle manifest is retired on update' (-not (Test-Path -LiteralPath (Join-Path $FixtureDir '.claude/skills/mocketeer-design-contract/bundle-manifest.json'))) 'Legacy bundle manifest remains'
 
 } finally {
     Write-Host "`nCleaning up fixture project: $FixtureDir" -ForegroundColor DarkGray

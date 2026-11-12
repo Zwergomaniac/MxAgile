@@ -51,6 +51,18 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(plan["unmapped"], [])
         self.assertEqual(plan["suites"], ["test-context-transition-coordinator.ps1", "test_run_events.py"])
 
+    def test_epoch_reader_selects_existing_epoch_lifecycle_and_upgrade_suites(self):
+        plan = impact.select(["scripts/Read-MxAgileEpochCheckpoint.ps1"])
+        self.assertEqual(plan["unmapped"], [])
+        self.assertEqual(plan["tier"], 2)
+        self.assertEqual(set(plan["suites"]), {
+            "test-capability-discovery-routing.ps1",
+            "test-context-lifecycle-operational.ps1",
+            "test-context-lifecycle-rollover.ps1",
+            "test-context-transition-coordinator.ps1",
+            "test-control-plane-upgrade-from-baseline.ps1",
+        })
+
     def test_company_layer_update_lifecycle_selects_safety_suites_and_release_gate(self):
         plan = impact.select([
             "mxagile-setup-company-layer.ps1",

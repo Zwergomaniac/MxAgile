@@ -9,6 +9,8 @@ param(
 )
 
 $ProductRoot = (Resolve-Path $ProductRoot).Path
+$RepoRoot = (Resolve-Path (Join-Path $ProductRoot '..\..')).Path
+$MocketeerSkillRoot = Join-Path $ProductRoot 'skills'
 $ErrorActionPreference = 'Stop'
 $pass = 0; $fail = 0
 
@@ -47,16 +49,27 @@ $required = @(
     'system-prompt.md',
     'suggested-prompts.md',
     'agent-builder-setup.md',
-    'knowledge/design-contract.txt',
-    'knowledge/discovery-assessment.txt',
-    'knowledge/mendix-design-guide.txt',
-    'knowledge/mxagile-handoff.txt',
-    'knowledge/golden-mockuphtml.txt',
-    'tests/preservation-acceptance.md'
+    'knowledge-migration.md',
+    'tests/preservation-acceptance.md',
+    'tests/test_mocketeer_skills.py'
 )
 foreach ($rel in $required) {
     $p = Join-Path $ProductRoot $rel
     Assert (Test-Path $p) "Exists: $rel"
+}
+
+$canonicalSkillFiles = @(
+    'mocketeer-discovery/SKILL.md',
+    'mocketeer-design-contract/SKILL.md',
+    'mocketeer-refinement/SKILL.md',
+    'mocketeer-preservation/SKILL.md',
+    'mocketeer-business-flows/SKILL.md',
+    'mocketeer-mockup-generation/SKILL.md',
+    'mocketeer-handoff/SKILL.md'
+)
+foreach ($relativePath in $canonicalSkillFiles) {
+    $path = Join-Path $MocketeerSkillRoot $relativePath
+    Assert (Test-Path $path) "Canonical product skill file exists: $relativePath"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -89,12 +102,13 @@ if (Test-Path $promptPath) {
 }
 
 # ──────────────────────────────────────────────────────────────
-# 3  Golden mockup HTML structure (in .txt file)
+# 3  Golden mockup HTML embedded in the generation skill
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[3] Golden mockup HTML structure (knowledge/golden-mockuphtml.txt)"
-$gmPath = Join-Path $ProductRoot 'knowledge/golden-mockuphtml.txt'
-if (Test-Path $gmPath) {
-    $html = Get-Content $gmPath -Raw -Encoding UTF8
+Write-Host "`n[3] Golden mockup HTML embedded in mocketeer-mockup-generation/SKILL.md"
+$gmPath = Join-Path $MocketeerSkillRoot 'mocketeer-mockup-generation/SKILL.md'
+$gmSkill = if (Test-Path $gmPath) { Get-Content $gmPath -Raw -Encoding UTF8 } else { '' }
+if ($gmSkill -match '(?s)GOLDEN_MOCKUP_BEGIN\r?\n(.*?)\r?\nGOLDEN_MOCKUP_END') {
+    $html = $Matches[1]
 
     # Complete HTML document
     Assert ($html -match '(?i)<!doctype html>')                 'Contains <!doctype html>'
@@ -236,14 +250,15 @@ foreach ($term in $banned) {
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[6] Knowledge files non-empty"
 $knowledgeFiles = @(
-    'knowledge/design-contract.txt',
-    'knowledge/discovery-assessment.txt',
-    'knowledge/mendix-design-guide.txt',
-    'knowledge/mxagile-handoff.txt',
-    'knowledge/golden-mockuphtml.txt'
+    'mocketeer-design-contract/SKILL.md',
+    'mocketeer-discovery/SKILL.md',
+    'mocketeer-business-flows/SKILL.md',
+    'mocketeer-refinement/SKILL.md',
+    'mocketeer-mockup-generation/SKILL.md',
+    'mocketeer-handoff/SKILL.md'
 )
 foreach ($rel in $knowledgeFiles) {
-    $p = Join-Path $ProductRoot $rel
+    $p = Join-Path $MocketeerSkillRoot $rel
     if (Test-Path $p) {
         $len = (Get-Content $p -Raw -Encoding UTF8).Length
         Assert ($len -gt 100) "Non-empty: $rel" "$len chars"
@@ -280,13 +295,13 @@ $dimInPrompt = $dimensionIds | Where-Object { $promptContent -match $_ } | Measu
 Assert ($dimInPrompt -eq 0) 'Detailed dimension IDs not duplicated in system prompt'
 
 # ──────────────────────────────────────────────────────────────
-# 9  design-contract.txt assessment schema
+# 9  design-contract.md assessment schema
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[9] design-contract.txt assessment schema"
-$dcPath = Join-Path $ProductRoot 'knowledge/design-contract.txt'
+Write-Host "`n[9] design-contract.md assessment schema"
+$dcPath = Join-Path $MocketeerSkillRoot 'mocketeer-design-contract/SKILL.md'
 $dc = if (Test-Path $dcPath) { Get-Content $dcPath -Raw -Encoding UTF8 } else { '' }
 
-Assert ($dc -match 'assessment') 'design-contract.txt defines assessment block'
+Assert ($dc -match 'assessment') 'design-contract.md defines assessment block'
 Assert ($dc -match 'prototype_readiness') 'assessment contains prototype_readiness'
 Assert ($dc -match 'development_handoff_readiness') 'assessment contains development_handoff_readiness'
 Assert ($dc -match 'PROTOTYPE_READY') 'defines PROTOTYPE_READY readiness value'
@@ -307,10 +322,10 @@ Assert ($dc -match 'backward-compatible optional') 'assessment documented as bac
 Assert ($dc -match 'CANNOT UPDATE.*CANNOT READ|CAN READ.*CAN UPDATE|inference') 'states operation inference prohibition'
 
 # ──────────────────────────────────────────────────────────────
-# 10  discovery-assessment.txt content
+# 10  discovery-assessment.md content
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[10] discovery-assessment.txt content"
-$daPath = Join-Path $ProductRoot 'knowledge/discovery-assessment.txt'
+Write-Host "`n[10] discovery-assessment.md content"
+$daPath = Join-Path $MocketeerSkillRoot 'mocketeer-discovery/SKILL.md'
 $da = if (Test-Path $daPath) { Get-Content $daPath -Raw -Encoding UTF8 } else { '' }
 
 Assert ($da -match 'PROTOTYPE_READINESS|PROTOTYPE_READY') 'defines prototype readiness'
@@ -390,10 +405,10 @@ if (Test-Path $gmPath) {
 }
 
 # ──────────────────────────────────────────────────────────────
-# 12  mxagile-handoff.txt maturity integration
+# 12  mxagile-handoff.md maturity integration
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[12] mxagile-handoff.txt maturity integration"
-$mhPath = Join-Path $ProductRoot 'knowledge/mxagile-handoff.txt'
+Write-Host "`n[12] mxagile-handoff.md maturity integration"
+$mhPath = Join-Path $MocketeerSkillRoot 'mocketeer-handoff/SKILL.md'
 $mh = if (Test-Path $mhPath) { Get-Content $mhPath -Raw -Encoding UTF8 } else { '' }
 
 Assert ($mh -match 'HANDOFF_READY.*not.*bypass|not.*bypass.*HANDOFF_READY|gates remain.*authoritative') 'states HANDOFF_READY does not bypass MxAgile gates'
@@ -468,7 +483,7 @@ Assert ($spBound -notmatch 'graph freshness|graph.*stale|stale.*graph') `
 Assert ($spBound -notmatch 'provider.*none|provider.*graphify') `
     'System prompt: graph provider not referenced (KG consumer boundary)'
 
-# mxagile-handoff.txt must NOT instruct MxMocketeer to call graph operations
+# mxagile-handoff.md must NOT instruct MxMocketeer to call graph operations
 Assert ($mhBound -notmatch 'affected\(FLOW-NNN\)') `
     'mxagile-handoff: direct affected(FLOW-NNN) call removed (downstream pipeline responsibility)'
 Assert ($mhBound -notmatch 'graph status\(\)|status\(\) returns current') `
@@ -485,28 +500,29 @@ Assert ($setupBound -notmatch '^\d+\.\s.*knowledge-graph\.txt') `
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[15] Transformation spec capability"
 
-$rtPath  = Join-Path $ProductRoot 'knowledge/refinement-transformations.txt'
+$rtPath  = Join-Path $MocketeerSkillRoot 'mocketeer-refinement/SKILL.md'
 $rtFile  = if (Test-Path $rtPath) { Get-Content $rtPath -Raw -Encoding UTF8 } else { '' }
 $abPath  = Join-Path $ProductRoot 'agent-builder-setup.md'
 $abFile  = if (Test-Path $abPath) { Get-Content $abPath -Raw -Encoding UTF8 } else { '' }
 
-# New knowledge file exists and is non-empty
-Assert (Test-Path $rtPath)          'knowledge/refinement-transformations.txt exists'
-Assert ($rtFile.Length -gt 500)     'refinement-transformations.txt non-trivial content'
+# Canonical Markdown reference exists and is non-empty
+Assert (Test-Path $rtPath)          'references/refinement-transformations.md exists'
+Assert ($rtFile.Length -gt 500)     'refinement-transformations.md non-trivial content'
 
-# Agent builder setup references the new file
-Assert ($abFile -match 'refinement-transformations\.txt') 'agent-builder-setup.md references refinement-transformations.txt'
-Assert ($abFile -match 'seven|7')                         'agent-builder-setup.md updated to seven knowledge files'
+# Agent Builder setup routes through the single host-neutral bundle
+Assert ($abFile -match 'mocketeer-refinement/SKILL\.md') 'agent-builder-setup.md lists the refinement skill'
+Assert ($abFile -match 'seven individual files') 'agent-builder-setup.md instructs seven independent skills'
+Assert ($abFile -match 'complete domain knowledge') 'agent-builder-setup.md states knowledge is embedded in each skill'
 
 # All four edit classes defined
 foreach ($class in @('LOCAL_EDIT', 'CROSS_CUTTING_EDIT', 'STRUCTURAL_REFACTOR', 'FULL_REGENERATION')) {
-    Assert ($rtFile -match $class) "Edit class $class defined in refinement-transformations.txt"
+    Assert ($rtFile -match $class) "Edit class $class defined in refinement-transformations.md"
 }
 
 # System prompt references the classification
 Assert ($sp2 -match 'LOCAL_EDIT')                     'System prompt references LOCAL_EDIT classification'
 Assert ($sp2 -match 'CROSS_CUTTING_EDIT')             'System prompt references CROSS_CUTTING_EDIT classification'
-Assert ($sp2 -match 'Refinement Transformations')     'System prompt references knowledge "Refinement Transformations"'
+Assert ($sp2 -match 'mocketeer-refinement')           'System prompt references the refinement skill'
 Assert ($sp2 -match 'Transformation Spec')            'System prompt references Transformation Spec'
 
 # Key safety invariant present in system prompt

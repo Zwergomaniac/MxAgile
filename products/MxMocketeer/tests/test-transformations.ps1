@@ -41,7 +41,7 @@ function Assert {
 
 Write-Host "`nMxMocketeer Transformation Tests — $ProductRoot" -ForegroundColor Cyan
 
-$rtPath   = Join-Path $ProductRoot 'knowledge/refinement-transformations.txt'
+$rtPath   = Join-Path $ProductRoot 'skills/mocketeer-refinement/SKILL.md'
 $spPath   = Join-Path $ProductRoot 'system-prompt.md'
 $agentDir = Join-Path (Split-Path $ProductRoot -Parent | Split-Path -Parent) '.mxagile/agents/mocketeer-agent.md'
 
@@ -53,7 +53,7 @@ $ag = if (Test-Path $agentDir) { Get-Content $agentDir -Raw -Encoding UTF8 } els
 # [Precondition] Required file exists
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[0] Required files"
-Assert (Test-Path $rtPath)   'knowledge/refinement-transformations.txt exists'
+Assert (Test-Path $rtPath)   'mocketeer-refinement/SKILL.md exists'
 Assert (Test-Path $spPath)   'system-prompt.md exists'
 Assert (Test-Path $agentDir) 'canonical mocketeer-agent.md exists'
 
@@ -61,7 +61,7 @@ Assert (Test-Path $agentDir) 'canonical mocketeer-agent.md exists'
 # [A] LOCAL_EDIT — defined with execution characteristics
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[A] LOCAL_EDIT definition and execution"
-Assert ($rt -match 'LOCAL_EDIT')                               'A: LOCAL_EDIT defined in refinement-transformations.txt'
+Assert ($rt -match 'LOCAL_EDIT')                               'A: LOCAL_EDIT defined in refinement-transformations.md'
 Assert ($rt -match 'LOCAL_EDIT[\s\S]{0,300}one.*target|one.*identified.*target|bounded.*change.*one|one.*uniquely' -or
         $rt -match 'one known.*target|uniquely.identified') 'A: LOCAL_EDIT defined as bounded single-target change'
 Assert ($sp -match 'LOCAL_EDIT')                               'A: LOCAL_EDIT referenced in system prompt'

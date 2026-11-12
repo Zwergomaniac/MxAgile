@@ -1,3 +1,27 @@
+---
+name: mocketeer-design-contract
+description: creates or validates the embedded mocketeer design contract schema, ids, references, roles, rules, and revision fields. use when authoring, extracting, validating, or migrating a mocketeer #mocketeer-spec contract.
+---
+
+# Mocketeer Design Contract
+
+Use the complete Design Contract schema and migration guidance included below before
+changing or validating the embedded `#mocketeer-spec` JSON.
+
+- Preserve stable IDs and unrelated confirmed entries. Never invent field values.
+- Keep requirements (WHAT/WHY) separate from decisions (chosen alternatives and rationale).
+- Preserve source IDs in their Mocketeer namespace. MxAgile canonical IDs require the
+  validated source-to-canonical `id_map`; matching text or IDs alone is not identity.
+- Keep role `can[]` and `cannot[]` explicit. An omitted permission is UNKNOWN, not denied.
+- Use existing screens, interaction states, nested effects, flows, and revision deltas.
+  Do not add a competing `scenarios[]` artifact type.
+- If a required causal or observer relationship cannot be represented, report the exact
+  contract gap; do not silently infer or confirm it.
+
+Validate the complete JSON and cross-references before reporting the contract as valid.
+
+---
+
 # MxMocketeer Design Contract v1
 
 ## Purpose

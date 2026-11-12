@@ -11,7 +11,7 @@ Tests:
   UNKNOWN_ROLE          — role_ref not in contract roles[] produces a warning
   REVISION_IMPACT       — revision_delta.effects[] in golden mockup references FLOW-NNN and FLOWSTEP-NNN
   DETERMINISTIC_MERMAID — mermaid_generator.py produces identical output on repeated calls
-  MERMAID_NOT_STORED    — mermaid text is NOT present in golden-mockuphtml.txt mocketeer-spec JSON
+  MERMAID_NOT_STORED    — mermaid text is NOT present in golden-mockup.html mocketeer-spec JSON
   MERMAID_ALL_STEP_TYPES — mermaid_generator handles all 7 step types without error
 
 Usage:
@@ -39,7 +39,7 @@ PROJECT_ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('.').resolve()
 SCRIPTS_DIR  = PROJECT_ROOT / 'scripts'
 BUILDER      = SCRIPTS_DIR / 'build_artifact_index.py'
 MERMAID_GEN  = SCRIPTS_DIR / 'mermaid_generator.py'
-GOLDEN       = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'knowledge' / 'golden-mockuphtml.txt'
+GOLDEN_SKILL = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'skills' / 'mocketeer-mockup-generation' / 'SKILL.md'
 
 PASS_COUNT = 0
 FAIL_COUNT = 0
@@ -66,6 +66,14 @@ def _build_html(spec_dict):
         f'\n{spec_json}\n'
         '</script></head><body></body></html>'
     )
+
+
+def _read_golden_html():
+    if not GOLDEN_SKILL.exists():
+        return None
+    source = GOLDEN_SKILL.read_text(encoding='utf-8')
+    match = re.search(r'GOLDEN_MOCKUP_BEGIN\s*(.*?)\s*GOLDEN_MOCKUP_END', source, re.DOTALL)
+    return match.group(1) if match else None
 
 
 def _run_builder(project_root):
@@ -156,7 +164,7 @@ def test_flow_graph_projection():
 
         page_dir = td / 'planning' / 'ui-inventory'
         page_dir.mkdir(parents=True)
-        (page_dir / 'SCREEN-001.yaml').write_text('page_id: SCREEN-001\npurpose: Test screen', encoding='utf-8')
+        (page_dir / 'PAGE-001.yaml').write_text('page_id: PAGE-001\npurpose: Test screen', encoding='utf-8')
 
         dec_dir = td / 'planning' / 'decisions'
         dec_dir.mkdir(parents=True)
@@ -177,7 +185,7 @@ def test_flow_graph_projection():
                             'step_id': 'FLOWSTEP-001',
                             'type': 'user_action',
                             'description': 'Action step',
-                            'screen_ref': 'SCREEN-001',
+                            'screen_ref': 'PAGE-001',
                             'req_refs': ['REQ-001'],
                             'decision_refs': ['DEC-001'],
                             'transitions': [{'to': 'FLOWSTEP-002'}]
@@ -213,7 +221,7 @@ def test_flow_graph_projection():
             fail('FLOW_GRAPH_PROJECTION: STEP_PARTICIPATES_IN edge missing')
 
         shown_on = [e for e in edges if e['type'] == 'STEP_SHOWN_ON'
-                    and e['from'] == 'FLOW-001:FLOWSTEP-001' and e['to'] == 'SCREEN-001']
+                    and e['from'] == 'FLOW-001:FLOWSTEP-001' and e['to'] == 'PAGE-001']
         if shown_on:
             ok('FLOW_GRAPH_PROJECTION: STEP_SHOWN_ON edge emitted')
         else:
@@ -490,11 +498,10 @@ def test_unknown_role():
 # ---------------------------------------------------------------------------
 
 def test_revision_impact():
-    if not GOLDEN.exists():
-        fail('REVISION_IMPACT: golden-mockuphtml.txt not found')
+    content = _read_golden_html()
+    if content is None:
+        fail('REVISION_IMPACT: embedded Golden Mockup HTML not found in mockup-generation skill')
         return
-
-    content = GOLDEN.read_text(encoding='utf-8')
 
     # Extract mocketeer-spec JSON
     pattern = re.compile(
@@ -591,11 +598,10 @@ def test_deterministic_mermaid():
 # ---------------------------------------------------------------------------
 
 def test_mermaid_not_stored():
-    if not GOLDEN.exists():
-        fail('MERMAID_NOT_STORED: golden mockup not found')
+    content = _read_golden_html()
+    if content is None:
+        fail('MERMAID_NOT_STORED: embedded Golden Mockup HTML not found')
         return
-
-    content = GOLDEN.read_text(encoding='utf-8')
     pattern = re.compile(
         r'<script[^>]+type=["\']application/json["\'][^>]+id=["\']mocketeer-spec["\'][^>]*>(.*?)</script>',
         re.DOTALL | re.IGNORECASE

@@ -1,3 +1,24 @@
+---
+name: mocketeer-discovery
+description: elicits goals, users, requirements, decisions, roles, rules, assumptions, and open questions for a mocketeer mockup. use when a product owner starts a design or clarifies business intent before html mockup generation.
+---
+
+# Mocketeer Discovery
+
+1. Use the complete discovery assessment and Design Contract guidance included below.
+2. Elicit goal, scope, actors, data scope, key journeys, business rules, exceptions,
+   decisions, and unresolved questions in business language.
+3. Keep `DECLARED`, `INFERRED`, `OBSERVED`, and `PROPOSED` separate. Never turn an
+   inference, sample value, or mockup observation into confirmed Product Owner intent.
+4. Record unknowns as OPEN/UNKNOWN with an owner when known. Ask only the highest-impact
+   questions; do not block unrelated scope.
+5. Return the confirmed and unresolved inputs needed by the Design Contract skill.
+
+Do not implement the mockup in this workflow. Do not invent requirements or
+permissions. For an explicit readiness review, use `mocketeer-handoff`.
+
+---
+
 # MxMocketeer Discovery Assessment Guide
 
 ## Purpose

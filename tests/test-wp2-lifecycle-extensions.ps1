@@ -461,12 +461,12 @@ Assert ($dci -match 'unrelated.*not.*reset|not.*reset.*unrelated') 'reconciliati
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[19] WP3 — HANDOFF_READY does not bypass MxAgile gates"
 $dciContent = FileContent (Join-Path $RepoRoot '.mxagile/policies/design-contract-intake.md')
-$mhContent  = FileContent (Join-Path $RepoRoot 'products/MxMocketeer/knowledge/mxagile-handoff.txt')
+$mhContent  = FileContent (Join-Path $RepoRoot 'products/MxMocketeer/skills/mocketeer-handoff/SKILL.md')
 
 Assert ($dciContent -match 'does NOT bypass|not bypass.*gate|gates remain') `
     'design-contract-intake: HANDOFF_READY does not bypass gates'
 Assert ($mhContent -match 'gates remain authoritative|not bypass.*gate|does NOT bypass') `
-    'mxagile-handoff.txt: gates remain authoritative'
+    'mxagile-handoff.md: gates remain authoritative'
 
 # ──────────────────────────────────────────────────────────────
 # [20] No company-specific content in WP2/WP3 files

@@ -22,6 +22,20 @@ function Assert-True {
     else { Write-Host "  FAIL: $Name -- $Message" -ForegroundColor Red; $script:FailCount++ }
 }
 function Invoke-Git { param([string]$Root) & git -C $Root -c user.name=t -c user.email=t@example.invalid @args 2>&1 | Out-Null; if ($LASTEXITCODE) { throw "git $args failed" } }
+function Assert-RunStoreIgnored {
+    param([string]$Root)
+    $paths = @(
+        '.mxagile/state/runs/append.lock',
+        '.mxagile/state/runs/events-RUN_AUDIT-2000-01.jsonl',
+        '.mxagile/state/runs/events-RUN_AUDIT-2000-01.lock',
+        '.mxagile/state/runs/events-PROJECT_HISTORY-2000-01.jsonl',
+        '.mxagile/state/runs/events-PROJECT_HISTORY-2000-01.lock'
+    )
+    foreach ($path in $paths) {
+        & git -C $Root check-ignore --quiet -- $path 2>$null
+        Assert-True "git check-ignore: $path" ($LASTEXITCODE -eq 0) 'runtime path is not effectively ignored'
+    }
+}
 $HookMarker = '.mxagile/tools/control-plane/enforcement.py'
 function Get-PreToolGroups {
     param([string]$Root)
@@ -127,7 +141,7 @@ try {
     Assert-True 'project-owned lifecycle state is preserved byte-identically' ($preserved.Count -eq $owned.Count) "preserved=$($preserved.Count)/$($owned.Count)"
     $installedAdapter = @('guard.py', 'enforcement.py', 'child_contract.py', 'control-plane-verdict.schema.json', 'run_events.py', 'run-event.schema.json') | Where-Object { -not (Test-Path (Join-Path $project ".mxagile/tools/control-plane/$_")) }
     Assert-True 'update distributes the control-plane adapter into .mxagile/tools/control-plane' (@($installedAdapter).Count -eq 0) "missing=$($installedAdapter -join ',')"
-    Assert-True 'runtime run/event store is gitignored' ((Get-Content (Join-Path $project '.gitignore') -Raw) -match '(?m)^\.mxagile/state/runs/$') 'event store ignore rule missing'
+    Assert-RunStoreIgnored $project
     Assert-True 'update reports the hook registration' (($update -join "`n") -match 'CONTROL_PLANE_HOOK: REGISTERED') (($update | Select-String 'CONTROL_PLANE_HOOK') -join ';')
     $groups = @(Get-PreToolGroups $project)
     $ownedGroups = @($groups | Where-Object { Test-OwnedGroup $_ })
@@ -170,6 +184,9 @@ try {
     & pwsh -NoProfile -File (Join-Path $RepoRoot 'scripts/Write-MxAgileEpochCheckpoint.ps1') -ProjectRoot $project -MissionId 'MISSION-2026-11-11-upgrade' | Out-Null
     $runEvents = (& python (Join-Path $project '.mxagile/tools/control-plane/run_events.py') --project-root $project read | ConvertFrom-Json)
     Assert-True 're-sync lazily initializes audit history with start/completed events' (@($runEvents.events | Where-Object { $_.event_type -in @('lifecycle_resync_started', 'lifecycle_resync_completed') }).Count -ge 2) "events=$($runEvents.total_valid)"
+    Assert-RunStoreIgnored $project
+    $runStatus = @(& git -C $project status --porcelain --untracked-files=all | Where-Object { $_ -match '\.mxagile/state/runs/' })
+    Assert-True 'event writing creates no untracked or modified run-store paths' ($runStatus.Count -eq 0) ($runStatus -join '; ')
     $ready = Invoke-Guard $project $transition
     Assert-True 'upgraded legacy project passes the transition guard after re-sync' ($ready.verdict -eq 'pass') (($ready.must_findings | ForEach-Object code) -join ',')
     Assert-True 'legacy Wave without testability_gate is tolerated, not required' (@($ready.should_findings | ForEach-Object code) -contains 'LEGACY_GATE_NOT_RECORDED') 'advisory missing'

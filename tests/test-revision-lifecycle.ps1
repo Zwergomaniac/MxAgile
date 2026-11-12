@@ -343,11 +343,11 @@ Assert ($reqTpl -match 'implementation_effect') 'requirements template has imple
 Assert ($reqTpl -match 'test_effect') 'requirements template has test_effect field'
 
 # ──────────────────────────────────────────────────────────────
-# [18] Contract migration section in design-contract.txt (WP-25)
+# [18] Contract migration section in design-contract.md (WP-25)
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[18] Contract migration section (WP-25)"
-$dc = ReadFile(Join-Path $RepoRoot 'products/MxMocketeer/knowledge/design-contract.txt')
-Assert ($dc -match '[Cc]ontract Migration') 'design-contract.txt has Contract Migration section'
+$dc = ReadFile(Join-Path $RepoRoot 'products/MxMocketeer/skills/mocketeer-design-contract/SKILL.md')
+Assert ($dc -match '[Cc]ontract Migration') 'design-contract.md has Contract Migration section'
 Assert ($dc -match 'from_schema_version') 'migration object has from_schema_version field'
 Assert ($dc -match '"1.0"') 'migration section references v1.0'
 Assert ($dc -match 'migrated_fields') 'migration object has migrated_fields'

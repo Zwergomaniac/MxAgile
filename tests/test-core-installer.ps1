@@ -26,6 +26,12 @@ function Test-GenericInstallation {
     try {
         # 1. Create a temporary project directory with a dummy .mpr file.
         New-Item -ItemType File -Path (Join-Path $projectRoot "project.mpr") | Out-Null
+        & git -C $projectRoot init -q
+        & git -C $projectRoot config user.name "MxAgile Test"
+        & git -C $projectRoot config user.email "test@mxagile.invalid"
+        & git -C $projectRoot add project.mpr
+        & git -C $projectRoot commit -qm "fixture project"
+        Assert-Condition ($LASTEXITCODE -eq 0) "Fresh-install fixture Git repository should initialize."
 
         # 2. Execute scripts/install-core.ps1
         $installerPath = Join-Path (Join-Path (Join-Path $PSScriptRoot "..") "scripts") "install-core.ps1"
@@ -38,6 +44,32 @@ function Test-GenericInstallation {
         $mxagilePath = Join-Path $projectRoot ".mxagile"
         Assert-Condition (Test-Path $mxagilePath -PathType Container) ".mxagile directory should be created."
 
+        # 4a. Mocketeer skills are part of the canonical installer payload and generator output.
+        $mocketeerSkillNames = @(
+            'mocketeer-discovery',
+            'mocketeer-design-contract',
+            'mocketeer-refinement',
+            'mocketeer-preservation',
+            'mocketeer-business-flows',
+            'mocketeer-mockup-generation',
+            'mocketeer-handoff'
+        )
+        foreach ($skillName in $mocketeerSkillNames) {
+            $sourceSkill = Join-Path $mxagilePath "skills/$skillName/SKILL.md"
+            Assert-Condition (Test-Path $sourceSkill -PathType Leaf) "Installer must deliver canonical skill $skillName."
+            $projectedSkill = Join-Path $projectRoot ".claude/skills/$skillName/SKILL.md"
+            Assert-Condition (Test-Path $projectedSkill -PathType Leaf) "Fresh install must project Claude skill $skillName."
+            if (Test-Path $projectedSkill -PathType Leaf) {
+                $projectedContent = Get-Content -LiteralPath $projectedSkill -Raw -Encoding UTF8
+                Assert-Condition ($projectedContent -match '# GENERATED - DO NOT EDIT - Source: \.mxagile/') "Claude projection must be generated from canonical source: $skillName."
+                Assert-Condition ($projectedContent -match "(?s)^---\s*`r?`nname: $skillName`r?`n") "Claude projection frontmatter must identify $skillName."
+            }
+        }
+        $businessFlowSkill = Join-Path $mxagilePath 'skills/mocketeer-business-flows/SKILL.md'
+        $businessFlowContent = Get-Content -LiteralPath $businessFlowSkill -Raw -Encoding UTF8
+        Assert-Condition ($businessFlowContent -match 'FLOWSTEP-001' -and $businessFlowContent -match 'Mermaid is generated from structured steps') "Fresh install must deliver full Business Flow guidance inside its SKILL.md."
+        Assert-Condition (-not (Test-Path (Join-Path $mxagilePath 'skills/mocketeer/references'))) "Fresh install must not require a separate Mocketeer references directory."
+
         # 5. Assert that the .mxagile/layers directory either does not exist or is empty.
         $layersPath = Join-Path $mxagilePath "layers"
         $layersExist = Test-Path $layersPath -PathType Container
@@ -46,6 +78,22 @@ function Test-GenericInstallation {
             $layersEmpty = @(Get-ChildItem $layersPath).Count -eq 0
         }
         Assert-Condition ($layersEmpty) ".mxagile/layers should not contain any layers."
+
+        & git -C $projectRoot add -A
+        & git -C $projectRoot commit -qm "installed core baseline"
+        Assert-Condition ($LASTEXITCODE -eq 0) "Fresh-install fixture should commit its baseline before event writes."
+        $beforeEventStatus = @(& git -C $projectRoot status --porcelain --untracked-files=all)
+        $appendEvents = 'import sys; from pathlib import Path; root = Path(sys.argv[1]); sys.path.insert(0, str(root / ".mxagile" / "tools" / "control-plane")); import run_events; run_events.append_event(root, "delivery_blocked", run_id="RUN-IGNORE-TEST"); run_events.append_event(root, "lifecycle_resync_completed", run_id="RUN-IGNORE-TEST")'
+        $eventOutput = @(& python -B -c $appendEvents $projectRoot 2>&1)
+        Assert-Condition ($LASTEXITCODE -eq 0) "Fresh install should write both event classes: $($eventOutput -join ' ')"
+        $runtimeFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot ".mxagile/state/runs") -File | ForEach-Object { ".mxagile/state/runs/$($_.Name)" })
+        Assert-Condition ($runtimeFiles.Count -ge 5) "Expected audit/history streams and their lock files plus append.lock."
+        foreach ($relative in $runtimeFiles) {
+            & git -C $projectRoot check-ignore --quiet -- $relative 2>$null
+            Assert-Condition ($LASTEXITCODE -eq 0) "Fresh-install runtime file must be ignored: $relative"
+        }
+        $afterEventStatus = @(& git -C $projectRoot status --porcelain --untracked-files=all)
+        Assert-Condition ((($afterEventStatus -join "`n") -eq ($beforeEventStatus -join "`n"))) "Writing run events or locks must not dirty the consumer working tree. before=[$($beforeEventStatus -join '; ')] after=[$($afterEventStatus -join '; ')]"
 
         Write-Host "Test-GenericInstallation PASSED."
     }

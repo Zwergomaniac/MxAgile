@@ -176,7 +176,7 @@ foreach ($v in $revStatusValues) {
 # [9] Migration failure modes documented in knowledge file
 # ──────────────────────────────────────────────────────────────
 Write-Host "`n[9] Migration failure modes in knowledge file"
-$kf = ReadFile (Join-Path $RepoRoot 'products/MxMocketeer/knowledge/design-contract.txt')
+$kf = ReadFile (Join-Path $RepoRoot 'products/MxMocketeer/skills/mocketeer-design-contract/SKILL.md')
 $failureModes = @('SUCCESS','CONFLICT','AMBIGUOUS_SOURCE','PRESERVATION_FAILURE','INVALID_RESULT')
 foreach ($m in $failureModes) {
     Assert ($kf -match $m) "knowledge file documents migration failure mode: $m"

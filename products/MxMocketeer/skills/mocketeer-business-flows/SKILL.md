@@ -1,0 +1,489 @@
+---
+name: mocketeer-business-flows
+description: models product-owner journeys as structured mocketeer business-flow steps and linked interaction effects. use when a journey spans roles, scopes, screens, sessions, state-dependent actions, or chained positive and negative observations.
+---
+
+# Mocketeer Business Flows and Interactions
+
+Use the complete Business Flow, Interaction Analysis, and Design Contract guidance
+included below.
+
+- Use stable `FLOW-*` and `FLOWSTEP-*` IDs, typed steps, explicit transitions, and
+  existing requirement/decision/screen references.
+- Link interactions and effects to flow steps where supported. A free-text description
+  or `affected_roles` list alone does not establish observer scope.
+- Record positive observers and explicit negative observers separately. Omission means
+  UNKNOWN, not forbidden.
+- For complex chains, capture actor, trigger, preconditions, before/after state, business
+  change, effect, observer/scope, follow-up, traceability, downstream artifacts, and
+  revision impact.
+- Use provenance labels `DECLARED`, `INFERRED`, `OBSERVED`, and `PROPOSED` without
+  conflating them with lifecycle status.
+
+Simple local UI actions need only the existing interaction state and effect. Do not
+introduce `scenarios[]`, BPMN, or a parallel behavior graph.
+
+---
+
+# MxMocketeer Business Flows
+
+## What Business Flows Are
+
+A Business Flow is a machine-readable, step-by-step description of how users and systems
+move through a process to achieve a goal. It is part of the Design Contract and describes
+the observable process from the business perspective — not the technical implementation.
+
+Business Flows reinforce the mockup. They make the process structure explicit so that:
+- Product Owners can validate the flow matches their mental model
+- Developers can build test scenarios that follow the real process path
+- The MxAgile pipeline can establish PARTICIPATES_IN, SHOWN_ON, and DECIDED_BY
+  graph edges between flows, requirements, screens, and decisions
+
+---
+
+## Canonical Principle
+
+Business Flow structured data is CANONICAL.
+Mermaid diagram text is DERIVED visualization only.
+
+Never store Mermaid text in the Design Contract.
+Generate Mermaid on demand from the structured steps[] and transitions[].
+If the Mermaid and the structured data disagree, the structured data is correct.
+
+---
+
+## Flow Entry Schema
+
+Each entry in the flows[] array:
+
+```json
+{
+  "id": "FLOW-ORDER-SUBMIT",
+  "name": "Order Submission",
+  "description": "End-to-end process from cart review to order confirmation.",
+  "trigger": "Customer clicks 'Place Order' button on SCREEN-CART.",
+  "role_refs": ["ROLE-CUSTOMER"],
+  "req_refs": ["REQ-007", "REQ-008"],
+  "status": "CONFIRMED_BY_STAKEHOLDER",
+  "steps": [ ... ],
+  "result": "FLOWSTEP-END",
+  "error_paths": ["FLOWSTEP-ERR-001", "FLOWSTEP-ERR-002"]
+}
+```
+
+Fields:
+  id            — Stable flow identifier. Format: FLOW-DOMAIN-VERB or FLOW-NNN.
+                  Never renamed once assigned. Use status: SUPERSEDED if the flow is replaced.
+  name          — Short human-readable name.
+  description   — One sentence stating the goal of this flow.
+  trigger       — What event starts this flow (button click, page load, scheduled event).
+  role_refs     — ROLE-* IDs of roles that participate in this flow.
+  req_refs      — REQ-* IDs that this flow primarily demonstrates (flow-level refs).
+  status        — CONFIRMED_BY_STAKEHOLDER | CONFIRMED_BY_SOURCE | DERIVED | ASSUMPTION | OPEN
+  steps         — Ordered array of step entries (see below).
+  result        — step_id of the terminal success step.
+  error_paths   — step_ids of error/failure terminal steps.
+
+---
+
+## Step Entry Schema
+
+Each entry in steps[]:
+
+```json
+{
+  "step_id": "FLOWSTEP-001",
+  "type": "user_action",
+  "actor_role": "ROLE-CUSTOMER",
+  "description": "Customer reviews cart and clicks submit",
+  "screen_ref": "SCREEN-CART",
+  "req_refs": ["REQ-007"],
+  "decision_refs": ["DEC-003"],
+  "transitions": [
+    { "condition": "cart_not_empty", "label": "Cart has items", "to": "FLOWSTEP-002" },
+    { "condition": "cart_empty",     "label": "Cart empty",     "to": "FLOWSTEP-ERR-001" }
+  ]
+}
+```
+
+Fields:
+  step_id       — Stable step identifier within this flow. Format: FLOWSTEP-NNN.
+                  Unique within the flow. Never renamed. Use a new ID + SUPERSEDED status
+                  for replaced steps.
+  type          — Step type (see Step Types below).
+  actor_role    — ROLE-* ID of who performs this step. Required for user_action.
+  description   — What happens in this step. One or two sentences.
+  screen_ref    — SCREEN-* ID of the screen where this step is visible.
+                  Creates a SHOWN_ON graph edge: FLOW → PAGE.
+  req_refs      — REQ-* IDs that require this step to exist.
+                  Creates PARTICIPATES_IN graph edges: REQ → FLOW.
+  decision_refs — DEC-* IDs of decisions that govern this step's behavior.
+                  Creates DECIDED_BY graph edges: FLOW → DEC.
+  transitions   — Outgoing transitions from this step (see Transitions below).
+
+Terminal step entries (end_node, error_node) need only step_id, type, and description.
+
+---
+
+## Step Types
+
+  user_action      — A user interaction: click, input, select, submit.
+                     Requires actor_role.
+  system_action    — A system operation without direct user input:
+                     validation, save, calculate, send.
+  decision_node    — A branching point. Requires at least two transitions with
+                     distinct conditions. No actor_role.
+  integration_call — An external system call: API, service module, platform module.
+                     Document the system being called in description.
+  ui_state         — A stable visible screen state: loading spinner, confirmation
+                     banner, error message. Often maps to an interaction_state.
+  end_node         — Terminal success state. No transitions.
+  error_node       — Terminal error or blocked state. No transitions.
+
+---
+
+## Transitions
+
+Each transition in step.transitions[]:
+
+```json
+{ "condition": "payment_valid", "label": "Valid payment", "to": "FLOWSTEP-003" }
+```
+
+  condition — Internal identifier for this path (snake_case, no spaces).
+  label     — Human-readable condition for display in Mermaid and spec footer.
+  to        — step_id of the target step. Must exist in this flow's steps[].
+
+A user_action or system_action with a single outcome uses condition: "always".
+A decision_node must have at least two transitions.
+Error paths must terminate at an error_node. Never loop infinitely.
+
+---
+
+## Stability Rules
+
+IDs are stable once assigned:
+- FLOW-NNN (or FLOW-DOMAIN-VERB) — never renamed, never renumbered
+- FLOWSTEP-NNN — stable within their parent flow
+
+When a step is replaced:
+  OLD step → status: SUPERSEDED, transition target updated to FLOWSTEP-NEW
+  NEW step → assigned a new FLOWSTEP-ID
+
+When a flow is replaced:
+  OLD flow → status: SUPERSEDED
+  NEW flow → assigned a new FLOW-ID
+
+Do not renumber other steps or flows when inserting or removing entries.
+The index position of a step in the steps[] array is not its identifier.
+
+---
+
+## Mermaid Generation
+
+Mermaid is generated from structured steps — it is never stored in the Design Contract.
+
+Generation algorithm (deterministic):
+
+1. Emit header:
+   flowchart TD
+
+2. For each step in steps[]:
+   - user_action:     FLOWSTEP-001["Description [user_action]"]
+   - system_action:   FLOWSTEP-002{{"Description [system_action]"}}
+   - decision_node:   FLOWSTEP-003{"Condition?"}
+   - integration_call:FLOWSTEP-004[/"Description [integration]"/]
+   - ui_state:        FLOWSTEP-005(["Description [ui_state]"])
+   - end_node:        FLOWSTEP-END(((Success)))
+   - error_node:      FLOWSTEP-ERR-001(((Error)))
+
+3. For each step, for each transition:
+   FLOWSTEP-001 -->|label| FLOWSTEP-002
+
+4. Optional: style nodes by type.
+   User action = blue, system action = grey, decision = yellow,
+   end_node = green, error_node = red, integration = purple.
+
+JavaScript generator function (include inline in HTML):
+```javascript
+function generateMermaid(flow) {
+  const shapeOpen = {
+    user_action: '["', system_action: '{{"', decision_node: '{"',
+    integration_call: '[/"', ui_state: '(["', end_node: '((("', error_node: '((("'
+  };
+  const shapeClose = {
+    user_action: '"]', system_action: '"}}', decision_node: '"}',
+    integration_call: '"/]', ui_state: '"])' , end_node: '")))', error_node: ')))'
+  };
+  let lines = ['flowchart TD'];
+  for (const step of flow.steps) {
+    const o = shapeOpen[step.type] || '["';
+    const c = shapeClose[step.type] || '"]';
+    lines.push(`  ${step.step_id}${o}${step.description}${c}`);
+  }
+  for (const step of flow.steps) {
+    if (step.transitions) {
+      for (const t of step.transitions) {
+        lines.push(`  ${step.step_id} -->|${t.label}| ${t.to}`);
+      }
+    }
+  }
+  return lines.join('\n');
+}
+```
+
+Render Mermaid using the Mermaid.js CDN in the HTML output:
+```html
+<div class="mermaid">
+  <!-- generated by generateMermaid(flow) — not stored in Design Contract -->
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true });</script>
+```
+
+If the mockup is local-only (no external CDN): render ASCII-style flow description
+in a <pre> block as fallback, generated from the same structured data.
+
+---
+
+## Flow Revision Impact
+
+When a flow is modified in a refinement:
+
+1. Identify affected step_ids (added, updated, removed).
+2. Identify affected req_refs and screen_refs (new cross-references or removed ones).
+3. Record in revision_delta.effects[] with:
+   - type: "STORY" (when requirements are affected), "UI" (when screens are affected),
+     or "IMPLEMENTATION" (when an effect changes an existing implementation)
+   - required_action: UPDATE_REQUIRED | NEW_IMPLEMENTATION | REMOVE_AS_SUPERSEDED
+   - downstream_artifacts: affected REQ-NNN, SPEC-NNN, TASK-NNN identifiers
+   - source_ids: the FLOW-NNN and FLOWSTEP-NNN IDs that drove the change
+
+When step req_refs change, the graph's PARTICIPATES_IN edges must be rebuilt.
+When step screen_ref changes, the graph's SHOWN_ON edges must be rebuilt.
+Downstream test contracts (TC-NNN) that reference requirements in the changed steps
+become status: impacted, staleness_cause: DESIGN_CONTRACT_CHANGED.
+
+---
+
+## Flow-to-Verification Traceability
+
+The flow-to-verification traceability chain:
+
+  FLOW.steps[].req_refs → REQ-NNN
+                         → TC-NNN (test contract covers requirement)
+                         → VPL-NNN (verification plan covers test contract)
+                         → Acceptance Campaign proof points
+
+This means: a structured Business Flow step with req_refs creates an end-to-end
+traceability path from the design contract to the verification campaign.
+
+When a developer receives the Design Contract handoff:
+1. For each flow, for each step, note the req_refs.
+2. Confirm TC-NNN exists for each REQ-NNN covered by a flow step.
+3. Confirm VPL-NNN exists for each TC-NNN covering a flow-related requirement.
+4. If a flow step has no traceable TC-NNN: open a DECISION_REQUIRED in Refinement.
+
+The graph operation affected(FLOW-NNN, downstream) returns the TC and VPL nodes
+that are downstream of a flow's requirements. Use this for change impact assessment.
+
+---
+
+## Assessment Dimension: DIM-BUSINESS_FLOWS
+
+When business flows are present, assess the DIM-BUSINESS_FLOWS dimension:
+
+  UNEXPLORED — no flows defined or all flows are narrative-only
+  PARTIAL    — some flows defined with structure; end-to-end paths not fully traced
+  SUFFICIENT — key user journeys have structured flows with stable IDs and transitions
+  STRONG     — all major flows structured; error paths explicit; KG-compatible refs complete
+
+Gap categories for this dimension:
+  MISSING_FLOW          — a user journey described in requirements has no corresponding flow
+  INCOMPLETE_TRANSITIONS — a step has ambiguous or missing transition conditions
+  UNSTABLE_IDS          — step or flow IDs are narrative labels, not stable FLOWSTEP-NNN
+  MISSING_REQ_REFS      — flow steps lack req_refs (breaks PARTICIPATES_IN graph edges)
+  MISSING_SCREEN_REF    — user_action or ui_state step lacks screen_ref (breaks SHOWN_ON)
+  UNDOCUMENTED_ERROR_PATH — flow has no error_node for known failure modes
+
+A flow with only a narrative description and no structured steps is:
+  DIM-BUSINESS_FLOWS: PARTIAL (narrative only)
+
+---
+
+## What NOT to Put in a Business Flow
+
+Business flows are business-observable behavior, not implementation:
+
+DO include:
+- User actions that are visible to the Product Owner
+- System actions that have business consequences
+- Decisions that a Product Owner would recognize as real choices
+- Error conditions that the business needs to know about
+
+DO NOT include:
+- Mendix microflow names (those go in mendix_candidates)
+- Technical retry loops or infrastructure errors
+- Internal platform module steps (mark those as integration_call with platform boundary note)
+- Optimistic lock handling, session expiry, or other infrastructure concerns
+- Implementation details that the Product Owner would not recognize as part of their process
+
+---
+
+## Example: Complete Structured Flow
+
+```json
+{
+  "id": "FLOW-ORDER-SUBMIT",
+  "name": "Order Submission",
+  "description": "Customer submits an order from the cart.",
+  "trigger": "Customer clicks 'Place Order' button on SCREEN-CART.",
+  "role_refs": ["ROLE-CUSTOMER"],
+  "req_refs": ["REQ-007", "REQ-008"],
+  "status": "CONFIRMED_BY_STAKEHOLDER",
+  "steps": [
+    {
+      "step_id": "FLOWSTEP-001",
+      "type": "user_action",
+      "actor_role": "ROLE-CUSTOMER",
+      "description": "Customer reviews cart and clicks Place Order",
+      "screen_ref": "SCREEN-CART",
+      "req_refs": ["REQ-007"],
+      "decision_refs": [],
+      "transitions": [
+        { "condition": "cart_not_empty", "label": "Cart has items", "to": "FLOWSTEP-002" },
+        { "condition": "cart_empty",     "label": "Cart empty",     "to": "FLOWSTEP-ERR-001" }
+      ]
+    },
+    {
+      "step_id": "FLOWSTEP-002",
+      "type": "system_action",
+      "description": "System validates payment method",
+      "transitions": [
+        { "condition": "payment_valid",   "label": "Valid",   "to": "FLOWSTEP-003" },
+        { "condition": "payment_invalid", "label": "Invalid", "to": "FLOWSTEP-ERR-002" }
+      ]
+    },
+    {
+      "step_id": "FLOWSTEP-003",
+      "type": "ui_state",
+      "description": "Order confirmation screen shown",
+      "screen_ref": "SCREEN-CONFIRM",
+      "req_refs": ["REQ-008"],
+      "transitions": [
+        { "condition": "always", "to": "FLOWSTEP-END" }
+      ]
+    },
+    {
+      "step_id": "FLOWSTEP-END",
+      "type": "end_node",
+      "description": "Order placed successfully."
+    },
+    {
+      "step_id": "FLOWSTEP-ERR-001",
+      "type": "error_node",
+      "description": "Empty cart error shown. Customer directed back to shop."
+    },
+    {
+      "step_id": "FLOWSTEP-ERR-002",
+      "type": "error_node",
+      "description": "Payment error shown. Customer directed to update payment method."
+    }
+  ],
+  "result": "FLOWSTEP-END",
+  "error_paths": ["FLOWSTEP-ERR-001", "FLOWSTEP-ERR-002"]
+}
+```
+
+
+---
+
+# Interaction and Effect Analysis
+
+Use this reference only for a material cross-role, cross-scope, cross-screen,
+cross-session, state-dependent, or multi-interaction behavior. A simple local button or
+filter remains a normal interaction state with one or more effects.
+
+## Evidence and Provenance
+
+Label each assertion independently:
+
+- `DECLARED`: explicitly stated by the Product Owner/stakeholder or accepted in the
+  Mocketeer Design Contract. Preserve the source and revision.
+- `INFERRED`: derived by an agent from requirements, mockup structure, roles, or other
+  artifacts. Keep it visibly inferred; never promote it to a confirmed declaration.
+- `OBSERVED`: seen in a specific mockup runtime or running application. Record the
+  source/version and available evidence. Observation does not establish business intent.
+- `PROPOSED`: a suggested completion or interpretation that still requires confirmation.
+
+Do not overload interaction/effect lifecycle fields such as `OPEN`, `DONE`, or
+`SUPERSEDED` with provenance. If the existing contract cannot store provenance at the
+assertion's level, report that limitation instead of changing its meaning.
+
+## Coverage Procedure
+
+1. Extract the business statement into one causal chain without changing its meaning:
+   actor and role → interaction/trigger → preconditions and prior state → business state
+   change → effects → observers and scope → follow-up interaction → later effects.
+2. Link existing interaction/effect IDs to existing flow steps. Use flow transitions for
+   ordering and branches. A reference is valid only when it resolves to one stable ID.
+3. Keep the observing actor/role distinct from `affected_roles`; the latter alone does
+   not prove who sees an effect. Keep observation scope distinct from a general role
+   permission scope.
+4. Record explicit negative observations. Absence of a role or scope from a positive
+   list means UNKNOWN, not forbidden.
+5. Link requirements, decisions, business rules, affected screens, and downstream
+   artifacts using their existing source references. Preserve the source-ID namespace;
+   MxAgile canonical IDs require the existing validated `id_map` process.
+6. State which positive and negative claims can become Test Contract proof points and
+   what evidence layer is required. Do not derive a proof point from an unstated
+   permission or observer.
+7. For revisions, compare the affected interaction/effect and flow references, then
+   route only affected proof points through the canonical MxAgile reconciliation and
+   test-staleness policies.
+
+## Coverage Record
+
+For each interaction/effect in scope, capture:
+
+| Element | Required question |
+|---|---|
+| Actor | Which person/system acts? Is an individual actor known or only a role? |
+| Role | Which declared role performs the action? |
+| Interaction | Which stable interaction/state ID is triggered? |
+| Trigger | What event starts it, and is the trigger structured or free text? |
+| Preconditions | Which business and authorization conditions must hold at action time? |
+| Prior state | What data and UI state exists before the action? |
+| State change | What business state changes, independently of its visual feedback? |
+| Effect | What data, permission, navigation, or visual result follows? |
+| Observer | Which actor or role observes that effect? |
+| Observation scope | Which center, department, team, record, session, or user scope applies? |
+| Negative observer | Which role/scope must explicitly not see or perform it? |
+| Follow-up | Which next interaction consumes or responds to the effect? |
+| Traceability | Which requirements, decisions, and business rules govern the chain? |
+| Downstream | Which screens, Mendix candidates, Test Contracts, and evidence are affected? |
+| Reconciliation | Which stable IDs and proof points become impacted after a revision? |
+
+For every element, classify the evidence as `ALREADY_EXPRESSIBLE`,
+`EXPRESSIBLE_BUT_NOT_NORMALIZED`, `PRESENT_ONLY_IN_REQUIREMENT_PROSE`,
+`PRESENT_ONLY_IN_MOCKUP_RUNTIME`, `INFERRED_BY_MXAGILE`, `NOT_EXPRESSIBLE`, or
+`AMBIGUOUS`. State whether the classification describes contract capability or actual
+fixture evidence; do not blur the two.
+
+## Existing Contract Reuse
+
+- `interaction_states[].trigger`, `initial_state`, `resulting_state`, `data_effect`,
+  `permission_effect`, and `effects[]` capture local interaction semantics.
+- `flows[].steps[]` and `transitions[]` capture ordered user/system actions and branches.
+- Role `can[]`/`cannot[]`, permissions, and scope fields capture declared role/access
+  constraints; they do not automatically specify effect observers.
+- Effect IDs and flow-step `effects[]` references should be cross-checked before claiming
+  a chain is normalized. Do not invent a top-level registry or new artifact type to make
+  a missing reference appear valid.
+- `revision_delta.effects[]` and MxAgile impact policies describe revision changes and
+  downstream review; they are not a substitute for the original causal chain.
+
+If the existing source contract cannot carry an explicit observer/scope or provenance
+claim, record a precise gap and recommend the smallest compatible extension. Do not
+implement an extension until representative real Product Owner examples have been
+audited and backward compatibility is understood.

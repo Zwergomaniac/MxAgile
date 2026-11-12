@@ -1,3 +1,28 @@
+---
+name: mocketeer-handoff
+description: assesses mocketeer contract maturity and prepares an evidence-preserving handoff to mxagile. use when a product owner asks whether a mockup is ready for development, or when an accepted mockup revision must be reconciled with downstream requirements and tests.
+---
+
+# Mocketeer Handoff
+
+Use the complete handoff, readiness, provenance, and interaction guidance included
+below. MxAgile policies remain authoritative for downstream lifecycle actions.
+
+- Report prototype readiness separately from development handoff readiness.
+- Preserve gaps, decisions, conflicts, and source revision provenance. `HANDOFF_READY`
+  upstream does not bypass MxAgile Discovery, Refinement, or lifecycle gates.
+- Reconcile only the requirements, roles, screens, interactions, and proof points
+  affected by the new declared contract. Do not reset unrelated work.
+- Keep Mocketeer source IDs separate from canonical MxAgile IDs and require the
+  established validated `id_map` before canonical references are written.
+- Derive positive and negative Test Contract claims only from explicit declared role
+  and scope assertions. Unknown observers are not implicitly forbidden.
+
+Route intake, reconciliation, Test Contract derivation, and verification to their
+existing MxAgile skills and policies; this skill does not replace them.
+
+---
+
 # MxMocketeer → Development / MxAgile Handoff
 
 ## Handoff Principle

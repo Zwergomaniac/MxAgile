@@ -856,7 +856,7 @@
     "UsesFixedTempPath": false,
     "ModifiesGlobalState": false,
     "ParallelSafe": true,
-    "Reason": "Validates MxMocketeer product: required files (incl. discovery-assessment.txt), system-prompt character count + safety margin + discipline (invariants present, taxonomy not duplicated), golden-mockup HTML + JSON structure, assessment block (dimensions/gaps/readiness/blocking_gaps), ID reference resolution, company-neutral content. Pure read-only static check."
+    "Reason": "Validates MxMocketeer product: required files (incl. discovery-assessment.md), system-prompt character count + safety margin + discipline (invariants present, taxonomy not duplicated), golden-mockup HTML + JSON structure, assessment block (dimensions/gaps/readiness/blocking_gaps), ID reference resolution, company-neutral content. Pure read-only static check."
   },
   {
     "File": "test-wp2-lifecycle-extensions.ps1",

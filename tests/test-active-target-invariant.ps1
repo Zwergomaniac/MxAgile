@@ -146,7 +146,7 @@ $revTemplate = ReadFile (Join-Path $RepoRoot '.mxagile/templates/generic/revisio
 Assert ($revTemplate -match 'lifecycle_status:.*SOURCE') 'revision template default lifecycle_status is SOURCE'
 
 # Migration defaults: active_target true for SOURCE
-$kf = ReadFile (Join-Path $RepoRoot 'products/MxMocketeer/knowledge/design-contract.txt')
+$kf = ReadFile (Join-Path $RepoRoot 'products/MxMocketeer/skills/mocketeer-design-contract/SKILL.md')
 Assert ($kf -match 'active_target.*true.*Only revision|Only revision.*active_target.*true|active_target.*true.*SOURCE') 'knowledge file: SOURCE default active_target is true'
 
 # ──────────────────────────────────────────────────────────────

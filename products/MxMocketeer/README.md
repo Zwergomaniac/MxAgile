@@ -2,38 +2,45 @@
 
 MxMocketeer is a discovery, requirements, UI/UX, and HTML mockup agent for Mendix and digital transformation projects. Product Owners and key users develop clickable prototypes through conversation. Requirements, decisions, roles, rules, assumptions, and traceability travel invisibly as an embedded Design Contract inside the same HTML file.
 
-## Package Structure
+## Skills
 
 ```
 products/MxMocketeer/
-    system-prompt.md          — agent instructions (paste into M365 Copilot Agent Builder)
-    suggested-prompts.md      — six Product Owner starter prompts
-    agent-builder-setup.md    — step-by-step configuration guide
+    system-prompt.md          — always-on identity, safety, and stop conditions
+    suggested-prompts.md      — Product Owner starter prompts
+    agent-builder-setup.md    — packaging and host setup guide
     README.md
 
-    knowledge/
-        design-contract.txt       — Design Contract v1 schema, maturity assessment schema, preservation rules
-        discovery-assessment.txt  — assessment dimensions, gap taxonomy, interview strategy, readiness rules
-        mendix-design-guide.txt   — Mendix-aligned design guidance
-        mxagile-handoff.txt       — handoff mapping to development / MxAgile, maturity integration
-        golden-mockuphtml.txt     — complete golden reference mockup (HTML source in TXT)
+    skills/mocketeer-*/SKILL.md — seven full, canonical product skills
+    .mxagile/skills/mocketeer-*/SKILL.md — installer-owned consumer copies
+    .claude/skills/mocketeer-*/SKILL.md — generated Claude projections after setup
+    .github/skills/mocketeer-*/SKILL.md — generated Copilot projections after setup
+    .agents/skills/mocketeer-*/SKILL.md — generated portable/Concord projections
 
     tests/
-        preservation-acceptance.md        — manual acceptance test procedure
-        test-mocketeer-validation.ps1     — automated static validation (Tier 0)
+        preservation-acceptance.md
+        test-mocketeer-validation.ps1
+        test_mocketeer_skills.py
 ```
 
-## Setup Order
+## Setup
 
-1. Open Microsoft 365 Copilot Agent Builder (or equivalent).
-2. Paste `system-prompt.md` into the **Instructions** field.
-3. Upload all five files from `knowledge/` as knowledge.
-4. Add the six entries from `suggested-prompts.md` as suggested prompts.
-5. Name the agent **MxMocketeer v3**.
-6. Publish with limited scope for pilot testing.
-7. Run `tests/preservation-acceptance.md` before broad rollout.
+1. Paste `system-prompt.md` into the Agent **Instructions** field.
+2. Add the seven `skills/mocketeer-*/SKILL.md` files to Microsoft Copilot as seven
+    independent Skills. Each file includes complete domain guidance and the required
+    two-field YAML frontmatter; no separate references are needed.
+3. For consumer repositories, run the normal MxAgile setup/update. `install-core.ps1`
+    copies these seven product skills into `.mxagile/skills/`, then
+    `generate-mxagile-platform-skills.ps1` projects them into Claude, Copilot, and
+    portable/Concord discovery directories.
+4. Claude/Concord users receive the same source through the normal MxAgile installer;
+    there is no product-specific bundler or alternate package.
+5. Add the entries from `suggested-prompts.md`, name the agent **MxMocketeer v3**, and
+    publish with limited pilot scope.
+6. Run the preservation acceptance procedure before broad rollout.
 
-See `agent-builder-setup.md` for full configuration guidance.
+See `agent-builder-setup.md` for the manual Copilot steps and the normal MxAgile
+installer/generator paths.
 
 ## Product Owner Usage
 
@@ -53,24 +60,33 @@ The contract preserves requirements, decisions, roles (with positive and explici
 
 The optional `assessment` block records maturity dimensions, identified gaps, and readiness state (`PROTOTYPE_READY`, `REFINEMENT_REQUIRED`, `HANDOFF_READY`, `BLOCKED`). A visually complete prototype is not automatically development-ready.
 
-Schema reference: `knowledge/design-contract.txt`
+Canonical schema content: `skills/mocketeer-design-contract/SKILL.md`
 
 ## Golden Reference Mockup
 
-`knowledge/golden-mockuphtml.txt` contains the complete HTML source of the golden reference mockup, including embedded CSS, JavaScript, synthetic mock data, and embedded Design Contract. It is HTML content stored as a TXT file for M365 Copilot knowledge upload.
+The complete Golden Mockup HTML example is embedded in
+`skills/mocketeer-mockup-generation/SKILL.md`; it is sample material, not business authority.
 
 The mockup demonstrates: multiple roles, positive/negative permissions, search/filter, create dialog, validation, role-switching, empty state, spec-footer, traceability attributes, stable IDs, and a complete Design Contract.
 
 ## Validation
 
-Run the automated Tier 0 validation from the repository root:
+Run the product checks from the repository root:
 
 ```powershell
 pwsh products/MxMocketeer/tests/test-mocketeer-validation.ps1
 ```
 
-Validates: required files, system prompt character count, golden mockup completeness (HTML/CSS/JS/Design Contract), JSON integrity, ID uniqueness and reference resolution, company-neutral content, and knowledge file completeness.
+The product suite validates Design Contract compatibility and preservation.
+`tests/test_mocketeer_skills.py` validates seven distinct skill triggers, exact
+frontmatter, full embedded source knowledge, and absence of separate reference copies.
+`tests/test-injection-contract.ps1` validates host projections;
+`tests/test-core-installer.ps1 -SelectedTests Test-GenericInstallation` validates the
+fresh consumer install path.
 
 ## Architectural Boundary
 
-MxMocketeer is an upstream design product. It produces the Design Contract. It does not consume or generate MxAgile canonical artifacts. That mapping is described in `knowledge/mxagile-handoff.txt` and is a separate work package.
+MxMocketeer is an upstream design product. Its seven full canonical skills live under
+`products/MxMocketeer/skills/`. `install-core.ps1` copies them into consumer
+`.mxagile/skills/`; the existing generator creates host discovery projections. MxAgile
+policies remain authoritative for intake, reconciliation, planning, and verification.

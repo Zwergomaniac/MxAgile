@@ -223,15 +223,32 @@ function Add-ContextModeRuntimeGitIgnore {
     $existing = @($content -split '\r?\n' | ForEach-Object { $_.Trim().TrimStart('/').Replace('\', '/') })
     $required = @('.context-mode/', '.github/context-mode/', '.mxagile/state/runs/')
     $missing = @($required | Where-Object { $_ -notin $existing })
-    if ($missing.Count -eq 0) { return }
-
-    $newline = if ($content -match "`r`n") { "`r`n" } else { "`n" }
-    $block = '# MxAgile Context Mode runtime state (session-owned; do not commit)' + $newline + ($missing -join $newline) + $newline
-    if ($content.Length -gt 0) {
-        $separator = if ($content -match '(\r\n|\n|\r)$') { $newline } else { $newline + $newline }
-        $block = $separator + $block
+    if ($missing.Count -gt 0) {
+        $newline = if ($content -match "`r`n") { "`r`n" } else { "`n" }
+        $block = '# MxAgile Context Mode runtime state (session-owned; do not commit)' + $newline + ($missing -join $newline) + $newline
+        if ($content.Length -gt 0) {
+            $separator = if ($content -match '(\r\n|\n|\r)$') { $newline } else { $newline + $newline }
+            $block = $separator + $block
+        }
+        [System.IO.File]::AppendAllText($gitignorePath, $block, [System.Text.UTF8Encoding]::new($false))
     }
-    [System.IO.File]::AppendAllText($gitignorePath, $block, [System.Text.UTF8Encoding]::new($false))
+
+    $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $gitCommand) { return }
+    & $gitCommand.Source -C $Root rev-parse --git-dir 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { return }
+
+    # Existing negation rules can override a correct-looking earlier entry.
+    $probe = '.mxagile/state/runs/append.lock'
+    & $gitCommand.Source -C $Root check-ignore --quiet -- $probe 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        $current = [System.IO.File]::ReadAllText($gitignorePath)
+        $newline = if ($current -match "`r`n") { "`r`n" } else { "`n" }
+        $separator = if ($current.Length -eq 0 -or $current -match '(\r\n|\n|\r)$') { $newline } else { $newline + $newline }
+        [System.IO.File]::AppendAllText($gitignorePath, $separator + '# MxAgile Run Event runtime files (including locks)' + $newline + '.mxagile/state/runs/' + $newline, [System.Text.UTF8Encoding]::new($false))
+        & $gitCommand.Source -C $Root check-ignore --quiet -- $probe 2>$null
+        if ($LASTEXITCODE -ne 0) { throw 'RUN_EVENT_STORE_NOT_GITIGNORED: .mxagile/state/runs/append.lock is not ignored.' }
+    }
 }
 
 # =========================================================================
@@ -948,6 +965,44 @@ try {
         Write-Warning "install-mxcli.ps1 not found, cannot distribute updater script."
     }
 
+
+    # Install the independently owned Mocketeer product skills into the Core payload.
+    # The product directory is the single source of their full Markdown content; the
+    # existing platform generator projects these files after setup-agent-system starts.
+    $distributionRoot = Split-Path $PSScriptRoot -Parent
+    $mocketeerSkillSource = Join-Path $distributionRoot 'products/MxMocketeer/skills'
+    if (-not (Test-Path -LiteralPath $mocketeerSkillSource -PathType Container)) {
+        throw "Mocketeer skill source not found: $mocketeerSkillSource"
+    }
+    $expectedMocketeerSkills = @(
+        'mocketeer-discovery',
+        'mocketeer-design-contract',
+        'mocketeer-refinement',
+        'mocketeer-preservation',
+        'mocketeer-business-flows',
+        'mocketeer-mockup-generation',
+        'mocketeer-handoff'
+    )
+    $sourceMocketeerSkills = @(Get-ChildItem -LiteralPath $mocketeerSkillSource -Directory -Filter 'mocketeer-*')
+    $actualMocketeerNames = @($sourceMocketeerSkills | ForEach-Object { $_.Name } | Sort-Object)
+    $expectedMocketeerNames = @($expectedMocketeerSkills | Sort-Object)
+    if (($actualMocketeerNames -join "`n") -ne ($expectedMocketeerNames -join "`n")) {
+        throw "Mocketeer skill source must contain exactly seven canonical skills. Found: $($actualMocketeerNames -join ', ')"
+    }
+    $installedSkillRoot = Join-Path $destMxAgile 'skills'
+    foreach ($mocketeerSkill in $sourceMocketeerSkills) {
+        $skillFile = Join-Path $mocketeerSkill.FullName 'SKILL.md'
+        if (-not (Test-Path -LiteralPath $skillFile -PathType Leaf)) {
+            throw "Mocketeer skill is missing SKILL.md: $($mocketeerSkill.Name)"
+        }
+        $installedSkill = Join-Path $installedSkillRoot $mocketeerSkill.Name
+        if (Test-Path -LiteralPath $installedSkill) {
+            throw "Mocketeer installer skill ownership conflict: $installedSkill"
+        }
+        New-Item -ItemType Directory -Path $installedSkill -Force | Out-Null
+        Copy-Item -Path (Join-Path $mocketeerSkill.FullName '*') -Destination $installedSkill -Recurse -Force
+    }
+    Write-Host '[OK] Seven canonical Mocketeer skills installed into .mxagile/skills.'
 
     # Call setup-agent-system.ps1
     $setupScript = Join-Path $PSScriptRoot "setup-agent-system.ps1"

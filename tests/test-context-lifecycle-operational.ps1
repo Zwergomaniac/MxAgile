@@ -350,6 +350,49 @@ try {
     if ($null -ne $tempF) { Remove-TempProject $tempF }
 }
 
+# ─── G: YAML scalar quote and line-ending compatibility ───────────────────
+Write-Host ""
+Write-Host "--- G: YAML scalar quote and line-ending compatibility ---" -ForegroundColor Yellow
+
+$tempG = $null
+try {
+    $tempG = New-TempProject
+    & $writerScript -ProjectRoot $tempG -MissionId "MISSION-G-QUOTES" -EpochId "EPOCH-001" -NextAction "Continue"
+    $checkpointPath = Join-Path $tempG ".concord\context-epoch.yaml"
+    $baselineYaml = Get-Content -LiteralPath $checkpointPath -Raw -Encoding UTF8
+    $styles = @(
+        @{ Name = 'double quoted'; Schema = 'schema_version: "1.0"' },
+        @{ Name = 'single quoted'; Schema = "schema_version: '1.0'" },
+        @{ Name = 'unquoted'; Schema = 'schema_version: 1.0' }
+    )
+    foreach ($style in $styles) {
+        foreach ($lineEnding in @("`n", "`r`n")) {
+            $candidate = [regex]::Replace($baselineYaml, '(?m)^schema_version:.*$', [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $style.Schema })
+            $candidate = [regex]::Replace($candidate, "`r?`n", $lineEnding)
+            [System.IO.File]::WriteAllText($checkpointPath, $candidate, [System.Text.UTF8Encoding]::new($false))
+            $parsed = & $readerScript -ProjectRoot $tempG
+            $endingName = if ($lineEnding -eq "`n") { 'LF' } else { 'CRLF' }
+            Assert-True "G: $($style.Name), $endingName" ($parsed.Valid -and $parsed.SchemaVersion -eq '1.0') "Reader rejected scalar: $($parsed.ConflictReason)"
+        }
+    }
+
+    $invalidYaml = $baselineYaml -replace 'schema_version: "1\.0"', "schema_version: '1.0"
+    [System.IO.File]::WriteAllText($checkpointPath, $invalidYaml, [System.Text.UTF8Encoding]::new($false))
+    $invalid = & $readerScript -ProjectRoot $tempG
+    Assert-True "G: malformed quoted schema is rejected" (-not $invalid.Valid -and $invalid.ConflictReason -match 'Invalid schema_version') "Malformed YAML was accepted."
+
+    foreach ($version in @('0.9', '2.0')) {
+        $candidate = [regex]::Replace($baselineYaml, '(?m)^schema_version:.*$', "schema_version: '$version'")
+        [System.IO.File]::WriteAllText($checkpointPath, $candidate, [System.Text.UTF8Encoding]::new($false))
+        $parsed = & $readerScript -ProjectRoot $tempG
+        Assert-True "G: unsupported schema $version is rejected" (-not $parsed.Valid -and $parsed.SchemaVersion -eq $version) "Unsupported version was accepted."
+    }
+} catch {
+    Assert-True "G: No unexpected exception" $false "Exception: $_"
+} finally {
+    if ($null -ne $tempG) { Remove-TempProject $tempG }
+}
+
 # ─── Summary ─────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "=== Operational Tests Summary ===" -ForegroundColor Cyan

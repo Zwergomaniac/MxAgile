@@ -52,6 +52,33 @@ betroffene Suite gezielt erneut ausfuehren, Root Cause beheben und danach den Im
 neu konsultieren. Ein weiterer Broad-Lauf ist nur zulaessig, wenn die aktuelle Gate-Authority
 ihn nach der Aenderung weiterhin verlangt und sich relevante Evidence/Codebasis geaendert hat.
 
+### Gate-Ebenen, Branch-Push und Evidence-Reuse
+
+Die Gates haben getrennte Zwecke und duerfen nicht als austauschbare Testmengen
+behandelt werden:
+
+| Gate | Erforderliche Evidence | Zweck |
+|---|---|---|
+| `DEVELOPMENT_GATE` | Fast Gate, gezielte Tests der geaenderten Verhaltenspfade und ein vollstaendiger Impact-Plan (`unmapped: []`) | Feedback und Push-Bereitschaft auf einem Feature-/Experimental-Branch |
+| `INTEGRATION_GATE` | Ausfuehrung der vom aktuellen Impact-Plan ausgewaehlten Integrationstests | Integration/Merge nach `main` oder in einen gemeinsamen Integrationszweig |
+| `RELEASE_GATE` | Autorisiertes Full Regression/Full Release Gate | Release-/Tag-Freigabe oder explizit vorgeschriebene Release-Autoritaet |
+
+Ein Push auf einen Feature-/Experimental-Branch erfordert einen bestandenen
+`DEVELOPMENT_GATE` und eine ausdrueckliche aktuelle Push-Freigabe. Ein Full Release
+Gate ist keine Voraussetzung fuer diesen Push. Unmapped Pfade blockieren das
+Development Gate, bis sie gezielt zugeordnet sind; ein Impact-Plan kann zur
+Abdeckungspruefung dienen, ohne den vollstaendigen Impact-Aggregatlauf auszuloesen.
+Vor Merge/Integration und Release gelten die jeweils zugeordneten Integrations- und
+Release-Gates.
+
+Gate-Evidence ist an die getesteten Code- und Test-Inputs gebunden. Bereits gruene,
+teure Suiten duerfen fuer unveraenderte Inputs wiederverwendet werden und werden nicht
+allein wegen eines neuen Chats, eines spaeteren Zeitpunkts oder formaler Vollstaendigkeit
+erneut gestartet. Relevante Code-, Schema-, Fixture- oder Runner-Aenderungen invalidieren
+nur die davon betroffenen Evidence-Bereiche gemaess aktuellem Impact-Plan. Ergebnisse
+werden getrennt als `PASS`, `FAIL`, `INCOMPLETE`, `UNAVAILABLE_EXTERNAL` oder
+`NOT_RUN_BY_DESIGN` berichtet; fehlende Ausfuehrung ist niemals ein PASS.
+
 ### Wave-Grenzen und Verifikation
 
 Eine Wave ist eine Grenze fuer die vorgeschriebenen Requirement-, Acceptance- und

@@ -50,8 +50,7 @@ Das Erstellen und Verfeinern von Mockups obliegt dem MxMocketeer-Produkt selbst.
 Role names in Mocketeer Design Contracts are business/test identities, not Mendix XPath
 predicates. The Mocketeer product guidance must preserve that boundary:
 
-- `products/MxMocketeer/knowledge/mendix-design-guide.txt` must prohibit free-text
-- `products/MxMocketeer/knowledge/mendix-design-guide.txt` must prohibit free-text
+- `.mxagile/skills/mocketeer-mockup-generation/SKILL.md` must prohibit free-text
    `System.UserRole.Name` checks and wildcard/substring matching, and direct concrete Mendix role
    identity to the documented UserRole system variable after project-model verification.
 - Preserve business capabilities such as `CanEditRegions` separately from UserRole identity and

@@ -4,6 +4,11 @@
 **Date:** 2026-10-07  
 **Scope:** Part A — Provider-Neutral Knowledge Graph · Part B — Structured Business Flow Contracts  
 
+> Historical spike: path names and M365 upload guidance below describe the pre-skill
+> TXT knowledge layout. Current Mocketeer source is the seven full
+> `products/MxMocketeer/skills/mocketeer-*/SKILL.md` files, installed into consumer
+> `.mxagile/skills/` by `install-core.ps1`.
+
 ---
 
 ## Executive Summary
@@ -318,7 +323,7 @@ The spike establishes:
 
 ### B.1 Current State
 
-MxMocketeer's design contract (`products/MxMocketeer/knowledge/design-contract.txt`) specifies
+MxMocketeer's design contract (`.mxagile/skills/mocketeer/references/design-contract.md`) specifies
 `flows[]` as:
 
 > "Flows contain: start, steps, alternatives, result, and error paths."
@@ -475,7 +480,7 @@ This enables:
    contract (`query`, `neighbors`, `paths`, `affected`, `explain`, `status`).
 
 **Phase 2 — Business Flows (MxMocketeer, no new dependency)**
-1. Add structured `flows[]` schema to `products/MxMocketeer/knowledge/design-contract.txt`.
+1. Add structured `flows[]` schema to `.mxagile/skills/mocketeer/references/design-contract.md`.
 2. Update MxMocketeer system prompt: generate Mermaid from structured steps (inline JS).
 3. Register FLOW node type and PARTICIPATES_IN/SHOWN_ON/DECIDED_BY edges in
    `docs/ARTIFACT_GRAPH_SCHEMA.json`.
@@ -511,11 +516,11 @@ The M365 agent is **MxMocketeer v3**, packaged at `products/MxMocketeer/`.
 | Component | File | M365 Upload method |
 |---|---|---|
 | System Prompt | `system-prompt.md` | Paste into Instructions field |
-| Knowledge 1 | `knowledge/design-contract.txt` | Upload as knowledge file |
-| Knowledge 2 | `knowledge/discovery-assessment.txt` | Upload as knowledge file |
-| Knowledge 3 | `knowledge/golden-mockuphtml.txt` | Upload as knowledge file |
-| Knowledge 4 | `knowledge/mendix-design-guide.txt` | Upload as knowledge file |
-| Knowledge 5 | `knowledge/mxagile-handoff.txt` | Upload as knowledge file |
+| Knowledge 1 | `references/design-contract.md` | Upload as knowledge file |
+| Knowledge 2 | `references/discovery-assessment.md` | Upload as knowledge file |
+| Knowledge 3 | `assets/golden-mockup.html` | Upload as knowledge file |
+| Knowledge 4 | `references/mendix-design-guide.md` | Upload as knowledge file |
+| Knowledge 5 | `references/mxagile-handoff.md` | Upload as knowledge file |
 | Setup guide | `agent-builder-setup.md` | Reference for configurator only |
 | Prompts | `suggested-prompts.md` | Configure as Suggested Prompts |
 
@@ -544,9 +549,9 @@ No existing sections removed or altered.
 
 | File | Change summary |
 |---|---|
-| `knowledge/design-contract.txt` | `## Screens, Flows, and States` section updated: added structured flows schema (id, steps[], step types, FLOW-NNN/FLOWSTEP-NNN IDs, screen_ref/req_refs/decision_refs graph edges, Mermaid-as-view rule, backward compatibility note) |
-| `knowledge/discovery-assessment.txt` | Handoff readiness section updated: added DIM-BUSINESS_FLOWS to the "may be PARTIAL" list. Prioritization updated: business flow structural gaps elevated to HIGH when they drive authorization or multi-role handoff. |
-| `knowledge/mxagile-handoff.txt` | Added `## Business Flow Handoff` section (flow → TC/VPL traceability, revision impact, Mermaid canonicity rule) and `## Knowledge Graph Handoff` section (build/refresh steps, design_contract_ref format, affected() usage) |
+| `references/design-contract.md` | `## Screens, Flows, and States` section updated: added structured flows schema (id, steps[], step types, FLOW-NNN/FLOWSTEP-NNN IDs, screen_ref/req_refs/decision_refs graph edges, Mermaid-as-view rule, backward compatibility note) |
+| `references/discovery-assessment.md` | Handoff readiness section updated: added DIM-BUSINESS_FLOWS to the "may be PARTIAL" list. Prioritization updated: business flow structural gaps elevated to HIGH when they drive authorization or multi-role handoff. |
+| `references/mxagile-handoff.md` | Added `## Business Flow Handoff` section (flow → TC/VPL traceability, revision impact, Mermaid canonicity rule) and `## Knowledge Graph Handoff` section (build/refresh steps, design_contract_ref format, affected() usage) |
 
 ---
 
@@ -555,7 +560,7 @@ No existing sections removed or altered.
 | File | Content |
 |---|---|
 | `knowledge/knowledge-graph.txt` | Provider-neutral KG contract, edge types (all 17 standard + 3 Business Flow), provenance classes (CANONICAL/EXTRACTED/INFERRED with precedence), graph-assisted orientation/resync/impact discovery, freshness/staleness handling, canonical validation after lookup, fallback to YAML traversal, what MxMocketeer must generate to feed the graph |
-| `knowledge/business-flows.txt` | Complete flow entry schema (FLOW-NNN), step entry schema (FLOWSTEP-NNN), 7 step types, transition schema, stability rules, Mermaid generation algorithm + inline JS, flow revision impact in revision_delta.effects[], flow-to-verification traceability chain (FLOW → REQ → TC → VPL → Campaign), DIM-BUSINESS_FLOWS assessment dimension + gap categories, what NOT to include in business flows, complete worked example |
+| `references/business-flows.md` | Complete flow entry schema (FLOW-NNN), step entry schema (FLOWSTEP-NNN), 7 step types, transition schema, stability rules, Mermaid generation algorithm + inline JS, flow revision impact in revision_delta.effects[], flow-to-verification traceability chain (FLOW → REQ → TC → VPL → Campaign), DIM-BUSINESS_FLOWS assessment dimension + gap categories, what NOT to include in business flows, complete worked example |
 
 ---
 
@@ -563,8 +568,8 @@ No existing sections removed or altered.
 
 | File | Reason unchanged |
 |---|---|
-| `knowledge/golden-mockuphtml.txt` | Phase 2 implementation task: the golden reference mockup will be updated to include a structured flow example. Not changed in this spike. |
-| `knowledge/mendix-design-guide.txt` | No overlap with Knowledge Graph or Business Flow capabilities. |
+| `assets/golden-mockup.html` | Phase 2 implementation task: the golden reference mockup will be updated to include a structured flow example. Not changed in this spike. |
+| `references/mendix-design-guide.md` | No overlap with Knowledge Graph or Business Flow capabilities. |
 
 ---
 
@@ -574,15 +579,15 @@ After Phase 2 implementation, produce a new M365 package:
 
 1. **System Prompt** — copy complete content of updated `system-prompt.md`.
 2. **Knowledge files to re-upload** (replace existing):
-   - `knowledge/design-contract.txt` (updated)
-   - `knowledge/discovery-assessment.txt` (updated)
-   - `knowledge/mxagile-handoff.txt` (updated)
+   - `references/design-contract.md` (updated)
+   - `references/discovery-assessment.md` (updated)
+   - `references/mxagile-handoff.md` (updated)
 3. **New knowledge files to upload** (first time):
    - `knowledge/knowledge-graph.txt`
-   - `knowledge/business-flows.txt`
+   - `references/business-flows.md`
 4. **Unchanged — no action required**:
-   - `knowledge/golden-mockuphtml.txt` (re-upload only when golden mockup is updated in Phase 2)
-   - `knowledge/mendix-design-guide.txt`
+   - `assets/golden-mockup.html` (re-upload only when golden mockup is updated in Phase 2)
+   - `references/mendix-design-guide.md`
 5. **Suggested Prompts** — unchanged; no action required.
 6. **Agent name** — unchanged: MxMocketeer v3.
 
@@ -628,13 +633,13 @@ When deploying the updated package, the configurator must:
 | Action | File |
 |---|---|
 | Replace Instructions | Paste new `system-prompt.md` content |
-| Replace knowledge file | `knowledge/design-contract.txt` |
-| Replace knowledge file | `knowledge/discovery-assessment.txt` |
-| Replace knowledge file | `knowledge/mxagile-handoff.txt` |
-| Upload new knowledge file | `knowledge/business-flows.txt` |
+| Replace knowledge file | `references/design-contract.md` |
+| Replace knowledge file | `references/discovery-assessment.md` |
+| Replace knowledge file | `references/mxagile-handoff.md` |
+| Upload new knowledge file | `references/business-flows.md` |
 | Upload new knowledge file | `knowledge/knowledge-graph.txt` |
-| No action | `knowledge/golden-mockuphtml.txt` (until Phase 2 golden mockup update) |
-| No action | `knowledge/mendix-design-guide.txt` |
+| No action | `assets/golden-mockup.html` (until Phase 2 golden mockup update) |
+| No action | `references/mendix-design-guide.md` |
 
 ---
 

@@ -1,3 +1,10 @@
+> **SUPERSEDED (2026-11-12):** The seven full skills are canonical under
+> `products/MxMocketeer/skills/mocketeer-*/SKILL.md`. `install-core.ps1` copies those
+> sources into consumer `.mxagile/skills/`; the existing generator creates host
+> projections. Do not create a master skill, ZIP, separate reference files, or host-
+> specific content copies. The plan and paths below are historical and do not describe
+> the current product layout. See `products/MxMocketeer/knowledge-migration.md`.
+
 Jetzt habe ich das vollständige Bild. Lasse mich den Plan formulieren.
 
 ---
@@ -35,37 +42,37 @@ Skills sind **deklarative Fähigkeiten mit YAML-Frontmatter** (Name + Beschreibu
 **7 Skills** aus dem heutigen monolithischen System Prompt + Knowledge extrahieren:
 
 #### Skill 1: `discovery` — Discovery & Requirements Elicitation
-- **Quelle:** System Prompt §Discovery + §Requirements vs. Decisions + [discovery-assessment.txt](products/MxMocketeer/knowledge/discovery-assessment.txt)
+- **Quelle:** System Prompt §Discovery + §Requirements vs. Decisions + [discovery-assessment.md](products/MxMocketeer/references/discovery-assessment.md)
 - **Inhalt:** Discovery-Dimensionen, Fragestrategie, Status-Taxonomie (CONFIRMED/DERIVED/ASSUMPTION/...), Requirements vs. Decisions Trennung
 - **Hardening:** Assessment-Dimensionen und Gap-Taxonomie werden garantiert geladen, nicht RAG-abhängig
 
 #### Skill 2: `design-contract` — Design Contract Schema & Validation
-- **Quelle:** System Prompt §Mandatory Embedded Design Contract + §Element Traceability + [design-contract.txt](products/MxMocketeer/knowledge/design-contract.txt)
+- **Quelle:** System Prompt §Mandatory Embedded Design Contract + §Element Traceability + [design-contract.md](products/MxMocketeer/references/design-contract.md)
 - **Inhalt:** Vollständiges Contract-Schema v1.1, Pflichtfelder, Enum-Werte, Validierungsregeln
 - **Hardening:** Schema-Verletzungen (fehlende Felder, falsche Enums) sind heute die häufigste Fehlerklasse — deterministischer Zugriff eliminiert "Schema wurde nicht gefunden"-Ausfälle
 
 #### Skill 3: `refinement` — Refinement & Transformation Classification
-- **Quelle:** System Prompt §Refining an Existing Mockup + [refinement-transformations.txt](products/MxMocketeer/knowledge/refinement-transformations.txt)
+- **Quelle:** System Prompt §Refining an Existing Mockup + [refinement-transformations.md](products/MxMocketeer/references/refinement-transformations.md)
 - **Inhalt:** Edit-Klassifikation (LOCAL_EDIT → FULL_REGENERATION), Transformation Spec Schema, Safe Target Resolution
 - **Hardening:** Korrekte Klassifikation ist kritisch — falsches FULL_REGENERATION zerstört Preservation; falsches LOCAL_EDIT produziert unvollständige Patches
 
 #### Skill 4: `preservation` — Revision Ledger & Preservation Check
-- **Quelle:** System Prompt §Revision Ledger + Preservation-Teile aus [design-contract.txt](products/MxMocketeer/knowledge/design-contract.txt)
+- **Quelle:** System Prompt §Revision Ledger + Preservation-Teile aus [design-contract.md](products/MxMocketeer/references/design-contract.md)
 - **Inhalt:** revision_history (append-only), preservation block, revision_delta, STOP-on-FAILED Regel
 - **Hardening:** Die Preservation-Logik ist die wichtigste Sicherheitsschranke — wenn sie ausfällt, gehen bestätigte Requirements verloren
 
 #### Skill 5: `business-flows` — Business Flow Modeling
-- **Quelle:** System Prompt §Business Flows + [business-flows.txt](products/MxMocketeer/knowledge/business-flows.txt)
+- **Quelle:** System Prompt §Business Flows + [business-flows.md](products/MxMocketeer/references/business-flows.md)
 - **Inhalt:** Flow-Schema, Step-Types, FLOW-NNN/FLOWSTEP-NNN IDs, Transitions, Mermaid-Generierung
 - **Hardening:** Flow-Modellierung ist heute optional und wird oft übersprungen, weil das Knowledge nicht zuverlässig geladen wird
 
 #### Skill 6: `mockup-generation` — HTML Mockup Implementation
-- **Quelle:** System Prompt §Mockup Concept + §Interaction States + Teile von [mendix-design-guide.txt](products/MxMocketeer/knowledge/mendix-design-guide.txt)
+- **Quelle:** System Prompt §Mockup Concept + §Interaction States + Teile von [mendix-design-guide.md](products/MxMocketeer/references/mendix-design-guide.md)
 - **Inhalt:** HTML-Generierungsregeln, CSS/JS-Anforderungen, Responsive/A11y, Mock-Data Markierung, UI-States Enum
 - **Hardening:** Konsolidiert die verstreuten Generierungsregeln an einem Ort
 
 #### Skill 7: `handoff` — Development Handoff & Maturity Gate
-- **Quelle:** System Prompt §Handoff Readiness + §Maturity Assessment + [mxagile-handoff.txt](products/MxMocketeer/knowledge/mxagile-handoff.txt)
+- **Quelle:** System Prompt §Handoff Readiness + §Maturity Assessment + [mxagile-handoff.md](products/MxMocketeer/references/mxagile-handoff.md)
 - **Inhalt:** Handoff-Kriterien, Readiness-Levels, MxAgile-Mapping, Mendix-Boundary
 - **Hardening:** Verhindert voreiligen Handoff ohne Assessment
 
@@ -83,8 +90,8 @@ Nur noch ~30% des heutigen Umfangs:
 
 ### Was in Knowledge bleibt
 
-- [golden-mockuphtml.txt](products/MxMocketeer/knowledge/golden-mockuphtml.txt) — 26 KB Referenz-HTML, zu groß für einen Skill, und RAG-Retrieval ist hier akzeptabel (wird nur bei Generierung gebraucht)
-- [mendix-design-guide.txt](products/MxMocketeer/knowledge/mendix-design-guide.txt) — Hintergrundwissen, kein kritischer Pfad
+- [golden-mockup.html](products/MxMocketeer/assets/golden-mockup.html) — 26 KB Referenz-HTML, zu groß für einen Skill, und RAG-Retrieval ist hier akzeptabel (wird nur bei Generierung gebraucht)
+- [mendix-design-guide.md](products/MxMocketeer/references/mendix-design-guide.md) — Hintergrundwissen, kein kritischer Pfad
 
 ### Dateistruktur (neu)
 
@@ -105,8 +112,8 @@ products/MxMocketeer/
         handoff.md
 
     knowledge/                    — REDUZIERT
-        golden-mockuphtml.txt     — bleibt (Referenz-Beispiel)
-        mendix-design-guide.txt   — bleibt (Hintergrund)
+        golden-mockup.html     — bleibt (Referenz-Beispiel)
+        mendix-design-guide.md   — bleibt (Hintergrund)
 
     tests/
         preservation-acceptance.md

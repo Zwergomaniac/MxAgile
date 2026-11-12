@@ -72,6 +72,6 @@ machine-extracted — deliberately, to avoid a second Wave data model. Change: n
 ### K5 Mocketeer compatibility: NO_UPDATE_NEEDED (for the in-repo product)
 `products/MxMocketeer` (design-intent/mockup agent) contains no reference to Task/Wave, lifecycle resync,
 delegation/model routing, verification evidence or the security matrix; its role contract
-(`mendix-design-guide.txt`, commit `ff78c99`) treats entities/XPath/mxcli as unconfirmed candidates and
+(`mendix-design-guide.md`, commit `ff78c99`) treats entities/XPath/mxcli as unconfirmed candidates and
 is unaffected. The Security Projection is downstream and read-only. Mocketeer installations in other
 repositories were not inspected: `NOT_ENOUGH_EVIDENCE` for those. No Mocketeer file was changed.

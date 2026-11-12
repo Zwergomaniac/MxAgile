@@ -486,6 +486,12 @@ reader then reported `NOT_REFERENCED`. Line endings now follow the checkpoint.
 | Privacy | no prompts or file contents; reason codes, IDs, allowlisted references and fingerprints only |
 | DevBoard | Current State remains the existing artefact projection; separate Run Activity API/UI renders validated run events, unresolved runs and allowlisted evidence/reference links |
 
+The current storage policy ignores the entire runtime directory, including append/stream
+locks and all three event classes. `PROJECT_HISTORY` has distinct retention semantics
+from `RUN_AUDIT`, but is not currently a Git-tracked project-history source. Any future
+promotion to durable/tracked history requires a separate explicit ownership decision;
+it must not be inferred from its event class name.
+
 ### DevBoard target picture
 
 event), recent activity, per-Wave timeline. Layer 2 can never change Layer 1; a missing or

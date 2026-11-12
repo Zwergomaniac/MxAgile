@@ -8,7 +8,7 @@ edge types, graph node types) is consistently propagated across:
   2. Graph schema        — docs/ARTIFACT_GRAPH_SCHEMA.json
   3. Index builder       — scripts/build_artifact_index.py
   4. Mermaid generator   — scripts/mermaid_generator.py
-  5. M365 knowledge file — products/MxMocketeer/knowledge/business-flows.txt
+    5. Mocketeer Business Flow Skill — products/MxMocketeer/skills/mocketeer-business-flows/SKILL.md
   6. Consuming agent     — .mxagile/agents/mocketeer-agent.md
   7. System prompt       — products/MxMocketeer/system-prompt.md
 
@@ -187,11 +187,11 @@ def check_mermaid_generator():
 
 
 # ---------------------------------------------------------------------------
-# 5. M365 knowledge file — documents all step types
+# 5. Mocketeer Business Flow Skill — documents all step types
 # ---------------------------------------------------------------------------
 
 def check_knowledge_file():
-    path = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'knowledge' / 'business-flows.txt'
+    path = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'skills' / 'mocketeer-business-flows' / 'SKILL.md'
     if not path.exists():
         fail('KNOWLEDGE_FILE_EXISTS', str(path))
         return
@@ -201,7 +201,7 @@ def check_knowledge_file():
     missing = [st for st in CANONICAL_STEP_TYPES if st not in source]
     if missing:
         fail('KNOWLEDGE_STEP_TYPES',
-             f'step types not documented in business-flows.txt: {missing}')
+             f'step types not documented in mocketeer-business-flows/SKILL.md: {missing}')
     else:
         ok(f'KNOWLEDGE_STEP_TYPES: all {len(CANONICAL_STEP_TYPES)} step types documented')
 
@@ -210,14 +210,14 @@ def check_knowledge_file():
         ok('KNOWLEDGE_STABLE_ID_INVARIANT: FLOW-NNN/FLOWSTEP-NNN mentioned')
     else:
         fail('KNOWLEDGE_STABLE_ID_INVARIANT',
-             'FLOW- or FLOWSTEP- ID patterns not documented in business-flows.txt')
+             'FLOW- or FLOWSTEP- ID patterns not documented in mocketeer-business-flows/SKILL.md')
 
     # "never stored" / "Mermaid" invariant must be present
     if re.search(r'[Mm]ermaid', source) and re.search(r'(never stored|CANONICAL|derived)', source):
         ok('KNOWLEDGE_MERMAID_DERIVED_INVARIANT: Mermaid-as-derived documented')
     else:
         fail('KNOWLEDGE_MERMAID_DERIVED_INVARIANT',
-             'Mermaid-as-derived-only invariant not clearly stated in business-flows.txt')
+             'Mermaid-as-derived-only invariant not clearly stated in mocketeer-business-flows/SKILL.md')
 
 
 # ---------------------------------------------------------------------------
@@ -323,37 +323,45 @@ def check_system_prompt():
 
 
 # ---------------------------------------------------------------------------
-# 8. M365 package boundary — knowledge-graph.txt must NOT be in the upload list
+# 8. Copilot Skills use the same seven full Mocketeer skill sources
 # ---------------------------------------------------------------------------
 
-def check_m365_package_boundary():
+def check_mocketeer_skill_setup():
     setup_path = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'agent-builder-setup.md'
     if not setup_path.exists():
         fail('M365_SETUP_EXISTS', str(setup_path))
         return
     source = load_text(setup_path)
 
-    # knowledge-graph.txt must NOT be in the upload list
-    # The file is internal framework doc; the Note line in the setup file explains this
-    if re.search(r'^\d+\.\s.*knowledge-graph\.txt', source, re.MULTILINE):
-        fail('M365_NO_KG_CONSUMER_FILE',
-             'knowledge-graph.txt is listed as an M365 upload file — it must not be (KG consumer doc belongs to MxAgile pipeline)')
-    else:
-        ok('M365_NO_KG_CONSUMER_FILE: knowledge-graph.txt not in M365 upload list')
+    skill_names = (
+        'mocketeer-discovery',
+        'mocketeer-design-contract',
+        'mocketeer-refinement',
+        'mocketeer-preservation',
+        'mocketeer-business-flows',
+        'mocketeer-mockup-generation',
+        'mocketeer-handoff',
+    )
+    for skill_name in skill_names:
+        skill_path = PROJECT_ROOT / 'products' / 'MxMocketeer' / 'skills' / skill_name / 'SKILL.md'
+        if not skill_path.exists():
+            fail('MOCKETEER_SKILL_EXISTS', str(skill_path))
+            continue
+        skill_text = load_text(skill_path)
+        if re.search(r'^---\s*\nname:\s*' + re.escape(skill_name) + r'\s*\n', skill_text):
+            ok(f'MOCKETEER_SKILL_FRONTMATTER: {skill_name}')
+        else:
+            fail('MOCKETEER_SKILL_FRONTMATTER', f'name missing or mismatched: {skill_path}')
 
-    # 6 producer knowledge files must be listed (not 7)
-    upload_items = re.findall(r'^\d+\.\s', source, re.MULTILINE)
-    if len(upload_items) == 6:
-        ok(f'M365_PACKAGE_COUNT: exactly 6 knowledge files listed for upload')
+    if 'seven individual files as seven Skills' in source and '.zip' not in source.lower():
+        ok('COPILOT_SKILLS: seven independent Skills; no ZIP build')
     else:
-        fail('M365_PACKAGE_COUNT', f'expected 6 upload files, found {len(upload_items)}')
+        fail('COPILOT_SKILLS', 'setup must direct manual seven-file Skill import without ZIP')
 
-    # business-flows.txt MUST be in the upload list (producer content)
-    if 'business-flows.txt' in source and re.search(r'^\d+\.\s.*business-flows\.txt', source, re.MULTILINE):
-        ok('M365_BUSINESS_FLOWS_IN_PACKAGE: business-flows.txt in upload list')
+    if '.claude/skills/<skill-name>/SKILL.md' in source and '.agents/skills/<skill-name>/SKILL.md' in source:
+        ok('CLAUDE_CONCORD_PROJECTIONS: both real host discovery paths are documented')
     else:
-        fail('M365_BUSINESS_FLOWS_IN_PACKAGE',
-             'business-flows.txt missing from M365 upload list')
+        fail('CLAUDE_CONCORD_PROJECTIONS', 'Claude/Concord skill target paths are not documented')
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +413,7 @@ if __name__ == '__main__':
     check_knowledge_file()
     check_mocketeer_agent()
     check_system_prompt()
-    check_m365_package_boundary()
+    check_mocketeer_skill_setup()
     check_step_type_propagation_completeness()
 
     print(f'\n{"=" * 40}')

@@ -51,6 +51,7 @@ $KnowPol     = Join-Path $ScriptDir ".mxagile/policies/project-knowledge.md"
 $UiParityPol = Join-Path $ScriptDir ".mxagile/policies/ui-parity.md"
 $MockupLife  = Join-Path $ScriptDir ".mxagile/policies/mockup-lifecycle.md"
 $EvPol       = Join-Path $ScriptDir ".mxagile/policies/evidence-contract.md"
+$TestWorkflow = Join-Path $ScriptDir ".mxagile/policies/test-workflow.md"
 
 # A: Current public setup/update entrypoints documented
 Write-Host ""
@@ -192,6 +193,14 @@ Write-Host ""
 Write-Host "TEST T: Canonical policy index includes runtime dependency recovery" -ForegroundColor Cyan
 Assert-FileContains "T.1 MxAgile README lists the failure-only runtime recovery policy" `
     $CoreReadMe 'runtime-dependency-recovery\.md'
+
+# U: Gate tiers and reusable evidence are canonical
+Write-Host ""
+Write-Host "TEST U: Gate tiers and evidence reuse are canonical" -ForegroundColor Cyan
+Assert-FileContains "U.1 test-workflow defines the Development Gate" $TestWorkflow 'DEVELOPMENT_GATE'
+Assert-FileContains "U.2 test-workflow separates Integration and Release Gates" $TestWorkflow '(?s)INTEGRATION_GATE.*RELEASE_GATE'
+Assert-FileContains "U.3 feature-branch push does not require Full Release Gate" $TestWorkflow 'feature-/Experimental-Branch|Feature-/Experimental-Branch'
+Assert-FileContains "U.4 unchanged expensive test evidence is reusable" $TestWorkflow 'unveraenderte Inputs.*wiederverwendet'
 
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount

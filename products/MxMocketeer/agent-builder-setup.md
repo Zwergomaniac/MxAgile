@@ -20,19 +20,35 @@ $prompt = Get-Content ./system-prompt.md -Raw -Encoding UTF8
 Set-Clipboard -Value ($prompt.Replace("`r`n", "`n").Replace("`r", "`n"))
 ```
 
-## Knowledge Files
-Upload all seven files from `knowledge/` as knowledge:
-1. `knowledge/design-contract.txt` — Design Contract v1 schema, structured flows schema, maturity assessment schema, preservation rules
-2. `knowledge/discovery-assessment.txt` — assessment dimensions (incl. DIM-BUSINESS_FLOWS), gap taxonomy, interview strategy, readiness rules
-3. `knowledge/golden-mockuphtml.txt` — golden reference for output format and iterative refinement
-4. `knowledge/mendix-design-guide.txt` — curated Mendix design knowledge
-5. `knowledge/mxagile-handoff.txt` — handoff guidance to development / MxAgile, Business Flow producer obligations, revision delta, stable ID contract
-6. `knowledge/business-flows.txt` — Business Flow schema, step types, FLOW-NNN/FLOWSTEP-NNN IDs, Mermaid generation, flow revision impact, flow-to-verification traceability
-7. `knowledge/refinement-transformations.txt` — edit classification (LOCAL_EDIT, CROSS_CUTTING_EDIT, STRUCTURAL_REFACTOR, FULL_REGENERATION), Transformation Spec schema, safe target resolution, preservation validation, machine-readable handoff format
+## Canonical Skills and Host Discovery
+The seven full canonical skill files are under `skills/mocketeer-*/SKILL.md`.
+Each includes its complete domain knowledge and exact `name`/`description` YAML
+frontmatter. There are no separate reference files to upload or retrieve.
 
-Note: `knowledge/knowledge-graph.txt` is NOT uploaded to M365. It is MxAgile repository/framework documentation for pipeline agents. See `docs/mxagile-knowledge-graph.md`.
+For Microsoft Copilot Agent Builder, add the seven individual files as seven Skills:
 
-The instructions contain the mandatory MUST-behavior rules. Knowledge supplies details and examples. Critical rules are deliberately kept in the instructions because knowledge retrieval must not be treated as guaranteed program execution.
+```text
+skills/mocketeer-discovery/SKILL.md
+skills/mocketeer-design-contract/SKILL.md
+skills/mocketeer-refinement/SKILL.md
+skills/mocketeer-preservation/SKILL.md
+skills/mocketeer-business-flows/SKILL.md
+skills/mocketeer-mockup-generation/SKILL.md
+skills/mocketeer-handoff/SKILL.md
+```
+
+For Claude/Concord consumer repositories, run normal MxAgile setup/update.
+`install-core.ps1` copies the seven product-owned skill files into
+consumer `.mxagile/skills/`, then `generate-mxagile-platform-skills.ps1` writes:
+
+- Claude: `<project>/.claude/skills/<skill-name>/SKILL.md`
+- Microsoft Copilot: `<project>/.github/skills/<skill-name>/SKILL.md`
+- Portable/Concord: `<project>/.agents/skills/<skill-name>/SKILL.md`
+
+The normal MxAgile installer/generator is the only consumer-repository delivery
+mechanism. Updates refresh the seven consumer copies and regenerate host projections
+from the product-owned sources. `docs/mxagile-knowledge-graph.md` remains internal
+MxAgile documentation and is not one of the seven skills.
 
 ## Scope for Pilot
 Limit scope during pilot operation:

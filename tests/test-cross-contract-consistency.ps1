@@ -43,13 +43,13 @@ Write-Host "`nCross-Contract Consistency Tests — $RepoRoot" -ForegroundColor C
 # ──────────────────────────────────────────────────────────────
 $pageSchema    = ReadFile (Join-Path $RepoRoot '.mxagile/schemas/page.schema.json')
 $revSchema     = ReadFile (Join-Path $RepoRoot '.mxagile/schemas/revision.schema.json')
-$knowledgeFile = ReadFile (Join-Path $RepoRoot 'products/MxMocketeer/knowledge/design-contract.txt')
+$knowledgeFile = ReadFile (Join-Path $RepoRoot 'products/MxMocketeer/skills/mocketeer-design-contract/SKILL.md')
 $systemPrompt  = ReadFile (Join-Path $RepoRoot 'products/MxMocketeer/system-prompt.md')
 
 # ──────────────────────────────────────────────────────────────
 # [1] required_action enum parity: schema ↔ knowledge file
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[1] required_action enum parity: page.schema.json ↔ design-contract.txt"
+Write-Host "`n[1] required_action enum parity: page.schema.json ↔ design-contract.md"
 $requiredActionValues = @(
     'UPDATE_REQUIRED',
     'NEW_IMPLEMENTATION',
@@ -69,7 +69,7 @@ foreach ($v in $requiredActionValues) {
 # ──────────────────────────────────────────────────────────────
 # [2] required_action enum parity: revision.schema.json ↔ knowledge file
 # ──────────────────────────────────────────────────────────────
-Write-Host "`n[2] required_action enum parity: revision.schema.json ↔ design-contract.txt"
+Write-Host "`n[2] required_action enum parity: revision.schema.json ↔ design-contract.md"
 foreach ($v in $requiredActionValues) {
     $inRevSchema = $revSchema -match "`"$v`""
     Assert ($inRevSchema) "revision schema defines: $v"

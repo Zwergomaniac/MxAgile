@@ -59,6 +59,131 @@ function Write-Generated {
     }
 }
 
+function Get-BundledSkill {
+    param([string]$SkillFile)
+    $content = Get-Content -LiteralPath $SkillFile -Raw -Encoding UTF8
+    $match = [regex]::Match($content, '(?s)\A---\r?\n(?<fields>.*?)\r?\n---\r?\n')
+    if (-not $match.Success) {
+        throw "Bundled skill is missing YAML frontmatter: $SkillFile"
+    }
+
+    $fields = @{}
+    foreach ($line in ($match.Groups['fields'].Value -split '\r?\n')) {
+        if ($line -notmatch '^(?<key>name|description):\s*(?<value>.*)$') {
+            throw "Bundled skill frontmatter only permits name and description: $SkillFile"
+        }
+        $key = $Matches['key']
+        if ($fields.ContainsKey($key)) { throw "Duplicate bundled skill field '$key': $SkillFile" }
+        $fields[$key] = $Matches['value'].Trim()
+    }
+    if ((@($fields.Keys | Sort-Object) -join ',') -ne 'description,name') {
+        throw "Bundled skill must contain exactly name and description: $SkillFile"
+    }
+    if ($fields['name'] -cnotmatch '^[a-z0-9]+(?:-[a-z0-9]+)*$' -or $fields['name'] -match '(^|-)skill($|-)') {
+        throw "Invalid bundled skill name '$($fields['name'])': $SkillFile"
+    }
+    if (-not $fields['description'] -or $fields['description'] -cne $fields['description'].ToLowerInvariant()) {
+        throw "Bundled skill description must be non-empty and lowercase: $SkillFile"
+    }
+
+    return [pscustomobject]@{
+        Name = $fields['name']
+        Content = $content
+        FrontmatterLength = $match.Length
+    }
+}
+
+function Test-LegacyMocketeerBundleProjection {
+    param([string]$SkillDirectory)
+    $SkillDirectory = [System.IO.Path]::GetFullPath($SkillDirectory)
+    $manifestPath = Join-Path $SkillDirectory 'bundle-manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { return $false }
+    try {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+    } catch { return $false }
+    if ($manifest.managed_by -notin @('skill-bundle-v1', 'mxagile-skill-bundle-v1')) { return $false }
+    if ($manifest.skill_name -ne 'mocketeer-design-contract' -or -not $manifest.files) { return $false }
+
+    $expectedPaths = @()
+    foreach ($record in $manifest.files) {
+        $relativePath = [string]$record.path
+        if (-not $relativePath -or [IO.Path]::IsPathRooted($relativePath) -or $relativePath -match '(^|[\\/])\.\.([\\/]|$)') { return $false }
+        $filePath = Join-Path $SkillDirectory ($relativePath -replace '/', [IO.Path]::DirectorySeparatorChar)
+        if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { return $false }
+        $actualHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -ne ([string]$record.sha256).ToLowerInvariant()) { return $false }
+        $expectedPaths += $relativePath.Replace('\', '/')
+    }
+
+    $actualPaths = @(Get-ChildItem -LiteralPath $SkillDirectory -Recurse -File |
+        Where-Object { $_.FullName -ne $manifestPath } |
+        ForEach-Object { $_.FullName.Substring($SkillDirectory.Length).TrimStart('\', '/').Replace('\', '/') })
+    return (($expectedPaths | Sort-Object -Unique) -join "`n") -eq (($actualPaths | Sort-Object -Unique) -join "`n")
+}
+
+function Write-GeneratedBundledSkill {
+    param([string]$OutputPath, [string]$Content)
+    $outputDir = Split-Path -Parent $OutputPath
+    if (Test-Path -LiteralPath $outputDir -PathType Container) {
+        $existingSkill = Join-Path $outputDir 'SKILL.md'
+        if (-not (Test-Path -LiteralPath $existingSkill -PathType Leaf)) {
+            throw "SKILL_PROJECTION_CONFLICT: target directory is not an owned skill: $outputDir"
+        }
+        $existingContent = Get-Content -LiteralPath $existingSkill -Raw -Encoding UTF8
+        if ($existingContent -notmatch '# GENERATED - DO NOT EDIT - Source: \.mxagile/') {
+            if ((Split-Path -Leaf $outputDir) -eq 'mocketeer-design-contract' -and
+                (Test-LegacyMocketeerBundleProjection -SkillDirectory $outputDir)) {
+                if (-not $DryRun) {
+                    Remove-Item -LiteralPath $outputDir -Recurse -Force
+                }
+            } else {
+                throw "SKILL_PROJECTION_CONFLICT: refusing to overwrite an unowned skill: $existingSkill"
+            }
+        }
+    }
+    Write-Generated -OutputPath $OutputPath -Content $Content
+}
+
+function Generate-BundledSkills {
+    $skillsDir = Join-Path $mxagileRoot 'skills'
+    $skillFiles = @{}
+    foreach ($skillFile in (Get-ChildItem -LiteralPath $skillsDir -Filter 'SKILL.md' -File -Recurse)) {
+        $skillFiles[$skillFile.BaseName] = $skillFile.FullName
+    }
+
+    # In the framework development repository, product-owned Mocketeer sources are
+    # projected directly until install-core stages them into a consumer .mxagile tree.
+    $productSkillRoot = Join-Path $ProjectRoot 'products/MxMocketeer/skills'
+    if (Test-Path -LiteralPath $productSkillRoot -PathType Container) {
+        foreach ($skillDir in (Get-ChildItem -LiteralPath $productSkillRoot -Directory -Filter 'mocketeer-*')) {
+            $skillFilePath = Join-Path $skillDir.FullName 'SKILL.md'
+            if (-not (Test-Path -LiteralPath $skillFilePath -PathType Leaf)) {
+                throw "Product skill is missing SKILL.md: $skillFilePath"
+            }
+            if (-not $skillFiles.ContainsKey($skillDir.Name)) {
+                $skillFiles[$skillDir.Name] = $skillFilePath
+            }
+        }
+    }
+
+    foreach ($skillName in @($skillFiles.Keys | Sort-Object)) {
+        $skillFilePath = $skillFiles[$skillName]
+        $skillFile = Get-Item -LiteralPath $skillFilePath
+        $skill = Get-BundledSkill -SkillFile $skillFile.FullName
+        $body = $skill.Content.Substring($skill.FrontmatterLength)
+        $frontmatter = $skill.Content.Substring(0, $skill.FrontmatterLength).TrimEnd()
+        $generatedContent = "$frontmatter`n$generatedHeader`n$body"
+        $outputs = @(
+            (Join-Path $ProjectRoot ".claude/skills/$($skill.Name)/SKILL.md"),
+            (Join-Path $ProjectRoot ".github/skills/$($skill.Name)/SKILL.md"),
+            (Join-Path $ProjectRoot ".agents/skills/$($skill.Name)/SKILL.md")
+        )
+        foreach ($outputPath in $outputs) {
+            Write-GeneratedBundledSkill -OutputPath $outputPath -Content $generatedContent
+        }
+    }
+}
+
 # --- Skill descriptions (overrides; fallback = first content line) ---
 $skillDescriptions = @{
     'discovery'          = 'Systematische Analyse aller Quellen vor Refinement/Implementierung'
@@ -210,6 +335,9 @@ Generate-OpenCodeSkills
 
 Write-Host "`n--- Hermes ---"
 Generate-HermesSkills
+
+Write-Host "`n--- Directory Skills ---"
+Generate-BundledSkills
 
 # Write projections manifest when Core identity is available
 if ($CoreCommit -or $CoreVersion) {

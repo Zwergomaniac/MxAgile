@@ -94,8 +94,8 @@ if ([string]::IsNullOrWhiteSpace($raw)) {
     }
 }
 
-# Require schema_version first (version guard before reading further)
-if ($raw -notmatch 'schema_version:\s*"([^"]+)"') {
+# Require a scalar schema_version first (version guard before reading further).
+if ($raw -notmatch '(?m)^\s*schema_version:\s*(.*?)\s*(?:#.*)?$') {
     return [PSCustomObject]@{
         Valid          = $false
         Path           = $checkpointPath
@@ -103,7 +103,37 @@ if ($raw -notmatch 'schema_version:\s*"([^"]+)"') {
         ConflictReason = "Missing schema_version field. Checkpoint may be malformed."
     }
 }
-$schemaVersion = $Matches[1]
+$schemaScalar = $Matches[1].Trim()
+if ($schemaScalar.StartsWith('"')) {
+    if ($schemaScalar -notmatch '^"((?:[^"\\]|\\.)*)"$') {
+        return [PSCustomObject]@{
+            Valid          = $false
+            Path           = $checkpointPath
+            RawYaml        = $raw
+            ConflictReason = "Invalid schema_version scalar. Checkpoint may contain invalid YAML."
+        }
+    }
+    $schemaVersion = $Matches[1]
+} elseif ($schemaScalar.StartsWith("'")) {
+    if ($schemaScalar -notmatch "^'((?:[^']|'')*)'$") {
+        return [PSCustomObject]@{
+            Valid          = $false
+            Path           = $checkpointPath
+            RawYaml        = $raw
+            ConflictReason = "Invalid schema_version scalar. Checkpoint may contain invalid YAML."
+        }
+    }
+    $schemaVersion = $Matches[1] -replace "''", "'"
+} elseif ($schemaScalar -match '^[^\s#]+$') {
+    $schemaVersion = $schemaScalar
+} else {
+    return [PSCustomObject]@{
+        Valid          = $false
+        Path           = $checkpointPath
+        RawYaml        = $raw
+        ConflictReason = "Invalid schema_version scalar. Checkpoint may contain invalid YAML."
+    }
+}
 
 if ($schemaVersion -ne "1.0") {
     return [PSCustomObject]@{
@@ -134,9 +164,18 @@ foreach ($sec in $requiredSections) {
 # ---------------------------------------------------------------------------
 function Get-YamlScalar {
     param([string]$content, [string]$key)
-    # Match: key: "value" or key: value (unquoted)
-    if ($content -match "(?m)^\s+${key}:\s+`"([^`"]*)`"") { return $Matches[1] }
-    if ($content -match "(?m)^\s+${key}:\s+(\S[^\r\n]*)") { return $Matches[1].Trim() }
+    $pattern = "(?m)^\s+${key}:\s*(.*?)\s*(?:#.*)?$"
+    if ($content -notmatch $pattern) { return "" }
+    $scalar = $Matches[1].Trim()
+    if ($scalar.StartsWith('"')) {
+        if ($scalar -match '^"((?:[^"\\]|\\.)*)"$') { return $Matches[1] }
+        return ""
+    }
+    if ($scalar.StartsWith("'")) {
+        if ($scalar -match "^'((?:[^']|'')*)'$") { return ($Matches[1] -replace "''", "'") }
+        return ""
+    }
+    if ($scalar -match '^[^\s#].*$') { return $scalar }
     return ""
 }
 
