@@ -36,6 +36,11 @@ from build_project_status import ProjectUiConfigError, build_health, build_statu
 from project_compatibility import is_standalone_interaction_artifact, safe_file
 from reconcile_external_changes import build_report
 
+_event_module_dir = Path(__file__).resolve().parent / "control-plane"
+if _event_module_dir.is_dir():
+    sys.path.insert(0, str(_event_module_dir))
+import run_events  # noqa: E402
+
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
 UI_FILES = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styles.css", "/board.js": "board.js"}
 STATUS_FILES = (
@@ -1211,7 +1216,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         self._request_started_at = time.perf_counter()
         parsed = urlsplit(self.path)
-        if parsed.query and parsed.path not in ("/api/gallery", "/api/timeline") and not parsed.path.startswith(("/reference/", "/source/", "/design-preview-source/")):
+        if parsed.query and parsed.path not in ("/api/gallery", "/api/timeline", "/api/run-activity") and not parsed.path.startswith(("/reference/", "/source/", "/design-preview-source/")):
             self.send_error(400)
             return
         if parsed.path == "/api/status":
@@ -1233,6 +1238,7 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 status = self.server.status_cache.get_summary()  # type: ignore[attr-defined]
                 payload = json.dumps({
                     "source_fingerprint": status.get("source_fingerprint"),
+                    "run_event_revision": run_events.revision(self.project_root),
                     "projection_state": self.server.status_cache.projection_info(),  # type: ignore[attr-defined]
                 }, ensure_ascii=False, sort_keys=True).encode("utf-8")
             except Exception as exc:
@@ -1240,6 +1246,25 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self._send(503, json.dumps({"error": "revision_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
                 return
             self._send(200, payload, "application/json; charset=utf-8")
+            return
+
+        if parsed.path == "/api/run-activity":
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            if set(query) - {"category", "limit"} or any(len(values) != 1 for values in query.values()):
+                self.send_error(400)
+                return
+            category = query.get("category", ["all"])[0]
+            raw_limit = query.get("limit", ["150"])[0]
+            if category not in RunActivityService.CATEGORIES or not re.fullmatch(r"\d{1,3}", raw_limit):
+                self.send_error(400)
+                return
+            try:
+                payload = self.server.run_activity.response(category, int(raw_limit))  # type: ignore[attr-defined]
+            except Exception as exc:
+                self.log_error("RUN_ACTIVITY_FAILED: %s", type(exc).__name__)
+                self._send(503, json.dumps({"error": "run_activity_unavailable", "reason": type(exc).__name__}).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            self._send(200, json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
             return
 
         if parsed.path == "/api/timeline":
@@ -1559,6 +1584,28 @@ class ProjectBoardHandler(BaseHTTPRequestHandler):
                 self.send_error(404)
                 return
             self._send(200, body, "text/plain; charset=utf-8")
+            return
+
+        if parsed.path.startswith("/run-artifact/"):
+            try:
+                requested = unquote(parsed.path[len("/run-artifact/"):], errors="strict")
+            except UnicodeError:
+                self.send_error(404)
+                return
+            allowed = requested.startswith(("planning/evidence/", "planning/verification-plans/", "planning/ui-inventory/",
+                                            ".concord/evidence/", ".concord/delegation-handoffs/", ".concord/delegated-results/",
+                                            "requirements/", "specs/"))
+            candidate = safe_file(self.project_root, requested) if allowed else None
+            if candidate is None or not candidate.is_file():
+                self.send_error(404)
+                return
+            body = self._read_file(candidate)
+            if body is None:
+                self.send_error(404)
+                return
+            extension = candidate.suffix.lower()
+            content_type = mimetypes.guess_type(candidate.name)[0] if extension in {".png", ".jpg", ".jpeg", ".webp", ".gif"} else "text/plain; charset=utf-8"
+            self._send(200, body, content_type or "application/octet-stream")
             return
 
         self.send_error(404)
@@ -1891,6 +1938,37 @@ class TimelineService:
         return 200, self._module.query(index, filters)
 
 
+class RunActivityService:
+    """Validated operational history; it never feeds the canonical project status projection."""
+
+    CATEGORIES = {"all", "delivery", "children", "verification", "gates", "recovery", "updates", "warnings"}
+    TYPE_CATEGORIES = {
+        "delivery": {"delivery_authorized", "delivery_blocked", "publication_requested"},
+        "children": {"child_started", "child_completed", "child_accepted", "child_partial", "child_rejected", "child_stale", "child_needs_human"},
+        "verification": {"verdict_received", "repair_round_started"},
+        "gates": {"gate_evaluated", "gate_invalidated"},
+        "recovery": {"lifecycle_resync_started", "lifecycle_resync_completed", "context_stale", "recovery_required", "run_interrupted", "run_resumed"},
+        "updates": {"update_started", "update_partial", "update_completed", "migration_started", "migration_completed"},
+    }
+
+    def __init__(self, project_root: Path):
+        self.project_root = project_root.resolve()
+
+    def response(self, category: str = "all", limit: int = 150) -> dict:
+        if not 1 <= limit <= 500:
+            raise ValueError("RUN_ACTIVITY_LIMIT_OUT_OF_RANGE")
+        snapshot = run_events.read_events(self.project_root, limit=run_events.MAX_EVENTS)
+        events = snapshot["events"]
+        if category == "warnings":
+            events = [event for event in events if event["event_class"] == "DIAGNOSTIC" or event["event_type"] in {"delivery_blocked", "child_rejected", "child_stale", "child_needs_human", "gate_invalidated", "recovery_required"}]
+        elif category != "all":
+            events = [event for event in events if event["event_type"] in self.TYPE_CATEGORIES[category]]
+        return {"events": events[-limit:], "active_runs": run_events.active_runs(snapshot["events"]),
+                "total_valid": snapshot["total_valid"], "invalid_lines": snapshot["invalid_lines"],
+                "partial_tail_files": snapshot["partial_tail_files"], "truncated": snapshot["truncated"],
+                "order": "chronological_oldest_to_newest", "state_authority": "canonical_artifacts"}
+
+
 class ProjectBoardServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
@@ -1909,6 +1987,7 @@ class ProjectBoardServer(ThreadingHTTPServer):
         self.ui_root = ui_root.resolve()
         self.status_cache = ProjectStatusCache(self.project_root, persist=persist_cache)
         self.timeline = TimelineService(self.project_root)
+        self.run_activity = RunActivityService(self.project_root)
         # Requests trust a snapshot validated within this window; legacy mode keeps per-request validation.
         self.status_cache.request_window = 0.0 if legacy_cache_mode() else VALIDATION_WINDOW_SECONDS
         self._refresh_stop = threading.Event()

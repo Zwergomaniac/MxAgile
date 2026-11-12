@@ -6,6 +6,7 @@ const tabs = ["overview", "timeline", "waves", "requirements", "tasks", "verific
 let status = null;
 let loadInFlight = false;
 let revisionCheckInFlight = false;
+let runEventRevision = null;
 const REVISION_POLL_INTERVAL_MS = 2000;
 
 function node(tag, className = "", text = "") {
@@ -56,7 +57,7 @@ function stateBadge(value, kind = "") {
   let tone = "unknown";
   if (["done", "VERIFIED", "CONFIRMED", "passed", "available", "ACTIVE_TARGET", "consistent", "AVAILABLE", "OK"].includes(normalized)) tone = "good";
   else if (["blocked", "failed", "FAIL", "STALE", "DECISION_REQUIRED", "CRITICAL", "ambiguous", "mismatch", "INVALID", "AMBIGUOUS", "BLOCKED", "PROJECTION_ERROR"].includes(normalized)) tone = "bad";
-  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN", "REASSESS_REQUIRED", "SUPERSEDED", "RETIRED", "FRAMEWORK_FOLLOWUP", "REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED", "NOT_RECORDED", "UNSUPPORTED", "DEGRADED"].includes(normalized)) tone = "warn";
+  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN", "RESULT_UNKNOWN", "INTERRUPTED", "NEEDS_RECONCILIATION", "REASSESS_REQUIRED", "SUPERSEDED", "RETIRED", "FRAMEWORK_FOLLOWUP", "REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED", "NOT_RECORDED", "UNSUPPORTED", "DEGRADED"].includes(normalized)) tone = "warn";
   const badge = node("span", `state ${tone}`, normalized.replaceAll("_", " "));
   if (kind) badge.dataset.kind = kind;
   return badge;
@@ -1072,6 +1073,7 @@ function renderView() {
   else if (view === "overview") renderOverview();
   else if (view === "health") renderHealthView();
   else if (view === "timeline") renderTimeline();
+  else if (view === "activity") renderRunActivity();
   else if (view === "waves") renderWaves();
   else if (view === "requirements") renderRequirements();
   else if (view === "verification") renderVerification();
@@ -1685,6 +1687,74 @@ async function fetchTimeline(params) {
   const response = await fetch(`/api/timeline?${query.toString()}`, { cache: "no-store" });
   if (!response.ok) throw new Error("timeline unavailable");
   return response.json();
+}
+
+async function fetchRunActivity(params = {}) {
+  const query = new URLSearchParams(params);
+  const response = await fetch(`/api/run-activity${query.toString() ? `?${query}` : ""}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("run activity unavailable");
+  return response.json();
+}
+
+let runActivityToken = 0;
+async function renderRunActivity() {
+  const params = hashQuery();
+  const category = params.get("category") || "all";
+  root.append(sectionTitle("Run Activity", "Validierte operative Events · Kanonischer Projektstatus bleibt artefaktbasiert"));
+  const filter = node("label", "filter run-activity-filter");
+  filter.append(node("span", "", "Bereich"));
+  const select = document.createElement("select");
+  for (const [value, label] of [["all", "Alle"], ["delivery", "Delivery"], ["children", "Child Agents"],
+    ["verification", "Verification"], ["gates", "Gates"], ["recovery", "Recovery"], ["updates", "Updates / Migration"], ["warnings", "Warnings / Blocks"]]) {
+    const option = document.createElement("option"); option.value = value; option.textContent = label; option.selected = value === category; select.append(option);
+  }
+  select.addEventListener("change", () => { location.hash = `activity?category=${encodeURIComponent(select.value)}`; });
+  filter.append(select); root.append(filter);
+  const activeSection = node("section", "run-active-section");
+  activeSection.append(node("h3", "", "Open / Unresolved Runs"));
+  activeSection.append(node("p", "muted", "Ein Start ohne Abschluss ist RESULT UNKNOWN; aus Events allein ist keine Prozess-Liveness ableitbar."));
+  const activeList = node("div", "run-active-list"); activeSection.append(activeList); root.append(activeSection);
+  const timeline = node("div", "run-event-stream"); root.append(timeline);
+  const footer = node("div", "timeline-footer"); root.append(footer);
+  const token = ++runActivityToken;
+  footer.textContent = "lädt …";
+  try {
+    const result = await fetchRunActivity({ category, limit: "500" });
+    if (token !== runActivityToken || routeParts()[0] !== "activity") return;
+    clear(activeList);
+    if (!result.active_runs.length) activeList.append(empty("Keine laufenden oder verwaisten Runs."));
+    for (const run of result.active_runs) {
+      const row = node("div", `run-active-row${run.parent_run_id ? " child-run" : ""}`);
+      row.append(node("code", "", run.run_id), stateBadge(run.reconciliation_state || run.status));
+      row.append(node("span", "muted", [run.wave_id, run.capability, run.actor].filter(Boolean).join(" · ") || "Run"));
+      if (run.parent_run_id) row.append(node("span", "muted", `parent ${run.parent_run_id}`));
+      if (run.reconciliation_state) row.append(node("strong", "run-orphan", "RESULT UNKNOWN · NEEDS RECONCILIATION"));
+      activeList.append(row);
+    }
+    clear(timeline);
+    if (!result.events.length) timeline.append(empty("Keine Run-Events für diesen Filter."));
+    for (const event of result.events) {
+      const row = node("article", "run-event-row");
+      const time = new Date(event.occurred_at);
+      row.append(node("time", "run-event-time", Number.isNaN(time.valueOf()) ? event.occurred_at : time.toLocaleString()));
+      const detail = node("div", "run-event-detail");
+      detail.append(node("strong", "", event.event_type.replaceAll("_", " ")));
+      detail.append(node("span", "muted", `${event.event_class} · ${event.run_id}${event.parent_run_id ? ` · parent ${event.parent_run_id}` : ""}${event.wave_id ? ` · ${event.wave_id}` : ""}`));
+      const codes = event.payload?.reason_codes || [];
+      if (codes.length) detail.append(node("span", "run-event-reasons", codes.join(" · ")));
+      const links = [...(event.payload?.evidence_references || []), event.correlation?.verdict_reference, event.correlation?.handoff_reference, event.correlation?.result_reference].filter(Boolean);
+      for (const path of [...new Set(links)]) {
+        if (!/^(planning\/(evidence|verification-plans|ui-inventory)\/|\.concord\/(evidence|delegation-handoffs|delegated-results)\/|requirements\/|specs\/)/.test(path)) continue;
+        detail.append(externalLink(path.split("/").pop(), `/run-artifact/${path.split("/").map(encodeURIComponent).join("/")}`, "run-artifact-link"));
+      }
+      row.append(detail); timeline.append(row);
+    }
+    footer.textContent = `${result.events.length} Events · ${result.total_valid} gültig · ${result.invalid_lines} ungültig übersprungen · Reihenfolge je Zeitstempel, keine globale Kausalordnung`;
+  } catch {
+    clear(activeList); clear(timeline);
+    activeList.append(empty("Run-Status nicht verfügbar.")); timeline.append(empty("Run-Events nicht verfügbar."));
+    footer.textContent = "Runtime-History nicht verfügbar; Current State bleibt unabhängig.";
+  }
 }
 
 function timelineStateMessage(meta) {
@@ -2475,6 +2545,14 @@ async function checkForRevision() {
     if (!response.ok) return;
     const revision = await response.json();
     if (revision.projection_state?.state !== "FRESH") return;
+    if (runEventRevision === null) {
+      runEventRevision = revision.run_event_revision;
+      if (routeParts()[0] === "activity") renderView();
+    }
+    else if (revision.run_event_revision && revision.run_event_revision !== runEventRevision) {
+      runEventRevision = revision.run_event_revision;
+      if (routeParts()[0] === "activity") renderView();
+    }
     if (revision.source_fingerprint && revision.source_fingerprint !== status.source_fingerprint) {
       await load({ preserveUi: true, silent: true });
     }
