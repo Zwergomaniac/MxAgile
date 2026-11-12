@@ -1294,6 +1294,101 @@ def apply_repair(root: Path, expected_hash: str, candidate_dir: Path | None = No
 BOARD_SMOKE_FAILING_RESULTS = ('FAIL', 'TIMEOUT', 'ERROR')
 BOARD_SMOKE_EXIT_CODE = 4
 
+CONTROL_PLANE_DIR = '.mxagile/tools/control-plane'
+CONTROL_PLANE_COMPONENTS = ('guard.py', 'enforcement.py', 'child_contract.py', 'control-plane-verdict.schema.json')
+CONTROL_PLANE_MARKER = '.mxagile/tools/control-plane/enforcement.py'
+CONTROL_PLANE_REQUIRED_MATCHERS = ('Write', 'Edit', 'Bash', 'Agent', 'mcp__')
+
+
+def control_plane_health(root: Path) -> dict:
+    """Read-only installation health of the experimental control plane; never claims live host verification."""
+    findings: list[dict] = []
+
+    def finding(code: str, detail: str) -> None:
+        findings.append({'code': code, 'detail': detail})
+
+    components = {name: (root / CONTROL_PLANE_DIR / name).is_file() for name in CONTROL_PLANE_COMPONENTS}
+    registration: dict[str, Any] = {'state': 'HOST_REGISTRATION_MISSING', 'foreign_pre_tool_groups': 0,
+                                    'fail_closed': False, 'matcher_complete': False, 'command_target_present': False}
+    settings_path = root / '.claude/settings.json'
+    if settings_path.is_file():
+        try:
+            settings = json.loads(settings_path.read_text(encoding='utf-8-sig'))
+        except (OSError, ValueError):
+            settings = None
+            registration['state'] = 'CONFIG_UNKNOWN_OWNERSHIP'
+        hooks = settings.get('hooks', {}) if isinstance(settings, dict) else None
+        pre_tool = hooks.get('PreToolUse', []) if isinstance(hooks, dict) else None
+        if settings is not None and not isinstance(pre_tool, list):
+            registration['state'] = 'CONFIG_UNKNOWN_OWNERSHIP'
+        elif isinstance(pre_tool, list):
+            owned, foreign = [], 0
+            for group in pre_tool:
+                commands = [str(hook.get('command', '')) for hook in (group.get('hooks') or []) if isinstance(hook, dict)] if isinstance(group, dict) else []
+                marked = [command for command in commands if CONTROL_PLANE_MARKER in command]
+                if marked and len(marked) != len(commands):
+                    registration['state'] = 'CONFIG_UNKNOWN_OWNERSHIP'
+                elif marked:
+                    owned.append((group, marked[0]))
+                else:
+                    foreign += 1
+            registration['foreign_pre_tool_groups'] = foreign
+            if registration['state'] != 'CONFIG_UNKNOWN_OWNERSHIP' and len(owned) > 1:
+                registration['state'] = 'CONFIG_UNKNOWN_OWNERSHIP'
+            elif registration['state'] != 'CONFIG_UNKNOWN_OWNERSHIP' and owned:
+                group, command = owned[0]
+                matcher = str(group.get('matcher', ''))
+                registration.update({
+                    'state': 'REGISTERED',
+                    'fail_closed': command.rstrip().endswith('|| exit 2'),
+                    'matcher_complete': all(token in matcher for token in CONTROL_PLANE_REQUIRED_MATCHERS),
+                    'command_target_present': (root / CONTROL_PLANE_MARKER).is_file(),
+                    'first_in_pre_tool_use': pre_tool[0] is group,
+                })
+    for name, present in components.items():
+        if not present:
+            finding('ADAPTER_FILE_MISSING', f'{CONTROL_PLANE_DIR}/{name}')
+    if registration['state'] == 'HOST_REGISTRATION_MISSING':
+        finding('HOST_REGISTRATION_MISSING', 'No MxAgile PreToolUse group in .claude/settings.json.')
+    elif registration['state'] == 'CONFIG_UNKNOWN_OWNERSHIP':
+        finding('CONFIG_UNKNOWN_OWNERSHIP', '.claude/settings.json hook ownership is ambiguous or unparseable.')
+    else:
+        if not registration['command_target_present']:
+            finding('ADAPTER_FILE_MISSING', 'Registered command points to a missing adapter; the hook blocks every matched call (exit 2).')
+        if not registration['fail_closed']:
+            finding('REGISTRATION_NOT_FAIL_CLOSED', 'Registered command does not end with `|| exit 2`.')
+        if not registration['matcher_complete']:
+            finding('REGISTRATION_MATCHER_INCOMPLETE', 'Matcher does not cover Write/Edit/Bash/Agent/mcp__ tools.')
+    handoff_schema = root / '.mxagile/schemas/delegation-handoff.schema.json'
+    try:
+        versions = json.loads(handoff_schema.read_text(encoding='utf-8-sig'))['properties']['schema_version']['enum']
+        if '1.4' not in versions:
+            finding('SCHEMA_INCOMPATIBLE', 'Installed delegation handoff schema does not accept 1.4.')
+    except (OSError, ValueError, KeyError, TypeError):
+        finding('SCHEMA_INCOMPATIBLE', 'Installed delegation handoff schema is missing or unreadable.')
+
+    if not any(components.values()) and registration['state'] == 'HOST_REGISTRATION_MISSING':
+        installation = 'NOT_INSTALLED'
+    elif findings:
+        installation = 'DEGRADED'
+    else:
+        installation = 'HEALTHY'
+    concord = (root / '.mcp.json').is_file() and 'concord' in (root / '.mcp.json').read_text(encoding='utf-8-sig', errors='replace')
+    return {
+        'installation_health': installation,
+        'potentially_active': installation == 'HEALTHY',
+        'components': components,
+        'claude_registration': registration,
+        'findings': findings,
+        # Installation health is no proof of enforcement; live verification only comes from a real host run.
+        'live_host_verification': {
+            'claude_code': 'NOT_VERIFIED',
+            'concord': 'NOT_VERIFIED' if concord else 'HOST_NOT_CONFIGURED',
+            'vscode_copilot': 'HOST_UNSUPPORTED',
+            'reason': 'LIVE_VERIFICATION_NOT_PERFORMED',
+        },
+    }
+
 
 def run_board_smoke(root: Path) -> dict:
     """Run the opt-in Board smoke in its own process; never raises, never changes the Doctor report."""
@@ -1367,9 +1462,11 @@ def main() -> int:
         return 3
     smoke = run_board_smoke(root) if run_smoke else None
     summary = diagnostic_summary(report['diagnostics'])
+    control_plane = control_plane_health(root)
     if args.format == 'json':
         printable = dict(report)
         printable['diagnostic_summary'] = summary
+        printable['control_plane'] = control_plane
         if smoke is not None:
             printable['board_smoke'] = smoke
         print(json.dumps(printable, sort_keys=True, indent=2))
@@ -1387,6 +1484,12 @@ def main() -> int:
             if item['line'] is not None:
                 location += f":{item['line']}:{item['column']}"
             print(f"{item['severity']} {item['category']} {location} [{item['repairability']}]")
+        live = control_plane['live_host_verification']
+        print(f"CONTROL_PLANE_INSTALLATION: {control_plane['installation_health']} "
+              f"(claude registration: {control_plane['claude_registration']['state']})")
+        print(f"CONTROL_PLANE_LIVE: claude_code={live['claude_code']} concord={live['concord']} ({live['reason']})")
+        for item in control_plane['findings']:
+            print(f"  {item['code']}: {item['detail']}")
         if smoke is not None:
             print(f"BOARD_SMOKE: {smoke.get('result')} ({smoke.get('duration_seconds')} s)"
                   + (f" - {smoke.get('reason')}" if smoke.get('reason') else ''))
