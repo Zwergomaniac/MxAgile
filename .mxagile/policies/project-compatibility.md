@@ -122,6 +122,14 @@ allegedly newest canonical authority.
 
 ## Contract-bound update reconciliation
 
+Mandatory projection recovery precedes any safe contract writes. Core/manifest mismatch,
+pending Core activation, invalid file-bound outputs or missing required host families yield
+`PROJECTION_RECOVERY_REQUIRED`; re-sync cannot repair them. Use explicit canonical
+installed-Core resume, preserving the installed identity and recorded Company target.
+Only after all projections validate may the existing contract reconciliation/Doctor pipeline
+continue. Successful projection repair does not resolve human decisions or authorize delivery.
+
+
 `project_compatibility.py contract-snapshot` hashes normalized JSON from installed Core
 schemas. Object-key ordering and JSON formatting do not change identity; schema content,
 including descriptions, does. Version labels and commit equality are not artifact-contract

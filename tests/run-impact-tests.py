@@ -14,6 +14,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = (
+    (("scripts/projection_io.py", "scripts/update-transaction.ps1", "tests/test_projection_io.py",
+      "scripts/generate-mxagile-platform-skills.ps1", "scripts/install-core.ps1", "scripts/setup-agent-system.ps1",
+      "mxagile-setup-company-layer.ps1", ".mxagile/schemas/update-transaction.schema.json"),
+     2, ("test_projection_io.py", "test-control-plane-upgrade-from-baseline.ps1", "test-core-installer.ps1", "test_mocketeer_skills.py")),
     (("tests/test-hygiene-no-project-residue.ps1",), 0, ("test-hygiene-no-project-residue.ps1",)),
     (("tests/test-reconciliation-board.ps1",), 1,
      ("test_external_change_reconciliation.py", "test_board_performance.py", "test_board_http.py")),

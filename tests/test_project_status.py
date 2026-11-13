@@ -1077,6 +1077,20 @@ class ProjectStatusTests(unittest.TestCase):
       path.write_text(json.dumps(value), encoding='utf-8')
       self.assertNotEqual(project_compatibility.contract_snapshot(self.root)['fingerprint'], before['fingerprint'])
 
+    def test_projection_mismatch_without_transaction_blocks_contract_writes_and_resync(self):
+      self.contract_migration_fixture()
+      provenance_path = self.root / '.mxagile/state/core-provenance.json'
+      provenance = json.loads(provenance_path.read_text(encoding='utf-8'))
+      provenance['distribution'] = {'update_entry_point': 'scripts/install-core.ps1'}
+      provenance_path.write_text(json.dumps(provenance), encoding='utf-8')
+      write_file(self.root, '.mxagile/state/projections-manifest.json', json.dumps({'schema_version': '1', 'generator': 'generate-mxagile-platform-skills.ps1', 'generator_owned_by': 'distribution', 'generated_from_core_commit': 'a' * 40}))
+      before = tree_fingerprint(self.root)
+      with self.assertRaisesRegex(ValueError, 'Projection recovery'):
+        project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      result = project_compatibility.resync_preflight(self.root)
+      self.assertIn('PROJECTION_RECOVERY_REQUIRED', result['reason_codes'])
+      self.assertEqual(tree_fingerprint(self.root), before)
+
     def test_historical_complete_requires_current_contract_plan_without_writes(self):
       self.contract_migration_fixture()
       before = tree_fingerprint(self.root)

@@ -141,6 +141,34 @@ Update states:
 | `READY` | Session-derived state after current provenance, final Doctor, installed contracts, and lifecycle re-sync are all verified. | Delivery may proceed within the re-synced mission/wave/scope. `READY` is not inferred from a historical handoff. |
 
 The canonical cross-layer strategy is resumable partial update, not automatic Core rollback.
+
+Before the first Core mutation, the existing generator renders the future payload and
+preflights every supported host, source, schema and target inventory. The generator's
+`projection_io.py` backend stages captured bytes and rechecks ownership before apply;
+it is filesystem support, not a second renderer or transaction registry. Truly empty
+unowned directories may be adopted; hidden entries, foreign assets, invalid targets,
+reparse points and mixed ownership block the whole plan. No conflicting target is deleted.
+
+The existing `update-transaction.json` has an optional `projection` record with input
+fingerprint, prior asset ownership proofs, Core-applied state, projection completion and
+migration/Doctor execution. Core provenance remains observable as
+`CORE_APPLIED_PROJECTIONS_PENDING` until projection validation; only then is activation
+`ACTIVE`. The manifest commits last, after all output hashes and inventories validate.
+An unexpected apply failure retains the old manifest and a resumable `PARTIAL_UPDATE`;
+per-file atomic replacement is not whole-Core rollback. Migration and ordinary Doctor
+completion must not run across an incomplete mandatory projection boundary.
+
+`install-core.ps1 -IsUpdate $true -ResumeUpdate` repairs the verified installed Core's
+projections, rather than reinstalling the repair runner's newer Core. Its schema snapshot,
+recovery-tool hashes and canonical skills/agents must match their bound identity; the runner
+must have the installed commit's Git objects available for source verification. Existing
+transaction targets remain pinned. Explicit resume can also adopt an observable legacy
+Core-new/manifest-old state with no transaction into that same registry; absence alone is
+never proof of prior success. Without a recorded pending Company Layer target, preserve
+installed Layers instead of inventing an update. Known pending Layer work must continue
+through the enclosing Company bootstrap. A completed repeat resume verifies the disk plan
+read-only and does not rewrite Core identity, manifest timestamps or the prior handoff.
+
 After requested Core/Layer stages complete: observe contract delta -> persist scoped contract
 plan -> apply only deterministic safe repairs -> defer review/real decisions -> rebuild derived
 compatibility -> final Doctor -> invalidate/re-read context -> canonical lifecycle re-sync.
@@ -311,9 +339,15 @@ Generated platform projections carry their generation provenance in
 | `generated_from_core_version` | Core version at generation time |
 | `generator` | Generator script name |
 | `generator_owned_by` | Always `"distribution"` |
+| `projection_version` | `"2"` for validated file-bound generation; legacy aggregate manifests remain readable |
+| `outputs` | Verified target/source/host-family/SHA256 bindings for the complete output plan |
 
 If `generated_from_core_commit` differs from the installed `commit` in
-`core-provenance.json`, projections are **stale**. Re-run setup to regenerate.
+`core-provenance.json`, projections are **stale**. Inspect the transaction and use explicit
+installed-Core resume; do not silently reinstall a newer Core. A pending activation,
+invalid file hash or missing mandatory host coverage also blocks migration/re-sync and
+delivery. `PROJECTION_RECOVERY_REQUIRED` / `resume_projection` takes priority over
+migration, human resolution and re-sync until that boundary is complete.
 
 If no manifest exists, projections currency is **UNKNOWN** — they may or may not be current.
 

@@ -129,14 +129,7 @@ $coreMutationStarted = $false
 
 function Save-UpdateTransaction {
     param([System.Collections.IDictionary]$Transaction)
-    $stateDir = Join-Path $ProjectRoot '.mxagile/state'
-    if (-not (Test-Path -LiteralPath $stateDir -PathType Container)) {
-        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
-    }
-    $Transaction.updated_at = (Get-Date).ToUniversalTime().ToString('o')
-    $tempPath = "$updateTransactionPath.$([Guid]::NewGuid().ToString('N')).tmp"
-    [System.IO.File]::WriteAllText($tempPath, (($Transaction | ConvertTo-Json -Depth 30) + "`n"), [System.Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath $tempPath -Destination $updateTransactionPath -Force
+    Save-MxAgileUpdateTransaction -Root $ProjectRoot -Transaction $Transaction
 }
 
 function Get-PostUpdateDoctor {
@@ -422,6 +415,18 @@ try {
         throw "No Company Layer source configured. Pass -CompanyLayerGitUrl <git-url> or set MXAGILE_COMPANY_LAYER_URL."
     }
 
+    . (Join-Path $distributionRoot 'scripts/update-transaction.ps1')
+    if ($ResumeUpdate -and $tempDistDir -and $coreInstalled) {
+        $installedIdentity=Get-Content -LiteralPath (Join-Path $ProjectRoot '.mxagile/state/core-provenance.json') -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+        $pinnedCommit=[string]$installedIdentity['commit']
+        if ($pinnedCommit -notmatch '^[a-f0-9]{40}$') { throw 'Installed Core commit is not observable for source verification.' }
+        & git -C $distributionRoot cat-file -e "$pinnedCommit`^{commit}" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            & git -C $distributionRoot fetch --depth 1 origin $pinnedCommit 2>&1 | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw 'Pinned Core source objects could not be acquired; no consumer mutation performed.' }
+        }
+    }
+    $resumeAppliedCore=$false
     if ($coreInstalled) {
         $updateTransactionPath = Join-Path $ProjectRoot '.mxagile/state/update-transaction.json'
         $existingTransaction = $null
@@ -435,7 +440,9 @@ try {
                 throw "A prior update is $($existingTransaction.state). Inspect .mxagile/state/update-transaction.json and rerun the same target with -ResumeUpdate after recovery review."
             }
             $resumeCoreCommit = if ($provenanceCoreCommit) { $provenanceCoreCommit } else { 'UNKNOWN' }
-            if ($existingTransaction.target_core.commit -ne $resumeCoreCommit -or
+            $installedCoreForResume=Get-Content -LiteralPath (Join-Path $ProjectRoot '.mxagile/state/core-provenance.json') -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+            $resumeAppliedCore=$installedCoreForResume.commit -eq $existingTransaction.target_core.commit
+            if ((-not $resumeAppliedCore -and $existingTransaction.target_core.commit -ne $resumeCoreCommit) -or
                 $existingTransaction.target_company_layer.repository -ne $CompanyLayerGitUrl -or
                 $existingTransaction.target_company_layer.ref -ne $CompanyLayerRef) {
                 throw "Resume target differs from the persisted update transaction; no mutation performed."
@@ -446,9 +453,11 @@ try {
             $updateTransaction.failed_stage = $null
             $updateTransaction.failure = $null
             $updateTransaction.resumed_at = (Get-Date).ToUniversalTime().ToString('o')
-            $updateTransaction.resume_count = [int]$updateTransaction.resume_count + 1
+            if (-not $resumeAppliedCore) { $updateTransaction.resume_count = [int]$updateTransaction.resume_count + 1 }
         } elseif ($ResumeUpdate) {
-            throw "-ResumeUpdate was supplied but no resumable update transaction exists."
+            & $canonicalInstaller -ProjectRoot $ProjectRoot -IsUpdate $true -ResumeUpdate
+            if ($LASTEXITCODE -ne 0) { throw 'Installed-Core projection resume failed; no Company Layer update was inferred.' }
+            exit 0
         } else {
             $previousCore = $null
             $coreProvenancePath = Join-Path $ProjectRoot '.mxagile/state/core-provenance.json'
@@ -516,7 +525,12 @@ try {
     }
 
     # Step 6a: Core installation / update
-    if (-not $layerInstalled) {
+    if ($resumeAppliedCore) {
+        $coreMutationStarted=$true
+        & $canonicalInstaller -ProjectRoot $ProjectRoot -IsUpdate $true -ResumeUpdate -DeferPostUpdateCompatibility
+        if ($LASTEXITCODE -ne 0) { throw 'Installed-Core projection resume failed.' }
+    }
+    if (-not $layerInstalled -and -not $resumeAppliedCore) {
         # First-time setup: install Core AND Layer together
         $coreMutationStarted = $true
         & $canonicalInstaller `
@@ -537,6 +551,7 @@ try {
     } else {
         # Layer already installed: update Core only (no -CompanyLayerSource)
         $coreMutationStarted = $true
+        if (-not $resumeAppliedCore) {
         & $canonicalInstaller `
             -ProjectRoot              $ProjectRoot `
             -IsUpdate                 $coreInstalled `
@@ -552,8 +567,10 @@ try {
         if ($exitCode -ne 0) {
             throw "MxAgile Core update failed with exit code $exitCode."
         }
+        }
 
         if ($null -ne $updateTransaction) {
+            $updateTransaction=Get-Content -LiteralPath $updateTransactionPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
             if ($updateTransaction.completed_stages -notcontains 'CORE_UPDATE') {
                 $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'CORE_UPDATE')
             }
@@ -567,6 +584,11 @@ try {
             Save-UpdateTransaction -Transaction $updateTransaction
         }
 
+        if (-not $layerInstalled) {
+            & (Join-Path $distributionRoot 'scripts/fetch-layer.ps1') -RepositoryUrl $CompanyLayerGitUrl -Ref $CompanyLayerRef -ProjectRoot $ProjectRoot
+            if ($LASTEXITCODE -ne 0) { throw 'Pending first Company Layer installation failed.' }
+            $layerIds=@(Get-ChildItem -LiteralPath $layersDir -Directory | Select-Object -ExpandProperty Name)
+        }
         # Step 6b: Independent Company Layer update
         $updateLayerScript = Join-Path (Join-Path $distributionRoot "scripts") "update-layer.ps1"
         if (-not (Test-Path -LiteralPath $updateLayerScript -PathType Leaf)) {
@@ -621,7 +643,8 @@ try {
         $updateTransaction.doctor_status = $doctor.compatibility
         $updateTransaction.compatibility_status = $doctor.compatibility
         if ($doctor.migration.status -ne 'NOT_VERIFIED') { $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'CONTRACT_MIGRATION') }
-        $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'DOCTOR')
+        if ($doctor.executed) { $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'DOCTOR' | Select-Object -Unique) }
+        if ($updateTransaction.Contains('projection')) { $updateTransaction.projection.contract_migration_started=$true; $updateTransaction.projection.doctor_executed=[bool]$doctor.executed }
         $updateTransaction.current_stage = 'CONTEXT_RESYNC'
         $updateTransaction.state = 'UPDATE_INSTALLED_RESTART_REQUIRED'
         $updateTransaction.context_state = 'STALE'
@@ -649,12 +672,12 @@ try {
         $updateTransaction.compatibility_status = 'NOT_VERIFIED'
         $updateTransaction.resync_required = $updateTransaction.state -eq 'PARTIAL_UPDATE'
         $updateTransaction.resume_available = $updateTransaction.state -eq 'PARTIAL_UPDATE'
-        $doctor = if ($updateTransaction.state -eq 'PARTIAL_UPDATE') { Get-PostUpdateDoctor -Root $ProjectRoot -ApplySafe $false } else {
-            [ordered]@{
-                executed = $false; exit_code = $null; compatibility = 'NOT_VERIFIED'; reason = 'BLOCKED_BEFORE_MUTATION'
-                repair_status = $null; blocking_diagnostic_count = $null; safe_deterministic_count = $null
-                agent_repairable_count = $null; decision_required_count = $null; unsupported_count = $null; report = $null
-            }
+        $projectionIncomplete=$updateTransaction.Contains('projection') -and $updateTransaction.projection.status -ne 'COMPLETE'
+        $doctor = [ordered]@{
+            executed = $false; exit_code = $null; compatibility = 'NOT_VERIFIED'
+            reason = if ($projectionIncomplete) { 'PROJECTIONS_INCOMPLETE' } elseif ($blockedBeforeMutation) { 'BLOCKED_BEFORE_MUTATION' } else { 'UPDATE_INCOMPLETE' }
+            repair_status = $null; blocking_diagnostic_count = $null; safe_deterministic_count = $null
+            agent_repairable_count = $null; decision_required_count = $null; unsupported_count = $null; report = $null
         }
         $updateTransaction.compatibility_status = $doctor.compatibility
         try {

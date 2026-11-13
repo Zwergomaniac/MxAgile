@@ -110,9 +110,21 @@ The framework repository does not retain these Mocketeer host copies. Packaging 
 tests stage canonical sources in disposable consumer fixtures and use the same
 generator; there is no direct `products/` fallback in framework generation. This
 exception does not remove or change deliberately versioned general `mxagile-*`
-projections. A foreign skill directory or unowned SKILL.md at a target fails with
-`SKILL_PROJECTION_CONFLICT` without overwriting its content. Only a known legacy
-bundle with verified manifest hashes may be replaced.
+projections. A truly empty unowned skill directory is adoptable only after complete
+all-host inventory preflight. Nonempty unknown/foreign directories, hidden entries,
+foreign assets, file/directory conflicts and reparse points fail with
+`SKILL_PROJECTION_CONFLICT` without overwriting their content. Only a known legacy
+bundle with complete manifest/hash and directory proof may be replaced.
+
+The canonical renderer delegates filesystem ownership, staged I/O and final file-bound
+manifest publication to distribution-owned `scripts/projection_io.py`; it remains the
+only projection engine. `scripts/update-transaction.ps1` shares the existing update
+registry between the canonical installer and Company bootstrap. Preflight fingerprints
+and old asset proofs survive Core source replacement. An apply failure keeps the old
+manifest and accurately records partial Core/projection activation; recovery must not
+claim a whole-install rollback or run migration before mandatory projections complete.
+Explicit installed-Core resume preserves existing Core/Company identity and verifies
+source bytes against the installed commit rather than adopting the runner's target.
 
 ---
 

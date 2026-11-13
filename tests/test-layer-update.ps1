@@ -23,6 +23,11 @@ Set-StrictMode -Version Latest
 $ScriptsDir   = Join-Path (Join-Path $PSScriptRoot "..") "scripts"
 $UpdateScript = Join-Path $ScriptsDir "update-layer.ps1"
 
+function Install-WrapperTransactionFixture {
+    param([string]$Directory)
+    foreach ($name in @('update-transaction.ps1','projection_io.py')) { Copy-Item -LiteralPath (Join-Path $ScriptsDir $name) -Destination (Join-Path $Directory $name) -Force }
+}
+
 # =============================================================================
 # Assertion helpers
 # =============================================================================
@@ -1542,6 +1547,7 @@ $global:LASTEXITCODE = 0
     [System.IO.File]::WriteAllText((Join-Path $scriptDir "install-core.ps1"), $fakeCore, [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText((Join-Path $scriptDir "update-layer.ps1"), $fakeLayer, [System.Text.UTF8Encoding]::new($false))
 
+    Install-WrapperTransactionFixture -Directory $scriptDir
     $previousCorePath = $env:MXAGILE_TEST_CORE_ARGS
     $previousLayerPath = $env:MXAGILE_TEST_LAYER_ARGS
     $env:MXAGILE_TEST_CORE_ARGS = $coreArgsPath
@@ -1606,9 +1612,20 @@ param(
     [string]$CompanyLayerRef, [bool]$IsUpdate, [string]$ProvenanceFlavor,
     [string]$ProvenanceCoreSource, [string]$ProvenanceCoreSourceType,
     [string]$ProvenanceCoreRef, [string]$ProvenanceCoreSubdir, [string]$ProvenanceCoreCommit,
-    [switch]$DeferPostUpdateCompatibility
+    [switch]$DeferPostUpdateCompatibility, [switch]$ResumeUpdate
 )
 $stateDir = Join-Path $ProjectRoot '.mxagile/state'
+if ($ResumeUpdate) {
+    $path=Join-Path $stateDir 'update-transaction.json'
+    $transaction=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
+    $transaction.resume_count=[int]$transaction.resume_count+1
+    $transaction | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $path -Encoding utf8
+    $global:LASTEXITCODE=0
+    return
+}
+$countPath=Join-Path $ProjectRoot 'core-install-count.txt'
+$count=if (Test-Path -LiteralPath $countPath) { [int][IO.File]::ReadAllText($countPath)+1 } else { 1 }
+[IO.File]::WriteAllText($countPath,[string]$count)
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 [ordered]@{ schema_version = '1'; flavor = 'company-layer'; commit = $ProvenanceCoreCommit; version = '1.2.0'; installed_at = (Get-Date).ToString('o') } |
     ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $stateDir 'core-provenance.json') -Encoding UTF8
@@ -1632,6 +1649,7 @@ $global:LASTEXITCODE = if ($shouldFail) { 1 } else { 0 }
     [System.IO.File]::WriteAllText((Join-Path $scriptDir "install-core.ps1"), $fakeCore, [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText((Join-Path $scriptDir "update-layer.ps1"), $fakeLayer, [System.Text.UTF8Encoding]::new($false))
 
+    Install-WrapperTransactionFixture -Directory $scriptDir
     $previousLayerFail = $env:MXAGILE_TEST_LAYER_FAIL
     $env:MXAGILE_TEST_LAYER_FAIL = '1'
     try {
@@ -1654,6 +1672,11 @@ $global:LASTEXITCODE = if ($shouldFail) { 1 } else { 0 }
         Assert-Equal $handoff.update_state "PARTIAL_UPDATE" "last attempt handoff records partial state"
         Assert-Equal $handoff.compatibility_status "NOT_VERIFIED" "Doctor is not claimed current for a mixed state"
 
+        $coreProvenancePath=Join-Path $project '.mxagile/state/core-provenance.json'
+        $coreHashBeforeResume=(Get-FileHash -LiteralPath $coreProvenancePath).Hash
+        Set-Content -LiteralPath (Join-Path $distribution 'repair-runner.txt') -Value 'new repair runner'
+        & git -C $distribution add --all
+        & git -C $distribution commit -q -m 'new repair runner'
         $env:MXAGILE_TEST_LAYER_FAIL = '0'
         $resumeOutput = & pwsh -NoProfile -NonInteractive -File $setupScript `
             -ProjectRoot $project -DistributionSource $distribution -CompanyLayerGitUrl $companyUrl `
@@ -1664,7 +1687,30 @@ $global:LASTEXITCODE = if ($shouldFail) { 1 } else { 0 }
         Assert-UpdateTransactionSchema -Path $handoffPath -Label "resumed update transaction conforms to schema"
         Assert-Equal $transaction.state "UPDATE_INSTALLED_RESTART_REQUIRED" "resumed transaction is terminal and invalidates context"
         Assert-Equal $transaction.resume_count 1 "resume count is preserved in the last-result handoff"
+        Assert-Equal (Get-FileHash -LiteralPath $coreProvenancePath).Hash $coreHashBeforeResume 'newer repair runner does not replace pinned installed Core'
+        Assert-Equal ([IO.File]::ReadAllText((Join-Path $project 'core-install-count.txt'))) '1' 'Company resume delegates the fast path rather than reinstalling Core'
         Assert-False (Test-Path -LiteralPath $transactionPath) "completed transaction marker is removed after handoff persistence"
+        $failProjection = @'
+$path=Join-Path $ProjectRoot '.mxagile/state/update-transaction.json'
+$transaction=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
+$transaction.state='PARTIAL_UPDATE'; $transaction.current_stage='GENERATED_PROJECTIONS'; $transaction.failed_stage='GENERATED_PROJECTIONS'; $transaction.failure='fixture projection failure'
+$transaction.completed_stages=@('CORE_UPDATE')
+$transaction.projection=@{status='INCOMPLETE';previous_commit=$null;target_commit=$ProvenanceCoreCommit;ownership_baseline=@();plan_fingerprint=$null;core_applied=$true;contract_migration_started=$false;doctor_executed=$false;consumer_artifacts_changed=$false}
+$transaction | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $path -Encoding utf8
+$global:LASTEXITCODE=1
+'@
+        [IO.File]::WriteAllText((Join-Path $scriptDir 'install-core.ps1'),$fakeCore.Replace('$global:LASTEXITCODE = 0',$failProjection),[Text.UTF8Encoding]::new($false))
+        $doctorMarker=Join-Path $project 'doctor-was-run.txt'
+        $toolsDir=Join-Path $project '.mxagile/tools'
+        New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $toolsDir 'project_compatibility.py'),'import sys; from pathlib import Path; Path(sys.argv[sys.argv.index("--project-root")+1],"doctor-was-run.txt").write_text("called")')
+        $projectionFailureOutput=& pwsh -NoProfile -NonInteractive -File $setupScript -ProjectRoot $project -DistributionSource $distribution -CompanyLayerGitUrl $companyUrl -CompanyLayerRef main -NonInteractive 2>&1
+        Assert-Equal $LASTEXITCODE 1 'outer bootstrap retains a child projection failure'
+        $failedHandoff=Get-Content -LiteralPath $handoffPath -Raw | ConvertFrom-Json
+        Assert-Equal $failedHandoff.update_transaction.failed_stage 'GENERATED_PROJECTIONS' 'child projection stage is not overwritten by stale outer state'
+        Assert-Equal $failedHandoff.doctor.reason 'PROJECTIONS_INCOMPLETE' 'incomplete projections never claim ordinary Doctor completion'
+        Assert-False (Test-Path -LiteralPath $doctorMarker) 'Doctor process is not started across the projection boundary'
+        Assert-UpdateTransactionSchema -Path $transactionPath -Label 'projection failure transaction conforms to schema'
         Write-Host "  PASSED"
     } finally {
         $env:MXAGILE_TEST_LAYER_FAIL = $previousLayerFail

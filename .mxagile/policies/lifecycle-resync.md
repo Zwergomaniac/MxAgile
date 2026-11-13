@@ -48,8 +48,12 @@ Lifecycle-Information zerstoeren.
 
 Bei aktuellen Core-Installationen prueft der installierte Epoch Writer vor jedem Write:
 aktuelle beobachtbare Contract-Identitaet, schema-gueltige contract_migration COMPLETE,
-keine aktive Update-Transaktion, keine laufende DFC-/Canonicalization-Migration und einen
-aktuellen nicht-BLOCKED Doctor. Der installierte Preflight-Producer muss dem in Core
+keine aktive Update-Transaktion, vollstaendige zur Core-Identitaet passende Pflichtprojektionen,
+keine laufende DFC-/Canonicalization-Migration und einen aktuellen nicht-BLOCKED Doctor.
+PROJECTION_RECOVERY_REQUIRED verlangt zuerst expliziten installed-Core Projection-Resume;
+Migration, echte Human Decision, Doctor und Lifecycle-Reconciliation folgen erst danach.
+Weder ein neues Core-Provenance-Datum noch ein alter Projection-Manifest oder historischer
+Complete-Status ersetzt diesen Nachweis. Der installierte Preflight-Producer muss dem in Core
 Provenance gebundenen Codehash entsprechen. Fehlende/unverifizierbare Identitaet ist keine
 Freigabe. Alte Cores ohne den neuen Contract-Provenance-Eintrag behalten ihren bisherigen ABI;
 das ist kein nachtraeglicher Nachweis aktueller Contract-Kompatibilitaet.

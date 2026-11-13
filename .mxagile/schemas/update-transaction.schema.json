@@ -40,7 +40,35 @@
     "resume_available": { "type": "boolean" },
     "doctor_status": { "type": ["string", "null"], "enum": ["COMPATIBLE", "PARTIAL", "BLOCKED", "NOT_VERIFIED", null] },
     "company_layer_result": { "type": ["string", "null"], "enum": ["UPDATE_SUCCESSFUL", "UPDATE_FAILED_ROLLED_BACK", "UPDATE_FAILED", "NO_UPDATE_AVAILABLE", null] },
-    "company_layer_completed": { "type": "boolean" }
+    "company_layer_completed": { "type": "boolean" },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "previous_commit", "target_commit", "ownership_baseline", "plan_fingerprint", "core_applied", "contract_migration_started", "doctor_executed", "consumer_artifacts_changed"],
+      "properties": {
+        "status": { "enum": ["NOT_STARTED", "PREFLIGHT_READY", "INCOMPLETE", "COMPLETE"] },
+        "last_report": { "type": "object" },
+        "previous_commit": { "type": ["string", "null"] },
+        "target_commit": { "type": ["string", "null"] },
+        "plan_fingerprint": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "ownership_baseline": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["target", "sha256"],
+            "properties": {
+              "target": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "legacy_generated": { "type": "boolean" }
+            }
+          }
+        },
+        "core_applied": { "type": "boolean" },
+        "contract_migration_started": { "type": "boolean" },
+        "doctor_executed": { "type": "boolean" },
+        "consumer_artifacts_changed": { "type": "boolean" }
+      }
+    }
   },
   "definitions": {
     "core_identity": {

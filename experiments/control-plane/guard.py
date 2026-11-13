@@ -77,6 +77,7 @@ class ProjectFacts:
     migration_state: dict[str, Any] = field(default_factory=dict)
     last_update: dict[str, Any] = field(default_factory=dict)
     core_provenance: dict[str, Any] = field(default_factory=dict)
+    projection_status: dict[str, Any] = field(default_factory=dict)
     doctor_compatibility: str | None = None
     doctor_blocking: list[str] = field(default_factory=list)
     doctor_diagnostics: list[dict[str, Any]] = field(default_factory=list)
@@ -188,6 +189,16 @@ def load_project_facts(project_root: str | Path) -> ProjectFacts:
             facts.source_fingerprints.append(_fingerprint(provenance_path, '.mxagile/state/core-provenance.json'))
         except (OSError, ValueError):
             facts.load_issues.append('SOURCE_UNREADABLE:.mxagile/state/core-provenance.json')
+    if str(SCRIPTS_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPTS_DIR))
+    try:
+        from project_compatibility import projection_integrity
+        facts.projection_status = projection_integrity(root, facts.core_provenance)
+    except (ImportError, OSError, ValueError) as exc:
+        facts.projection_status = {'required': bool(facts.core_provenance), 'ready': False, 'reason': f'Projection proof unavailable: {type(exc).__name__}'}
+    projection_path = root / '.mxagile' / 'state' / 'projections-manifest.json'
+    if projection_path.is_file():
+        facts.source_fingerprints.append(_fingerprint(projection_path, '.mxagile/state/projections-manifest.json'))
     handoff_path = root / ".mxagile" / "state" / "last-update-result.json"
     if handoff_path.is_file():
         try:
@@ -318,6 +329,9 @@ def _lifecycle_integrity(facts: ProjectFacts) -> tuple[list[dict[str, str]], lis
         findings.append(_finding("MIGRATION_PARTIAL", "Artifact canonicalization was started and not completed.", "fail", ".mxagile/migration/state.yaml", "resume"))
     elif canonicalization == "pending":
         findings.append(_finding("HYBRID_ARTIFACTS", "Legacy artifacts are not yet canonicalized; hybrid mode is valid.", "advisory", ".mxagile/migration/state.yaml"))
+
+    if facts.projection_status.get('required') and not facts.projection_status.get('ready'):
+        findings.append(_finding('PROJECTION_RECOVERY_REQUIRED', facts.projection_status.get('reason') or 'Mandatory projections are incomplete.', 'fail', '.mxagile/state/projections-manifest.json', 'resume_projection'))
 
     if 'artifact_contract' in facts.core_provenance:
         from project_compatibility import contract_migration_validator, contract_snapshot
@@ -520,7 +534,7 @@ def _recovery_plan(facts: ProjectFacts, findings: list[dict[str, str]]) -> dict[
     by_code = {f['code']: f for f in findings}
     primary = None
     blocker = None
-    for code in ('UPDATE_NOT_READY', 'MIGRATION_IN_PROGRESS', 'MIGRATION_PARTIAL', 'CONTRACT_IDENTITY_NOT_OBSERVABLE', 'CONTRACT_MIGRATION_REQUIRED', 'CONTRACT_MIGRATION_NEEDS_HUMAN', 'CONTRACT_MIGRATION_PENDING', 'DOCTOR_BLOCKED', 'UPDATE_IDENTITY_NOT_OBSERVABLE'):
+    for code in ('PROJECTION_RECOVERY_REQUIRED', 'UPDATE_NOT_READY', 'MIGRATION_IN_PROGRESS', 'MIGRATION_PARTIAL', 'CONTRACT_IDENTITY_NOT_OBSERVABLE', 'CONTRACT_MIGRATION_REQUIRED', 'CONTRACT_MIGRATION_NEEDS_HUMAN', 'CONTRACT_MIGRATION_PENDING', 'DOCTOR_BLOCKED', 'UPDATE_IDENTITY_NOT_OBSERVABLE'):
         if code in by_code:
             blocker = code
             primary = by_code[code].get('recovery') or 'inspect'

@@ -21,6 +21,7 @@ param (
     [string]$ProvenanceCoreSubdir     = "",
     [string]$ProvenanceCoreCommit     = "",
     [switch]$DeferPostUpdateCompatibility,
+    [switch]$ResumeUpdate,
 
     # Explicit opt-in: run the bounded Board smoke after the Doctor handoff (never implied by CI or updates).
     [switch]$BoardSmoke
@@ -31,6 +32,122 @@ Set-StrictMode -Version Latest
 $updateMutationStarted = $false
 $updateStage = 'PREFLIGHT'
 $updateTransactionPath = $null
+$ownsUpdateTransaction = $false
+. (Join-Path $PSScriptRoot 'update-transaction.ps1')
+
+function Invoke-CoreProjectionResume {
+    param([string]$Root, [bool]$DeferCompatibility)
+    $python = Get-Command python -ErrorAction Stop
+    $verify = @'
+import hashlib, json, re, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+from project_compatibility import contract_snapshot, safe_file
+import subprocess
+root=Path(sys.argv[1])
+from projection_io import safe_path, validate_sources
+for relative in ('.mxagile/state/core-provenance.json','.mxagile/state/projections-manifest.json','.mxagile/state/update-transaction.json'):
+ safe_path(root,relative)
+validate_sources([str(root/'.mxagile'/name) for name in ('skills','agents','schemas','tools')])
+core=json.loads((root/'.mxagile/state/core-provenance.json').read_text(encoding='utf-8-sig'))
+assert re.fullmatch('[a-f0-9]{40}', core.get('commit',''))
+assert contract_snapshot(root)==core.get('artifact_contract')
+actual={}
+for path in (root/'.mxagile/tools').rglob('*.py'):
+ relative=path.relative_to(root).as_posix()
+ assert safe_file(root,relative)==path
+ actual[path.relative_to(root/'.mxagile/tools').as_posix()]=hashlib.sha256(path.read_bytes()).hexdigest()
+writer=root/'.mxagile/tools/Write-MxAgileEpochCheckpoint.ps1'
+actual[writer.name]=hashlib.sha256(writer.read_bytes()).hexdigest()
+assert actual==core.get('recovery_tools')
+assert (root/'.mxagile/skills').is_dir()
+repository=str(Path(sys.argv[2]).parent)
+commit=core['commit']
+paths=subprocess.check_output(['git','-C',repository,'ls-tree','-r','--name-only',commit,'--','.mxagile/skills','.mxagile/agents','products/MxMocketeer/skills'],stderr=subprocess.DEVNULL).decode().splitlines()
+assert paths
+for source in paths:
+ target=('.mxagile/skills/'+source[len('products/MxMocketeer/skills/'):]) if source.startswith('products/MxMocketeer/skills/') else source
+ path=safe_file(root,target)
+ assert path is not None and path.is_file()
+ expected=subprocess.check_output(['git','-C',repository,'cat-file','blob',commit+':'+source],stderr=subprocess.DEVNULL)
+ actual_source=path.read_bytes()
+ if source.endswith(('.md','.txt')):
+  actual_source=actual_source.replace(b'\r\n',b'\n'); expected=expected.replace(b'\r\n',b'\n')
+ assert actual_source==expected, 'Installed canonical source differs: '+source
+print('INSTALLED_CORE_VERIFIED')
+'@
+    $PSNativeCommandUseErrorActionPreference = $false
+    $verified = @(& $python.Source -B -c $verify $Root $PSScriptRoot 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "RESUME_CORE_NOT_VERIFIED: installed schema/tool/source integrity is not bound to current provenance. $($verified -join ' ')" }
+    $corePath = Join-Path $Root '.mxagile/state/core-provenance.json'
+    $core = Get-Content -LiteralPath $corePath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+    $path = Join-Path $Root '.mxagile/state/update-transaction.json'
+    $manifestPath = Join-Path $Root '.mxagile/state/projections-manifest.json'
+    $manifest = if (Test-Path -LiteralPath $manifestPath -PathType Leaf) { Get-Content -LiteralPath $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable } else { @{} }
+    $transaction = if (Test-Path -LiteralPath $path -PathType Leaf) { Get-Content -LiteralPath $path -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable } else { $null }
+    if (-not $transaction -and $manifest['generated_from_core_commit'] -eq $core['commit'] -and $manifest['projection_version'] -eq '2') {
+        $checked = & (Join-Path $PSScriptRoot 'generate-mxagile-platform-skills.ps1') -ProjectRoot $Root -CoreCommit $core['commit'] -CoreVersion $core['version'] -PreflightOnly -PassThru
+        if (-not $checked.ready -or @($checked.targets | Where-Object state -ne 'TARGET_OWNED_CURRENT').Count) { throw 'Completed projection resume is not current.' }
+        & $python.Source -B -c 'import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); from project_compatibility import projection_integrity; raise SystemExit(0 if projection_integrity(Path(sys.argv[2]))["ready"] else 2)' $PSScriptRoot $Root
+        if ($LASTEXITCODE -ne 0) { throw 'Completed projection file proof or Core activation is inconsistent; no read-only completion can be claimed.' }
+        Write-Host 'RESUME_STATUS: ALREADY_COMPLETE (read-only)'
+        return
+    }
+    if ($transaction) {
+        if ($transaction.state -notin @('UPDATE_IN_PROGRESS','PARTIAL_UPDATE','COMPATIBILITY_NOT_VERIFIED') -or $transaction.target_core.commit -ne $core['commit']) { throw 'RESUME_TARGET_CONFLICT: persisted target is not the verified installed Core.' }
+        foreach ($field in @('version','source','source_type','ref')) {
+            $expected=$transaction.target_core[$field]; $observed=$core[$field]
+            if ($expected -and $observed -and $expected -ne 'UNKNOWN' -and $expected -ne $observed) { throw "RESUME_TARGET_CONFLICT: installed Core $field contradicts the recorded target." }
+        }
+    } else {
+        if (-not $manifest['generated_from_core_commit'] -or $manifest['generated_from_core_commit'] -eq $core['commit']) { throw 'RESUME_STATE_NOT_OBSERVABLE: no pending transaction or bound legacy projection mismatch.' }
+        $target = @{ commit=$core['commit']; version=$core['version']; source=$core['source']; source_type=$core['source_type']; ref=$core['ref'] }
+        $transaction = New-MxAgileCoreUpdateTransaction -Root $Root -TargetCore $target
+        $transaction.previous_core = @{ commit=$core['previous_commit']; version=$core['previous_version']; installed_at=$core['previous_installed_at'] }
+    }
+    if (-not $transaction.Contains('projection')) {
+        $transaction.projection = @{ status='INCOMPLETE'; previous_commit=$manifest['generated_from_core_commit']; target_commit=$core['commit']; ownership_baseline=@(); plan_fingerprint=$null; core_applied=$true; contract_migration_started=$false; doctor_executed=$false; consumer_artifacts_changed=$false }
+    }
+    $script:updateMutationStarted = $true
+    $script:updateStage = 'GENERATED_PROJECTIONS'
+    $transaction.state = 'UPDATE_IN_PROGRESS'; $transaction.current_stage = 'GENERATED_PROJECTIONS'
+    $transaction.resume_count = [int]$transaction.resume_count + 1
+    $transaction.resumed_at = [DateTime]::UtcNow.ToString('o')
+    $transaction.projection.core_applied = $true
+    $transaction.completed_stages = @(@($transaction.completed_stages) + 'CORE_UPDATE' | Select-Object -Unique)
+    Save-MxAgileUpdateTransaction -Root $Root -Transaction $transaction
+    try {
+        $preflight = & (Join-Path $PSScriptRoot 'generate-mxagile-platform-skills.ps1') -ProjectRoot $Root -CoreCommit $core['commit'] -CoreVersion $core['version'] -PreflightOnly -OwnershipBaseline @($transaction.projection.ownership_baseline) -PassThru
+        $transaction.projection.plan_fingerprint = $preflight.plan_fingerprint
+        $transaction.projection.ownership_baseline = @($preflight.ownership_baseline)
+        Save-MxAgileUpdateTransaction -Root $Root -Transaction $transaction
+        & (Join-Path $PSScriptRoot 'generate-mxagile-platform-skills.ps1') -ProjectRoot $Root -CoreCommit $core['commit'] -CoreVersion $core['version'] -OwnershipBaseline @($transaction.projection.ownership_baseline) -ExpectedPlanFingerprint $preflight.plan_fingerprint
+        $transaction.projection.status = 'COMPLETE'
+        if ($core['activation_state'] -eq 'CORE_APPLIED_PROJECTIONS_PENDING') {
+            & $python.Source -B -c 'import json,sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); from projection_io import safe_path,atomic_replace; path=safe_path(Path(sys.argv[2]),".mxagile/state/core-provenance.json"); value=json.loads(path.read_text(encoding="utf-8-sig")); assert value["commit"]==sys.argv[3]; value["activation_state"]="ACTIVE"; atomic_replace(path,(json.dumps(value,indent=2)+"\n").encode())' $PSScriptRoot $Root $core['commit']
+            if ($LASTEXITCODE -ne 0) { throw 'Core activation could not be finalized.' }
+            $core.activation_state='ACTIVE'
+        }
+        $transaction.completed_stages = @(@($transaction.completed_stages) + 'GENERATED_PROJECTIONS' | Select-Object -Unique)
+        $transaction.current_stage = 'COMPANY_LAYER_UPDATE'; $transaction.failed_stage=$null; $transaction.failure=$null
+        Save-MxAgileUpdateTransaction -Root $Root -Transaction $transaction
+        if ($DeferCompatibility) { Write-Host 'RESUME_STATUS: PROJECTIONS_COMPLETE; Company Layer/Doctor deferred.'; return }
+        if ($transaction.target_company_layer.repository -and $transaction.completed_stages -notcontains 'COMPANY_LAYER_UPDATE') { throw 'RESUME_COMPANY_STAGE_REQUIRED: resume the enclosing Company Layer update, not a projection-only completion.' }
+        $transaction.completed_stages = @(@($transaction.completed_stages) + 'COMPANY_LAYER_UPDATE' | Select-Object -Unique)
+        $transaction.company_layer_result = 'NO_UPDATE_AVAILABLE'; $transaction.company_layer_completed = $true
+        $transaction.current_stage = 'POST_UPDATE_DOCTOR'; $transaction.projection.contract_migration_started = $true
+        Save-MxAgileUpdateTransaction -Root $Root -Transaction $transaction
+        Invoke-PostUpdateCompatibility -Root $Root -ToolsDir (Join-Path $Root '.mxagile/tools') -CoreProvenance $core
+        Complete-MxAgileCoreUpdateTransaction -Root $Root -Transaction $transaction
+    } catch {
+        $transaction.state='PARTIAL_UPDATE'; $transaction.failed_stage=$transaction.current_stage; $transaction.failure=$_.Exception.Message
+        $script:updateStage=$transaction.current_stage
+        if ($_.Exception.Data.Contains('projection_report')) { $transaction.projection.last_report=$_.Exception.Data['projection_report'] }
+        if ($transaction.projection.status -ne 'COMPLETE') { $transaction.projection.status='INCOMPLETE' }
+        Save-MxAgileUpdateTransaction -Root $Root -Transaction $transaction
+        throw
+    }
+}
 
 function Get-CoreArtifactContract {
     param([string]$Root)
@@ -317,6 +434,11 @@ try {
         }
     }
 
+    if ($ResumeUpdate) {
+        Invoke-CoreProjectionResume -Root $ProjectRoot -DeferCompatibility ([bool]$DeferPostUpdateCompatibility)
+        exit 0
+    }
+
     $detectScript = Join-Path $PSScriptRoot "detect-project-type.ps1"
     if (-not (Test-Path -LiteralPath $detectScript)) {
         throw "detect-project-type.ps1 not found in script directory."
@@ -446,7 +568,38 @@ try {
         throw "HOST_CONFIG_CONFLICT: mxcli init --all-tools would run while host/unknown MCP configuration exists ($($existingHostMcpConfigs -join ', ')); resolve ownership before setup. No project mutation has started."
     }
 
+    $updateStage = 'PROJECTION_PREFLIGHT'
+    $distributionRoot = Split-Path $PSScriptRoot -Parent
+    foreach ($requiredScript in @('install-core.ps1', 'setup-agent-system.ps1', 'apply-project-agent-instructions.ps1', 'generate-mxagile-platform-skills.ps1')) {
+        $tokens = $null; $parseErrors = $null
+        [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $requiredScript), [ref]$tokens, [ref]$parseErrors) > $null
+        if ($parseErrors) { throw "Projection input script is syntactically invalid: $requiredScript" }
+    }
+    $mocketeerSkillSource = Join-Path $distributionRoot 'products/MxMocketeer/skills'
+    $expectedMocketeerSkills = @('mocketeer-discovery','mocketeer-design-contract','mocketeer-refinement','mocketeer-preservation','mocketeer-business-flows','mocketeer-mockup-generation','mocketeer-handoff')
+    $sourceMocketeerSkills = @(Get-ChildItem -LiteralPath $mocketeerSkillSource -Directory -Filter 'mocketeer-*' -Force)
+    if ((@($sourceMocketeerSkills.Name | Sort-Object) -join ',') -ne (@($expectedMocketeerSkills | Sort-Object) -join ',')) { throw 'Mocketeer source must contain exactly seven canonical skills before Core mutation.' }
+    foreach ($skill in $sourceMocketeerSkills) { if (-not (Test-Path -LiteralPath (Join-Path $skill.FullName 'SKILL.md') -PathType Leaf)) { throw "Missing canonical SKILL.md: $($skill.Name)" } }
+    $projectionPreflight = & (Join-Path $PSScriptRoot 'generate-mxagile-platform-skills.ps1') -ProjectRoot $ProjectRoot -SourceRoot (Join-Path $distributionRoot '.mxagile') -BundledSkillRoot (Join-Path $distributionRoot 'products/MxMocketeer/skills') -PreflightOnly -PassThru
+    if (-not $projectionPreflight.ready) { throw 'Projection preflight did not produce a complete safe output plan.' }
     $previousArtifactContract = Get-CoreArtifactContract -Root $ProjectRoot
+    if ($IsUpdate) {
+        if (-not $ProvenanceCoreCommit) { $ProvenanceCoreCommit = (& git -C $distributionRoot rev-parse HEAD 2>$null | Select-Object -First 1) }
+        $versionText = Get-Content -LiteralPath (Join-Path $distributionRoot '.mxagile/version.yaml') -Raw -Encoding utf8
+        $targetVersion = if ($versionText -match '(?m)^version:\s+"?([^"\s]+)') { $Matches[1] } else { 'UNKNOWN' }
+        if (Test-Path -LiteralPath $updateTransactionPath -PathType Leaf) {
+            $transaction = Get-Content -LiteralPath $updateTransactionPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+            if (-not $DeferPostUpdateCompatibility -or $transaction.state -ne 'UPDATE_IN_PROGRESS') { throw 'An active update requires explicit -ResumeUpdate, not another Core installation.' }
+        } else {
+            $transaction = New-MxAgileCoreUpdateTransaction -Root $ProjectRoot -TargetCore @{ version=$targetVersion; commit=$ProvenanceCoreCommit; source=$ProvenanceCoreSource; source_type=$ProvenanceCoreSourceType; ref=$ProvenanceCoreRef } -CompanySource $CompanyLayerSource -CompanyRef $CompanyLayerRef
+            $ownsUpdateTransaction = $true
+        }
+        $priorProjectionPath=Join-Path $ProjectRoot '.mxagile/state/projections-manifest.json'
+        $priorProjectionCommit=if (Test-Path -LiteralPath $priorProjectionPath -PathType Leaf) { (Get-Content -LiteralPath $priorProjectionPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable).generated_from_core_commit } else { $null }
+        $transaction.projection = @{ status='PREFLIGHT_READY'; previous_commit=$priorProjectionCommit; target_commit=$ProvenanceCoreCommit; ownership_baseline=@($projectionPreflight.ownership_baseline); plan_fingerprint=$projectionPreflight.plan_fingerprint; core_applied=$false; contract_migration_started=$false; doctor_executed=$false; consumer_artifacts_changed=$false }
+        $transaction.current_stage='PROJECT_INITIALIZATION'
+        Save-MxAgileUpdateTransaction -Root $ProjectRoot -Transaction $transaction
+    }
     $updateMutationStarted = $true
     $updateStage = 'PROJECT_INITIALIZATION'
     Add-ContextModeRuntimeGitIgnore -Root $ProjectRoot
@@ -905,6 +1058,7 @@ try {
     $recoveryTools['Write-MxAgileEpochCheckpoint.ps1'] = (Get-FileHash -LiteralPath (Join-Path $destToolsDir 'Write-MxAgileEpochCheckpoint.ps1') -Algorithm SHA256).Hash.ToLowerInvariant()
     $coreProv = [ordered]@{
         schema_version        = "1"
+        activation_state      = 'CORE_APPLIED_PROJECTIONS_PENDING'
         flavor                = $effectiveFlavor
         product_flavor        = $productFlavor
         installation_flavor   = if ($hasCompanyLayers) { 'company-layer' } else { 'core' }
@@ -931,7 +1085,9 @@ try {
             distribution_owned = @(
                 "scripts/install-core.ps1",
                 "scripts/setup-agent-system.ps1",
-                "scripts/generate-mxagile-platform-skills.ps1"
+                "scripts/generate-mxagile-platform-skills.ps1",
+                "scripts/projection_io.py",
+                "scripts/update-transaction.ps1"
             )
             consumer_note      = "Distribution-owned scripts are NOT consumer project artifacts. Their absence in a consumer project is expected and normal, never a defect."
             project_distributed = @(
@@ -968,6 +1124,13 @@ try {
         }
     }
     $coreProv | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $coreProvPath -Encoding UTF8
+    if ($IsUpdate) {
+        $transaction.target_core.version=$coreVersion; $transaction.target_core.commit=$coreProv.commit
+        $transaction.projection.core_applied=$true; $transaction.projection.status='INCOMPLETE'
+        $transaction.completed_stages=@(@($transaction.completed_stages) + 'CORE_UPDATE' | Select-Object -Unique)
+        $transaction.current_stage='GENERATED_PROJECTIONS'
+        Save-MxAgileUpdateTransaction -Root $ProjectRoot -Transaction $transaction
+    }
     $shortCommit = if ($ProvenanceCoreCommit) { $ProvenanceCoreCommit.Substring(0,[Math]::Min(8,$ProvenanceCoreCommit.Length)) } else { "(unknown)" }
     Write-Host "[OK] Core provenance written to .mxagile/state/core-provenance.json"
     Write-Host "     version=$coreVersion  commit=$shortCommit  mode=$(if ($IsUpdate) { 'update' } else { 'install' })"
@@ -1013,26 +1176,6 @@ try {
     # Install the independently owned Mocketeer product skills into the Core payload.
     # The product directory is the single source of their full Markdown content; the
     # existing platform generator projects these files after setup-agent-system starts.
-    $distributionRoot = Split-Path $PSScriptRoot -Parent
-    $mocketeerSkillSource = Join-Path $distributionRoot 'products/MxMocketeer/skills'
-    if (-not (Test-Path -LiteralPath $mocketeerSkillSource -PathType Container)) {
-        throw "Mocketeer skill source not found: $mocketeerSkillSource"
-    }
-    $expectedMocketeerSkills = @(
-        'mocketeer-discovery',
-        'mocketeer-design-contract',
-        'mocketeer-refinement',
-        'mocketeer-preservation',
-        'mocketeer-business-flows',
-        'mocketeer-mockup-generation',
-        'mocketeer-handoff'
-    )
-    $sourceMocketeerSkills = @(Get-ChildItem -LiteralPath $mocketeerSkillSource -Directory -Filter 'mocketeer-*')
-    $actualMocketeerNames = @($sourceMocketeerSkills | ForEach-Object { $_.Name } | Sort-Object)
-    $expectedMocketeerNames = @($expectedMocketeerSkills | Sort-Object)
-    if (($actualMocketeerNames -join "`n") -ne ($expectedMocketeerNames -join "`n")) {
-        throw "Mocketeer skill source must contain exactly seven canonical skills. Found: $($actualMocketeerNames -join ', ')"
-    }
     $installedSkillRoot = Join-Path $destMxAgile 'skills'
     foreach ($mocketeerSkill in $sourceMocketeerSkills) {
         $skillFile = Join-Path $mocketeerSkill.FullName 'SKILL.md'
@@ -1054,8 +1197,17 @@ try {
         throw "setup-agent-system.ps1 not found in script directory."
     }
     Write-Host "Calling setup-agent-system.ps1..."
-    & $setupScript -ProjectRoot $ProjectRoot -CoreCommit $ProvenanceCoreCommit -CoreVersion $coreVersion
+    $updateStage = 'GENERATED_PROJECTIONS'
+    & $setupScript -ProjectRoot $ProjectRoot -CoreCommit $ProvenanceCoreCommit -CoreVersion $coreVersion -OwnershipBaseline @($projectionPreflight.ownership_baseline) -ExpectedPlanFingerprint $projectionPreflight.plan_fingerprint
     Write-Host "[OK] setup-agent-system.ps1 executed."
+    $coreProv.activation_state='ACTIVE'
+    $coreProv | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $coreProvPath -Encoding UTF8
+    if ($IsUpdate) {
+        $transaction.projection.status='COMPLETE'
+        $transaction.completed_stages=@(@($transaction.completed_stages) + 'GENERATED_PROJECTIONS' | Select-Object -Unique)
+        $transaction.current_stage='COMPANY_LAYER_UPDATE'
+        Save-MxAgileUpdateTransaction -Root $ProjectRoot -Transaction $transaction
+    }
 
     # =========================================================================
     # Reconciliation detection (informational only — setup does NOT perform
@@ -1096,6 +1248,7 @@ try {
     # =========================================================================
     # 2. Company Layer Installation (Optional)
     # =========================================================================
+    $updateStage='COMPANY_LAYER_UPDATE'
     if ($CompanyLayerSource) {
         Write-Host "---"
         Write-Host "Step 2: Company Layer Installation" -ForegroundColor Cyan
@@ -1252,7 +1405,14 @@ try {
         Write-Host 'Post-update Doctor deferred to the enclosing multi-layer update transaction.' -ForegroundColor DarkYellow
         Write-Host 'Board Smoke deferred until the enclosing multi-layer update transaction completes.' -ForegroundColor DarkYellow
     } else {
+        $updateStage='POST_UPDATE_DOCTOR'
+        if ($ownsUpdateTransaction) {
+            $transaction.completed_stages=@(@($transaction.completed_stages) + 'COMPANY_LAYER_UPDATE' | Select-Object -Unique)
+            $transaction.current_stage='POST_UPDATE_DOCTOR'; $transaction.projection.contract_migration_started=$true
+            Save-MxAgileUpdateTransaction -Root $ProjectRoot -Transaction $transaction
+        }
         Invoke-PostUpdateCompatibility -Root $ProjectRoot -ToolsDir $destToolsDir -CoreProvenance $coreProv
+        if ($ownsUpdateTransaction) { Complete-MxAgileCoreUpdateTransaction -Root $ProjectRoot -Transaction $transaction }
         Invoke-BoardSmokeOffer -Root $ProjectRoot -ToolsDir $destToolsDir -Requested ([bool]$BoardSmoke) -IsUpdateRun ([bool]$IsUpdate)
     }
 
@@ -1282,7 +1442,10 @@ try {
     if ($IsUpdate -and $updateTransactionPath -and (Test-Path -LiteralPath $updateTransactionPath -PathType Leaf)) {
         try {
             $transaction = Get-Content -LiteralPath $updateTransactionPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+            $coreAlreadyApplied=@($transaction['completed_stages']) -contains 'CORE_UPDATE'
+            $updateMutationStarted=$updateMutationStarted -or ($ResumeUpdate -and $coreAlreadyApplied)
             $transaction.state = if ($updateMutationStarted) { 'PARTIAL_UPDATE' } else { 'BLOCKED_BEFORE_MUTATION' }
+            if ($transaction.Contains('projection') -and $_.Exception.Data.Contains('projection_report')) { $transaction.projection.last_report=$_.Exception.Data['projection_report'] }
             $transaction.current_stage = $updateStage
             $transaction.failed_stage = $updateStage
             $transaction.failure = $_.Exception.Message

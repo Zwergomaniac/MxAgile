@@ -129,7 +129,20 @@ try {
     $ownedHashes = @{}
     foreach ($relative in $owned.Keys) { $ownedHashes[$relative] = (Get-FileHash (Join-Path $project $relative)).Hash }
 
-    Write-Host '--- 3. Update to the control-plane branch ---' -ForegroundColor Cyan
+    Write-Host '--- 3. All-host preflight and update ---' -ForegroundColor Cyan
+    $oldProjectionBytes=[IO.File]::ReadAllBytes((Join-Path $project '.mxagile/state/projections-manifest.json'))
+    $coreBeforePreflight=(Get-FileHash (Join-Path $project '.mxagile/state/core-provenance.json')).Hash
+    $foreignProjection=Join-Path $project '.hermes/skills/mxagile/.hidden-owner'
+    [IO.File]::WriteAllText($foreignProjection, 'foreign hidden data')
+    $blockedUpdate=@(& pwsh -NoProfile -Command "& '$(Join-Path $RepoRoot 'scripts/install-core.ps1')' -ProjectRoot '$project' -IsUpdate `$true -ProvenanceCoreCommit '$currentCommit'" 2>&1)
+    Assert-True 'foreign late host blocks before Core activation' ($LASTEXITCODE -ne 0 -and (Get-FileHash (Join-Path $project '.mxagile/state/core-provenance.json')).Hash -eq $coreBeforePreflight) ($blockedUpdate | Select-Object -Last 5 | Out-String)
+    Assert-True 'foreign hidden projection survives preflight' ([IO.File]::ReadAllText($foreignProjection) -eq 'foreign hidden data')
+    Remove-Item -LiteralPath $foreignProjection
+    foreach ($hostFamily in @('.claude','.github','.agents')) {
+        $emptyTarget=Join-Path $project "$hostFamily/skills/mocketeer-business-flows"
+        if (Test-Path -LiteralPath $emptyTarget) { Remove-Item -LiteralPath $emptyTarget -Recurse -Force }
+        New-Item -ItemType Directory -Path $emptyTarget -Force | Out-Null
+    }
     $update = @(& pwsh -NoProfile -Command "& '$(Join-Path $RepoRoot 'scripts/install-core.ps1')' -ProjectRoot '$project' -IsUpdate `$true -ProvenanceCoreCommit '$currentCommit'" 2>&1)
     Assert-True 'update from baseline succeeds' ($LASTEXITCODE -eq 0) ($update | Select-Object -Last 5 | Out-String)
     $handoff = Get-Content (Join-Path $project '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
@@ -143,6 +156,44 @@ try {
     Assert-True 'update distributes the control-plane adapter into .mxagile/tools/control-plane' (@($installedAdapter).Count -eq 0) "missing=$($installedAdapter -join ',')"
     Assert-RunStoreIgnored $project
     Assert-True 'update reports the hook registration' (($update -join "`n") -match 'CONTROL_PLANE_HOOK: REGISTERED') (($update | Select-String 'CONTROL_PLANE_HOOK') -join ';')
+    $projectionProof=Get-Content -LiteralPath (Join-Path $project '.mxagile/state/projections-manifest.json') -Raw | ConvertFrom-Json
+    Assert-True 'empty unowned skills finalized for all three hosts' ($projectionProof.projection_version -eq '2' -and @($projectionProof.outputs | Where-Object target -match '/mocketeer-business-flows/SKILL.md$').Count -eq 3)
+    $faultDist=Join-Path $work 'fault-distribution'
+    $faultZip=Join-Path $work 'fault.zip'
+    & git -C $RepoRoot archive --format=zip -o $faultZip HEAD
+    Expand-Archive -LiteralPath $faultZip -DestinationPath $faultDist
+    Copy-Item -Path (Join-Path $RepoRoot 'scripts/*') -Destination (Join-Path $faultDist 'scripts') -Recurse -Force
+    Copy-Item -LiteralPath (Join-Path $RepoRoot '.mxagile/schemas/update-transaction.schema.json') -Destination (Join-Path $faultDist '.mxagile/schemas/update-transaction.schema.json') -Force
+    foreach ($changedControlFile in @('guard.py','control-plane-verdict.schema.json')) { Copy-Item -LiteralPath (Join-Path $RepoRoot "experiments/control-plane/$changedControlFile") -Destination (Join-Path $faultDist "experiments/control-plane/$changedControlFile") -Force }
+    $faultGenerator=Join-Path $faultDist 'scripts/generate-mxagile-platform-skills.ps1'
+    $faultText=Get-Content -LiteralPath $faultGenerator -Raw -Encoding utf8
+    $faultText=$faultText.Replace('# --- Main ---', '# --- Main ---' + "`n" + 'if (-not $PreflightOnly) { throw "fixture projection apply failure" }')
+    [IO.File]::WriteAllText($faultGenerator,$faultText,[Text.UTF8Encoding]::new($false))
+    $partialProject=Join-Path $work 'partial-project'
+    Copy-Item -LiteralPath $project -Destination $partialProject -Recurse
+    $partialManifest=Join-Path $partialProject '.mxagile/state/projections-manifest.json'
+    $partialManifestBefore=(Get-FileHash $partialManifest).Hash
+    $failedProjection=@(& pwsh -NoProfile -Command "& '$(Join-Path $faultDist 'scripts/install-core.ps1')' -ProjectRoot '$partialProject' -IsUpdate `$true -ProvenanceCoreCommit '$currentCommit'" 2>&1)
+    Assert-True 'synthetic projection failure occurs after Core application' ($LASTEXITCODE -ne 0) ($failedProjection | Select-Object -Last 6 | Out-String)
+    $partialTransaction=Get-Content -LiteralPath (Join-Path $partialProject '.mxagile/state/update-transaction.json') -Raw | ConvertFrom-Json
+    Assert-True 'partial update is precise and migration/Doctor have not started' ($partialTransaction.state -eq 'PARTIAL_UPDATE' -and $partialTransaction.failed_stage -eq 'GENERATED_PROJECTIONS' -and $partialTransaction.projection.core_applied -and -not $partialTransaction.projection.contract_migration_started -and -not $partialTransaction.projection.doctor_executed)
+    Assert-True 'partial failure retains previous projection manifest' ((Get-FileHash $partialManifest).Hash -eq $partialManifestBefore)
+    $partialCoreBefore=Get-Content -LiteralPath (Join-Path $partialProject '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
+    $partialCoreHash=(Get-FileHash (Join-Path $partialProject '.mxagile/state/core-provenance.json')).Hash
+    $partialTxPath=Join-Path $partialProject '.mxagile/state/update-transaction.json'
+    $wrongTarget=Get-Content -LiteralPath $partialTxPath -Raw | ConvertFrom-Json -AsHashtable
+    $wrongTarget.target_core.version='contradictory-target'
+    $wrongTarget | ConvertTo-Json -Depth 40 | Set-Content -LiteralPath $partialTxPath -Encoding utf8
+    $rejectedResume=@(& pwsh -NoProfile -Command "& '$(Join-Path $RepoRoot 'scripts/install-core.ps1')' -ProjectRoot '$partialProject' -IsUpdate `$true -ResumeUpdate" 2>&1)
+    $retainedPartial=Get-Content -LiteralPath $partialTxPath -Raw | ConvertFrom-Json -AsHashtable
+    Assert-True 'contradictory resume fails closed without downgrading already-applied Core state' ($LASTEXITCODE -ne 0 -and $retainedPartial.state -eq 'PARTIAL_UPDATE' -and (Get-FileHash (Join-Path $partialProject '.mxagile/state/core-provenance.json')).Hash -eq $partialCoreHash -and (Get-FileHash $partialManifest).Hash -eq $partialManifestBefore)
+    $retainedPartial.target_core.version=$partialCoreBefore.version
+    $retainedPartial | ConvertTo-Json -Depth 40 | Set-Content -LiteralPath $partialTxPath -Encoding utf8
+    $partialResume=@(& pwsh -NoProfile -Command "& '$(Join-Path $RepoRoot 'scripts/install-core.ps1')' -ProjectRoot '$partialProject' -IsUpdate `$true -ResumeUpdate" 2>&1)
+    Assert-True 'existing partial transaction resumes with the installed Core' ($LASTEXITCODE -eq 0) ($partialResume | Select-Object -Last 8 | Out-String)
+    $partialCoreAfter=Get-Content -LiteralPath (Join-Path $partialProject '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
+    Assert-True 'resume activates projections without reinstalling Core' ($partialCoreAfter.installed_at -eq $partialCoreBefore.installed_at -and $partialCoreAfter.commit -eq $partialCoreBefore.commit -and $partialCoreAfter.activation_state -eq 'ACTIVE')
+    Assert-True 'successful partial resume retires only the active transaction' (-not (Test-Path -LiteralPath (Join-Path $partialProject '.mxagile/state/update-transaction.json')))
     $groups = @(Get-PreToolGroups $project)
     $ownedGroups = @($groups | Where-Object { Test-OwnedGroup $_ })
     Assert-True 'hook registered once, first in PreToolUse, with fail-closed command' ($ownedGroups.Count -eq 1 -and (Test-OwnedGroup $groups[0]) -and $groups[0].hooks[0].command.Contains('|| exit 2')) "groups=$($groups.Count) owned=$($ownedGroups.Count)"
@@ -305,6 +356,49 @@ print(json.dumps({'history_preserved': {k: v for k, v in state.items() if k != '
 '@
     $migrationState = (& python -B -c $readMigration $project $legacyFixture) | ConvertFrom-Json
     Assert-True 'historical migration and canonicalization complete flags are retained' ($migrationState.history_preserved -and $migrationState.state.contract_migration.status -eq 'NEEDS_HUMAN') 'historical authority was rewritten'
+    $rt2Project=Join-Path $work 'rt2-no-transaction'
+    $rt2InstalledDistribution=Join-Path $work 'original-rt2-distribution'
+    $rt2OriginalCommit='121499131e8476d79e4efa84dddb4858612dc21f'
+    $rt2OriginalZip=Join-Path $work 'original-rt2.zip'
+    & git -C $RepoRoot archive --format=zip -o $rt2OriginalZip $rt2OriginalCommit
+    Expand-Archive -LiteralPath $rt2OriginalZip -DestinationPath $rt2InstalledDistribution
+    New-Item -ItemType Directory -Path $rt2Project | Out-Null
+    New-Item -ItemType File -Path (Join-Path $rt2Project 'RT2Fixture.mpr') | Out-Null
+    Invoke-Git $rt2Project init -q
+    Invoke-Git $rt2Project add -A
+    Invoke-Git $rt2Project commit -qm 'original RT2 consumer fixture'
+    $originalRT2Install=@(& pwsh -NoProfile -File (Join-Path $rt2InstalledDistribution 'scripts/install-core.ps1') -ProjectRoot $rt2Project -ProvenanceCoreCommit $rt2OriginalCommit -ProvenanceFlavor 'legacy-brand' 2>&1)
+    Assert-True 'RT2 fixture uses the original pinned Core payload, not the repair runner payload' ($LASTEXITCODE -eq 0) ($originalRT2Install | Select-Object -Last 6 | Out-String)
+    $rt2LayerPath=Join-Path $rt2Project '.mxagile/layers/fixture-company/provenance.json'
+    New-Item -ItemType Directory -Path (Split-Path $rt2LayerPath) -Force | Out-Null
+    Copy-Item -LiteralPath $layerProvenancePath -Destination $rt2LayerPath
+    & python -B -c 'import json,sys; from pathlib import Path; path=Path(sys.argv[1])/".mxagile/state/core-provenance.json"; value=json.loads(path.read_text(encoding="utf-8-sig")); value["installation_flavor"]="company-layer"; path.write_text(json.dumps(value),encoding="utf-8")' $rt2Project
+    & python -B -c $loadFixture $legacyFixture $rt2Project
+    if ($LASTEXITCODE) { throw 'RT2 legacy-state fixture could not be loaded.' }
+    [IO.File]::WriteAllBytes((Join-Path $rt2Project '.mxagile/state/projections-manifest.json'),$oldProjectionBytes)
+    foreach ($hostFamily in @('.claude','.github','.agents')) {
+        $emptyTarget=Join-Path $rt2Project "$hostFamily/skills/mocketeer-business-flows"
+        Remove-Item -LiteralPath $emptyTarget -Recurse -Force
+        New-Item -ItemType Directory -Path $emptyTarget | Out-Null
+    }
+    Assert-True 'RT2 fixture has no transaction, new Core and three empty host targets' (-not (Test-Path -LiteralPath (Join-Path $rt2Project '.mxagile/state/update-transaction.json')))
+    $rt2CoreHash=(Get-FileHash (Join-Path $rt2Project '.mxagile/state/core-provenance.json')).Hash
+    $rt2LayerHash=(Get-FileHash (Join-Path $rt2Project '.mxagile/layers/fixture-company/provenance.json')).Hash
+    $rt2RequirementHash=(Get-FileHash (Join-Path $rt2Project 'requirements/REQ-001.yml')).Hash
+    $rt2BeforeGuard=Invoke-Guard $rt2Project $legacyTransition
+    Assert-True 'projection recovery precedes migration, human resolution and re-sync' ($rt2BeforeGuard.recovery_plan.primary_next_action -eq 'resume_projection' -and $rt2BeforeGuard.verdict -ne 'pass')
+    $rt2Resume=@(& pwsh -NoProfile -Command "& '$(Join-Path $RepoRoot 'scripts/install-core.ps1')' -ProjectRoot '$rt2Project' -IsUpdate `$true -ResumeUpdate" 2>&1)
+    Assert-True 'observable RT2 state without a transaction is safely adopted and resumed' ($LASTEXITCODE -eq 0) ($rt2Resume | Select-Object -Last 8 | Out-String)
+    Assert-True 'legacy resume preserves Core, Company Layer and human-owned Requirement' ((Get-FileHash (Join-Path $rt2Project '.mxagile/state/core-provenance.json')).Hash -eq $rt2CoreHash -and (Get-FileHash (Join-Path $rt2Project '.mxagile/layers/fixture-company/provenance.json')).Hash -eq $rt2LayerHash -and (Get-FileHash (Join-Path $rt2Project 'requirements/REQ-001.yml')).Hash -eq $rt2RequirementHash)
+    $rt2HandoffPath=Join-Path $rt2Project '.mxagile/state/last-update-result.json'
+    $rt2Handoff=Get-Content -LiteralPath $rt2HandoffPath -Raw | ConvertFrom-Json
+    Assert-True 'resumed projections hand off to real migration and blocked Doctor' ($rt2Handoff.migration.status -eq 'NEEDS_HUMAN' -and $rt2Handoff.doctor.executed -and $rt2Handoff.doctor.compatibility -eq 'BLOCKED' -and $rt2Handoff.update_transaction.projection.status -eq 'COMPLETE')
+    $rt2HandoffHash=(Get-FileHash $rt2HandoffPath).Hash
+    $rt2ManifestHash=(Get-FileHash (Join-Path $rt2Project '.mxagile/state/projections-manifest.json')).Hash
+    $rt2Repeat=@(& pwsh -NoProfile -Command "& '$(Join-Path $RepoRoot 'scripts/install-core.ps1')' -ProjectRoot '$rt2Project' -IsUpdate `$true -ResumeUpdate" 2>&1)
+    Assert-True 'repeat resume is a read-only no-op with unchanged identities and handoff' ($LASTEXITCODE -eq 0 -and (Get-FileHash $rt2HandoffPath).Hash -eq $rt2HandoffHash -and (Get-FileHash (Join-Path $rt2Project '.mxagile/state/projections-manifest.json')).Hash -eq $rt2ManifestHash -and (Get-FileHash (Join-Path $rt2Project '.mxagile/state/core-provenance.json')).Hash -eq $rt2CoreHash) ($rt2Repeat | Select-Object -Last 5 | Out-String)
+    $rt2AfterGuard=Invoke-Guard $rt2Project $legacyTransition
+    Assert-True 'projection success does not grant delivery through human or stale-context blockers' ($rt2AfterGuard.verdict -ne 'pass' -and @($rt2AfterGuard.must_findings | Where-Object code -eq 'PROJECTION_RECOVERY_REQUIRED').Count -eq 0)
     $secondPlan = (& python -B $doctorTool repair --project-root $project --dry-run) | ConvertFrom-Json
     Assert-True 'automatic Decision normalization is idempotent' (@($secondPlan.repairs).Count -eq 0) 'repeat mutation planned'
     $installedWriter = Join-Path $project '.mxagile/tools/Write-MxAgileEpochCheckpoint.ps1'

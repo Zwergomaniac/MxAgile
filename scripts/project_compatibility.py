@@ -1385,6 +1385,41 @@ def contract_migration_validator(schema: dict):
     return jsonschema.Draft7Validator(schema, format_checker=checker)
 
 
+def projection_integrity(root: Path, core: dict | None = None) -> dict:
+    if core is None:
+        path = safe_file(root, '.mxagile/state/core-provenance.json')
+        core = json.loads(path.read_text(encoding='utf-8-sig')) if path else {}
+    manifest_path = safe_file(root, '.mxagile/state/projections-manifest.json')
+    if not core.get('distribution') and 'activation_state' not in core and manifest_path is None:
+        return {'required': False, 'ready': True, 'reason': None}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8-sig')) if manifest_path else {}
+        if core.get('activation_state') == 'CORE_APPLIED_PROJECTIONS_PENDING' or not core.get('commit') or manifest.get('generated_from_core_commit') != core['commit']:
+            raise ValueError('Core/projection identity mismatch or pending activation')
+        if manifest.get('schema_version') != '1' or manifest.get('projection_version') not in (None,'2'):
+            raise ValueError('Projection manifest format invalid')
+        if manifest.get('generator_owned_by') != 'distribution' or manifest.get('generator') != 'generate-mxagile-platform-skills.ps1':
+            raise ValueError('Projection ownership not observable')
+        if manifest.get('projection_version') == '2':
+            outputs = manifest.get('outputs')
+            if not isinstance(outputs, list) or not outputs:
+                raise ValueError('Projection file proof missing')
+            targets = set()
+            for output in outputs:
+                relative = output['target']
+                path = safe_file(root, relative)
+                if relative in targets or relative.split('/')[0] not in {'.claude','.github','.agents','.grok','.opencode','.hermes'} or path is None or hashlib.sha256(path.read_bytes()).hexdigest() != output['sha256']:
+                    raise ValueError('Projection file binding invalid')
+                targets.add(relative)
+            names = ('discovery','design-contract','refinement','preservation','business-flows','mockup-generation','handoff')
+            mandatory = {f'{host}/skills/mocketeer-{name}/SKILL.md' for host in ('.claude','.github','.agents') for name in names}
+            if not mandatory <= targets or not {'.claude','.github','.agents','.grok','.opencode','.hermes'} <= {p.split('/')[0] for p in targets}:
+                raise ValueError('Mandatory host projection coverage incomplete')
+        return {'required': True, 'ready': True, 'reason': None}
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return {'required': True, 'ready': False, 'reason': str(exc)}
+
+
 def contract_snapshot(root: Path) -> dict | None:
     directory = root / '.mxagile' / 'schemas'
     if not directory.is_dir() or directory.is_symlink():
@@ -1459,6 +1494,8 @@ def reconcile_contract(root: Path, *, apply_safe: bool = False) -> dict:
     provenance = json.loads(provenance_path.read_text(encoding='utf-8-sig')) if provenance_path else {}
     if provenance.get('artifact_contract') != target:
         raise ValueError('Installed contract differs from current Core provenance.')
+    if apply_safe and not projection_integrity(root, provenance)['ready']:
+        raise ValueError('Projection recovery must finish before contract writes.')
     transaction_path = safe_file(root, '.mxagile/state/update-transaction.json')
     if apply_safe and transaction_path:
         transaction = json.loads(transaction_path.read_text(encoding='utf-8-sig'))
@@ -1528,6 +1565,8 @@ def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase:
         reasons.append('UPDATE_RECOVERY_REQUIRED')
     provenance_path = safe_file(root, '.mxagile/state/core-provenance.json')
     provenance = json.loads(provenance_path.read_text(encoding='utf-8-sig')) if provenance_path else {}
+    if not projection_integrity(root, provenance)['ready']:
+        reasons.append('PROJECTION_RECOVERY_REQUIRED')
     schema_path = safe_file(root, '.mxagile/schemas/contract-migration.schema.json')
     schema = json.loads(schema_path.read_text(encoding='utf-8-sig')) if schema_path else {}
     valid_record = jsonschema is not None and schema_path is not None and not list(contract_migration_validator(schema).iter_errors(record))

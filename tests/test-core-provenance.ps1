@@ -117,9 +117,10 @@ Assert ($sas -match 'CoreCommit.*CoreCommit|CoreVersion.*CoreVersion') 'D3: forw
 $gen = Get-Content (Join-Path $RepoRoot 'scripts\generate-mxagile-platform-skills.ps1') -Raw -Encoding UTF8
 Assert ($gen -match 'CoreCommit') 'D4: generator accepts CoreCommit param'
 Assert ($gen -match 'CoreVersion') 'D5: generator accepts CoreVersion param'
-Assert ($gen -match 'projections-manifest\.json') 'D6: generator writes projections-manifest.json'
-Assert ($gen -match 'generated_from_core_commit') 'D7: manifest records generated_from_core_commit'
-Assert ($gen -match 'generator_owned_by') 'D8: manifest declares generator_owned_by distribution'
+$io = Get-Content (Join-Path $RepoRoot 'scripts\projection_io.py') -Raw -Encoding UTF8
+Assert ($gen -match 'projection_io\.py' -and $io -match 'projections-manifest\.json') 'D6: generator delegates manifest finalization to its I/O backend'
+Assert ($io -match 'generated_from_core_commit') 'D7: manifest records generated_from_core_commit'
+Assert ($io -match 'generator_owned_by') 'D8: manifest declares generator_owned_by distribution'
 
 # ──────────────────────────────────────────────────────────────
 # E  system-check.md: Core identity and currency sections

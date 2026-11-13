@@ -137,6 +137,37 @@ Core provenance distinguishes `product_flavor`, generic `installation_flavor`, a
 source/ref/commit; preserved Company Layer provenance remains independent. Missing identity
 is unobservable, never CURRENT. Equal-contract completed retries are idempotent.
 
+### Projection preflight and partial-update resume
+
+The canonical installer checks the future generator inputs and **all host targets before
+Core mutation**. Truly empty unowned skill directories are safe to adopt. Nonempty unknown
+or foreign content, hidden files, invalid paths and reparse points block the complete plan.
+The existing generator stages rendered bytes, validates apply ownership and publishes its
+file-bound manifest only after every required output succeeds. Unexpected failures after
+Core application retain `PARTIAL_UPDATE`, the old manifest and an explicit
+`CORE_APPLIED_PROJECTIONS_PENDING` activation state; there is no whole-Core rollback.
+
+Use the canonical distribution with explicit authorization:
+
+```powershell
+& .\scripts\install-core.ps1 -ProjectRoot $project -IsUpdate $true -ResumeUpdate
+```
+
+Resume validates the installed schema/tool identity and source bytes against the installed
+commit's locally available Git objects. It repairs that Core, not the newer runner version.
+The same path handles a verified legacy Core-new/manifest-old state with **no transaction**;
+unobservable or contradictory identities fail closed. Existing Company Layers remain
+unchanged when no pending Layer target was recorded. For a known pending Company update,
+resume the enclosing Company bootstrap with its recorded repository/ref instead.
+
+Projection completion precedes safe contract migration, real human decisions, final Doctor,
+canonical lifecycle reconciliation and Context Epoch re-sync. It never grants delivery by
+itself. A second completed resume is read-only; unavailable Doctor evidence remains
+`NOT_VERIFIED`, not PASS. The repair runner needs the installed commit's Git objects; an
+archive without that history cannot prove a pinned installed-Core resume. The Company
+bootstrap acquires a missing pinned commit into its own temporary Git clone before resume;
+it never fetches into or rewrites the consumer's Git repository.
+
 ### What the update preserves
 
 | Protected | Synchronized |

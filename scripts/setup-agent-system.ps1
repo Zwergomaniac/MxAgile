@@ -15,6 +15,8 @@ param (
     [string]$ProjectRoot = (Get-Location).Path,
     [string]$CoreCommit  = "",
     [string]$CoreVersion = "",
+    [object[]]$OwnershipBaseline = @(),
+    [string]$ExpectedPlanFingerprint = "",
 
     [switch]$DryRun
 )
@@ -80,7 +82,9 @@ try {
         & $GenerateScript `
             -ProjectRoot $ProjectRoot `
             -CoreCommit  $CoreCommit `
-            -CoreVersion $CoreVersion
+            -CoreVersion $CoreVersion `
+            -OwnershipBaseline $OwnershipBaseline `
+            -ExpectedPlanFingerprint $ExpectedPlanFingerprint
     }
 
     if (-not $?) {
