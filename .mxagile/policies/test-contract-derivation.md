@@ -88,6 +88,28 @@ For each entry in a role's `cannot[]`:
 
 These are defaults. The Verification Plan (VPL) overrides them with justified layer decisions.
 
+### Business Calculation Evidence
+
+For a proof point that changes a business calculation, set `semantic_kind: CALCULATION` and
+provide its `calculation_baseline` before implementation. The baseline records the metric
+definition, canonical data source, time basis, opening balance, movement logic, sign convention,
+aggregation, scope, and one concrete example with expected balance, delta, and sign. The schema
+requires both MODEL and BUILD evidence for this kind of proof point.
+
+If any required business basis is missing or contradictory, classify it
+`SEMANTIC_BASELINE_MISSING`; perform domain discovery or request a human decision before
+mutating the formula. `MODEL_VALID` is not `BUSINESS_LOGIC_VALID`. A passing technical model
+check cannot substitute for the concrete example in the Test Contract.
+
+### HTML-First UI Wave Evidence
+
+For HTML-first or UI waves, derive a scope-limited runtime/browser proof point for each affected
+route and materially different in-scope role/state. Do not start Playwright for unrelated
+non-visual work. The proof must cover the active navigation target, the bridge's declared
+materialized root/resources, expected dynamic content, blocking error dialogs, and critical
+console errors. Use the existing UI parity/runtime evidence contracts; do not create a second
+verification state or globally require whole-app coverage.
+
 ### Security dimension assignment
 
 Assign `security_dimensions` based on what the proof point exercises:

@@ -10,7 +10,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
+
+from jsonschema import Draft7Validator
 
 from temp_cleanup import cleanup_temporary_directory
 
@@ -546,12 +549,69 @@ class RealityFixtureTests(FixtureBase):
 
 
 class ContractTests(unittest.TestCase):
+    def test_calculation_proof_point_requires_business_baseline_and_model_build(self):
+        schema = json.loads((ROOT / ".mxagile/schemas/test-contract.schema.json").read_text(encoding="utf-8"))
+        validator = Draft7Validator(schema)
+        contract = {
+            "schema_version": 2,
+            "ID": "TC-001",
+            "title": "Calculation proof",
+            "status": "draft",
+            "requirement_ids": ["REQ-001"],
+            "proof_points": [{
+                "id": "PP-001",
+                "claim": "The monthly balance and delta match the approved example.",
+                "role": "ROLE-A",
+                "data_state": "populated",
+                "semantic_kind": "CALCULATION",
+                "required_layers": ["MODEL", "BUILD"],
+                "calculation_baseline": {
+                    "metric_definition": "Active headcount at the end of the month",
+                    "canonical_source": "Approved employee records",
+                    "time_basis": "Month end",
+                    "opening_balance": "10 FTE",
+                    "movement_logic": "Add hires and subtract departures in the period",
+                    "sign_convention": "Positive means an increase",
+                    "aggregation": "Sum FTE after applying period movements",
+                    "scope": "Department A",
+                    "example": {
+                        "opening_balance": "10 FTE",
+                        "movements": ["+2 FTE hires", "-1 FTE departures"],
+                        "expected_balance": "11 FTE",
+                        "expected_delta": "+1 FTE",
+                        "expected_sign": "positive",
+                        "role_scope": "ROLE-A in Department A",
+                    },
+                },
+            }],
+        }
+        self.assertEqual(list(validator.iter_errors(contract)), [])
+
+        missing_baseline = deepcopy(contract)
+        del missing_baseline["proof_points"][0]["calculation_baseline"]
+        self.assertTrue(list(validator.iter_errors(missing_baseline)))
+
+        missing_build = deepcopy(contract)
+        missing_build["proof_points"][0]["required_layers"] = ["MODEL"]
+        self.assertTrue(list(validator.iter_errors(missing_build)))
+
     def test_policy_routing_and_distribution(self):
         policy = (ROOT / ".mxagile/policies/mendix-integration.md").read_text(encoding="utf-8")
         for marker in ("STUDIO_PRO_MERGE_WITH_TARGETED_CONFLICT_REVIEW", "SEMANTIC_RECONCILIATION", "REPLAY_REQUIRED", "BLOCKED", "Studio Pro",
                        "Concord", "CLOSED-AUTONOM", "WORKAROUND", "IDENTITY_DIVERGENCE", "BASE_DEPENDENT", "mendix_merge_preflight.py", "postcheck",
                        "ALTER", "Conflict Resolution"):
             self.assertIn(marker, policy)
+        for marker in ("Cross-Tool Model Freshness", "SYNC_REQUIRED", "SYNC_IN_PROGRESS", "NOT_OBSERVABLE",
+                       "Concord -> Studio Pro", "mxcli -> Studio Pro", "filesystem/mprcontents -> Studio Pro",
+                       "Studio Pro -> mxcli diff", "runtime evidence after a", "RESULT_UNKNOWN", "authoritative readback",
+                       "Do not blindly retry", "recovery_required"):
+            self.assertIn(marker, policy)
+        implementation = (ROOT / ".mxagile/policies/implementation-control.md").read_text(encoding="utf-8")
+        for marker in ("LOSSLESS_SUPPORTED", "PARTIALLY_SUPPORTED", "UNSUPPORTED_ELEMENT", "NOT_OBSERVABLE",
+                       "SEMANTIC_COMPLETENESS_NOT_OBSERVABLE", "ChangeObjectAction",
+                       "EXECUTABLE_NANOFLOW_ROLE_INVARIANT", "REPLACEMENT_TARGET_INVARIANT",
+                       "JS_ACTION_PARAMETER_INVARIANT", "HTML_BRIDGE_MATERIALIZATION_INVARIANT"):
+            self.assertIn(marker, implementation)
         self.assertNotIn("mxagile merge-preflight", policy, "no invented CLI entry point")
         agent = (ROOT / ".mxagile/agents/implementation-agent.md").read_text(encoding="utf-8")
         self.assertIn("policies/mendix-integration.md", agent)

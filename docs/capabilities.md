@@ -94,6 +94,11 @@ The registry lives at `.mxagile/capabilities.yaml`. It is machine-readable YAML 
 
 Schema: `.mxagile/schemas/capabilities.schema.json`
 
+The `studio_pro_mcp` and `concord_mcp` entries describe toolchain availability, not
+operation-specific read/write support. Mendix operation routing is resolved from current-session
+tool evidence in `.mxagile/policies/capability-discovery.md`; a configured or healthy tool is not
+automatically capable of every model operation.
+
 ## Registered Capabilities (MxAgile 1.5)
 
 ### Context Lifecycle Category

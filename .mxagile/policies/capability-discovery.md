@@ -53,6 +53,26 @@ scripts/Get-MxAgileCapabilities.ps1
 | `degraded` | Partial operation or fallback |
 | `unavailable` | Dependencies absent or incompatible |
 
+## Mendix Operation Routing
+
+The `studio_pro_mcp` and `concord_mcp` registry entries establish toolchain availability,
+not support for a particular model operation. Before a Mendix tool call, classify the requested
+operation and check the current session's registered tool descriptions and read/write semantics.
+Do not probe with guessed document types or paths.
+
+Classify at least: `page.read`, `page.write`, `microflow.read`, `microflow.write`,
+`nanoflow.read`, `nanoflow.write`, `navigation.mutate`, `security.mutate`,
+`domain_model.mutate`, `javascript_action.mutate`, `html_first_asset.write`,
+`runtime.validate`, `model.validate`, and `model.sync`.
+
+Choose a path only when its operation, target project, and required semantics are supported by
+current-session evidence. Unknown support stays `UNKNOWN`; it is not inferred from tool presence
+or another tool's support. If a tool structurally reports `unsupported`, `unknown document type`,
+or `operation not supported`, record that tool/operation/document-type outcome in the current
+run's routing notes and mark that operation path `UNSUPPORTED` for this run. Do not retry an
+equivalent operation with guessed names. Select a verified alternative path or stop with
+`NEEDS_ALTERNATIVE_TOOL` / `NEEDS_HUMAN`.
+
 ## Context Mode Integration Evidence
 
 `context_mode_integration` carries an `integration` object (harness, mode, configured, loaded,

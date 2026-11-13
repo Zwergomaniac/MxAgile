@@ -544,6 +544,20 @@ is schema-invalid unless whole-screen review is complete. Targeted requests cont
 `verification_scope: targeted` (or omit it for legacy records) and do not imply whole-screen
 coverage.
 
+## HTML-First Runtime Smoke
+
+For an HTML-first/UI wave, add only the runtime assertions relevant to the changed routes and
+artifacts to the existing Test Contract and Verification Plan. At minimum, verify that each
+affected route opens the expected active target, no blocking error dialog appears, no critical
+console error occurs, the bridge-declared root and required resources materialize, and expected
+dynamic content is present. Exercise the materially affected roles and states from the wave
+scope; confirm that navigation and relevant flows do not land on a replaced/backup page.
+
+Resolve the materialization root from the project's HTML-bridge contract. Never assume a
+project-specific DOM ID is universal. A model-error check alone cannot prove these runtime
+claims. This scoped smoke reuses the existing RUNTIME/FRONTEND evidence and is not a request for
+whole-app Playwright coverage or full visual parity after a non-visual change.
+
 ---
 
 ## Example Full-Reconciliation Plan

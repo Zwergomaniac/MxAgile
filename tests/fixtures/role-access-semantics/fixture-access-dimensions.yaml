@@ -1,11 +1,12 @@
 # Fixture: Structured access dimensions on proof points
 # Synthetic fixture — no real project data.
-# Uses generic role names (ROLE-A, ROLE-B, ROLE-C) — no real project roles.
+# Uses generic role names (ROLE-A through ROLE-D) — no real project roles.
 
 scenario: structured_access_semantics
 description: >
-  Three roles demonstrate distinct access dimension profiles:
-  ROLE-A = READ only, ROLE-B = WRITE authority, ROLE-C = NAVIGATE without mutation.
+  Four roles demonstrate distinct access dimension profiles:
+  ROLE-A = READ only, ROLE-B = WRITE authority, ROLE-C = NAVIGATE without mutation,
+  ROLE-D = the specified functional behavior after authorized navigation.
 
 proof_points:
   - id: PP-SAM-001
@@ -44,11 +45,22 @@ proof_points:
       PLATFORM_OWNED means this access concern is out of scope for MxAgile TC.
       Explicitly recorded rather than silently omitted.
 
+  - id: PP-SAM-005
+    role: ROLE-D
+    claim: ROLE-D reaches the overview and receives its specified read-only behavior
+    access_dimensions: [VISIBLE, NAVIGABLE, BEHAVIOR]
+    authorization_disposition: REQUIRED
+    operation: READ
+    note: >
+      Discoverability, authorization, and in-page behavior are assessed independently.
+      The page grant does not prove that the correct functional mode is presented.
+
 validation_rules:
   - PP-SAM-001 access_dimensions must contain READ only (no WRITE, no MANAGE)
   - PP-SAM-002 access_dimensions must contain both READ and WRITE
   - PP-SAM-003 access_dimensions must contain VISIBLE and NAVIGABLE but NOT WRITE
   - PP-SAM-004 access_dimensions must contain PLATFORM_OWNED
+  - PP-SAM-005 access_dimensions must contain VISIBLE, NAVIGABLE, BEHAVIOR and READ authorization
 
 backward_compatibility: >
   Existing proof points without access_dimensions remain valid.

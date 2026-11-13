@@ -97,6 +97,14 @@ Tag: `evidence: browser` (maps to FRONTEND in layer vocabulary)
 These four dimensions are ORTHOGONAL. A role may pass one dimension but fail another.
 All four must be explicitly assessed when security proof points are present.
 
+Role verification keeps three independent claims visible: `AUTHORIZATION` (technical permission
+to invoke or mutate), discoverability (`VISIBILITY` / `ACCESSIBILITY` of the intended entry
+point), and `BEHAVIOR` (the expected functional mode/outcome once inside the page or flow).
+Use the existing `security_dimensions` and `access_dimensions` Test Contract fields; do not
+derive a complete role PASS from page grants alone or introduce a parallel role registry.
+`BEHAVIOR` is an access-proof dimension, not a replacement for role, data-scope, or business
+logic evidence.
+
 For technical Mendix role identity in XPath, use the model-bound UserRole system-variable rule in
 `policies/implementation-control.md`. Role identity does not subsume business capability or data
 scope; verify those independently.

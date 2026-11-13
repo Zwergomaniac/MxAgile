@@ -82,6 +82,54 @@
           "type": "string",
           "description": "Observable outcome assertion. Written as the system property that must hold — not as a test step. Example: 'A ROLE-MANAGER user can submit the create-site form and the record persists.'"
         },
+        "semantic_kind": {
+          "type": "string",
+          "enum": ["UI", "BUSINESS_RULE", "CALCULATION", "NAVIGATION", "SECURITY", "STRUCTURAL"],
+          "description": "Optional semantic class of the proof point. CALCULATION requires a documented business baseline and MODEL plus BUILD evidence."
+        },
+        "artifact_invariants": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "EXECUTABLE_NANOFLOW_ROLE_INVARIANT",
+              "REPLACEMENT_TARGET_INVARIANT",
+              "JS_ACTION_PARAMETER_INVARIANT",
+              "HTML_BRIDGE_MATERIALIZATION_INVARIANT"
+            ]
+          },
+          "description": "Optional scope-specific Mendix artifact invariants this proof point must verify. Each uses its existing required_layers and evidence; absence of an invariant is not a PASS."
+        },
+        "calculation_baseline": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["metric_definition", "canonical_source", "time_basis", "opening_balance", "movement_logic", "sign_convention", "aggregation", "scope", "example"],
+          "description": "Required for CALCULATION proof points; preserve the approved business meaning and a concrete expected example.",
+          "properties": {
+            "metric_definition": { "type": "string", "minLength": 1 },
+            "canonical_source": { "type": "string", "minLength": 1 },
+            "time_basis": { "type": "string", "minLength": 1 },
+            "opening_balance": { "type": "string", "minLength": 1 },
+            "movement_logic": { "type": "string", "minLength": 1 },
+            "sign_convention": { "type": "string", "minLength": 1 },
+            "aggregation": { "type": "string", "minLength": 1 },
+            "scope": { "type": "string", "minLength": 1 },
+            "example": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["opening_balance", "movements", "expected_balance", "expected_delta", "expected_sign", "role_scope"],
+              "properties": {
+                "opening_balance": { "type": "string", "minLength": 1 },
+                "movements": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+                "expected_balance": { "type": "string", "minLength": 1 },
+                "expected_delta": { "type": "string", "minLength": 1 },
+                "expected_sign": { "type": "string", "enum": ["positive", "negative", "zero"] },
+                "role_scope": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
         "role": {
           "type": "string",
           "description": "Role under test. Prefix with '!' for negative authorization proof (role must NOT have access). Example: 'ROLE-MANAGER' or '!ROLE-VIEWER'."
@@ -130,9 +178,9 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["VISIBLE", "NAVIGABLE", "READ", "WRITE", "MANAGE", "PLATFORM_OWNED"]
+            "enum": ["VISIBLE", "NAVIGABLE", "READ", "WRITE", "MANAGE", "BEHAVIOR", "PLATFORM_OWNED"]
           },
-          "description": "Optional structured access semantics this proof point exercises. Distinct from security_dimensions (which describe verification strategy) and authorization_disposition (which describes permissibility). VISIBLE: role can see the element/screen. NAVIGABLE: role can navigate to the element/screen without mutation authority. READ: role can read/inspect data. WRITE: role can create or modify records. MANAGE: role has administrative or lifecycle-control authority. PLATFORM_OWNED: access governed by platform module — not tested at application level. Multiple dimensions may apply. Backward compatible — may be absent. See policies/design-contract-intake.md STRUCTURED ACCESS SEMANTICS."
+          "description": "Optional structured access semantics this proof point exercises. Distinct from security_dimensions (which describe verification strategy) and authorization_disposition (which describes permissibility). VISIBLE: role can see the element/screen. NAVIGABLE: role can navigate to the element/screen without mutation authority. READ: role can read/inspect data. WRITE: role can create or modify records. MANAGE: role has administrative or lifecycle-control authority. BEHAVIOR: role receives the specified functional mode/outcome. PLATFORM_OWNED: access governed by platform module — not tested at application level. Multiple dimensions may apply. Backward compatible — may be absent. See policies/design-contract-intake.md STRUCTURED ACCESS SEMANTICS."
         },
         "traceability": {
           "type": "object",
@@ -177,7 +225,26 @@
           "description": "Set to true when this PP's verification INTENT (claim, role, data_state, required_layers) is unchanged but the technical execution binding is known to be stale — e.g. locator changed, screen restructured, component renamed. Signals REMATERIALIZE action to skills/verification-plan.md. Does NOT change TC status. Cleared to null after VPL is refreshed."
         },
         "notes": { "type": "string" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "semantic_kind": { "const": "CALCULATION" } },
+            "required": ["semantic_kind"]
+          },
+          "then": {
+            "required": ["calculation_baseline"],
+            "properties": {
+              "required_layers": {
+                "allOf": [
+                  { "contains": { "const": "MODEL" } },
+                  { "contains": { "const": "BUILD" } }
+                ]
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

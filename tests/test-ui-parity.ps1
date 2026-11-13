@@ -501,6 +501,18 @@ $ProjectSchema = Join-Path $ScriptDir ".mxagile/schemas/mxagile-project.schema.j
 Assert-FileContains "T.23 html_first config is independent from mockup_driven config" `
     $ProjectSchema '(?s)"implementation".*"html_first".*"verification".*"mockup_driven"'
 
+$HtmlFirstRuntimeContract = $ParityPol
+Assert-FileContains "T.24 HTML-first runtime smoke is limited to changed routes and artifacts" `
+    $HtmlFirstRuntimeContract 'HTML-First Runtime Smoke|relevant to the changed routes'
+Assert-FileContains "T.25 HTML-first runtime smoke checks active route, blocking dialogs and critical console errors" `
+    $HtmlFirstRuntimeContract 'expected active target|blocking error dialog|console error occurs'
+Assert-FileContains "T.26 HTML bridge root is contract-derived and not globally hardcoded" `
+    $HtmlFirstRuntimeContract 'bridge-declared root|HTML-bridge contract|Never assume a project-specific DOM ID is universal'
+Assert-FileContains "T.27 HTML-first smoke covers materialized resources, dynamic content and affected roles/states" `
+    $HtmlFirstRuntimeContract 'required resources materialize|dynamic content is present|affected roles and states'
+Assert-FileContains "T.28 UI smoke reuses scoped runtime evidence without requiring whole-app Playwright" `
+    $HtmlFirstRuntimeContract 'reuses the existing RUNTIME/FRONTEND evidence|not a request for whole-app Playwright coverage'
+
 # ---------------------------------------------------------------------------
 $total = $PassCount + $FailCount
 Write-Host ""

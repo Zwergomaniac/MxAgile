@@ -224,6 +224,51 @@ Repair eine architektur-signifikante Schuld oder ein Ownership-Problem aufdeckt.
 - Betriebsmodus (CLOSED-AUTONOM / LIVE-SP-CURRENT / LIVE-SP-OTHER / AMBIGUOUS-SP-STATE)
   bestimmt die verfuegbaren Werkzeuge — Erkennungsalgorithmus: `policies/operating-mode.md`
 
+## Semantische Erhaltung bei Mendix-Writes
+
+Vor `REBUILD`, `REPLACE` oder struktureller Neu-Erzeugung eines bestehenden Artefakts:
+
+1. Beobachte das Original und identifiziere seine semantischen Elemente, Parameter, Rollen,
+   Rückgabewerte und Referenzen, soweit sie über das Modell oder generierten Code zugänglich sind.
+   Prüfe insbesondere Microflow-/Nanoflow-Aktionen (einschließlich `ChangeObjectAction`),
+   Navigation-/Client-/Page-Aktionen, Security-Elemente, Parameter-Mappings und Return Values.
+2. Prüfe, ob das Zielwerkzeug alle unveränderten Elemente und gewünschten Änderungen ausdrücken
+   kann. Ein erfolgreicher Toolaufruf beweist nur technischen Erfolg, nicht semantische Erhaltung.
+3. Klassifiziere das Ergebnis als `LOSSLESS_SUPPORTED`, `PARTIALLY_SUPPORTED`,
+   `UNSUPPORTED_ELEMENT` oder `NOT_OBSERVABLE`.
+
+Bei `PARTIALLY_SUPPORTED` oder `UNSUPPORTED_ELEMENT` darf ein bestehendes Artefakt nicht
+verlustbehaftet ersetzt werden: hart blockieren und einen nachweislich geeigneten Alternativpfad
+verwenden. Bei `NOT_OBSERVABLE` keine semantische Vollständigkeit behaupten; vor einer
+destruktiven Ersetzung anhalten und Beobachtbarkeit oder eine fachliche Entscheidung einholen.
+Das Ergebnis ist als `SEMANTIC_COMPLETENESS_NOT_OBSERVABLE` auszuweisen.
+Eine explizite Ausnahme erfordert die dokumentierte fachliche Entscheidung des zuständigen
+Projektverantwortlichen. Keine universelle Model-Diff-Engine voraussetzen.
+
+## Scope-basierte Mendix-Artefakt-Invarianten
+
+Vor Abschluss nur die Invarianten prüfen, die vom tatsächlichen Wave-Artefaktscope betroffen sind:
+
+- `EXECUTABLE_NANOFLOW_ROLE_INVARIANT`: Ein ausführbarer Nanoflow besitzt die laut
+  akzeptiertem Security-Vertrag erforderlichen erlaubten Rollen.
+- `REPLACEMENT_TARGET_INVARIANT`: Ersetzt eine Wave eine aktive Page, zeigen Navigation und
+  relevante Navigations-Flows auf die neue aktive Page, nicht auf eine Backup-/ersetzte Page,
+  sofern das nicht ausdrücklich beabsichtigt ist.
+- `JS_ACTION_PARAMETER_INVARIANT`: User-Code referenziert exakt die tatsächlich generierten,
+  case-sensitiven JavaScript-Identifier. Die Studio-Pro-Anzeige allein ist kein Beleg.
+- `HTML_BRIDGE_MATERIALIZATION_INVARIANT`: Benötigte Templates und DOM-Ressourcen liegen
+  innerhalb des tatsächlich importierten Bridge-Scopes oder werden nachweislich separat geladen.
+  Der Root-Selector stammt aus dem projektspezifischen Bridge-Vertrag; keine konkrete ID global
+  hardcoden.
+
+Jede Invariante endet mit `PASS`, einem belegten Fehler oder `NOT_OBSERVABLE`. Bei
+`NOT_OBSERVABLE` keine Annahme aus Namen oder Tool-Erfolg ableiten. Diese gezielten Checks
+erweitern die vorhandenen Model-/Runtime-Prüfungen; sie lösen keinen globalen Artefakt-Scan aus.
+Führe jede scopespezifisch anwendbare Invariante als ID in
+`proof_points[].artifact_invariants` des bestehenden Test Contracts und ordne ihr die
+erforderlichen Verification-Layer zu. Fehlende Beobachtbarkeit bleibt dort ein Evidence-Gap,
+kein erfolgreicher Gate-Status.
+
 ## Mendix UserRole Identity in XPath
 
 When XPath logic refers to a concrete application-level Mendix User Role, use Mendix's

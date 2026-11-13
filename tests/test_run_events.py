@@ -37,6 +37,15 @@ class RunEventTests(unittest.TestCase):
         invalid = {**event, "event_type": "agent_says_success"}
         self.assertTrue(run_events.validate_event(invalid))
 
+    def test_unknown_mutation_outcome_uses_existing_recovery_event(self):
+        event = self.emit("recovery_required", capability="model_mutation",
+                          payload={"reason_codes": ["RESULT_UNKNOWN"],
+                                   "operation_class": "model_mutation",
+                                   "tool_name": "concord",
+                                   "recovery": "STATE_READBACK_REQUIRED"})
+        self.assertEqual(run_events.validate_event(event), [])
+        self.assertEqual(event["event_type"], "recovery_required")
+
     def test_legacy_consumer_without_event_history_is_valid_and_empty(self):
         snapshot = run_events.read_events(self.root)
         self.assertEqual((snapshot["events"], snapshot["total_valid"], snapshot["invalid_lines"]), ([], 0, 0))

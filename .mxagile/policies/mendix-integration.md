@@ -112,6 +112,29 @@ No permanent workflow may require a large Studio Pro formatting commit after eve
 **WORKAROUND**, labeled as such in the mission record. The long-term fix is upstream: mxcli must write units compatible with Studio
 Pro serialization (`docs/upstream/mxcli-serialization-stability.md`). Do not mask that finding with additional policy text.
 
+## Cross-Tool Model Freshness
+
+Freshness is a transient property of a tool's model view, not a second lifecycle state machine.
+After a mutation, mark every other verification view that may lag as `SYNC_REQUIRED` until the
+tool's documented synchronization boundary completes. Use `SYNC_IN_PROGRESS` only while that
+required sync is actually running; then establish `FRESH` from readback or a successful
+post-sync validation. Use `NOT_OBSERVABLE` when freshness cannot be established.
+
+In particular, assess `Concord -> Studio Pro`, `mxcli -> Studio Pro`,
+`filesystem/mprcontents -> Studio Pro`, `Studio Pro -> mxcli diff`, and runtime evidence after a
+model change. For Concord, use `concord.sync_files` only when the current tool contract identifies
+it as the required boundary. Require a sync only where the concrete path does not synchronize automatically.
+A verification result from a known stale view cannot produce `PASS`; do not infer freshness from
+tool success or event order alone.
+
+## Mutation Timeout and Unknown Outcome
+
+A timeout or lost response after a state-changing request is `RESULT_UNKNOWN`, not failure and
+not success. Mark the mutation unresolved, then use an authoritative readback to compare the
+current state with the requested change before proceeding. Do not blindly retry an identical
+mutation before that readback. If available, record the recovery need with the existing
+`recovery_required` run event; the event is audit evidence, not lifecycle authority.
+
 ## Orchestration
 
 - `implementation-agent` consumes the preflight before a risky model integration and the postcheck before claiming it finished.

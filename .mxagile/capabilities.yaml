@@ -284,7 +284,7 @@ capabilities:
     agent_may_recommend: false
     agent_may_activate_config: false
     user_approval_required: false
-    notes: "Not a substitute for process-level operating-mode detection. Configuration or tool presence alone does not prove health or project identity. See policies/operating-mode.md."
+    notes: "Toolchain availability is not operation-level support. Resolve each Mendix operation from current-session tool evidence in policies/capability-discovery.md. Not a substitute for process-level operating-mode detection. Configuration or tool presence alone does not prove health or project identity. See policies/operating-mode.md."
 
   - id: concord_mcp
     name: "Concord MCP"
@@ -307,7 +307,7 @@ capabilities:
     agent_may_recommend: false
     agent_may_activate_config: false
     user_approval_required: false
-    notes: "Concord MCP is a fallback for LIVE-SP-CURRENT model mutations only after health and current-project context are confirmed. It does not determine the operating mode. See policies/operating-mode.md."
+    notes: "Toolchain availability is not operation-level support. Resolve each Mendix operation from current-session tool evidence in policies/capability-discovery.md. Concord MCP is a fallback for LIVE-SP-CURRENT model mutations only after health and current-project context are confirmed. It does not determine the operating mode. See policies/operating-mode.md."
 
   # -----------------------------------------------------------------------
   # Context Transition (MxAgile 1.7)

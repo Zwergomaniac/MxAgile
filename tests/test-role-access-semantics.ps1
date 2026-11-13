@@ -6,11 +6,11 @@
     Verifies that structured access dimensions are defined in the test-contract schema
     and that the vocabulary is organization-neutral.
 
-    P1 REV-014 hardening: structured access semantics for VISIBLE/NAVIGABLE/READ/WRITE/MANAGE.
+    P1 REV-014 hardening: structured access semantics for visibility, navigation, behavior and permissions.
 
     Tests:
       - test-contract schema defines access_dimensions
-      - access_dimensions vocabulary: VISIBLE, NAVIGABLE, READ, WRITE, MANAGE, PLATFORM_OWNED
+      - access_dimensions vocabulary includes BEHAVIOR alongside visibility, navigation and permissions
       - access_dimensions is optional (backward compatible)
       - intake policy defines STRUCTURED ACCESS SEMANTICS
       - fixtures demonstrate: READ, WRITE, NAVIGABLE without WRITE
@@ -56,6 +56,8 @@ function Assert-FileExists {
 
 $TcSchema     = Join-Path $RepoRoot '.mxagile/schemas/test-contract.schema.json'
 $IntakePolicy = Join-Path $RepoRoot '.mxagile/policies/design-contract-intake.md'
+$ContractPolicy = Join-Path $RepoRoot '.mxagile/policies/test-contract-derivation.md'
+$VerificationLayers = Join-Path $RepoRoot '.mxagile/policies/verification-layers.md'
 $RoleIdentityPolicy = Join-Path $RepoRoot '.mxagile/policies/implementation-control.md'
 $ImplementationAgent = Join-Path $RepoRoot '.mxagile/agents/implementation-agent.md'
 $UiAgent = Join-Path $RepoRoot '.mxagile/agents/ui-agent.md'
@@ -79,8 +81,14 @@ Assert-FileContains "access_dimensions has NAVIGABLE" $TcSchema '"NAVIGABLE"'
 Assert-FileContains "access_dimensions has READ" $TcSchema '"READ"'
 Assert-FileContains "access_dimensions has WRITE" $TcSchema '"WRITE"'
 Assert-FileContains "access_dimensions has MANAGE" $TcSchema '"MANAGE"'
+Assert-FileContains "access_dimensions has BEHAVIOR" $TcSchema '"BEHAVIOR"'
 Assert-FileContains "access_dimensions has PLATFORM_OWNED" $TcSchema '"PLATFORM_OWNED"'
 Assert-FileContains "access_dimensions is backward compatible (optional)" $TcSchema "Backward compatible"
+Assert-FileContains "Test Contracts can bind scope-specific artifact invariants" $TcSchema '(?s)artifact_invariants.*EXECUTABLE_NANOFLOW_ROLE_INVARIANT.*REPLACEMENT_TARGET_INVARIANT.*JS_ACTION_PARAMETER_INVARIANT.*HTML_BRIDGE_MATERIALIZATION_INVARIANT'
+Assert-FileContains "CALCULATION proof points require a structured baseline" $TcSchema '(?s)"semantic_kind".*"CALCULATION".*"calculation_baseline"'
+Assert-FileContains "calculation baseline captures source, time, movements, sign, aggregation and scope" $TcSchema '(?s)metric_definition.*canonical_source.*time_basis.*opening_balance.*movement_logic.*sign_convention.*aggregation.*scope'
+Assert-FileContains "calculation examples require expected balance, delta, sign and role scope" $TcSchema '(?s)expected_balance.*expected_delta.*expected_sign.*role_scope'
+Assert-FileContains "CALCULATION requires MODEL and BUILD evidence" $TcSchema '(?s)contains.*MODEL.*contains.*BUILD'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # POLICY: STRUCTURED ACCESS SEMANTICS in intake policy
@@ -95,6 +103,10 @@ Assert-FileContains "intake policy defines PLATFORM_OWNED" $IntakePolicy "PLATFO
 Assert-FileContains "intake policy: access_dimensions is optional" $IntakePolicy "access_dimensions.*OPTIONAL|OPTIONAL.*access_dimensions"
 Assert-FileContains "intake policy: organization-neutral" $IntakePolicy "organization-neutral|organisation-neutral"
 Assert-FileContains "intake policy: NAVIGABLE without WRITE" $IntakePolicy "NAVIGABLE.*without.*WRITE|NAVIGABLE.*no.*mutation"
+Assert-FileContains "intake contract distinguishes BEHAVIOR from authorization and discoverability" $IntakePolicy '(?s)authorization, discoverability.*BEHAVIOR.*independently'
+Assert-FileContains "Test Contract derivation blocks missing business calculation baselines" $ContractPolicy 'SEMANTIC_BASELINE_MISSING'
+Assert-FileContains "Test Contract derivation separates model validity from business validity" $ContractPolicy 'MODEL_VALID.*BUSINESS_LOGIC_VALID'
+Assert-FileContains "Verification layers prevent a page grant from proving complete role behavior" $VerificationLayers 'page grants alone'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PURITY: no real project roles in schema or fixtures
@@ -116,6 +128,7 @@ $fixAccessContent = Get-Content -LiteralPath $FixAccess -Raw -ErrorAction Silent
 Assert-True "fixture has ROLE-A READ only" ($fixAccessContent -match "access_dimensions: \[READ\]|ROLE-A.*READ")
 Assert-True "fixture has ROLE-B READ+WRITE" ($fixAccessContent -match "READ.*WRITE|WRITE.*READ")
 Assert-True "fixture has ROLE-C VISIBLE+NAVIGABLE without WRITE" ($fixAccessContent -match "VISIBLE.*NAVIGABLE|NAVIGABLE.*VISIBLE")
+Assert-True "fixture separates ROLE-D discoverability and behavior from its READ authorization" ($fixAccessContent -match "ROLE-D.*specified read-only behavior" -and $fixAccessContent -match "access_dimensions: \[VISIBLE, NAVIGABLE, BEHAVIOR\]" -and $fixAccessContent -match "authorization_disposition: REQUIRED")
 Assert-True "fixture: ROLE-C has no WRITE" ($fixAccessContent -match "no mutation authority|zonder.*mutation")
 Assert-True "fixture has PLATFORM_OWNED example" ($fixAccessContent -match "PLATFORM_OWNED")
 Assert-True "fixture: backward compatibility documented" ($fixAccessContent -match "backward_compatibility")
@@ -145,6 +158,11 @@ Assert-FileContains "R2: rename-aware refactoring is not assumed" $RoleIdentityP
 Assert-FileContains "R3: wildcard and contains matching are forbidden" $RoleIdentityPolicy 'Never use wildcard, `contains\(\)`'
 Assert-FileContains "role identity remains distinct from business capability" $RoleIdentityPolicy 'UserRole identity is not business capability'
 Assert-FileContains "business scope and lifecycle rules are preserved" $RoleIdentityPolicy 'scope or lifecycle checks'
+Assert-FileContains "structural Mendix writes distinguish technical success from semantic preservation" $RoleIdentityPolicy 'Ein erfolgreicher Toolaufruf beweist nur technischen Erfolg'
+Assert-FileContains "lossy replacement is blocked for partial and unsupported elements" $RoleIdentityPolicy '(?s)PARTIALLY_SUPPORTED.*UNSUPPORTED_ELEMENT.*hart blockieren'
+Assert-FileContains "unobservable semantic completeness is not treated as pass" $RoleIdentityPolicy 'SEMANTIC_COMPLETENESS_NOT_OBSERVABLE'
+Assert-FileContains "post-build checks include executable Nanoflow roles and replacement targets" $RoleIdentityPolicy '(?s)EXECUTABLE_NANOFLOW_ROLE_INVARIANT.*REPLACEMENT_TARGET_INVARIANT'
+Assert-FileContains "post-build checks include generated JS identifiers and bridge materialization scope" $RoleIdentityPolicy '(?s)JS_ACTION_PARAMETER_INVARIANT.*HTML_BRIDGE_MATERIALIZATION_INVARIANT'
 
 Assert-FileContains "Implementation Agent consumes the role policy" $ImplementationAgent 'policies/implementation-control\.md'
 Assert-FileContains "Builder Kit route consumes the same role rule" $ImplementationAgent 'identity rule applies to Builder Kit output and every other implementation route'

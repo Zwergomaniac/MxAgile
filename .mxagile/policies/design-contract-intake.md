@@ -351,6 +351,7 @@ the corresponding Test Contract proof points.
 | `READ` | Role can read/inspect data records. |
 | `WRITE` | Role can create or modify records. |
 | `MANAGE` | Role has administrative or lifecycle-control authority over a resource. |
+| `BEHAVIOR` | Role receives the specified functional mode/outcome within the page or flow. |
 | `PLATFORM_OWNED` | Access governed by an external platform module — not tested at application level; out of scope for TC. |
 
 **Usage rules:**
@@ -358,6 +359,8 @@ the corresponding Test Contract proof points.
 - `access_dimensions` is OPTIONAL on proof points. Absent means "not structured."
 - Multiple dimensions may apply to one proof point.
 - `NAVIGABLE` without `WRITE` represents a read-only navigation claim — distinct from `WRITE`.
+- Assess authorization, discoverability (`VISIBLE`/`NAVIGABLE` and applicable security
+  dimensions), and `BEHAVIOR` independently. A page grant alone is not a role-verification PASS.
 - `PLATFORM_OWNED` means the access concern is excluded from MxAgile TC scope; record the
   exclusion explicitly rather than silently omitting the proof point.
 - Do not encode company-specific or project-specific role names in dimension names.

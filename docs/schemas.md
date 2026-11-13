@@ -365,6 +365,13 @@ Requirement `source` is a finite category (`native`, `legacy`, `migrated`, `stak
 an ever-growing enum. Historical `design_contract_revN` and ISO-date `created` values are
 read-only projected by the Compatibility Doctor. Requirement `created_at` is the current field.
 
+Test Contract proof points may classify `semantic_kind` and list scope-specific
+`artifact_invariants`. `CALCULATION` requires a
+`calculation_baseline` (metric definition, canonical source, time basis, opening balance,
+movement/sign/aggregation rules, scope, and concrete expected example) plus MODEL and BUILD
+layers. Structured access dimensions also include `BEHAVIOR`; authorization, discoverability,
+and in-page behavior remain separate proof obligations.
+
 Evidence Manifest `created`/`scenarios` and Page `section_id`/navigation `target` have only the
 bounded projections documented in `.mxagile/policies/project-compatibility.md`. Page identity and
 ACTIVE_TARGET authority remain `page_id`, `source_mockup`, `target_mockup`, and the accepted
