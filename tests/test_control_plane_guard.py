@@ -167,7 +167,7 @@ class LifecycleIntegrityTests(GuardFixture):
 
     def test_update_invalidates_context_until_resync(self):
         later = datetime.now(timezone.utc) + timedelta(minutes=5)
-        self.write(".mxagile/state/last-update-result.json", json.dumps({"installed_at": later.isoformat()}))
+        self.write(".mxagile/state/core-provenance.json", json.dumps({"installed_at": later.isoformat(), "commit": _git(self.root, 'rev-parse', 'HEAD')}))
         stale = self.evaluate(self.request)
         self.assertEqual(stale["verdict"], "unavailable")
         self.assertEqual(next(f for f in stale["must_findings"] if f["code"] == "CONTEXT_STALE_AFTER_UPDATE")["recovery"], "resync")

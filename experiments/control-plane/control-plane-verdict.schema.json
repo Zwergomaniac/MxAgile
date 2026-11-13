@@ -32,6 +32,19 @@
         }
       }
     },
+    "recovery_plan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["primary_next_action", "allowed_recovery_actions", "blocked_recovery_actions", "reason_codes", "decision_references"],
+      "properties": {
+        "primary_next_action": {"type": ["string", "null"], "enum": ["inspect", "resume", "retry_safe_step", "rollback", "human_resolution", "resync", "doctor", null]},
+        "allowed_recovery_actions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "enum": ["inspect", "resume", "retry_safe_step", "rollback", "human_resolution", "resync", "doctor"]}},
+        "blocked_recovery_actions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "enum": ["inspect", "resume", "retry_safe_step", "rollback", "human_resolution", "resync", "doctor"]}},
+        "reason_codes": {"type": "array", "items": {"type": "string"}},
+        "decision_references": {"type": "array", "items": {"type": "object", "additionalProperties": false, "properties": {
+          "diagnostic_id": {"type": "string"}, "source_path": {"type": "string"}, "authority": {"type": "string"}, "category": {"type": "string"}
+        }}}
+      }
+    },
     "must_findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
     "should_findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
     "scope": {

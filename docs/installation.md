@@ -115,6 +115,28 @@ installer invocation. Do not reduce completion to filtered version/commit or `[O
 lines: the Example Project reality regression ran Doctor successfully but discarded its `BLOCKED`
 result through exactly that filter, then answered from commit equality alone.
 
+### Contract migration before final Doctor
+
+The canonical installer observes prior/current installed-schema fingerprints independently
+of version and commit labels. It runs the installed compatibility producer's
+`migrate --apply-safe` after installation and before final Doctor. The Company Layer setup
+delegates to the same producer only after Core and Layer stages complete; a partial update
+remains read-only. The result includes a separate `migration` record.
+
+Only deterministic safe repairs are automatic. A missing Requirement successor remains
+`NEEDS_HUMAN`; unsupported/reviewable artifacts remain `NEEDS_REVIEW`. Reviewed candidates
+continue through the existing approved plan/hash repair path. Re-run contract reconciliation
+after explicit source resolution, then re-read contracts and use the installed Epoch Writer.
+Its preflight refuses unresolved migration, BLOCKED Doctor, an active update transaction or
+conflicting/missing canonical Mission/Wave/phase before any Epoch write. Recovery does not
+approve ordinary implementation or acceptance.
+
+`contract_migration` is a surgical nested record in existing migration state. Historical DFC
+and canonicalization flags remain unchanged, but cannot assert current-contract compatibility.
+Core provenance distinguishes `product_flavor`, generic `installation_flavor`, and Core
+source/ref/commit; preserved Company Layer provenance remains independent. Missing identity
+is unobservable, never CURRENT. Equal-contract completed retries are idempotent.
+
 ### What the update preserves
 
 | Protected | Synchronized |
@@ -131,6 +153,8 @@ Stale framework-owned files that were removed from the new Core version are reti
 - The installer does NOT restart or reset migration history.
 - A project with `status: complete` in `state.yaml` retains that status after an update.
 - `artifact_canonicalization` state is preserved and not reset.
+- Protection of project artifacts does not prohibit the scoped deterministic compatibility
+  repairs authorized by this update; unrelated source bytes and history remain preserved.
 - Agents must NOT manually copy framework files or reconstruct an installation — only `install-core.ps1` is authoritative.
 
 ---

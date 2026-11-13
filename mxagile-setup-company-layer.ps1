@@ -140,9 +140,10 @@ function Save-UpdateTransaction {
 }
 
 function Get-PostUpdateDoctor {
-    param([string]$Root)
+    param([string]$Root, [bool]$ApplySafe = $true)
     $doctor = [ordered]@{
         executed = $false; exit_code = $null; compatibility = 'NOT_VERIFIED'; reason = 'PYTHON_UNAVAILABLE'
+        migration = [ordered]@{ status = 'NOT_VERIFIED' }
         repair_status = $null; blocking_diagnostic_count = $null; safe_deterministic_count = $null
         agent_repairable_count = $null; decision_required_count = $null; unsupported_count = $null; report = $null
     }
@@ -153,11 +154,20 @@ function Get-PostUpdateDoctor {
     if (-not (Test-Path -LiteralPath $doctorPath -PathType Leaf)) { $doctor.reason = 'DOCTOR_SCRIPT_UNAVAILABLE'; return $doctor }
     try {
         $PSNativeCommandUseErrorActionPreference = $false
-        $output = & $python.Source $doctorPath doctor --project-root $Root --format json 2>$null
-        $doctor.executed = $true
+        $provenance = Get-Content -LiteralPath (Join-Path $Root '.mxagile/state/core-provenance.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $contractAware = $provenance.PSObject.Properties.Name -contains 'artifact_contract'
+        $arguments = @('-B', $doctorPath, $(if ($contractAware) { 'migrate' } else { 'doctor' }), '--project-root', $Root, '--format', 'json')
+        if ($contractAware -and $ApplySafe) { $arguments += '--apply-safe' }
+        $output = & $python.Source @arguments 2>$null
         $doctor.exit_code = $LASTEXITCODE
         if ($doctor.exit_code -notin @(0, 1, 2)) { $doctor.reason = "DOCTOR_EXIT_$($doctor.exit_code)"; return $doctor }
         $report = ($output -join "`n") | ConvertFrom-Json -ErrorAction Stop
+        if ($contractAware) {
+            if ($report.stage -ne 'CONTRACT_MIGRATION_CHECKED') { throw 'Invalid migration contract' }
+            $doctor.migration = $report.migration
+            $report = $report.doctor
+        }
+        $doctor.executed = $true
         if ($report.stage -ne 'PROJECT_COMPATIBILITY_CHECKED' -or $report.read_only -ne $true -or
             $report.compatibility -notin @('COMPATIBLE', 'PARTIAL', 'BLOCKED')) {
             $doctor.reason = 'DOCTOR_OUTPUT_INVALID'
@@ -610,6 +620,7 @@ try {
         $doctor = Get-PostUpdateDoctor -Root $ProjectRoot
         $updateTransaction.doctor_status = $doctor.compatibility
         $updateTransaction.compatibility_status = $doctor.compatibility
+        if ($doctor.migration.status -ne 'NOT_VERIFIED') { $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'CONTRACT_MIGRATION') }
         $updateTransaction.completed_stages = @($updateTransaction.completed_stages + 'DOCTOR')
         $updateTransaction.current_stage = 'CONTEXT_RESYNC'
         $updateTransaction.state = 'UPDATE_INSTALLED_RESTART_REQUIRED'
@@ -638,7 +649,7 @@ try {
         $updateTransaction.compatibility_status = 'NOT_VERIFIED'
         $updateTransaction.resync_required = $updateTransaction.state -eq 'PARTIAL_UPDATE'
         $updateTransaction.resume_available = $updateTransaction.state -eq 'PARTIAL_UPDATE'
-        $doctor = if ($updateTransaction.state -eq 'PARTIAL_UPDATE') { Get-PostUpdateDoctor -Root $ProjectRoot } else {
+        $doctor = if ($updateTransaction.state -eq 'PARTIAL_UPDATE') { Get-PostUpdateDoctor -Root $ProjectRoot -ApplySafe $false } else {
             [ordered]@{
                 executed = $false; exit_code = $null; compatibility = 'NOT_VERIFIED'; reason = 'BLOCKED_BEFORE_MUTATION'
                 repair_status = $null; blocking_diagnostic_count = $null; safe_deterministic_count = $null

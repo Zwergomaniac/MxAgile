@@ -66,7 +66,7 @@
               "affected_board_area": { "type": "string" },
               "message": { "type": "string" },
               "repairability": { "enum": ["SAFE_DETERMINISTIC", "AGENT_REPAIRABLE", "DECISION_REQUIRED", "UNSUPPORTED"] },
-              "proposed_repair_type": { "enum": ["QUOTE_TEXT_SCALAR", "ADD_WAVE_ID", "TASK_INSPECT_TYPED_TARGET_V1", "requirement_created_v1", "requirement_created_at_yaml_date_v1", "requirement_design_contract_revision_v1", "evidence_manifest_created_v1", "evidence_manifest_created_at_yaml_date_v1", "evidence_manifest_scenarios_v1", "page_section_id_v1", "page_navigation_target_v1", null] },
+              "proposed_repair_type": { "enum": ["QUOTE_TEXT_SCALAR", "ADD_WAVE_ID", "TASK_INSPECT_TYPED_TARGET_V1", "LEGACY_DECISION_ALIASES_V1", "requirement_created_v1", "requirement_created_at_yaml_date_v1", "requirement_design_contract_revision_v1", "evidence_manifest_created_v1", "evidence_manifest_created_at_yaml_date_v1", "evidence_manifest_scenarios_v1", "page_section_id_v1", "page_navigation_target_v1", null] },
               "diagnostic_group": { "enum": ["project_attention", "projection_health", "framework_compat", "optional_metadata"] },
               "authority": { "type": ["string", "null"] },
               "blocking": { "type": "boolean" }

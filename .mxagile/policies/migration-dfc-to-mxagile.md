@@ -115,6 +115,20 @@ Sub-step completion MUST use explicit scoped language:
 
 ---
 
+## Current Core artifact-contract reconciliation
+
+Historical root `status: complete` and `artifact_canonicalization: complete` retain their
+original scope. They do not bind project artifacts to a later Core schema contract, even
+when the displayed framework version is unchanged.
+
+The canonical installer coordinates `project_compatibility.py migrate --apply-safe` and
+stores its `contract_migration` record inside this same state file. That nested record has
+its own installed source/target fingerprint, scoped repair proof and unresolved diagnostic
+references; it does not reset DFC history or canonicalization. NEEDS_HUMAN/NEEDS_REVIEW
+requires the exact source decision or reviewed repair, then reconciliation and current
+Doctor. Only safe deterministic transformations are automatic. Re-Sync follows, never
+precedes, current contract completion and nonblocked Doctor. See `project-compatibility.md`.
+
 ## Brownfield Artifact Canonicalization (separate lifecycle)
 
 Framework migration is NOT artifact canonicalization.

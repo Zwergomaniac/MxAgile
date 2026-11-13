@@ -88,6 +88,67 @@ Compatibility does not authorize editing Example Project or accepting arbitrary 
 | FW-I Standalone Interaction Records (FINDING-015) | `interaction-metadata-*.yaml` / `interaction-states-*.yaml` in UI inventory → not Page records | Current UI-Agent/Page contract stores `interaction_states` inside a Page; historical standalone producer/version and payload are not available | No Page projection: standalone records have no established Page identity/authority. They are excluded from Page/Board target consumption and reported as `UNSUPPORTED_VARIANT` / `UNSUPPORTED` | No mutation, page ID, navigation, or relationship is invented. A dedicated record contract or authoritative migration requires payload evidence | Current Page schema remains strict; exact legacy interaction-record contract remains unresolved |
 | FW-J Legacy Story Sources | `planning/stories/REQ-NNN*.md` alongside `requirements/REQ-NNN.yml` | Discovery historically writes story Markdown; `canonicalize_artifacts.py` consumes it as explicit migration input | No automatic superseded mapping from matching IDs. Project Status and Artifact Index read canonical Requirement YAML only, so story Markdown does not duplicate Board counts | No deletion or physical migration required for status/Board. Canonicalization remains an explicit controlled migration; unmatched stories remain historical source input | Doctor does not count story Markdown as Requirements; canonical references resolve only against unique Requirement YAML records |
 
+### Grown-consumer legacy normalization
+
+The anonymized `tests/fixtures/legacy-upgrade/realistic-consumer.json` extends the
+existing upgrade acceptance with observed canonical YAML shapes, not project-specific
+business rules. Exact producer commits remain unverified.
+
+- Decision `OPEN` maps to `PROPOSED`; `ux` maps to `ux_interaction`. `DECIDED`
+  maps to `CONFIRMED` only with an explicit non-empty confirmer and ISO confirmation
+  date. `decided_at`/`decided_by` are aliases of `confirmed_at`/`confirmed_by`.
+  Contradictory aliases or approval evidence on an OPEN decision fail closed.
+  The entire projected Decision must validate. Missing approval is never invented.
+- Requirement `source: parity_check` is preserved as an origin category, not relabeled
+  `native` or treated as acceptance evidence. `source_ref` remains unchanged.
+- A hyphenated Mission slug is valid; the Mission ID is preserved, not renamed to
+  match an Epoch, branch, or another Mission.
+- Process-state `not_started` preserves a registered Wave before lifecycle entry.
+  It grants no implementation or transition permission and is never promoted to
+  `discovery`, `ready`, or `done` by normalization. Finite historical
+  `requirements` annotations (`assigned`, or `no_requirements_assigned` with optional
+  `note`/`linked_existing`) and `verification` summaries (`lint`, `docker_check`,
+  `errors`) are retained. They are not Task assignment or current proof evidence.
+  `errors: 0` and historical `done` do not establish a verified acceptance gate.
+  Unknown properties, malformed IDs, and contradictory assignment shapes still fail.
+- A superseded Requirement without one unique canonical successor remains
+  `DECISION_REQUIRED`. No matching title, later date, or Git commit supplies that successor.
+
+Normalization rules do not own lifecycle or completion authority. The contract coordinator
+below records their scoped result; old `migration: complete` remains history, not current
+compatibility. Epoch/Mission/Process/Git reconciliation and recovery-only cleanup remain
+separate from format normalization. No normalizer refreshes an Epoch or selects the
+allegedly newest canonical authority.
+
+## Contract-bound update reconciliation
+
+`project_compatibility.py contract-snapshot` hashes normalized JSON from installed Core
+schemas. Object-key ordering and JSON formatting do not change identity; schema content,
+including descriptions, does. Version labels and commit equality are not artifact-contract
+proof. Current `core-provenance.json.artifact_contract` must match the observed snapshot.
+Missing identity is unobservable, never CURRENT.
+
+The canonical installer runs `migrate --apply-safe` before its final Doctor. The public
+Company Layer bootstrap delegates to that same installed producer after both installation
+stages finish. During partial updates only read-only diagnosis is permitted. There is no
+second bootstrap migration engine and no inferred local Company Layer source.
+
+The coordinator maintains only `contract_migration` inside the existing
+`.mxagile/migration/state.yaml`, validated by `contract-migration.schema.json`. Root DFC
+status, canonicalization flags, history and unrelated bytes remain intact. A fresh nested-only
+record does not start DFC migration. The record binds source/target contracts, commits,
+plan hash, source fingerprint, planned/applied repairs and unresolved decision references.
+States are `PLANNED`, `NEEDS_REVIEW`, `NEEDS_HUMAN`, `COMPLETE`, and `FAILED`.
+
+Only `SAFE_DETERMINISTIC` repairs enter automatic apply, through the existing scoped
+plan/apply/validation/rollback path. Agent candidates require the existing reviewed candidate
+and approved plan path; business decisions require explicit canonical source edits. Neither
+route invents missing successors, approvals, acceptance, Mission, Wave or lifecycle history.
+Doctor/Builder rebuild derived compatibility from current sources after apply. An interrupted
+plan can resume using recorded after-fingerprints; failures remain FAILED and concurrent
+source edits are not overwritten. Equal-contract, unchanged-source COMPLETE retries are
+idempotent. `COMPLETE` proves this contract reconciliation, not delivery or evidence acceptance.
+
 `mockup_id` is upstream Design Contract identity; `mockup_name` identifies the SPA
 bundle directory. They are not aliases. Page Contract v2 requires `mockup_name`
 when `target_revision` is present; no bundle identity is inferred from `mockup_id`.
@@ -103,11 +164,14 @@ target; `expect` is optional, with its semantic verification gap reported separa
 `inspect.<type>` forms remain read-only projectable and have a lossless, structured Doctor repair
 when they contain exactly one supported type. Task records do not require an in-artifact schema
 version. Test Contract records may use `schema_version: 1` or `2`; new producers write `2` and
-v1 remains readable. Process State remains v1 and was not broadened. Read-only projections return
+v1 remains readable. Process State remains v1 with the finite historical Wave annotations
+and pre-lifecycle `not_started` representation described above; root authority is not broadened.
+Read-only projections return
 deep copies, are idempotent, preserve source bytes, and never write project artifacts. A projection
 is exposed as `LEGACY_VARIANT` / `SAFE_DETERMINISTIC` only when the projected whole artifact
 validates. Conflicts fail closed. Physical migration is not required for these shapes; the
-existing repair apply path does not rewrite these alias forms.
+existing repair apply path does not rewrite these alias forms except for the explicitly
+supported Task Inspect and Decision alias rules.
 
 Evidence projection never changes `parity_result`, verification timestamps, capture IDs, capture
 groups, provenance, or Requirement/Proof-Point links. `scenarios` is not treated as equivalent
@@ -123,6 +187,7 @@ Rules live here and in `scripts/project_compatibility.py`, not in a second regis
 | --- | --- | --- | --- | --- |
 | migrated_from_checklist_v1 | Legacy checklist provenance / current task schema | One existing parseable exact W*-implementation-checklist.yaml; wave exists; declared wave agrees; append wave_id and assignment_provenance | Explicit contradictory wave or checklist declaration defers; task status, original provenance and all other bytes retained | Explicit wave prevents repeat; full task schema + Doctor after apply |
 | TASK_INSPECT_TYPED_TARGET_V1 | Legacy `inspect.<type>` / typed Task Inspect | Exactly one of the six evidence-backed target keys; no mixed `type`/`target`; only the optional `expect` may accompany it. Preserve target scalar and existing expectation exactly while converting to `type` + `target`. | No target/type relabeling, prose conversion, unknown-field removal, or expectation invention. Missing expectation remains a separate decision. | Surgical YAML-node rewrite preserves surrounding bytes/comments; full Task schema and Doctor after apply |
+| LEGACY_DECISION_ALIASES_V1 | Observed canonical Decision aliases / current Decision schema | Exact OPEN/DECIDED and ux aliases; DECIDED requires explicit date and confirmer. Surgical scalar/key rewrite only when the complete result validates | No inferred approval, no conflicting alias overwrite, no unknown-property removal. Comments, line endings and all unrelated bytes retained. Mixed aliases or flow-style YAML remain read-only if a surgical rewrite is unavailable | Fully normalized Decisions plan no second write; existing approved-plan apply and scoped Doctor/rollback checks remain mandatory |
 | QUOTE_TEXT_SCALAR | Invalid plain YAML text scalar / same current artifact schema | Parser points to an allowed single-line text field containing colon; quote exact scalar | No comments, tags, anchors, lifecycle fields or ambiguous indentation; same text value | Valid YAML is unchanged; entire artifact schema + scoped revalidation |
 
 Schema diagnostics are classified individually. Missing GWT id/given/when/then,
@@ -176,6 +241,64 @@ edits are never overwritten by rollback and require manual recovery.
 No repository-wide git commands, resets, cleans, commits, or lifecycle promotions
 are part of repair. Compatibility does not fulfill gates, accept requirements,
 close findings, answer decisions, or verify evidence.
+
+## BLOCKED-state host enforcement
+
+Current Doctor, migration and update-transaction findings constrain **all** normal
+consumer writes, not only Mendix implementation. Requirements, Specs and planning
+Tasks are `DELIVERY_WRITE`, not disposable projections. Lifecycle, Evidence, Core
+provenance, migration state and derived-output writes also require current-state
+checks. Legitimate planning/evidence operations in a healthy project do not acquire
+an unrelated `implementing` requirement. A helper filename, `--apply`, `-ResumeUpdate`
+or self-declared read-only/ownership flag is not recovery authorization.
+
+The transient verdict's `recovery_plan` orders unresolved update/migration recovery,
+then current Doctor/required decisions, then Context Epoch re-sync. It includes
+allowed/blocked recovery recommendations and exact available decision references;
+these are not write permissions. Reviewed repairs retain the existing scoped approved
+plan/hash/apply checks; safe automatic reconciliation requires the bounded Core path below.
+Historical `last-update-result.json` is
+handoff evidence only. Epoch staleness is evaluated against current Core provenance;
+missing current provenance alongside historical update evidence is unobservable,
+not CURRENT. A newer actual installation still invalidates an older Epoch.
+
+Shell classification recognizes quoted chains, redirects, stdout-only bounded sed
+scripts and mxcli help/syntax/version/lint. In-place/script-file/executable sed,
+mxcli execution/fix operations, unknown shell execution and output writes are not
+read-only. Read-only Doctor and model/capability inspection remain available.
+
+The experimental adapter admits two exact, integrity-bound Core recovery calls while normal
+writes remain blocked: the installed `project_compatibility.py migrate --apply-safe
+--project-root <absolute root> --format json` (Python with optional `-B`), and the installed
+`Write-MxAgileEpochCheckpoint.ps1` through `pwsh`/`powershell -NoProfile -File <absolute writer>
+-ProjectRoot <absolute root> -PreserveEvidence`. Installed Python tools and the Writer must
+match `core-provenance.json.recovery_tools`; contract identity must match current schemas.
+Chains, redirections, alternate helpers, extra arguments and active update transactions are
+not admitted. Epoch recovery additionally requires current migration COMPLETE, nonblocked
+Doctor and canonical Mission/active Wave/phase. These calls are labelled controlled recovery
+in audit events, never general delivery authorization. This is not a generic shell, cleanup,
+agent-name or user-claimed ownership bypass, and is not live-host verification.
+
+`HostBoundaryEvidence` is a trusted in-process boundary, not a persistent registry
+or agent-supplied tool argument. Dispatcher READ requires a discovered inner
+operation's **complete argument contract** to be attested. The stdin hook currently
+has no verified Concord/execute_handler inner-operation provider: it fails closed.
+Synthetic tests establish the boundary, not observed consumer operation names.
+
+A schema-valid existing bounded handoff may use `capability: read_only_diagnostic`
+and `output_contract: diagnostic-findings/1`. It must bind the parent run/project,
+name a bounded safe scope and current source fingerprints, declare actual read tools,
+no write classes/destinations/commit, and forbid ALL_WRITES, ACCEPTANCE and
+DELIVERY_AUTHORIZATION. The host must attest enforced tool/path restrictions and
+run correlation out of band. Results are diagnostic findings, never delivery or
+acceptance evidence. The current stdin hook cannot attest specialized children or
+create their handoffs during BLOCKED state; this integration remains unavailable.
+Existing built-in read-only child behavior is retained, not extended by more names.
+
+No generic rm/TaskStop exception is introduced. Cleanup needs registered current-run
+ownership and exact resource identity; flags in tool input are not such evidence.
+Unknown/stale/foreign resources stay blocked. The existing test-harness ownership
+manifest is not automatically authority for arbitrary host tasks/processes.
 
 ## Bounded agent repair
 

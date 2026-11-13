@@ -14,7 +14,7 @@
     },
     "mission_id": {
       "type": "string",
-      "pattern": "^MISSION-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+$",
+      "pattern": "^MISSION-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(?:-[a-z0-9]+)*$",
       "description": "Unique mission identifier. Format: MISSION-YYYY-MM-DD-<slug>"
     },
     "created_at": {

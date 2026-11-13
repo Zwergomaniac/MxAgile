@@ -1,0 +1,37 @@
+{
+  "planning/decisions/DEC-101.yml": {
+    "ID": "DEC-101", "title": "Approved design choice", "status": "DECIDED",
+    "decision_type": "mockup_refinement", "topic": "Example layout", "decision_text": "Use the approved layout.",
+    "owner": "ProductOwner", "decided_at": "2026-01-01", "decided_by": "ProductOwner", "notes": "Preserve approval provenance."
+  },
+  "planning/decisions/DEC-102.yml": {
+    "ID": "DEC-102", "title": "Pending interaction choice", "status": "OPEN", "decision_type": "ux",
+    "topic": "Example interaction", "decision_text": "Evaluate inline editing.", "owner": "ProductOwner"
+  },
+  "planning/lifecycle/process-state.yaml": {
+    "waves": {
+      "W01": {"phase": "ready", "gates": {"gate_to_refinement": {"result": "passed"}, "gate_to_ready": {"result": "passed"}}},
+      "W02": {"phase": "not_started", "requirements": {"assigned": ["REQ-111"]}, "gates": {"gate_to_refinement": {"result": "not_recorded"}, "gate_to_ready": {"result": "not_recorded"}}},
+      "W03": {"phase": "done", "requirements": {"assigned": ["REQ-112"]}, "verification": {"lint": "not_run", "docker_check": "not_run", "errors": 0}, "gates": {"gate_to_refinement": {"result": "passed"}, "gate_to_ready": {"result": "passed"}}},
+      "W04": {"phase": "not_started", "requirements": {"no_requirements_assigned": true, "note": "Historical delivery annotations only.", "linked_existing": {"Example_Overview": ["REQ-113", "REQ-114"]}}, "gates": {"gate_to_refinement": {"result": "not_recorded"}, "gate_to_ready": {"result": "not_recorded"}}}
+    }
+  },
+  "planning/mission/mission-state.yaml": {
+    "schema_version": 1, "mission_id": "MISSION-2026-01-01-legacy-upgrade", "created_at": "2026-01-01",
+    "objective": "Upgrade an anonymized legacy consumer.", "completion_boundary": "WAVE_IMPLEMENTATION_COMPLETE",
+    "criteria": {"lifecycle_derived": {"implementation": {"required": true, "status": "pending"}}},
+    "active_wave": "W01", "progress": {"mission": "active"}
+  },
+  "requirements/REQ-001.yml": {"ID": "REQ-001", "title": "Historical requirement", "description": "Replacement is not recorded.", "status": "superseded", "source": "migrated"},
+  "requirements/REQ-111.yml": {"ID": "REQ-111", "title": "Observed discrepancy one", "description": "An observed example discrepancy.", "status": "accepted", "source": "parity_check", "source_ref": "planning/parity/example.yaml"},
+  "requirements/REQ-112.yml": {"ID": "REQ-112", "title": "Observed discrepancy two", "description": "An observed example discrepancy.", "status": "accepted", "source": "parity_check", "source_ref": "planning/parity/example.yaml"},
+  "requirements/REQ-113.yml": {"ID": "REQ-113", "title": "Observed discrepancy three", "description": "An observed example discrepancy.", "status": "accepted", "source": "parity_check", "source_ref": "planning/parity/example.yaml"},
+  "requirements/REQ-114.yml": {"ID": "REQ-114", "title": "Observed discrepancy four", "description": "An observed example discrepancy.", "status": "accepted", "source": "parity_check", "source_ref": "planning/parity/example.yaml"},
+  "requirements/REQ-115.yml": {"ID": "REQ-115", "title": "Observed discrepancy five", "description": "An observed example discrepancy.", "status": "accepted", "source": "parity_check", "source_ref": "planning/parity/example.yaml"},
+  "planning/lifecycle/context-epoch.yaml": {
+    "schema_version": "1.0", "mission": {"id": "MISSION-2025-12-01-old-session", "objective": "Old mission", "status": "active"},
+    "scope": {"project": "fixture"}, "lifecycle": {"current_phase": "ready", "active_context_epoch": "EPOCH-001"},
+    "repository": {"branch": "dev/old-session", "commit": "1111111"}, "context": {"epoch_id": "EPOCH-001", "pressure_state": "UNKNOWN"}
+  },
+  ".mxagile/migration/state.yaml": {"status": "complete", "artifact_canonicalization": "complete", "completed_at": "2025-12-01T12:00:00Z"}
+}

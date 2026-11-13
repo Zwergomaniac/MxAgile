@@ -23,8 +23,8 @@
       "properties": {
         "phase": {
           "type": "string",
-          "enum": ["discovery", "refinement", "ready", "implementing", "verifying", "done"],
-          "description": "Current lifecycle phase. Defined in .mxagile/lifecycle.yaml. One occurrence per wave block."
+          "enum": ["not_started", "discovery", "refinement", "ready", "implementing", "verifying", "done"],
+          "description": "Current lifecycle phase. not_started preserves a registered legacy wave that has not entered the lifecycle; it grants no transition or implementation permission. Active phases are defined in .mxagile/lifecycle.yaml. One occurrence per wave block."
         },
         "gates": {
           "type": "object",
@@ -36,6 +36,34 @@
             "testability_gate": { "$ref": "#/definitions/gate_result" },
             "acceptance_gate": { "$ref": "#/definitions/acceptance_gate_result" }
           }
+        },
+        "requirements": {
+          "type": "object",
+          "additionalProperties": false,
+          "oneOf": [
+            { "required": ["assigned"] },
+            { "required": ["no_requirements_assigned"], "properties": { "no_requirements_assigned": { "const": true } } }
+          ],
+          "properties": {
+            "assigned": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-[0-9]{3,}$" } },
+            "no_requirements_assigned": { "type": "boolean" },
+            "note": { "type": "string" },
+            "linked_existing": {
+              "type": "object",
+              "additionalProperties": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-[0-9]{3,}$" } }
+            }
+          },
+          "description": "Legacy planning annotation retained losslessly. Not Task assignment, acceptance evidence or delivery authority. Canonical Task/Requirement references remain authoritative."
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "lint": { "type": "string", "enum": ["not_run", "passed", "failed"] },
+            "docker_check": { "type": "string", "enum": ["not_run", "passed", "failed"] },
+            "errors": { "type": "integer", "minimum": 0 }
+          },
+          "description": "Historical build summary only. Never substitutes for current verification evidence or upgrades a gate to PASS, including when errors is zero."
         },
         "paused_at": {
           "type": "string",

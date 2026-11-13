@@ -106,6 +106,30 @@ if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
     throw "ProjectRoot not found: $ProjectRoot"
 }
 
+$coreProvenancePath = Join-Path $ProjectRoot '.mxagile/state/core-provenance.json'
+if (Test-Path -LiteralPath $coreProvenancePath -PathType Leaf) {
+    $core = Get-Content -LiteralPath $coreProvenancePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($core.PSObject.Properties.Name -contains 'artifact_contract') {
+        $compatibilityTool = Join-Path $ProjectRoot '.mxagile/tools/project_compatibility.py'
+        if (-not $core.artifact_contract -or -not (Test-Path -LiteralPath $compatibilityTool -PathType Leaf)) { throw 'CONTRACT_IDENTITY_NOT_OBSERVABLE: re-sync refused.' }
+        if ($core.PSObject.Properties.Name -notcontains 'recovery_tools' -or
+            (Get-FileHash -LiteralPath $compatibilityTool -Algorithm SHA256).Hash.ToLowerInvariant() -ne $core.recovery_tools.'project_compatibility.py') {
+            throw 'RECOVERY_TOOL_INTEGRITY_FAILED: re-sync refused.'
+        }
+        $python = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
+        if (-not $python) { throw 'RESYNC_PREFLIGHT_UNAVAILABLE: Python required.' }
+        $PSNativeCommandUseErrorActionPreference = $false
+        $preflightOutput = & $python.Source -B $compatibilityTool resync-preflight --project-root $ProjectRoot --mission-id $MissionId --wave $Wave --phase $CurrentPhase
+        $preflightExit = $LASTEXITCODE
+        $preflight = ($preflightOutput -join "`n") | ConvertFrom-Json
+        if ($preflightExit -ne 0 -or $preflight.state -ne 'READY_FOR_RESYNC') { throw "RECONCILIATION_REQUIRED: $($preflight.reason_codes -join ', ')" }
+        $MissionId = $preflight.mission_id
+        $Wave = $preflight.wave_id
+        $CurrentPhase = $preflight.phase
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Helper: extract a YAML array block (e.g. verified:, failed:) from content
 # ---------------------------------------------------------------------------

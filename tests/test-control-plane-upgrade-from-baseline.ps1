@@ -225,6 +225,124 @@ try {
     Assert-True 'second update reports CURRENT registration' (($second -join "`n") -match 'CONTROL_PLANE_HOOK: CURRENT') (($second | Select-String 'CONTROL_PLANE_HOOK') -join ';')
     $groups = @(Get-PreToolGroups $project)
     Assert-True 'no duplicate hook, developer hook still present' (@($groups | Where-Object { Test-OwnedGroup $_ }).Count -eq 1 -and @($groups | Where-Object { $_.hooks[0].command -eq 'developer-audit-hook' }).Count -eq 1) "groups=$($groups.Count)"
+
+    Write-Host '--- 9. Anonymized grown legacy consumer on the installed Core ---' -ForegroundColor Cyan
+    $legacyFixture = Join-Path $PSScriptRoot 'fixtures/legacy-upgrade/realistic-consumer.json'
+    $loadFixture = @'
+import json, sys, yaml
+from pathlib import Path
+root = Path(sys.argv[2])
+for relative, value in json.loads(Path(sys.argv[1]).read_text()).items():
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(value, sort_keys=False), encoding="utf-8")
+# The installed hook reads the session Epoch before the tracked historical copy.
+epoch = root / ".concord/context-epoch.yaml"
+epoch.parent.mkdir(parents=True, exist_ok=True)
+epoch.write_bytes((root / "planning/lifecycle/context-epoch.yaml").read_bytes())
+'@
+    & python -B -c $loadFixture $legacyFixture $project
+    if ($LASTEXITCODE) { throw 'Legacy fixture could not be loaded.' }
+    $doctorTool = Join-Path $project '.mxagile/tools/project_compatibility.py'
+    $legacyDecision = Join-Path $project 'planning/decisions/DEC-101.yml'
+    $decisionBefore = (Get-FileHash $legacyDecision).Hash
+    $legacyDoctor = (& python -B $doctorTool doctor --project-root $project --format json) | ConvertFrom-Json
+    Assert-True 'legacy complete does not hide the real missing successor' ($legacyDoctor.compatibility -eq 'BLOCKED' -and @($legacyDoctor.diagnostics | Where-Object blocking).Count -eq 1) 'unexpected blocking diagnostics'
+    $missingSuccessor = @($legacyDoctor.diagnostics | Where-Object blocking)[0]
+    Assert-True 'only the real Requirement successor decision remains' ($missingSuccessor.source_path -eq 'requirements/REQ-001.yml' -and $missingSuccessor.repairability -eq 'DECISION_REQUIRED') $missingSuccessor.source_path
+    Assert-True 'legacy normalization Doctor is read-only' ((Get-FileHash $legacyDecision).Hash -eq $decisionBefore) 'Doctor rewrote a Decision'
+    $legacyTransition = @{ gate_type = 'transition'; mission_id = 'MISSION-2026-01-01-legacy-upgrade'; wave_id = 'W01'; target_phase = 'implementing'; authorization = @{ status = 'confirmed'; reference = 'acceptance-test' } }
+    $legacyGuard = Invoke-Guard $project $legacyTransition
+    $legacyCodes = @($legacyGuard.must_findings | ForEach-Object code)
+    Assert-True 'stale branch HEAD and Mission remain blocked, not normalized' ($legacyGuard.verdict -ne 'pass' -and $legacyCodes -contains 'DOCTOR_BLOCKED' -and $legacyCodes -contains 'BRANCH_STALE' -and $legacyCodes -contains 'HEAD_STALE' -and $legacyCodes -contains 'EPOCH_MISSION_MISMATCH') ($legacyCodes -join ',')
+    $legacyPlan = (& python -B $doctorTool repair --project-root $project --dry-run) | ConvertFrom-Json
+    Assert-True 'both legacy Decision aliases have scoped deterministic repair plans' (@($legacyPlan.repairs | Where-Object repair_type -eq 'LEGACY_DECISION_ALIASES_V1').Count -eq 2) 'missing Decision repair plans'
+    $prepareContract = @'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / '.mxagile/tools'))
+from project_compatibility import contract_snapshot
+schema_path = root / '.mxagile/schemas/requirement.schema.json'
+schema = json.loads(schema_path.read_text(encoding='utf-8-sig'))
+schema['properties']['source']['enum'].remove('parity_check')
+schema_path.write_text(json.dumps(schema), encoding='utf-8')
+provenance_path = root / '.mxagile/state/core-provenance.json'
+provenance = json.loads(provenance_path.read_text(encoding='utf-8-sig'))
+provenance['artifact_contract'] = contract_snapshot(root)
+provenance['flavor'] = 'legacy-brand'
+provenance['product_flavor'] = None
+provenance_path.write_text(json.dumps(provenance), encoding='utf-8')
+'@
+    & python -B -c $prepareContract $project
+    if ($LASTEXITCODE) { throw 'Legacy contract identity fixture failed.' }
+    $beforeContract = Get-Content (Join-Path $project '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
+    $layerProvenancePath = Join-Path $project '.mxagile/layers/fixture-company/provenance.json'
+    New-Item -ItemType Directory -Path (Split-Path $layerProvenancePath) -Force | Out-Null
+    '{"layer_id":"fixture-company","version":"1.0.0","ref":"main","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' | Set-Content -LiteralPath $layerProvenancePath -Encoding utf8
+    $layerHash = (Get-FileHash $layerProvenancePath).Hash
+    $protectedLegacy = @{}
+    foreach ($relative in @('planning/mission/mission-state.yaml','planning/lifecycle/process-state.yaml','planning/lifecycle/context-epoch.yaml','requirements/REQ-001.yml')) {
+        $protectedLegacy[$relative] = (Get-FileHash (Join-Path $project $relative)).Hash
+    }
+    $legacyUpdate = @(& pwsh -NoProfile -Command "& '$(Join-Path $RepoRoot 'scripts/install-core.ps1')' -ProjectRoot '$project' -IsUpdate `$true -ProvenanceFlavor 'company-layer' -ProvenanceCoreCommit '$currentCommit' -ProvenanceCoreRef 'experiment/control-plane-sak-principles'" 2>&1)
+    Assert-True 'contract-delta update installs despite the human decision blocker' ($LASTEXITCODE -eq 0) ($legacyUpdate | Select-Object -Last 5 | Out-String)
+    $legacyHandoff = Get-Content (Join-Path $project '.mxagile/state/last-update-result.json') -Raw | ConvertFrom-Json
+    $afterContract = Get-Content (Join-Path $project '.mxagile/state/core-provenance.json') -Raw | ConvertFrom-Json
+    Assert-True 'same version and commit still observe the schema contract delta' ($afterContract.version -eq $beforeContract.version -and $afterContract.commit -eq $beforeContract.commit -and $afterContract.artifact_contract.fingerprint -ne $beforeContract.artifact_contract.fingerprint -and $afterContract.previous_artifact_contract.fingerprint -eq $beforeContract.artifact_contract.fingerprint) 'contract identity was replaced by version or commit equality'
+    Assert-True 'update normalizes safe aliases before final Doctor and retains NEEDS_HUMAN' ($legacyHandoff.migration.status -eq 'NEEDS_HUMAN' -and @($legacyHandoff.migration.applied).Count -eq 2 -and $legacyHandoff.doctor.executed -and $legacyHandoff.doctor.compatibility -eq 'BLOCKED') ($legacyHandoff | ConvertTo-Json -Compress -Depth 8)
+    Assert-True 'semantic product identity and company installation identity stay separate' ($afterContract.product_flavor -eq 'legacy-brand' -and $afterContract.flavor -eq 'legacy-brand' -and $afterContract.installation_flavor -eq 'company-layer') 'product flavor overwritten'
+    Assert-True 'Core experimental ref never replaces Company Layer provenance' ($afterContract.ref -eq 'experiment/control-plane-sak-principles' -and (Get-FileHash $layerProvenancePath).Hash -eq $layerHash) 'layer identity changed'
+    foreach ($relative in $protectedLegacy.Keys) {
+        Assert-True "contract migration preserves $relative" ((Get-FileHash (Join-Path $project $relative)).Hash -eq $protectedLegacy[$relative]) 'project authority changed'
+    }
+    $readMigration = @'
+import json, sys, yaml
+from pathlib import Path
+state = yaml.safe_load((Path(sys.argv[1]) / '.mxagile/migration/state.yaml').read_text(encoding='utf-8-sig'))
+original = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8-sig'))['.mxagile/migration/state.yaml']
+print(json.dumps({'history_preserved': {k: v for k, v in state.items() if k != 'contract_migration'} == original, 'state': state}))
+'@
+    $migrationState = (& python -B -c $readMigration $project $legacyFixture) | ConvertFrom-Json
+    Assert-True 'historical migration and canonicalization complete flags are retained' ($migrationState.history_preserved -and $migrationState.state.contract_migration.status -eq 'NEEDS_HUMAN') 'historical authority was rewritten'
+    $secondPlan = (& python -B $doctorTool repair --project-root $project --dry-run) | ConvertFrom-Json
+    Assert-True 'automatic Decision normalization is idempotent' (@($secondPlan.repairs).Count -eq 0) 'repeat mutation planned'
+    $installedWriter = Join-Path $project '.mxagile/tools/Write-MxAgileEpochCheckpoint.ps1'
+    $epochPath = Join-Path $project '.concord/context-epoch.yaml'
+    $epochBefore = (Get-FileHash $epochPath).Hash
+    & pwsh -NoProfile -File $installedWriter -ProjectRoot $project -PreserveEvidence 2>&1 | Out-Null
+    Assert-True 'direct re-sync refuses a human-blocked migration without changing Epoch' ($LASTEXITCODE -ne 0 -and (Get-FileHash $epochPath).Hash -eq $epochBefore) 'Epoch was fabricated'
+    $approveSuccessor = @'
+import sys, yaml
+from pathlib import Path
+path = Path(sys.argv[1]) / 'requirements/REQ-001.yml'
+value = yaml.safe_load(path.read_text(encoding='utf-8-sig'))
+value['superseded_by'] = 'REQ-111'
+path.write_text(yaml.safe_dump(value, sort_keys=False), encoding='utf-8')
+'@
+    & python -B -c $approveSuccessor $project
+    if ($LASTEXITCODE) { throw 'Explicit fixture successor decision failed.' }
+    $migrationCommand = "python -B '$doctorTool' migrate --apply-safe --project-root '$project' --format json"
+    $migrationHook = Invoke-InstalledAdapter $project @{ tool_name = 'Bash'; tool_input = @{ command = $migrationCommand } }
+    Assert-True 'installed hook permits only the integrity-bound contract recovery' ($migrationHook.hookSpecificOutput.permissionDecision -eq 'allow') ($migrationHook | ConvertTo-Json -Compress)
+    $resolved = (& python -B $doctorTool migrate --apply-safe --project-root $project --format json) | ConvertFrom-Json
+    Assert-True 'explicit successor decision permits COMPLETE and a nonblocked Doctor' ($resolved.migration.status -eq 'COMPLETE' -and $resolved.doctor.compatibility -ne 'BLOCKED') ($resolved.migration | ConvertTo-Json -Compress -Depth 5)
+    Invoke-Git $project add -A
+    Invoke-Git $project commit -qm 'fixture developer resolves successor'
+    $writerCommand = "pwsh -NoProfile -File '$installedWriter' -ProjectRoot '$project' -PreserveEvidence"
+    $writerHook = Invoke-InstalledAdapter $project @{ tool_name = 'Bash'; tool_input = @{ command = $writerCommand } }
+    Assert-True 'installed hook permits scope-preserving canonical re-sync' ($writerHook.hookSpecificOutput.permissionDecision -eq 'allow') ($writerHook | ConvertTo-Json -Compress)
+    & pwsh -NoProfile -File $installedWriter -ProjectRoot $project -PreserveEvidence | Out-Null
+    Assert-True 'installed Writer completes canonical re-sync' ($LASTEXITCODE -eq 0) 'Writer refused resolved scope'
+    $resynced = Invoke-Guard $project $legacyTransition
+    Assert-True 'resolved legacy project passes its real transition after re-sync' ($resynced.verdict -eq 'pass') (($resynced.must_findings | ForEach-Object code) -join ',')
+    $stillReady = Invoke-InstalledAdapter $project $payload
+    Assert-True 'recovery never grants ordinary implementation writes to a ready Wave' ($stillReady.hookSpecificOutput.permissionDecision -eq 'deny' -and $stillReady.hookSpecificOutput.permissionDecisionReason -match 'MUTATION_PHASE_BLOCKED') ($stillReady | ConvertTo-Json -Compress)
+    $noRepeat = (& python -B $doctorTool migrate --apply-safe --project-root $project --format json) | ConvertFrom-Json
+    Assert-True 'equal-contract retry requires no new migration' (-not $noRepeat.required) 'same contract restarted migration'
+    $notStarted = $legacyTransition.Clone(); $notStarted.wave_id = 'W02'
+    $unstarted = Invoke-Guard $project $notStarted
+    Assert-True 'not_started never authorizes implementation' ($unstarted.verdict -ne 'pass') 'planned Wave was promoted'
 } finally {
     $env:MXCLI_TEST_BINARY = $previousBinary
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue

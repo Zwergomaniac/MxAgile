@@ -44,6 +44,27 @@ Lifecycle-Information zerstoeren.
 
 ---
 
+## Contract-aware Epoch recovery
+
+Bei aktuellen Core-Installationen prueft der installierte Epoch Writer vor jedem Write:
+aktuelle beobachtbare Contract-Identitaet, schema-gueltige contract_migration COMPLETE,
+keine aktive Update-Transaktion, keine laufende DFC-/Canonicalization-Migration und einen
+aktuellen nicht-BLOCKED Doctor. Der installierte Preflight-Producer muss dem in Core
+Provenance gebundenen Codehash entsprechen. Fehlende/unverifizierbare Identitaet ist keine
+Freigabe. Alte Cores ohne den neuen Contract-Provenance-Eintrag behalten ihren bisherigen ABI;
+das ist kein nachtraeglicher Nachweis aktueller Contract-Kompatibilitaet.
+
+`resync-preflight` liest Mission-ID und active_wave nur aus kanonischem Mission-State und
+Phase nur aus der zugehoerigen kanonischen Process-Wave. Widersprechende explizite Selektoren,
+fehlender Scope oder not_started fuehren zu RECONCILIATION_REQUIRED, vor Epoch-Writes.
+Historischer Epoch, Branch/HEAD und Konversationsnarrative waehlen keine Mission oder Wave.
+READY_FOR_RESYNC ist transient und keine Implementierungs-, Gate- oder Acceptance-Freigabe.
+
+Der begrenzte Recovery-Aufruf verwendet den installierten Writer mit `-PreserveEvidence`.
+Er schreibt nur operationalen Epoch/Audit-State; kanonische Mission/Process und historische
+tracked Epoch-Kopien werden nicht umgeschrieben. Normale Writes behalten ihre bisherigen
+Lifecycle-/Scope-Gates. Generische Shell-Writes und Cleanup bekommen dadurch keine Ausnahme.
+
 ## Projektroot-Bestimmung
 
 **Lifecycle Re-Sync operiert ausschliesslich vom aktuellen MxAgile-Projektroot.**

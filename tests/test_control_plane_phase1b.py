@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+import tempfile
 import subprocess
 import sys
 from pathlib import Path
@@ -90,7 +92,188 @@ class Phase1BFixture(GuardFixture):
         }
 
 
+class BlockedRealityTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix='mxagile-blocked-reality-'))
+        self.facts = enforcement.guard.ProjectFacts(root=self.root)
+        self.facts.mission = {'mission_id': 'MISSION-fixture', 'active_wave': 'W01', 'progress': {'mission': 'active'}}
+        self.facts.process_state = {'waves': {'W01': {'phase': 'implementing'}}}
+        self.facts.planned_waves = {'W01'}
+        self.facts.branch = 'dev/current'
+        self.facts.head = 'b' * 40
+        self.facts.context_epoch = {'mission': {'id': 'MISSION-old'}, 'repository': {'branch': 'dev/old', 'commit': 'a' * 40, 'checkpoint_time': '2026-01-01T00:00:00Z'}}
+        self.facts.doctor_compatibility = 'BLOCKED'
+        self.facts.doctor_blocking = ['REFERENCE_MISSING']
+        self.facts.core_provenance = {'installed_at': '2026-01-02T00:00:00Z', 'commit': 'b' * 40}
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def decide(self, tool, values):
+        with mock.patch.object(enforcement.guard, 'load_project_facts', return_value=self.facts), mock.patch.object(enforcement, '_persist_event'):
+            return enforcement.decide(self.root, {'tool_name': tool, 'tool_input': values})
+
+    def test_all_normal_consumer_writes_are_blocked(self):
+        for path in ('requirements/REQ-001.yml', 'planning/decisions/DEC-001.yml', 'planning/mission/mission-state.yaml', 'planning/lifecycle/process-state.yaml', 'planning/tasks/TASK-001.yml', '.mxagile/migration/state.yaml', '.mxagile/state/core-provenance.json', 'planning/evidence/proof.json', 'javascriptsource/example.js'):
+            with self.subTest(path=path):
+                self.assertEqual(self.decide('Write', {'file_path': path})['decision'], 'deny')
+        self.assertEqual(self.decide('Bash', {'command': 'python project_compatibility.py repair --apply --plan-hash x'})['decision'], 'deny')
+
+    def test_stdout_sed_reads_and_mutating_sed_are_distinguished(self):
+        for command in ("sed -n '1,20p' file", "sed 's/a/b/' file", "sed -n '1,20p' file | head -5"):
+            with self.subTest(command=command):
+                self.assertEqual(enforcement.classify_shell(self.root, command), enforcement.READ)
+                self.assertEqual(self.decide('Bash', {'command': command})['decision'], 'allow')
+        for command in ("sed -i 's/a/b/' file", "sed 's/a/b/' file > requirements/REQ-001.yml", "sed 's/a/b/w output' file", "sed -n '1,20p' file && rm requirements/REQ-001.yml"):
+            with self.subTest(command=command):
+                self.assertEqual(self.decide('Bash', {'command': command})['decision'], 'deny')
+
+    def test_mxcli_help_syntax_and_doctor_are_reads_not_word_matches(self):
+        for command in ('mxcli help exec', 'mxcli syntax create-page', 'mxcli --version', 'mxcli lint', 'python project_compatibility.py doctor --format json', 'git status', 'git log -1'):
+            with self.subTest(command=command):
+                self.assertEqual(enforcement.classify_shell(self.root, command), enforcement.READ)
+        self.assertEqual(self.decide('Bash', {'command': 'mxcli exec changes.mdl'})['decision'], 'deny')
+
+    def test_unobserved_dispatcher_and_taskstop_remain_closed(self):
+        for tool in ('mcp__concord-v2-mcp__concord_invoke', 'mcp__mendix-studio-pro__execute_handler', 'TaskStop'):
+            self.assertEqual(self.decide(tool, {'read_only': True})['decision'], 'deny')
+        for tool in ('mcp__concord-v2-mcp__concord_discover', 'mcp__mendix-studio-pro__list_modules', 'mcp__mendix-studio-pro__query_handlers'):
+            self.assertEqual(self.decide(tool, {})['decision'], 'allow')
+
+    def test_inner_operation_requires_out_of_band_evidence(self):
+        payload = {'tool_name': 'mcp__concord-v2-mcp__concord_invoke', 'tool_input': {'inner': {'operation': 'fixture.inspect', 'args': {}}}}
+        def classify(tool, values):
+            inner = values.get('inner', {})
+            return enforcement.READ if inner == {'operation': 'fixture.inspect', 'args': {}} else enforcement.IMPLEMENTATION_WRITE
+        evidence = enforcement.HostBoundaryEvidence(classify_dispatch=classify)
+        self.assertEqual(enforcement.classify_tool_call(self.root, payload, evidence)[0], enforcement.READ)
+        self.assertEqual(enforcement.classify_tool_call(self.root, payload)[0], enforcement.IMPLEMENTATION_WRITE)
+        payload['tool_input']['inner']['args']['apply'] = True
+        self.assertEqual(enforcement.classify_tool_call(self.root, payload, evidence)[0], enforcement.IMPLEMENTATION_WRITE)
+
+    def test_doctor_precedes_resync_in_recovery(self):
+        result = self.decide('Write', {'file_path': 'requirements/REQ-001.yml'})
+        self.assertEqual(result['recovery'], 'doctor')
+        self.assertIn('resync', result['verdict']['recovery_plan']['blocked_recovery_actions'])
+
+    def test_migration_and_missing_decision_precede_resync(self):
+        self.facts.doctor_diagnostics = [{'diagnostic_id': 'DX-0000000000000001', 'source_path': 'requirements/REQ-001.yml', 'authority': 'superseded_by', 'category': 'REFERENCE_MISSING', 'repairability': 'DECISION_REQUIRED'}]
+        result = self.decide('Write', {'file_path': 'requirements/REQ-001.yml'})
+        self.assertEqual(result['recovery'], 'human_resolution')
+        self.assertEqual(result['verdict']['recovery_plan']['decision_references'][0]['authority'], 'superseded_by')
+        self.facts.migration_state = {'status': 'in_progress', 'artifact_canonicalization': 'in_progress'}
+        self.assertEqual(self.decide('Write', {'file_path': 'requirements/REQ-001.yml'})['recovery'], 'resume')
+
+    def test_epoch_resync_precedes_delivery_phase_re_evaluation(self):
+        findings = [enforcement.guard._finding('CONTEXT_STALE_AFTER_UPDATE', 'stale', 'unavailable', recovery='resync'),
+                    enforcement.guard._finding('MUTATION_PHASE_BLOCKED', 'ready', 'fail', recovery='human_resolution')]
+        self.assertEqual(enforcement.guard._recovery_plan(self.facts, findings)['primary_next_action'], 'resync')
+
+    def test_missing_current_provenance_is_unobservable_not_current(self):
+        self.facts.core_provenance = {}
+        self.facts.last_update = {'installed_at': '2026-01-02T00:00:00Z'}
+        findings, _ = enforcement.guard._lifecycle_integrity(self.facts)
+        self.assertIn('UPDATE_IDENTITY_NOT_OBSERVABLE', {f['code'] for f in findings})
+        self.assertNotIn('CONTEXT_STALE_AFTER_UPDATE', {f['code'] for f in findings})
+
+    def test_shell_quotes_cannot_hide_mutations_or_relabel_command_payloads(self):
+        for command in ('cat file\nrm requirements/REQ-001.yml', 'echo text >& requirements/REQ-001.yml', 'cat <(rm file)', 'mxcli lint --fix', 'git branch -D other', 'python -c "print(1)" project_compatibility.py doctor'):
+            with self.subTest(command=command):
+                self.assertEqual(self.decide('Bash', {'command': command})['decision'], 'deny')
+        self.assertEqual(enforcement.classify_shell(self.root, "sed -n '1,20p' 'path with spaces; name'"), enforcement.READ)
+
+    def test_historical_update_result_cannot_override_current_provenance(self):
+        self.facts.doctor_compatibility = 'COMPATIBLE'
+        self.facts.context_epoch['repository']['checkpoint_time'] = '2026-01-03T00:00:00Z'
+        self.facts.last_update = {'installed_at': '2026-01-10T00:00:00Z', 'framework': {'commit': 'a' * 40}}
+        self.facts.core_provenance = {'installed_at': '2026-01-02T00:00:00Z', 'commit': 'b' * 40}
+        findings, _ = enforcement.guard._lifecycle_integrity(self.facts)
+        self.assertNotIn('CONTEXT_STALE_AFTER_UPDATE', {f['code'] for f in findings})
+        self.facts.core_provenance['installed_at'] = '2026-01-04T00:00:00Z'
+        findings, _ = enforcement.guard._lifecycle_integrity(self.facts)
+        self.assertIn('CONTEXT_STALE_AFTER_UPDATE', {f['code'] for f in findings})
+
+
+class RecoveryScopeTests(Phase1BFixture):
+    def recovery_tools(self):
+        enforcement.guard._run_doctor(enforcement.guard.ProjectFacts(root=self.root))
+        import project_compatibility
+        tools = self.root / '.mxagile' / 'tools'
+        tools.mkdir(parents=True, exist_ok=True)
+        sources = GUARD_DIR.parents[1] / 'scripts'
+        for name in ('project_compatibility.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py', 'Write-MxAgileEpochCheckpoint.ps1'):
+            shutil.copyfile(sources / name, tools / name)
+        hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in tools.iterdir() if p.is_file()}
+        self.write('.mxagile/state/core-provenance.json', json.dumps({'installed_at': '2020-01-01T00:00:00Z', 'commit': _git(self.root, 'rev-parse', 'HEAD'), 'artifact_contract': project_compatibility.contract_snapshot(self.root), 'recovery_tools': hashes}))
+        self.write_yaml('.mxagile/migration/state.yaml', {'status': 'complete', 'artifact_canonicalization': 'complete'})
+        return tools, project_compatibility
+
+    def test_only_integrity_bound_safe_contract_helper_can_run_while_blocked(self):
+        tools, _ = self.recovery_tools()
+        command = f'python -B "{tools / "project_compatibility.py"}" migrate --apply-safe --project-root "{self.root}" --format json'
+        allowed = self.hook('Bash', {'command': command})
+        self.assertEqual(allowed['decision'], 'allow', allowed)
+        self.assertEqual(allowed['controlled_recovery'], 'contract_reconciliation')
+        self.assertEqual(self.hook('Write', {'file_path': 'requirements/REQ-002.yml'})['decision'], 'deny')
+        for altered in (command + ' && mxcli exec changes.mdl', command + ' --candidate-dir elsewhere', command + ' > output.json'):
+            self.assertEqual(self.hook('Bash', {'command': altered})['decision'], 'deny')
+        with (tools / 'project_compatibility.py').open('a', encoding='utf-8') as stream:
+            stream.write('\n# tampered\n')
+        self.assertEqual(self.hook('Bash', {'command': command})['decision'], 'deny')
+
+    def test_epoch_recovery_requires_completed_migration_and_preserves_scope(self):
+        tools, compatibility = self.recovery_tools()
+        command = f'pwsh -NoProfile -File "{tools / "Write-MxAgileEpochCheckpoint.ps1"}" -ProjectRoot "{self.root}" -PreserveEvidence'
+        self.assertEqual(self.hook('Bash', {'command': command})['decision'], 'deny')
+        compatibility.reconcile_contract(self.root, apply_safe=True)
+        epoch = enforcement.guard.load_project_facts(self.root).context_epoch
+        epoch['repository']['commit'] = '1' * 40
+        self.write_yaml('.concord/context-epoch.yaml', epoch)
+        allowed = self.hook('Bash', {'command': command})
+        self.assertEqual(allowed['decision'], 'allow', allowed)
+        self.assertEqual(allowed['controlled_recovery'], 'context_resync')
+        self.assertEqual(self.hook('Bash', {'command': command + ' -WriteHandoffCopy'})['decision'], 'deny')
+        self.assertEqual(self.hook('Write', {'file_path': 'planning/lifecycle/process-state.yaml'})['decision'], 'deny')
+
+
+class DiagnosticChildTests(Phase1BFixture):
+    def test_diagnostic_handoff_cannot_be_relabelled_as_visual_acceptance(self):
+        handoff = self.visual_handoff()
+        handoff['capability'] = 'read_only_diagnostic'
+        evidence = [self.evidence('default'), self.evidence('modal_open')]
+        verdict = self.verdict(handoff, evidence)
+        result = child_contract.accept_child_result(self.root, handoff, verdict, self.contract, changed_paths=[])
+        self.assertEqual(result['status'], 'REJECTED', result)
+        self.assertIn('DIAGNOSTIC_RESULT_NOT_DELIVERY', {finding['code'] for finding in result['findings']})
+        self.assertIsNone(result['gate'])
+
+    def test_generic_read_only_child_requires_actual_host_constraints(self):
+        handoff = self.visual_handoff(parent_run_id='RUN-aabbccddee11')
+        handoff.update(capability='read_only_diagnostic', agent_type='fixture-specialist', write_classes=[], evidence_destination=None,
+                       allowed_tools=['Read', 'Glob', 'Grep'], required_tools=['Read'],
+                       forbidden_mutations=['ALL_WRITES', 'ACCEPTANCE', 'DELIVERY_AUTHORIZATION'], output_contract='diagnostic-findings/1')
+        handoff['delivery_context'].update(authorization='read_only', write_scope=[], output_artifacts=[], evidence_destinations=[], commit_expectation='no_commit')
+        reference = '.concord/delegation-handoffs/DELEGATION-V1.json'
+        self.write(reference, json.dumps(handoff))
+        facts = enforcement.guard.load_project_facts(self.root)
+        facts.doctor_compatibility = 'BLOCKED'
+        payload = {'tool_name': 'Agent', 'tool_input': {'subagent_type': 'fixture-specialist', 'prompt': f'MXAGILE_HANDOFF:{reference}', 'read_only': True}}
+        evidence = enforcement.HostBoundaryEvidence(attest_diagnostic_child=lambda h, p: h['parent_run_id'] == 'RUN-aabbccddee11' and h['allowed_tools'] == ['Read', 'Glob', 'Grep'])
+        with mock.patch.object(enforcement.guard, 'load_project_facts', return_value=facts), mock.patch.object(enforcement, '_persist_event'), mock.patch.dict(enforcement.os.environ, {'MXAGILE_RUN_ID': 'RUN-aabbccddee11'}):
+            self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'deny')
+            allowed = enforcement.decide(self.root, payload, evidence=evidence)
+            self.assertEqual(allowed['decision'], 'allow', allowed)
+            handoff['delivery_context']['write_scope'] = ['requirements/']
+            self.write(reference, json.dumps(handoff))
+            self.assertEqual(enforcement.decide(self.root, payload, evidence=evidence)['decision'], 'deny')
+
+
 class EnforcementTests(Phase1BFixture):
+    def test_healthy_planning_and_evidence_do_not_require_implementing(self):
+        for path in ('requirements/REQ-002.yml', 'planning/tasks/TASK-002.yml', '.concord/evidence/proof.json'):
+            with self.subTest(path=path):
+                self.assertEqual(self.hook('Write', {'file_path': path})['decision'], 'allow')
+        self.assertEqual(enforcement.classify_path(self.root, 'planning/tasks/TASK-002.yml'), enforcement.DELIVERY_WRITE)
     def test_reads_stay_lightweight_and_never_call_the_guard(self):
         with mock.patch.object(enforcement.guard, "load_project_facts", side_effect=AssertionError("guard called")):
             result = self.hook("Read", {"file_path": str(self.root / "README.md")})
@@ -124,9 +307,10 @@ class EnforcementTests(Phase1BFixture):
             with self.subTest(tool=tool, value=value):
                 self.assertEqual(enforcement.classify_tool_call(self.root, {"tool_name": tool, "tool_input": tool_input})[0], expected)
 
-    def test_recovery_paths_stay_open_during_partial_update(self):
+    def test_normal_framework_command_is_not_recovery_authority(self):
         self.write(".mxagile/state/update-transaction.json", json.dumps({"state": "PARTIAL_UPDATE"}))
-        self.assertEqual(self.hook("Bash", {"command": "pwsh ./mxagile-setup-company-layer.ps1 -ResumeUpdate"})["decision"], "allow")
+        self.assertEqual(self.hook("Bash", {"command": "pwsh ./mxagile-setup-company-layer.ps1 -ResumeUpdate"})["decision"], "deny")
+        self.assertEqual(self.hook('Bash', {'command': 'python project_compatibility.py doctor --format json'})['decision'], 'allow')
         self.set_wave("implementing")
         self.assertEqual(self.hook("Write", {"file_path": "javascriptsource/a.js"})["decision"], "deny")
 

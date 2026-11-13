@@ -1055,6 +1055,251 @@ class ProjectStatusTests(unittest.TestCase):
       documents["planning/evidence/manifests/W02-evidence-manifest.yaml"] = {**manifest, "wave_id": "W02"}
       self.assertIsNone(project_compatibility.wave_review_authority(task, documents, {"W01", "W02"}))
 
+    def contract_migration_fixture(self):
+      for directory in ('requirements', 'specs', 'planning'):
+        shutil.rmtree(self.root / directory, ignore_errors=True)
+      shutil.copytree(ROOT / '.mxagile' / 'schemas', self.root / '.mxagile' / 'schemas', dirs_exist_ok=True)
+      documents = json.loads((ROOT / 'tests/fixtures/legacy-upgrade/realistic-consumer.json').read_text())
+      for relative, value in documents.items():
+        write_file(self.root, relative, project_compatibility.yaml.safe_dump(value, sort_keys=False))
+      snapshot = project_compatibility.contract_snapshot(self.root)
+      write_file(self.root, '.mxagile/state/core-provenance.json', json.dumps({'version': '1.10.0', 'commit': 'b' * 40, 'previous_commit': 'a' * 40, 'artifact_contract': snapshot, 'previous_artifact_contract': None}))
+      return documents
+
+    def test_contract_snapshot_ignores_commit_version_and_json_formatting(self):
+      self.contract_migration_fixture()
+      before = project_compatibility.contract_snapshot(self.root)
+      path = self.root / '.mxagile/schemas/requirement.schema.json'
+      path.write_text(json.dumps(json.loads(path.read_text(encoding='utf-8-sig')), indent=4), encoding='utf-8')
+      self.assertEqual(project_compatibility.contract_snapshot(self.root), before)
+      value = json.loads(path.read_text(encoding='utf-8'))
+      value['properties']['source']['enum'].append('fixture_delta')
+      path.write_text(json.dumps(value), encoding='utf-8')
+      self.assertNotEqual(project_compatibility.contract_snapshot(self.root)['fingerprint'], before['fingerprint'])
+
+    def test_historical_complete_requires_current_contract_plan_without_writes(self):
+      self.contract_migration_fixture()
+      before = tree_fingerprint(self.root)
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=False)
+      self.assertTrue(result['required'])
+      self.assertEqual(result['migration']['status'], 'PLANNED')
+      self.assertEqual(len(result['plan']['repairs']), 2)
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_contract_migration_applies_only_safe_repairs_and_preserves_history(self):
+      documents = self.contract_migration_fixture()
+      protected = {p: (self.root / p).read_bytes() for p in documents if 'DEC-' not in p and p != '.mxagile/migration/state.yaml'}
+      state = self.root / '.mxagile/migration/state.yaml'
+      state.write_text('# migration history\n' + state.read_text() + '# retained history\n')
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertEqual(result['migration']['status'], 'NEEDS_HUMAN')
+      self.assertEqual(len(result['migration']['applied']), 2)
+      self.assertEqual(result['doctor']['compatibility'], 'BLOCKED')
+      self.assertEqual(result['migration']['decision_references'][0]['authority'], 'superseded_by')
+      value = project_compatibility.load_yaml(state.read_text())
+      self.assertEqual(value['status'], 'complete')
+      self.assertEqual(value['artifact_canonicalization'], 'complete')
+      self.assertIn('# retained history', state.read_text())
+      for path, raw in protected.items():
+        self.assertEqual((self.root / path).read_bytes(), raw, path)
+      before = tree_fingerprint(self.root)
+      repeated = project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertEqual(repeated['migration'], result['migration'])
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_contract_migration_finishes_only_after_explicit_successor_decision(self):
+      self.contract_migration_fixture()
+      project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      path = self.root / 'requirements/REQ-001.yml'
+      value = project_compatibility.load_yaml(path.read_text())
+      value['superseded_by'] = 'REQ-111'
+      path.write_text(project_compatibility.yaml.safe_dump(value, sort_keys=False))
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertEqual(result['migration']['status'], 'COMPLETE')
+      self.assertIsNotNone(result['migration']['completed_at'])
+      self.assertNotEqual(result['doctor']['compatibility'], 'BLOCKED')
+      before = tree_fingerprint(self.root)
+      self.assertFalse(project_compatibility.reconcile_contract(self.root, apply_safe=True)['required'])
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_contract_migration_never_applies_agent_candidates_automatically(self):
+      self.contract_migration_fixture()
+      write_file(self.root, 'requirements/REQ-001.yml', 'ID: REQ-001\ntitle: Example\ndescription: Example\nstatus: accepted\nsource: native\nunknown_authority: preserve\n')
+      original = (self.root / 'requirements/REQ-001.yml').read_bytes()
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertEqual(result['migration']['status'], 'NEEDS_REVIEW')
+      self.assertEqual((self.root / 'requirements/REQ-001.yml').read_bytes(), original)
+
+    def test_resync_requires_current_contract_and_canonical_mission_not_epoch_hints(self):
+      self.contract_migration_fixture()
+      self.assertEqual(project_compatibility.resync_preflight(self.root)['state'], 'RECONCILIATION_REQUIRED')
+      path = self.root / 'requirements/REQ-001.yml'
+      value = project_compatibility.load_yaml(path.read_text(encoding='utf-8'))
+      value['superseded_by'] = 'REQ-111'
+      path.write_text(project_compatibility.yaml.safe_dump(value, sort_keys=False), encoding='utf-8')
+      project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      before = tree_fingerprint(self.root)
+      ready = project_compatibility.resync_preflight(self.root)
+      self.assertEqual((ready['state'], ready['wave_id'], ready['phase']), ('READY_FOR_RESYNC', 'W01', 'ready'))
+      self.assertEqual(ready['mission_id'], 'MISSION-2026-01-01-legacy-upgrade')
+      conflict = project_compatibility.resync_preflight(self.root, 'MISSION-2025-12-01-old-session')
+      self.assertIn('MISSION_ID_CONFLICT', conflict['reason_codes'])
+      self.assertEqual(tree_fingerprint(self.root), before)
+      provenance = self.root / '.mxagile/state/core-provenance.json'
+      value = json.loads(provenance.read_text(encoding='utf-8'))
+      value['artifact_contract']['fingerprint'] = 'sha256:' + '0' * 64
+      provenance.write_text(json.dumps(value), encoding='utf-8')
+      self.assertIn('CONTRACT_IDENTITY_NOT_OBSERVABLE', project_compatibility.resync_preflight(self.root)['reason_codes'])
+
+    def test_contract_recovery_failure_is_resumable_and_partial_update_is_read_only(self):
+      self.contract_migration_fixture()
+      original = (self.root / 'planning/decisions/DEC-101.yml').read_bytes()
+      with patch.object(project_compatibility, 'apply_repair', side_effect=ValueError('interrupted')):
+        with self.assertRaises(ValueError):
+          project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      state = project_compatibility.load_yaml((self.root / '.mxagile/migration/state.yaml').read_text(encoding='utf-8'))
+      self.assertEqual(state['contract_migration']['status'], 'FAILED')
+      self.assertEqual((self.root / 'planning/decisions/DEC-101.yml').read_bytes(), original)
+      self.assertEqual(project_compatibility.reconcile_contract(self.root, apply_safe=True)['migration']['status'], 'NEEDS_HUMAN')
+      write_file(self.root, '.mxagile/state/update-transaction.json', json.dumps({'state': 'PARTIAL_UPDATE', 'current_stage': 'COMPANY_LAYER_UPDATE', 'completed_stages': ['CORE_UPDATE']}))
+      before = tree_fingerprint(self.root)
+      with self.assertRaises(ValueError):
+        project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertIn('UPDATE_RECOVERY_REQUIRED', project_compatibility.resync_preflight(self.root)['reason_codes'])
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_company_bootstrap_delegates_safe_migration_only_after_completed_update(self):
+      self.contract_migration_fixture()
+      tools = self.root / '.mxagile/tools'
+      tools.mkdir(parents=True, exist_ok=True)
+      for name in ('project_compatibility.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py'):
+        shutil.copyfile(ROOT / 'scripts' / name, tools / name)
+      command = r'''
+param($Source, $Root, $ApplySafe)
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$errors)
+$definition = $ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-PostUpdateDoctor'}, $true)
+. ([scriptblock]::Create($definition.Extent.Text))
+$result = Get-PostUpdateDoctor -Root $Root -ApplySafe ($ApplySafe -eq 'true')
+@{ executed=$result.executed; compatibility=$result.compatibility; migration=$result.migration.status; applied=@($result.migration.applied).Count; reason=$result.reason } | ConvertTo-Json -Compress
+'''
+      script = self.root / 'bootstrap-probe.ps1'
+      script.write_text(command, encoding='utf-8')
+      transaction = self.root / '.mxagile/state/update-transaction.json'
+      transaction.write_text(json.dumps({'state': 'PARTIAL_UPDATE', 'current_stage': 'COMPANY_LAYER_UPDATE', 'completed_stages': ['CORE_UPDATE']}), encoding='utf-8')
+      before = tree_fingerprint(self.root)
+      def probe(apply_safe):
+        result = subprocess.run(['pwsh', '-NoProfile', '-File', str(script), str(ROOT / 'mxagile-setup-company-layer.ps1'), str(self.root), str(apply_safe).lower()], capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+      diagnostic = probe(False)
+      self.assertTrue(diagnostic['executed'])
+      self.assertEqual(diagnostic['compatibility'], 'BLOCKED')
+      self.assertEqual(tree_fingerprint(self.root), before)
+      transaction.write_text(json.dumps({'state': 'UPDATE_IN_PROGRESS', 'current_stage': 'POST_UPDATE_DOCTOR', 'completed_stages': ['CORE_UPDATE', 'COMPANY_LAYER_UPDATE']}), encoding='utf-8')
+      completed = probe(True)
+      self.assertEqual((completed['migration'], completed['applied'], completed['compatibility']), ('NEEDS_HUMAN', 2, 'BLOCKED'), completed)
+
+    def test_contract_migration_rejects_invalid_completion_timestamp(self):
+      self.contract_migration_fixture()
+      path = self.root / 'requirements/REQ-001.yml'
+      value = project_compatibility.load_yaml(path.read_text(encoding='utf-8'))
+      value['superseded_by'] = 'REQ-111'
+      path.write_text(project_compatibility.yaml.safe_dump(value, sort_keys=False), encoding='utf-8')
+      project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      state_path = self.root / '.mxagile/migration/state.yaml'
+      state = project_compatibility.load_yaml(state_path.read_text(encoding='utf-8'))
+      state['contract_migration']['completed_at'] = 'not-a-date'
+      state_path.write_text(project_compatibility.yaml.safe_dump(state, sort_keys=False), encoding='utf-8')
+      before = tree_fingerprint(self.root)
+      with self.assertRaises(ValueError):
+        project_compatibility.reconcile_contract(self.root)
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_contract_migration_resumes_after_artifacts_written_before_final_record(self):
+      self.contract_migration_fixture()
+      save = project_compatibility._save_contract_migration
+      calls = 0
+      def interrupted_save(*args):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+          raise ValueError('final metadata interrupted')
+        return save(*args)
+      with patch.object(project_compatibility, '_save_contract_migration', side_effect=interrupted_save):
+        with self.assertRaises(ValueError):
+          project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertEqual(result['migration']['status'], 'NEEDS_HUMAN')
+      self.assertEqual(result['migration']['applied'], ['planning/decisions/DEC-101.yml', 'planning/decisions/DEC-102.yml'])
+      self.assertEqual(result['plan']['repairs'], [])
+
+    def test_contract_recovery_cli_rejects_ambiguous_write_flags(self):
+      for arguments in (['migrate', '--apply-s'], ['migrate', '--dry-run', '--apply-safe'], ['migrate', '--mission-id', 'invented'], ['doctor', '--apply-safe']):
+        with self.subTest(arguments=arguments):
+          result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts' / 'project_compatibility.py'), *arguments, '--project-root', str(self.root)], capture_output=True, text=True)
+          self.assertEqual(result.returncode, 2)
+          self.assertIn('error:', result.stderr)
+
+    def test_realistic_legacy_fixture_preserves_identity_and_defers_only_missing_successor(self) -> None:
+      documents = json.loads((ROOT / 'tests/fixtures/legacy-upgrade/realistic-consumer.json').read_text())
+      before = copy.deepcopy(documents)
+      for relative, value in documents.items():
+        write_file(self.root, relative, project_compatibility.yaml.safe_dump(value, sort_keys=False))
+        if project_compatibility.contract_for(relative):
+          self.assertEqual(project_compatibility.schema_errors(relative, value), [], relative)
+      before_tree = tree_fingerprint(self.root)
+      status = build_project_status.build_status(self.root)
+      self.assertEqual(list(Draft7Validator(json.loads(SCHEMA.read_text())).iter_errors(status)), [])
+      self.assertEqual(tree_fingerprint(self.root), before_tree)
+      report = status['compatibility']
+      blocked = [item for item in report['diagnostics'] if item['blocking'] and item['source_path'] in documents]
+      self.assertEqual([(item['source_path'], item['authority']) for item in blocked],
+                       [('requirements/REQ-001.yml', 'superseded_by')])
+      self.assertEqual(documents, before)
+      self.assertEqual(project_compatibility.compatibility_projection('planning/decisions/DEC-102.yml', documents['planning/decisions/DEC-102.yml'])[0]['status'], 'PROPOSED')
+      process = documents['planning/lifecycle/process-state.yaml']
+      self.assertEqual(process['waves']['W02']['phase'], 'not_started')
+      self.assertEqual(process['waves']['W03']['verification']['lint'], 'not_run')
+      contradictory = copy.deepcopy(process)
+      contradictory['waves']['W02']['requirements']['no_requirements_assigned'] = True
+      self.assertTrue(project_compatibility.schema_errors('planning/lifecycle/process-state.yaml', contradictory))
+      unknown = copy.deepcopy(process)
+      unknown['waves']['W03']['verification']['acceptance'] = 'PASS'
+      self.assertTrue(project_compatibility.schema_errors('planning/lifecycle/process-state.yaml', unknown))
+      self.assertEqual(documents['planning/lifecycle/context-epoch.yaml']['mission']['id'], 'MISSION-2025-12-01-old-session')
+
+    def test_legacy_decision_repair_is_lossless_idempotent_and_never_invents_approval(self) -> None:
+      relative = 'planning/decisions/DEC-101.yml'
+      documents = json.loads((ROOT / 'tests/fixtures/legacy-upgrade/realistic-consumer.json').read_text())
+      value = documents[relative]
+      raw = ('# Keep this approval comment\n' + project_compatibility.yaml.safe_dump(value, sort_keys=False)).encode()
+      path = write_file(self.root, relative, raw.decode())
+      path.write_bytes(raw)
+      report = build_project_status.build_status(self.root)['compatibility']
+      plan = project_compatibility.repair_plan(self.root, report)
+      self.assertEqual([item['repair_type'] for item in plan['repairs']], ['LEGACY_DECISION_ALIASES_V1'])
+      replacement = project_compatibility.repair_candidates(self.root, report)[relative][0]
+      self.assertIn(b'# Keep this approval comment\n', replacement)
+      canonical = project_compatibility.load_yaml(replacement)
+      self.assertEqual(canonical['status'], 'CONFIRMED')
+      self.assertEqual(canonical['confirmed_at'], value['decided_at'])
+      self.assertEqual(canonical['confirmed_by'], value['decided_by'])
+      self.assertEqual(canonical['notes'], value['notes'])
+      self.assertEqual(path.read_bytes(), raw)
+      result = project_compatibility.apply_repair(self.root, plan['plan_hash'])
+      self.assertEqual(result['applied'], [relative])
+      self.assertEqual(path.read_bytes(), replacement)
+      self.assertEqual(project_compatibility.repair_plan(self.root, build_project_status.build_status(self.root)['compatibility'])['repairs'], [])
+      missing_approval = {key: child for key, child in value.items() if key != 'decided_by'}
+      self.assertTrue(project_compatibility.schema_errors(relative, missing_approval))
+      conflict = {**value, 'confirmed_by': 'DifferentOwner'}
+      self.assertEqual(project_compatibility.compatibility_projection(relative, conflict)[2], ['decided_by/confirmed_by'])
+      self.assertTrue(project_compatibility.schema_errors(relative, conflict))
+      unknown = {**value, 'decision_type': 'unclassified'}
+      self.assertTrue(project_compatibility.schema_errors(relative, unknown))
+
     def test_legacy_decisions_remain_historical_without_status_promotion(self) -> None:
       write_file(self.root, "planning/decisions/DEC-099.md", "# Historical\nSECRET-LEGACY-CONTENT\n")
       before = tree_fingerprint(self.root)
@@ -2607,8 +2852,8 @@ class ObservationStateTests(unittest.TestCase):
         import re
         source = (ROOT / "scripts" / "project_compatibility.py").read_text(encoding="utf-8")
         emitted = set(re.findall(r"rules\.append\('([a-z0-9_]+)'\)", source))
-        emitted -= {"task_inspect_typed_target_v1"}
-        emitted |= {"TASK_INSPECT_TYPED_TARGET_V1", "QUOTE_TEXT_SCALAR", "ADD_WAVE_ID"}
+        emitted -= {"task_inspect_typed_target_v1", "legacy_decision_aliases_v1"}
+        emitted |= {"TASK_INSPECT_TYPED_TARGET_V1", "LEGACY_DECISION_ALIASES_V1", "QUOTE_TEXT_SCALAR", "ADD_WAVE_ID"}
         self.assertGreaterEqual(len(emitted), 11)
         schema = json.loads(SCHEMA.read_text(encoding="utf-8-sig"))
         item = schema["properties"]["compatibility"]["properties"]["diagnostics"]["items"]

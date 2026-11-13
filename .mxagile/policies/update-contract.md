@@ -12,7 +12,11 @@ provenance record at `.mxagile/state/core-provenance.json` with the following ca
 | Field | Semantics |
 |---|---|
 | `schema_version` | Always `"1"` |
-| `flavor` | `"core"` (no Company Layer) or a Company Layer identifier (e.g. `"company-layer"` for the Company Layer) |
+| `flavor` | Backward-compatible semantic flavor; preserves an established product flavor instead of replacing it with generic `company-layer` |
+| `product_flavor` | Established semantic product flavor, or `null` when unknown; never guessed from a Core ref or Layer name |
+| `installation_flavor` | `core` or `company-layer`, independent of product identity |
+| `artifact_contract` / `previous_artifact_contract` | Current/prior normalized installed-schema snapshot and fingerprint; missing current identity is unobservable |
+| `recovery_tools` | Installed Python tools and Epoch Writer SHA256 hashes binding the narrowly scoped recovery helpers |
 | `source` | Distribution URL or local path used during installation |
 | `source_type` | `"git"` or `"local"` |
 | `ref` | Git branch/tag used (e.g. `"main"`); empty for local sources |
@@ -64,6 +68,12 @@ Checking procedure: `git ls-remote <source> <ref>` (read-only, no clone needed).
 
 Similarly for projections: `generated_from_core_commit == null` means projection currency
 is UNKNOWN — never CURRENT.
+
+Distribution currency, artifact-contract compatibility and product/Company identity are
+separate. A same-version or same-commit schema delta still requires current contract
+reconciliation. A commit-only update with unchanged contract and sources does not restart a
+completed artifact migration, but still invalidates loaded session context. Core `ref`/commit
+never replace Company Layer provenance. Unknown prior product identity remains unknown.
 
 ---
 
@@ -131,6 +141,13 @@ Update states:
 | `READY` | Session-derived state after current provenance, final Doctor, installed contracts, and lifecycle re-sync are all verified. | Delivery may proceed within the re-synced mission/wave/scope. `READY` is not inferred from a historical handoff. |
 
 The canonical cross-layer strategy is resumable partial update, not automatic Core rollback.
+After requested Core/Layer stages complete: observe contract delta -> persist scoped contract
+plan -> apply only deterministic safe repairs -> defer review/real decisions -> rebuild derived
+compatibility -> final Doctor -> invalidate/re-read context -> canonical lifecycle re-sync.
+The existing migration state holds a nested contract record; historical root `complete`
+flags do not prove current compatibility. NEEDS_HUMAN is an intentional unresolved decision,
+not failed installation. No ordinary delivery or Epoch write may bypass that boundary.
+
 Core updates replace shared generated contracts and may touch consumer/host projections; the
 Company Layer updater owns a bounded backup/rollback only for the Layer directory and its state
 manifest. There is no safe repository-wide Core rollback. If Core succeeds and Layer fails,

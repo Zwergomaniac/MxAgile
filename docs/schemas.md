@@ -361,7 +361,7 @@ require a separate `schema_version` field. Test Contract artifacts with
 from the parent TC's required `requirement_ids`.
 
 Requirement `source` is a finite category (`native`, `legacy`, `migrated`, `stakeholder`,
-`security_review`, or `design_contract`); a Design Contract revision belongs in `source_ref`, not
+`security_review`, `design_contract`, or `parity_check`); a Design Contract revision belongs in `source_ref`, not
 an ever-growing enum. Historical `design_contract_revN` and ISO-date `created` values are
 read-only projected by the Compatibility Doctor. Requirement `created_at` is the current field.
 
@@ -376,7 +376,17 @@ Evidence Manifest `created`/`scenarios` and Page `section_id`/navigation `target
 bounded projections documented in `.mxagile/policies/project-compatibility.md`. Page identity and
 ACTIVE_TARGET authority remain `page_id`, `source_mockup`, `target_mockup`, and the accepted
 revision; the Page schema does not accept a second `active_target` flag. Process State remains
-wave-scoped and unchanged at contract version 1.
+wave-scoped at contract version 1. It retains the finite historical `requirements` annotations
+and `verification` build summary without treating them as Task assignments or proof evidence.
+Legacy `not_started` means a registered Wave has not entered the lifecycle; normalization grants
+no delivery permission and never promotes it to an active phase.
+
+Canonical Decision YAML may project `OPEN` to `PROPOSED` and `ux` to `ux_interaction`.
+`DECIDED` is projectable to `CONFIRMED` only with explicit confirmation date and owner;
+`decided_at`/`decided_by` map to `confirmed_at`/`confirmed_by` without conflicting values.
+The controlled `LEGACY_DECISION_ALIASES_V1` repair preserves comments and unrelated bytes.
+Historical Decision Markdown remains non-authoritative. Mission slugs may contain hyphens;
+normalization never renames a Mission to match a stale Epoch.
 
 ### Intake Failure Semantics
 
@@ -417,6 +427,26 @@ A project is not fully native until `artifact_canonicalization: complete` in
 `.mxagile/migration/state.yaml`.
 
 See `.mxagile/skills/migration.md` for the canonicalization lifecycle.
+
+### Contract migration record
+
+`.mxagile/schemas/contract-migration.schema.json` validates only the nested
+`contract_migration` record in existing `.mxagile/migration/state.yaml`, not its historical
+root fields. Schema version is `"1"`; states are PLANNED, NEEDS_REVIEW, NEEDS_HUMAN,
+COMPLETE and FAILED. COMPLETE requires `completed_at`; other states keep it null.
+
+Source/target snapshots contain `contract_version: core-contract-reconciliation/1`, a map
+of normalized JSON-schema hashes and their aggregate fingerprint. Contract/plan/source
+fingerprints use `sha256:<64hex>`; Core/previous commits are nullable SHA40. Formatting and
+key order are ignored, but schema content is not. Planned repairs, applied source paths,
+checked source fingerprint and exact unresolved diagnostic references bind scoped progress.
+This record never replaces DFC status, canonicalization history, Wave state or acceptance.
+
+The canonical producer is `scripts/project_compatibility.py`; install/update delegates to
+`migrate --apply-safe`, while `contract-snapshot`, migrate without apply, and
+`resync-preflight` are read-only. Automatic apply includes only SAFE_DETERMINISTIC repairs;
+explicit decisions and reviewed agent candidates remain separate. Unavailable contract
+identity or verification is not COMPLETE. See `.mxagile/policies/project-compatibility.md`.
 
 ---
 

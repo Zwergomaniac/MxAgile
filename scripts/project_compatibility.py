@@ -108,6 +108,34 @@ def compatibility_projection(relative: str, value: Any) -> tuple[Any, list[str],
                 projected['source'] = 'design_contract'
                 projected['source_ref'] = source_ref
                 rules.append('requirement_design_contract_revision_v1')
+    elif artifact == 'decision':
+        aliases = {'decided_at': 'confirmed_at', 'decided_by': 'confirmed_by'}
+        status = projected.get('status')
+        if status == 'DECIDED':
+            date = iso_date_value(projected.get('decided_at', projected.get('confirmed_at')))
+            owner = projected.get('decided_by', projected.get('confirmed_by'))
+            if date is None or not isinstance(owner, str) or not owner.strip():
+                conflicts.append('decision approval evidence missing')
+            else:
+                projected['status'] = 'CONFIRMED'
+                rules.append('legacy_decision_aliases_v1')
+        elif status == 'OPEN':
+            if any(projected.get(field) for field in (*aliases, *aliases.values())):
+                conflicts.append('open decision/approval evidence')
+            else:
+                projected['status'] = 'PROPOSED'
+                rules.append('legacy_decision_aliases_v1')
+        if projected.get('decision_type') == 'ux':
+            projected['decision_type'] = 'ux_interaction'
+            rules.append('legacy_decision_aliases_v1')
+        for legacy, current in aliases.items():
+            if legacy not in projected:
+                continue
+            if current in projected and projected[current] != projected[legacy]:
+                conflicts.append(f'{legacy}/{current}')
+            else:
+                projected[current] = projected.pop(legacy)
+                rules.append('legacy_decision_aliases_v1')
     elif artifact == 'evidence-manifest':
         if 'created' in projected:
             created = iso_date_value(projected['created'])
@@ -603,7 +631,8 @@ def _document_result(relative: str, value: dict, contract: tuple[str, str]) -> d
                 if rule == 'task_inspect_typed_target_v1'
                 else 'Known legacy shape is projected read-only to the current contract; source bytes are unchanged.',
                 repairability='SAFE_DETERMINISTIC',
-                repair='TASK_INSPECT_TYPED_TARGET_V1' if rule == 'task_inspect_typed_target_v1' else rule,
+                repair={'task_inspect_typed_target_v1': 'TASK_INSPECT_TYPED_TARGET_V1',
+                        'legacy_decision_aliases_v1': 'LEGACY_DECISION_ALIASES_V1'}.get(rule, rule),
                 authority='.mxagile/policies/project-compatibility.md', severity='INFO')
     errors = schema_errors(relative, value)
     if errors:
@@ -1126,6 +1155,43 @@ def task_inspect_candidate(relative: str, raw: bytes) -> bytes | None:
     return candidate
 
 
+def legacy_decision_candidate(relative: str, raw: bytes) -> bytes | None:
+    if (contract_for(relative) or (None,))[0] != 'decision':
+        return None
+    try:
+        text = raw.decode('utf-8-sig')
+        original = load_yaml(text)
+        projected, rules, conflicts = compatibility_projection(relative, original)
+        node = yaml.compose(text, Loader=CanonicalLoader)
+    except (UnicodeError, yaml.YAMLError):
+        return None
+    if rules != ['legacy_decision_aliases_v1'] or conflicts or raw_schema_errors(relative, projected):
+        return None
+    if not isinstance(node, yaml.MappingNode) or node.flow_style:
+        return None
+    edits = []
+    aliases = {'decided_at': 'confirmed_at', 'decided_by': 'confirmed_by'}
+    for key, value in node.value:
+        if not isinstance(key, yaml.ScalarNode):
+            return None
+        if key.value in aliases:
+            if aliases[key.value] in original:
+                return None
+            edits.append((key.start_mark.index, key.end_mark.index, aliases[key.value]))
+        elif key.value in {'status', 'decision_type'} and original.get(key.value) != projected.get(key.value):
+            if not isinstance(value, yaml.ScalarNode):
+                return None
+            edits.append((value.start_mark.index, value.end_mark.index, json.dumps(projected[key.value])))
+    for start, end, replacement in sorted(edits, reverse=True):
+        text = text[:start] + replacement + text[end:]
+    try:
+        if load_yaml(text) != projected:
+            return None
+    except yaml.YAMLError:
+        return None
+    return (b'\xef\xbb\xbf' if raw.startswith(b'\xef\xbb\xbf') else b'') + text.encode('utf-8')
+
+
 def protected_values(value: Any, prefix: tuple = ()) -> dict:
     result = {}
     if isinstance(value, dict):
@@ -1165,6 +1231,10 @@ def repair_candidates(root: Path, report: dict, candidate_dir: Path | None = Non
             replacement = task_inspect_candidate(relative, raw)
             if replacement is not None:
                 candidates[relative] = replacement, 'TASK_INSPECT_TYPED_TARGET_V1'
+        elif diagnostic['proposed_repair_type'] == 'LEGACY_DECISION_ALIASES_V1':
+            replacement = legacy_decision_candidate(relative, raw)
+            if replacement is not None:
+                candidates[relative] = replacement, 'LEGACY_DECISION_ALIASES_V1'
         elif diagnostic['proposed_repair_type'] == 'ADD_WAVE_ID':
             value = load_yaml(raw.decode('utf-8-sig'))
             state, wave, provenance = assignment(root, value, waves, assignment_cache)
@@ -1194,8 +1264,12 @@ def repair_candidates(root: Path, report: dict, candidate_dir: Path | None = Non
     return candidates
 
 
-def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None) -> dict:
+def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None, *, safe_only: bool = False) -> dict:
     candidates = repair_candidates(root, report, candidate_dir)
+    if safe_only:
+        candidates = {path: candidate for path, candidate in candidates.items() if any(
+            item['source_path'] == path and item['proposed_repair_type'] == candidate[1]
+            and item['repairability'] == 'SAFE_DETERMINISTIC' for item in report['diagnostics'])}
     entries = []
     for relative, (replacement, kind) in sorted(candidates.items()):
         path = safe_file(root, relative)
@@ -1222,12 +1296,14 @@ def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None) -> 
                           if item['repairability'] != 'UNSUPPORTED'
                           and item['diagnostic_id'] not in targeted_diagnostics),
     }
+    if safe_only:
+        plan['repairability_scope'] = 'SAFE_DETERMINISTIC'
     plan['plan_hash'] = digest(json.dumps(plan, sort_keys=True).encode('utf-8'))
     return plan
 
 
 def atomic_replace(path: Path, raw: bytes) -> None:
-    mode = path.stat().st_mode
+    mode = path.stat().st_mode if path.exists() else 0o600
     temporary: str | None = None
     try:
         with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.mxagile-repair-', delete=False) as handle:
@@ -1243,11 +1319,11 @@ def atomic_replace(path: Path, raw: bytes) -> None:
             Path(temporary).unlink(missing_ok=True)
 
 
-def apply_repair(root: Path, expected_hash: str, candidate_dir: Path | None = None) -> dict:
+def apply_repair(root: Path, expected_hash: str, candidate_dir: Path | None = None, *, safe_only: bool = False) -> dict:
     from build_project_status import build_status
     before = build_status(root)
     report = before['compatibility']
-    plan = repair_plan(root, report, candidate_dir)
+    plan = repair_plan(root, report, candidate_dir, safe_only=safe_only)
     if plan['plan_hash'] != expected_hash:
         raise ValueError('Repair plan is stale or unapproved; rerun dry run.')
     replacements = repair_candidates(root, report, candidate_dir)
@@ -1290,6 +1366,201 @@ def apply_repair(root: Path, expected_hash: str, candidate_dir: Path | None = No
         if conflicts:
             raise RepairFailure('ROLLBACK_REQUIRES_MANUAL_RECOVERY') from None
         raise RepairFailure('SCOPED_ROLLBACK_COMPLETED') from None
+
+
+CONTRACT_MIGRATION_VERSION = 'core-contract-reconciliation/1'
+
+
+def contract_migration_validator(schema: dict):
+    checker = jsonschema.FormatChecker()
+
+    @checker.checks('date-time', raises=(ValueError, TypeError))
+    def valid_timestamp(value):
+        if not isinstance(value, str):
+            return True
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})', value):
+            return False
+        return datetime.datetime.fromisoformat(value.replace('Z', '+00:00')).tzinfo is not None
+
+    return jsonschema.Draft7Validator(schema, format_checker=checker)
+
+
+def contract_snapshot(root: Path) -> dict | None:
+    directory = root / '.mxagile' / 'schemas'
+    if not directory.is_dir() or directory.is_symlink():
+        return None
+    schemas = {}
+    for path in sorted(directory.glob('*.json')):
+        if path.is_symlink():
+            raise ValueError('Contract schema path is unsafe.')
+        value = json.loads(path.read_text(encoding='utf-8-sig'))
+        schemas[path.name] = digest(json.dumps(value, sort_keys=True, separators=(',', ':')).encode('utf-8'))
+    if not schemas:
+        return None
+    identity = {'contract_version': CONTRACT_MIGRATION_VERSION, 'schemas': schemas}
+    return {**identity, 'fingerprint': digest(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode('utf-8'))}
+
+
+def _migration_state(root: Path) -> tuple[Path, bytes, dict]:
+    path = root / '.mxagile' / 'migration' / 'state.yaml'
+    current = root
+    for part in ('.mxagile', 'migration', 'state.yaml'):
+        current /= part
+        if current.is_symlink():
+            raise ValueError('Migration state path is unsafe.')
+    raw = path.read_bytes() if path.exists() else b''
+    value = load_yaml(raw.decode('utf-8-sig')) if raw else {}
+    if not isinstance(value, dict):
+        raise ValueError('Migration state is not a mapping.')
+    return path, raw, value
+
+
+def _save_contract_migration(root: Path, record: dict, expected: bytes) -> bytes:
+    path, raw, value = _migration_state(root)
+    if raw != expected:
+        raise ValueError('Migration history changed concurrently.')
+    schema = json.loads((root / '.mxagile' / 'schemas' / 'contract-migration.schema.json').read_text(encoding='utf-8-sig'))
+    if jsonschema is None or list(contract_migration_validator(schema).iter_errors(record)):
+        raise ValueError('Contract migration record failed validation.')
+    text = raw.decode('utf-8-sig')
+    newline = '\r\n' if b'\r\n' in raw else '\n'
+    block = yaml.safe_dump({'contract_migration': record}, sort_keys=False, allow_unicode=True).replace('\n', newline)
+    if 'contract_migration' in value:
+        node = yaml.compose(text, Loader=CanonicalLoader)
+        key, child = next((key, child) for key, child in node.value if key.value == 'contract_migration')
+        if key.start_mark.column != 0 or not isinstance(child, yaml.MappingNode) or child.flow_style:
+            raise ValueError('Migration record cannot be updated surgically.')
+        lines = text.splitlines(keepends=True)
+        start = sum(len(line) for line in lines[:key.start_mark.line])
+        end_line = key.start_mark.line + 1
+        while end_line < len(lines) and (not lines[end_line].strip() or lines[end_line][0].isspace()):
+            end_line += 1
+        end = sum(len(line) for line in lines[:end_line])
+        text = text[:start] + block + text[end:]
+    else:
+        text += (newline if text and not text.endswith(('\r', '\n')) else '') + block
+    replacement = (b'\xef\xbb\xbf' if raw.startswith(b'\xef\xbb\xbf') else b'') + text.encode('utf-8')
+    parsed = load_yaml(replacement.decode('utf-8-sig'))
+    if {k: v for k, v in parsed.items() if k != 'contract_migration'} != {k: v for k, v in value.items() if k != 'contract_migration'}:
+        raise ValueError('Migration history would change.')
+    if replacement != raw:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_replace(path, replacement)
+    return replacement
+
+
+def reconcile_contract(root: Path, *, apply_safe: bool = False) -> dict:
+    from build_project_status import build_status
+    root = root.resolve()
+    target = contract_snapshot(root)
+    if target is None:
+        raise ValueError('Current artifact contract is not observable.')
+    provenance_path = safe_file(root, '.mxagile/state/core-provenance.json')
+    provenance = json.loads(provenance_path.read_text(encoding='utf-8-sig')) if provenance_path else {}
+    if provenance.get('artifact_contract') != target:
+        raise ValueError('Installed contract differs from current Core provenance.')
+    transaction_path = safe_file(root, '.mxagile/state/update-transaction.json')
+    if apply_safe and transaction_path:
+        transaction = json.loads(transaction_path.read_text(encoding='utf-8-sig'))
+        if (transaction.get('state') != 'UPDATE_IN_PROGRESS' or transaction.get('current_stage') != 'POST_UPDATE_DOCTOR'
+                or not {'CORE_UPDATE', 'COMPANY_LAYER_UPDATE'} <= set(transaction.get('completed_stages', []))):
+            raise ValueError('Update recovery must finish its installation stages before contract writes.')
+    _, raw, state = _migration_state(root)
+    previous = state.get('contract_migration') or {}
+    if previous:
+        schema = json.loads((root / '.mxagile' / 'schemas' / 'contract-migration.schema.json').read_text(encoding='utf-8-sig'))
+        if jsonschema is None or list(contract_migration_validator(schema).iter_errors(previous)):
+            raise ValueError('Prior contract migration record is invalid.')
+    same_target = previous.get('target') == target
+    report = build_status(root)['compatibility']
+    plan = repair_plan(root, report, safe_only=True)
+    required = not same_target or previous.get('status') != 'COMPLETE' or bool(plan['repairs']) or report['compatibility'] == 'BLOCKED'
+    if not required:
+        return {'stage': 'CONTRACT_MIGRATION_CHECKED', 'read_only': True, 'required': False, 'migration': previous, 'plan': plan, 'doctor': report}
+    record = {
+        'schema_version': '1', 'status': 'PLANNED',
+        'source': previous.get('source') if same_target else provenance.get('previous_artifact_contract'),
+        'target': target,
+        'from_core_commit': previous.get('from_core_commit') if same_target else provenance.get('previous_commit'),
+        'to_core_commit': provenance.get('commit'),
+        'plan_hash': plan['plan_hash'], 'planned_repairs': plan['repairs'],
+        'applied': list(previous.get('applied', [])) if same_target else [],
+        'checked_source_fingerprint': report['source_fingerprint'],
+        'decision_references': [], 'completed_at': None,
+    }
+    legacy_partial = state.get('status') not in (None, 'complete') or state.get('artifact_canonicalization') == 'in_progress'
+    if apply_safe and not legacy_partial:
+        raw = _save_contract_migration(root, record, raw)
+        for entry in previous.get('planned_repairs', []) if same_target else []:
+            path = safe_file(root, entry['source_path'])
+            if path and digest(path.read_bytes()) == entry['after_fingerprint']:
+                record['applied'].append(entry['source_path'])
+        try:
+            applied = apply_repair(root, plan['plan_hash'], safe_only=True)
+        except Exception:
+            record['status'] = 'FAILED'
+            _save_contract_migration(root, record, raw)
+            raise
+        record['applied'] = sorted(set(record['applied'] + applied['applied']))
+        report = applied['compatibility']
+    if apply_safe:
+        blocking = [item for item in report['diagnostics'] if item['blocking']]
+        decisions = [item for item in blocking if item['repairability'] == 'DECISION_REQUIRED']
+        record['status'] = 'NEEDS_HUMAN' if decisions else ('NEEDS_REVIEW' if blocking or legacy_partial else 'COMPLETE')
+        record['decision_references'] = [{key: item[key] for key in ('diagnostic_id', 'source_path', 'authority', 'category', 'repairability') if key in item} for item in blocking]
+        record['checked_source_fingerprint'] = report['source_fingerprint']
+        if record['status'] == 'COMPLETE':
+            record['completed_at'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        if same_target and previous.get('status') == record['status'] and previous.get('checked_source_fingerprint') == record['checked_source_fingerprint'] and not plan['repairs']:
+            record = previous
+        _save_contract_migration(root, record, raw)
+    return {'stage': 'CONTRACT_MIGRATION_CHECKED', 'read_only': not apply_safe, 'required': True, 'migration': record, 'plan': plan, 'doctor': report}
+
+
+def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase: str = '') -> dict:
+    from build_project_status import build_status
+    root = root.resolve()
+    target = contract_snapshot(root)
+    _, _, state = _migration_state(root)
+    record = state.get('contract_migration') or {}
+    reasons = []
+    if safe_file(root, '.mxagile/state/update-transaction.json'):
+        reasons.append('UPDATE_RECOVERY_REQUIRED')
+    provenance_path = safe_file(root, '.mxagile/state/core-provenance.json')
+    provenance = json.loads(provenance_path.read_text(encoding='utf-8-sig')) if provenance_path else {}
+    schema_path = safe_file(root, '.mxagile/schemas/contract-migration.schema.json')
+    schema = json.loads(schema_path.read_text(encoding='utf-8-sig')) if schema_path else {}
+    valid_record = jsonschema is not None and schema_path is not None and not list(contract_migration_validator(schema).iter_errors(record))
+    if target is None or provenance.get('artifact_contract') != target:
+        reasons.append('CONTRACT_IDENTITY_NOT_OBSERVABLE')
+    if not valid_record or record.get('target') != target or record.get('status') != 'COMPLETE':
+        reasons.append('CONTRACT_MIGRATION_REQUIRED')
+    if state.get('status') not in (None, 'complete') or state.get('artifact_canonicalization') == 'in_progress':
+        reasons.append('LEGACY_MIGRATION_INCOMPLETE')
+    report = build_status(root)['compatibility']
+    if report['compatibility'] == 'BLOCKED':
+        reasons.append('DOCTOR_BLOCKED')
+    mission_path = safe_file(root, 'planning/mission/mission-state.yaml')
+    process_path = safe_file(root, 'planning/lifecycle/process-state.yaml')
+    mission = load_yaml(mission_path.read_text(encoding='utf-8-sig')) if mission_path else {}
+    process = load_yaml(process_path.read_text(encoding='utf-8-sig')) if process_path else {}
+    if schema_errors('planning/mission/mission-state.yaml', mission) or schema_errors('planning/lifecycle/process-state.yaml', process):
+        reasons.append('CANONICAL_STATE_INVALID')
+    canonical_mission = mission.get('mission_id') if isinstance(mission, dict) else None
+    canonical_wave = mission.get('active_wave') if isinstance(mission, dict) else None
+    waves = process.get('waves', {}) if isinstance(process, dict) else {}
+    active = waves.get(canonical_wave, {}) if isinstance(waves, dict) else {}
+    canonical_phase = active.get('phase') if isinstance(active, dict) else None
+    if not canonical_mission or not canonical_wave or canonical_phase in (None, 'not_started'):
+        reasons.append('CANONICAL_ACTIVE_SCOPE_UNRESOLVED')
+    if mission_id and mission_id != canonical_mission:
+        reasons.append('MISSION_ID_CONFLICT')
+    if wave_id and wave_id != canonical_wave:
+        reasons.append('ACTIVE_WAVE_CONFLICT')
+    if phase and phase != canonical_phase:
+        reasons.append('CANONICAL_PHASE_CONFLICT')
+    return {'stage': 'RESYNC_PREFLIGHT', 'read_only': True, 'state': 'RECONCILIATION_REQUIRED' if reasons else 'READY_FOR_RESYNC',
+            'reason_codes': reasons, 'mission_id': canonical_mission, 'wave_id': canonical_wave, 'phase': canonical_phase}
 
 
 BOARD_SMOKE_FAILING_RESULTS = ('FAIL', 'TIMEOUT', 'ERROR')
@@ -1436,13 +1707,17 @@ def board_smoke_exit_code(doctor_code: int, smoke: dict | None, *, required: boo
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Read-only project compatibility Doctor.')
-    parser.add_argument('command', choices=['doctor', 'repair'], nargs='?', default='doctor')
+    parser = argparse.ArgumentParser(description='Project compatibility Doctor and scoped contract recovery.', allow_abbrev=False)
+    parser.add_argument('command', choices=['doctor', 'repair', 'contract-snapshot', 'migrate', 'resync-preflight'], nargs='?', default='doctor')
     parser.add_argument('--project-root', type=Path, default=Path.cwd())
     parser.add_argument('--format', choices=['json', 'human'], default='human')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--dry-run', action='store_true')
     mode.add_argument('--apply', action='store_true')
+    mode.add_argument('--apply-safe', action='store_true')
+    parser.add_argument('--mission-id', default='')
+    parser.add_argument('--wave', default='')
+    parser.add_argument('--phase', default='')
     parser.add_argument('--plan-hash')
     parser.add_argument('--candidate-dir', type=Path)
     parser.add_argument('--board-smoke', action='store_true',
@@ -1456,8 +1731,25 @@ def main() -> int:
         parser.error('doctor is read-only; repair arguments require repair.')
     if args.command == 'repair' and (args.board_smoke or args.require_board_smoke):
         parser.error('the Board smoke is a Doctor option; it cannot be combined with repair.')
+    if args.apply_safe and args.command != 'migrate':
+        parser.error('--apply-safe requires migrate.')
+    if args.command != 'resync-preflight' and (args.mission_id or args.wave or args.phase):
+        parser.error('Mission, Wave and phase selectors require resync-preflight.')
+    if args.command in ('contract-snapshot', 'migrate', 'resync-preflight') and (args.apply or args.plan_hash or args.candidate_dir or args.board_smoke or args.require_board_smoke):
+        parser.error('Contract recovery does not accept arbitrary repair or smoke arguments.')
     run_smoke = args.board_smoke or args.require_board_smoke
     try:
+        if args.command == 'contract-snapshot':
+            print(json.dumps(contract_snapshot(root), sort_keys=True))
+            return 0
+        if args.command == 'migrate':
+            result = reconcile_contract(root, apply_safe=args.apply_safe)
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return {'COMPATIBLE': 0, 'PARTIAL': 1, 'BLOCKED': 2}[result['doctor']['compatibility']]
+        if args.command == 'resync-preflight':
+            result = resync_preflight(root, args.mission_id, args.wave, args.phase)
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0 if result['state'] == 'READY_FOR_RESYNC' else 2
         report = build_status(root)['compatibility']
         if args.command == 'repair':
             if args.apply:

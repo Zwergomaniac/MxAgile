@@ -76,8 +76,10 @@ class ProjectFacts:
     planned_waves: set[str] = field(default_factory=set)
     migration_state: dict[str, Any] = field(default_factory=dict)
     last_update: dict[str, Any] = field(default_factory=dict)
+    core_provenance: dict[str, Any] = field(default_factory=dict)
     doctor_compatibility: str | None = None
     doctor_blocking: list[str] = field(default_factory=list)
+    doctor_diagnostics: list[dict[str, Any]] = field(default_factory=list)
     source_fingerprints: list[dict[str, str]] = field(default_factory=list)
     load_issues: list[str] = field(default_factory=list)
 
@@ -173,6 +175,19 @@ def load_project_facts(project_root: str | Path) -> ProjectFacts:
         facts.migration_state = _load_yaml(
             root, ".mxagile/migration/state.yaml", None, facts.load_issues, facts.source_fingerprints
         )
+    provenance_path = root / '.mxagile' / 'state' / 'core-provenance.json'
+    if provenance_path.is_file():
+        try:
+            loaded = json.loads(provenance_path.read_text(encoding='utf-8-sig'))
+            if not isinstance(loaded, dict) or _parse_time(loaded.get('installed_at')) is None:
+                raise ValueError('invalid installation timestamp')
+            commit = loaded.get('commit')
+            if commit is not None and (not isinstance(commit, str) or not re.fullmatch(r'[a-f0-9]{40}', commit)):
+                raise ValueError('invalid installed commit')
+            facts.core_provenance = loaded
+            facts.source_fingerprints.append(_fingerprint(provenance_path, '.mxagile/state/core-provenance.json'))
+        except (OSError, ValueError):
+            facts.load_issues.append('SOURCE_UNREADABLE:.mxagile/state/core-provenance.json')
     handoff_path = root / ".mxagile" / "state" / "last-update-result.json"
     if handoff_path.is_file():
         try:
@@ -246,6 +261,7 @@ def _run_doctor(facts: ProjectFacts) -> None:
         facts.load_issues.append(f"DOCTOR_UNAVAILABLE:{type(exc).__name__}")
         return
     facts.doctor_compatibility = report.get("compatibility")
+    facts.doctor_diagnostics = [item for item in report.get('diagnostics', []) if item.get('blocking')]
     facts.doctor_blocking = sorted(
         {str(item.get("category")) for item in report.get("diagnostics", []) if item.get("blocking")}
     )
@@ -293,9 +309,9 @@ def _lifecycle_integrity(facts: ProjectFacts) -> tuple[list[dict[str, str]], lis
     """Migration, update, re-sync and Doctor gates shared by every operation."""
     findings: list[dict[str, str]] = []
     migration = facts.migration_state
-    migration_status = migration.get("status") if migration else "none"
+    migration_status = migration.get("status", "none") if migration else "none"
     canonicalization = migration.get("artifact_canonicalization", "none") if migration else "none"
-    if migration and migration_status != "complete":
+    if migration_status not in ('none', 'complete'):
         disposition, recovery = ("fail", "resume") if migration_status == "in_progress" else ("needs_human", "inspect")
         findings.append(_finding("MIGRATION_IN_PROGRESS", f"Framework migration status is {migration_status}.", disposition, ".mxagile/migration/state.yaml", recovery))
     if canonicalization == "in_progress":
@@ -303,18 +319,38 @@ def _lifecycle_integrity(facts: ProjectFacts) -> tuple[list[dict[str, str]], lis
     elif canonicalization == "pending":
         findings.append(_finding("HYBRID_ARTIFACTS", "Legacy artifacts are not yet canonicalized; hybrid mode is valid.", "advisory", ".mxagile/migration/state.yaml"))
 
+    if 'artifact_contract' in facts.core_provenance:
+        from project_compatibility import contract_migration_validator, contract_snapshot
+        target = facts.core_provenance.get('artifact_contract')
+        record = migration.get('contract_migration') or {}
+        try:
+            schema = json.loads((facts.root / '.mxagile' / 'schemas' / 'contract-migration.schema.json').read_text(encoding='utf-8-sig'))
+            valid_record = isinstance(record, dict) and not list(contract_migration_validator(schema).iter_errors(record))
+            actual = contract_snapshot(facts.root)
+        except (OSError, ValueError):
+            valid_record, actual = False, None
+        if not target or actual != target:
+            findings.append(_finding('CONTRACT_IDENTITY_NOT_OBSERVABLE', 'Current schema identity does not match installed Core provenance.', 'unavailable', recovery='inspect'))
+        elif not valid_record or record.get('target') != target:
+            findings.append(_finding('CONTRACT_MIGRATION_REQUIRED', 'Historical migration completion is not bound to the installed contract.', 'fail', '.mxagile/migration/state.yaml', 'resume'))
+        elif record.get('status') != 'COMPLETE':
+            human = record.get('status') == 'NEEDS_HUMAN'
+            findings.append(_finding('CONTRACT_MIGRATION_NEEDS_HUMAN' if human else 'CONTRACT_MIGRATION_PENDING', f"Current contract reconciliation is {record.get('status')}.", 'needs_human' if human else 'fail', '.mxagile/migration/state.yaml', 'human_resolution' if human else 'resume'))
+
     transaction_state = "none"
     if facts.update_transaction_present:
         transaction_state = str((facts.update_transaction or {}).get("state", "UNKNOWN"))
         disposition, recovery = UPDATE_STATE_RULES.get(transaction_state, ("needs_human", "inspect"))
         findings.append(_finding("UPDATE_NOT_READY", f"Persisted update transaction is {transaction_state}.", disposition, ".mxagile/state/update-transaction.json", recovery))
 
-    installed_at = _parse_time(facts.last_update.get("installed_at"))
+    installed_at = _parse_time(facts.core_provenance.get("installed_at"))
+    if facts.last_update and not facts.core_provenance:
+        findings.append(_finding('UPDATE_IDENTITY_NOT_OBSERVABLE', 'Historical update evidence cannot establish the current installation identity.', 'unavailable', '.mxagile/state/core-provenance.json', 'doctor'))
     if installed_at:
         installed_at = installed_at.replace(microsecond=0)
     checkpoint_at = _parse_time((facts.context_epoch.get("repository") or {}).get("checkpoint_time"))
     if installed_at and (checkpoint_at is None or checkpoint_at < installed_at):
-        findings.append(_finding("CONTEXT_STALE_AFTER_UPDATE", "The framework was updated after the last Context Epoch re-sync.", "unavailable", ".mxagile/state/last-update-result.json", "resync"))
+        findings.append(_finding("CONTEXT_STALE_AFTER_UPDATE", "The framework was updated after the last Context Epoch re-sync.", "unavailable", ".mxagile/state/core-provenance.json", "resync"))
 
     if facts.doctor_compatibility == "BLOCKED":
         categories = ", ".join(facts.doctor_blocking[:5]) or "unspecified"
@@ -326,6 +362,7 @@ def _lifecycle_integrity(facts: ProjectFacts) -> tuple[list[dict[str, str]], lis
         f"canonicalization:{canonicalization}",
         f"update_transaction:{transaction_state}",
         f"doctor:{facts.doctor_compatibility or 'unknown'}",
+        f"core_provenance:{'available' if facts.core_provenance else 'not_observable'}",
     ]
     return findings, checked
 
@@ -478,6 +515,42 @@ def _evidence_findings(facts: ProjectFacts, references: Any) -> list[dict[str, s
     return findings
 
 
+def _recovery_plan(facts: ProjectFacts, findings: list[dict[str, str]]) -> dict[str, Any]:
+    """Ordered projection of existing findings, never permission to perform a recovery write."""
+    by_code = {f['code']: f for f in findings}
+    primary = None
+    blocker = None
+    for code in ('UPDATE_NOT_READY', 'MIGRATION_IN_PROGRESS', 'MIGRATION_PARTIAL', 'CONTRACT_IDENTITY_NOT_OBSERVABLE', 'CONTRACT_MIGRATION_REQUIRED', 'CONTRACT_MIGRATION_NEEDS_HUMAN', 'CONTRACT_MIGRATION_PENDING', 'DOCTOR_BLOCKED', 'UPDATE_IDENTITY_NOT_OBSERVABLE'):
+        if code in by_code:
+            blocker = code
+            primary = by_code[code].get('recovery') or 'inspect'
+            break
+    decisions = [item for item in facts.doctor_diagnostics if item.get('repairability') == 'DECISION_REQUIRED']
+    if blocker == 'DOCTOR_BLOCKED' and decisions:
+        primary = 'human_resolution'
+    if primary is None:
+        prerequisite = next((f for f in findings if f['code'] != 'MUTATION_PHASE_BLOCKED' and f.get('recovery') != 'resync'), None)
+        if prerequisite:
+            primary = prerequisite.get('recovery') or 'inspect'
+    if primary is None and any(f.get('recovery') == 'resync' for f in findings):
+        primary = 'resync'
+    if primary is None:
+        primary = next((f.get('recovery') for f in findings if f.get('recovery')), None)
+    allowed = ['inspect', 'doctor']
+    if primary and primary not in allowed:
+        allowed.append(primary)
+    return {
+        'primary_next_action': primary,
+        'allowed_recovery_actions': allowed,
+        'blocked_recovery_actions': ['resync'] if findings and primary != 'resync' else [],
+        'reason_codes': [f['code'] for f in findings],
+        'decision_references': [
+            {key: item[key] for key in ('diagnostic_id', 'source_path', 'authority', 'category') if isinstance(item.get(key), str)}
+            for item in decisions
+        ],
+    }
+
+
 def _finish(
     facts: ProjectFacts,
     request: dict[str, Any],
@@ -524,6 +597,7 @@ def _finish(
         "input_references": input_references,
         "evidence_references": evidence_references or [],
         "must_findings": findings,
+        "recovery_plan": _recovery_plan(facts, findings),
         "should_findings": should_findings or [],
         "scope": {"summary": str(scope.get("summary") or "unspecified"), "paths": list(scope.get("paths") or [])},
         "checked_roles": checked_roles or [],
@@ -699,7 +773,7 @@ def _protected_child_scope(paths: list[str]) -> bool:
     return any(_scope_matches(protected, paths) for protected in PROTECTED_LIFECYCLE_PATHS)
 
 
-def delivery_authorization(facts: ProjectFacts, operation_class: str, request_id: str = "host-pretool") -> dict[str, Any]:
+def delivery_authorization(facts: ProjectFacts, operation_class: str, request_id: str = "host-pretool", *, require_implementing: bool = True) -> dict[str, Any]:
     """Delivery authorization derived only from canonical state; used by host enforcement adapters."""
     request = {
         "request_id": request_id,
@@ -708,7 +782,7 @@ def delivery_authorization(facts: ProjectFacts, operation_class: str, request_id
         "wave_id": facts.mission.get("active_wave"),
     }
     findings, checked, wave = _base_checks(facts, request)
-    if wave is not None and wave.get("phase") != "implementing":
+    if require_implementing and wave is not None and wave.get("phase") != "implementing":
         # An implementing phase is the canonical record of the developer's explicit approval.
         findings.append(_finding("MUTATION_PHASE_BLOCKED", f"Active Wave is {wave.get('phase')}; implementation writes require implementing.", "fail", recovery="human_resolution"))
     findings.append(_finding("MODEL_SCOPE_NOT_OBSERVABLE", "Per-unit Mendix model scope is not observable at the host tool boundary.", "advisory"))

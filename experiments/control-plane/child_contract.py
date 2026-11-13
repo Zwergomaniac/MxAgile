@@ -259,6 +259,13 @@ def accept_child_result(
 ) -> dict[str, Any]:
     """`process exited` is not `delivery accepted`: deterministic acceptance of one child result."""
     root = Path(root).resolve()
+    if handoff.get('capability') == 'read_only_diagnostic':
+        return {
+            'status': 'REJECTED',
+            'findings': [{'code': 'DIAGNOSTIC_RESULT_NOT_DELIVERY', 'summary': 'Diagnostic findings cannot satisfy delivery or visual acceptance.'}],
+            'forbidden_changes': [], 'gate': None,
+            'event': {'type': 'child_rejected', 'run_id': handoff.get('run_id'), 'parent_run_id': handoff.get('parent_run_id')},
+        }
     findings: list[dict[str, str]] = []
     status = "ACCEPTED"
 

@@ -32,6 +32,19 @@ $updateMutationStarted = $false
 $updateStage = 'PREFLIGHT'
 $updateTransactionPath = $null
 
+function Get-CoreArtifactContract {
+    param([string]$Root)
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
+    if (-not $python) { return $null }
+    try {
+        $PSNativeCommandUseErrorActionPreference = $false
+        $output = & $python.Source -B (Join-Path $PSScriptRoot 'project_compatibility.py') contract-snapshot --project-root $Root --format json 2>$null
+        if ($LASTEXITCODE -ne 0) { return $null }
+        return (($output -join "`n") | ConvertFrom-Json -AsHashtable -ErrorAction Stop)
+    } catch { return $null }
+}
+
 function Invoke-PostUpdateCompatibility {
     param([string]$Root, [string]$ToolsDir, [System.Collections.IDictionary]$CoreProvenance)
 
@@ -39,8 +52,9 @@ function Invoke-PostUpdateCompatibility {
         schema_version = 1
         installed_at = $CoreProvenance.installed_at
         update_state = if ($CoreProvenance.install_mode -eq 'update') { 'UPDATE_INSTALLED_RESTART_REQUIRED' } else { 'INSTALL_COMPLETED' }
-        completed_stages = @('CORE_INSTALL', 'GENERATED_PROJECTIONS', 'DOCTOR')
+        completed_stages = @('CORE_INSTALL', 'GENERATED_PROJECTIONS')
         failed_stage = $null
+        migration = [ordered]@{ status = 'NOT_VERIFIED' }
         context_state = 'STALE'
         restart_required = $false
         resync_required = $true
@@ -80,16 +94,21 @@ function Invoke-PostUpdateCompatibility {
             $doctor.reason = 'DOCTOR_SCRIPT_UNAVAILABLE'
             if (-not (Test-Path -LiteralPath $doctorPath -PathType Leaf)) { throw 'Doctor script missing' }
             $doctor.reason = 'DOCTOR_EXECUTION_FAILED: check Python and .mxagile/tools/requirements.txt'
-            $doctor.executed = $true
             $PSNativeCommandUseErrorActionPreference = $false
-            $doctorOutput = & $pythonCommand.Source $doctorPath doctor --project-root $Root --format json 2>$null
+            $doctorOutput = & $pythonCommand.Source -B $doctorPath migrate --apply-safe --project-root $Root --format json 2>$null
             $doctor.exit_code = $LASTEXITCODE
             if ($doctor.exit_code -notin @(0, 1, 2)) {
                 $doctor.reason = "DOCTOR_EXIT_$($doctor.exit_code): check Python and .mxagile/tools/requirements.txt"
                 throw 'Doctor unavailable'
             }
             $doctor.reason = 'DOCTOR_OUTPUT_INVALID'
-            $report = ($doctorOutput -join "`n") | ConvertFrom-Json
+            $migrationResult = ($doctorOutput -join "`n") | ConvertFrom-Json
+            if ($migrationResult.stage -ne 'CONTRACT_MIGRATION_CHECKED') { throw 'Migration contract invalid' }
+            $result.migration = $migrationResult.migration
+            $result.completed_stages += 'CONTRACT_MIGRATION'
+            $report = $migrationResult.doctor
+            $doctor.executed = $true
+            $result.completed_stages += 'DOCTOR'
             if ($report.stage -ne 'PROJECT_COMPATIBILITY_CHECKED' -or $report.read_only -ne $true -or
                 $report.compatibility -notin @('COMPATIBLE', 'PARTIAL', 'BLOCKED') -or
                 $doctor.exit_code -ne @{'COMPATIBLE'=0; 'PARTIAL'=1; 'BLOCKED'=2}[$report.compatibility]) {
@@ -130,6 +149,7 @@ function Invoke-PostUpdateCompatibility {
     $commit = if ($CoreProvenance.commit) { $CoreProvenance.commit } else { 'UNKNOWN' }
     Write-Host "Framework previous: $previousVersion / $previousCommit"
     Write-Host "Framework installed: $($CoreProvenance.version) / $commit"
+    Write-Host "Contract migration: $($result.migration.status)"
     Write-Host "Doctor executed: $($doctor.executed)"
     Write-Host "PROJECT_COMPATIBILITY: $($doctor.compatibility)"
     if ($doctor.reason) { Write-Host "  Reason: $($doctor.reason)" }
@@ -159,7 +179,7 @@ function Invoke-PostUpdateCompatibility {
         "$field=$value"
     }
     Write-Host "version=$($CoreProvenance.version) commit=$commit Framework_update=SUCCESS Doctor_executed=$($doctor.executed) Compatibility=$($doctor.compatibility) repair_status=$($doctor.repair_status) $($counts -join ' ') SESSION_CONTRACT=RE_SYNC_REQUIRED; re-read .mxagile/policies/update-contract.md before completion; otherwise UPDATE_INSTALLED_RESTART_REQUIRED / NOT_VERIFIED"
-    $summary = [ordered]@{ installed_at = $result.installed_at; framework = $result.framework; session_contract = $result.session_contract; doctor = [ordered]@{} }
+    $summary = [ordered]@{ installed_at = $result.installed_at; framework = $result.framework; migration = $result.migration; session_contract = $result.session_contract; doctor = [ordered]@{} }
     foreach ($key in $doctor.Keys) {
         if ($key -ne 'report') { $summary.doctor[$key] = $doctor[$key] }
     }
@@ -426,6 +446,7 @@ try {
         throw "HOST_CONFIG_CONFLICT: mxcli init --all-tools would run while host/unknown MCP configuration exists ($($existingHostMcpConfigs -join ', ')); resolve ownership before setup. No project mutation has started."
     }
 
+    $previousArtifactContract = Get-CoreArtifactContract -Root $ProjectRoot
     $updateMutationStarted = $true
     $updateStage = 'PROJECT_INITIALIZATION'
     Add-ContextModeRuntimeGitIgnore -Root $ProjectRoot
@@ -683,6 +704,8 @@ try {
     }
     Copy-Item -LiteralPath $epochReaderSource -Destination (Join-Path $destToolsDir 'Read-MxAgileEpochCheckpoint.ps1') -Force
     Write-Host "[OK] Distributed .mxagile/tools/Read-MxAgileEpochCheckpoint.ps1."
+    $epochWriterSource = Join-Path $PSScriptRoot 'Write-MxAgileEpochCheckpoint.ps1'
+    Copy-Item -LiteralPath $epochWriterSource -Destination (Join-Path $destToolsDir 'Write-MxAgileEpochCheckpoint.ps1') -Force
 
     foreach ($delegationTool in @('Save-MxAgileDelegationResult.ps1', 'Get-MxAgileDelegationResult.ps1', 'Save-MxAgileRoutingDecision.ps1')) {
         $delegationToolSource = Join-Path $PSScriptRoot $delegationTool
@@ -822,12 +845,16 @@ try {
     $previousCommit      = $null
     $previousVersion     = $null
     $previousInstalledAt = $null
+    $previousFlavor = $null
+    $previousProductFlavor = $null
     if ($IsUpdate -and (Test-Path -LiteralPath $coreProvPath -PathType Leaf)) {
         try {
             $prevProv = Get-Content -LiteralPath $coreProvPath -Raw | ConvertFrom-Json -ErrorAction Stop
             if ($prevProv.PSObject.Properties.Name -contains 'commit')       { $previousCommit      = $prevProv.commit }
             if ($prevProv.PSObject.Properties.Name -contains 'version')      { $previousVersion     = $prevProv.version }
             if ($prevProv.PSObject.Properties.Name -contains 'installed_at') { $previousInstalledAt = $prevProv.installed_at }
+            if ($prevProv.PSObject.Properties.Name -contains 'flavor') { $previousFlavor = $prevProv.flavor }
+            if ($prevProv.PSObject.Properties.Name -contains 'product_flavor') { $previousProductFlavor = $prevProv.product_flavor }
         } catch { }
     }
 
@@ -865,9 +892,25 @@ try {
         } catch { }
     }
 
+    $productFlavor = $previousProductFlavor
+    if (-not $productFlavor -and $previousFlavor -and $previousFlavor -notin @('core', 'company-layer')) { $productFlavor = $previousFlavor }
+    if ($ProvenanceFlavor -and $ProvenanceFlavor -notin @('core', 'company-layer')) { $productFlavor = $ProvenanceFlavor }
+    $effectiveFlavor = if ($productFlavor) { $productFlavor } elseif ($ProvenanceFlavor) { $ProvenanceFlavor } else { $previousFlavor }
+    $hasCompanyLayers = ($ProvenanceFlavor -eq 'company-layer') -or $CompanyLayerSource -or @(Get-ChildItem -LiteralPath (Join-Path $destMxAgile 'layers') -Directory -ErrorAction SilentlyContinue).Count -gt 0
+    $recoveryTools = [ordered]@{}
+    foreach ($tool in (Get-ChildItem -LiteralPath $destToolsDir -Filter '*.py' -Recurse -File)) {
+        $relative = [System.IO.Path]::GetRelativePath($destToolsDir, $tool.FullName).Replace('\', '/')
+        $recoveryTools[$relative] = (Get-FileHash -LiteralPath $tool.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    $recoveryTools['Write-MxAgileEpochCheckpoint.ps1'] = (Get-FileHash -LiteralPath (Join-Path $destToolsDir 'Write-MxAgileEpochCheckpoint.ps1') -Algorithm SHA256).Hash.ToLowerInvariant()
     $coreProv = [ordered]@{
         schema_version        = "1"
-        flavor                = $ProvenanceFlavor
+        flavor                = $effectiveFlavor
+        product_flavor        = $productFlavor
+        installation_flavor   = if ($hasCompanyLayers) { 'company-layer' } else { 'core' }
+        artifact_contract     = Get-CoreArtifactContract -Root $ProjectRoot
+        previous_artifact_contract = $previousArtifactContract
+        recovery_tools        = $recoveryTools
         source                = $ProvenanceCoreSource
         source_type           = $ProvenanceCoreSourceType
         source_identity       = $stableSourceIdentity
@@ -894,6 +937,7 @@ try {
             project_distributed = @(
                 ".mxagile/tools/Get-MxAgileCapabilities.ps1",
                 ".mxagile/tools/Read-MxAgileEpochCheckpoint.ps1",
+                ".mxagile/tools/Write-MxAgileEpochCheckpoint.ps1",
                 ".mxagile/tools/Save-MxAgileDelegationResult.ps1",
                 ".mxagile/tools/Get-MxAgileDelegationResult.ps1",
                 ".mxagile/tools/Save-MxAgileRoutingDecision.ps1",
@@ -938,7 +982,7 @@ try {
     $migrationStateFile = Join-Path $ProjectRoot (Join-Path ".mxagile" (Join-Path "migration" "state.yaml"))
     if (Test-Path -LiteralPath $migrationStateFile -PathType Leaf) {
         $stateText = Get-Content -LiteralPath $migrationStateFile -Raw
-        if ($stateText -notmatch '(?m)^artifact_canonicalization:') {
+        if ($stateText -match '(?m)^status:' -and $stateText -notmatch '(?m)^artifact_canonicalization:') {
             # Append the field — preserve all existing content unchanged
             $stateText = $stateText.TrimEnd("`r", "`n") + "`nartifact_canonicalization: pending`n"
             [System.IO.File]::WriteAllText(
