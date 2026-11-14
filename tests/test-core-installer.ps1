@@ -33,6 +33,12 @@ function Test-GenericInstallation {
         & git -C $projectRoot commit -qm "fixture project"
         Assert-Condition ($LASTEXITCODE -eq 0) "Fresh-install fixture Git repository should initialize."
 
+        foreach ($hostFamily in @('.claude', '.github', '.agents')) {
+            foreach ($relative in @('assets/images', 'empty-sibling/nested')) {
+                New-Item -ItemType Directory -Path (Join-Path $projectRoot "$hostFamily/skills/mocketeer-mockup-generation/$relative") -Force | Out-Null
+            }
+        }
+
         # 2. Execute scripts/install-core.ps1
         $installerPath = Join-Path (Join-Path (Join-Path $PSScriptRoot "..") "scripts") "install-core.ps1"
         pwsh -File $installerPath -ProjectRoot $projectRoot
@@ -113,6 +119,25 @@ function Test-GenericInstallation {
                 }
             }
         }
+        $protectedBefore = @{}
+        foreach ($relative in @('.mxagile/state/core-provenance.json', '.mxagile/state/projections-manifest.json', '.mxagile/migration/state.yaml', '.mxagile/state/last-update-result.json', '.mxagile/state/update-transaction.json')) {
+            $path = Join-Path $projectRoot $relative
+            $protectedBefore[$relative] = if (Test-Path -LiteralPath $path) { (Get-FileHash -LiteralPath $path).Hash } else { $null }
+        }
+        $foreignProjection = Join-Path $projectRoot '.hermes/skills/mxagile/.hidden-owner'
+        [IO.File]::WriteAllText($foreignProjection, 'foreign content')
+        $blockedUpdate = @(& pwsh -NoProfile -File $installerPath -ProjectRoot $projectRoot -IsUpdate:True 2>&1)
+        Assert-Condition ($LASTEXITCODE -ne 0 -and ($blockedUpdate -join "`n") -match 'SKILL_PROJECTION_CONFLICT') "Foreign content must stop in projection preflight. $($blockedUpdate | Select-Object -Last 5 | Out-String)"
+        foreach ($relative in $protectedBefore.Keys) {
+            $path = Join-Path $projectRoot $relative
+            $after = if (Test-Path -LiteralPath $path) { (Get-FileHash -LiteralPath $path).Hash } else { $null }
+            Assert-Condition ($after -eq $protectedBefore[$relative]) "Preflight conflict must preserve $relative (including absence)."
+        }
+        Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $projectRoot '.mxagile/state/update-transaction.json'))) "No partial transaction is needed before Core mutation."
+        Assert-Condition ([IO.File]::ReadAllText($foreignProjection) -eq 'foreign content') "Foreign projection content must remain untouched."
+        Remove-Item -LiteralPath $foreignProjection
+        Write-Host 'Projection pre-mutation guarantee PASSED.'
+
         & pwsh -NoProfile -File $installerPath -ProjectRoot $projectRoot -IsUpdate:True
         Assert-Condition ($LASTEXITCODE -eq 0) "Core update must reproduce the Fresh Install Mocketeer payload."
         foreach ($path in $mocketeerHashes.Keys) {

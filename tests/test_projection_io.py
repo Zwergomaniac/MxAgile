@@ -2,8 +2,12 @@
 import base64
 import copy
 import json
+import os
 from pathlib import Path
+import stat
+import subprocess
 import sys
+from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -64,19 +68,195 @@ class ProjectionIOTests(unittest.TestCase):
         for output in updated['outputs']:
             if output['target'].endswith('.html'):
                 output['data'] = base64.b64encode(b'<html>updated</html>').decode()
+        preflight = projection_io.execute(self.root, updated, apply=False)
+        self.assertTrue(preflight['ready'])
+        self.assertEqual({t['state'] for t in preflight['targets']}, {'TARGET_OWNED_STALE'})
         projection_io.execute(self.root, updated, apply=True)
-        self.write('.claude/skills/example-skill/assets/unknown.txt', b'foreign')
+        for host in ('.claude', '.github', '.agents'):
+            self.write(f'{host}/skills/example-skill/assets/unknown.txt', b'foreign')
         before = self.fingerprint()
-        self.assertFalse(projection_io.execute(self.root, updated, apply=False)['ready'])
-        self.assertEqual(self.fingerprint(), before)
+        for apply in (False, True):
+            report = projection_io.execute(self.root, updated, apply=apply)
+            self.assertFalse(report['ready'])
+            self.assertEqual(len(report['conflicts']), 3)
+            self.assertEqual(self.fingerprint(), before)
 
-    def test_invalid_and_empty_subdirectory_are_not_adopted(self):
+    def test_invalid_target_is_not_adopted(self):
         self.write('.claude/skills/example-skill', b'not a directory')
-        (self.root / '.github/skills/example-skill/unknown').mkdir(parents=True)
         report = projection_io.execute(self.root, self.plan, apply=False)
         self.assertFalse(report['ready'])
         self.assertTrue(any(c['target'].startswith('.claude/') and c['state'] == 'TARGET_INVALID' for c in report['conflicts']))
-        self.assertTrue(any(c['target'].startswith('.github/') and c['state'] == 'TARGET_NONEMPTY_UNKNOWN' for c in report['conflicts']))
+
+    def test_directory_only_trees_are_safe_for_all_hosts_and_repeat_apply(self):
+        original_root = self.root
+        structures = (('',), ('assets',), ('assets/images/nested',), ('assets/images', 'empty-sibling/child', 'other'), ('ASSETS/images',))
+        for index, directories in enumerate(structures):
+            with self.subTest(directories=directories):
+                self.root = original_root / str(index)
+                self.root.mkdir()
+                for host in ('.claude', '.github', '.agents'):
+                    for directory in directories:
+                        (self.root / host / 'skills/example-skill' / directory).mkdir(parents=True, exist_ok=True)
+                before = projection_io.inventory(self.root, self.root)
+                preflight = projection_io.execute(self.root, self.plan, apply=False)
+                self.assertTrue(preflight['ready'], preflight)
+                self.assertEqual({t['state'] for t in preflight['targets']}, {'TARGET_EMPTY_UNOWNED'})
+                self.assertEqual(projection_io.inventory(self.root, self.root), before)
+                applied = projection_io.execute(self.root, self.plan, apply=True)
+                self.assertTrue(applied['ready'] and applied['applied'])
+                after = projection_io.inventory(self.root, self.root)
+                self.assertTrue(projection_io.execute(self.root, self.plan, apply=False)['ready'])
+                self.assertTrue(projection_io.execute(self.root, self.plan, apply=True)['applied'])
+                self.assertEqual(projection_io.inventory(self.root, self.root), after)
+        self.root = original_root
+
+    def test_file_directory_collisions_block_before_apply_for_all_hosts(self):
+        original_root = self.root
+        names = ('SKILL.md', 'assets/example.html')
+        if os.name == 'nt':
+            names += ('skill.md', 'assets/EXAMPLE.HTML')
+        for index, name in enumerate(names):
+            with self.subTest(name=name):
+                self.root = original_root / str(index)
+                for host in ('.claude', '.github', '.agents'):
+                    (self.root / host / 'skills/example-skill' / name).mkdir(parents=True)
+                before = projection_io.inventory(self.root, self.root)
+                for apply in (False, True):
+                    report = projection_io.execute(self.root, self.plan, apply=apply)
+                    self.assertFalse(report['ready'])
+                    self.assertEqual({c['state'] for c in report['conflicts']}, {'TARGET_INVALID'})
+                    self.assertEqual(projection_io.inventory(self.root, self.root), before)
+        self.root = original_root
+
+    def test_any_file_blocks_unowned_trees_for_all_hosts(self):
+        original_root = self.root
+        cases = (('assets/.keep', b''), ('.hidden', b'hidden'), ('SKILL.md', b'foreign skill'),
+                 ('assets/foo.png', b'foreign asset'), ('assets/zero-byte', b''),
+                 ('owned-marker', b'owner'), ('bundle-manifest.json', b'{}'),
+                 ('empty-sibling/foreign.txt', b'mixed content'))
+        for index, (name, content) in enumerate(cases):
+            with self.subTest(name=name):
+                self.root = original_root / str(index)
+                for host in ('.claude', '.github', '.agents'):
+                    (self.root / host / 'skills/example-skill/assets/images').mkdir(parents=True)
+                    self.write(f'{host}/skills/example-skill/{name}', content)
+                before = projection_io.inventory(self.root, self.root)
+                for apply in (False, True):
+                    report = projection_io.execute(self.root, self.plan, apply=apply)
+                    self.assertFalse(report['ready'], report)
+                    self.assertEqual(len(report['conflicts']), 3)
+                    self.assertEqual(projection_io.inventory(self.root, self.root), before)
+                self.assertFalse((self.root / '.mxagile').exists())
+        self.root = original_root
+
+    def test_case_aliases_without_filesystem_identity_do_not_hide_content(self):
+        if os.name != 'nt':
+            self.skipTest('Windows case alias classifier')
+        projection_io.execute(self.root, self.plan, apply=True)
+        for host in ('.claude', '.github', '.agents'):
+            assets = self.root / host / 'skills/example-skill/assets'
+            assets.rename(assets.with_name('ASSETS'))
+        before = self.fingerprint()
+        with patch.object(Path, 'samefile', return_value=False):
+            for apply in (False, True):
+                report = projection_io.execute(self.root, self.plan, apply=apply)
+                self.assertFalse(report['ready'])
+                self.assertEqual(len(report['conflicts']), 3)
+                self.assertEqual(self.fingerprint(), before)
+
+    def test_duplicate_case_alias_entries_do_not_hide_unknown_files(self):
+        if os.name != 'nt':
+            self.skipTest('Windows case alias classifier')
+        projection_io.execute(self.root, self.plan, apply=True)
+        before = self.fingerprint()
+        inventory = projection_io.inventory
+        def duplicate_alias(root, directory):
+            entries = inventory(root, directory)
+            skill = directory / 'SKILL.md'
+            if skill.is_file():
+                entries[(directory / 'skill.md').relative_to(root).as_posix()] = projection_io.digest(skill.read_bytes())
+            return entries
+        with patch.object(projection_io, 'inventory', side_effect=duplicate_alias):
+            for apply in (False, True):
+                report = projection_io.execute(self.root, self.plan, apply=apply)
+                self.assertFalse(report['ready'])
+                self.assertEqual(len(report['conflicts']), 3)
+                self.assertEqual(self.fingerprint(), before)
+
+    def test_foreign_file_added_after_empty_preflight_blocks_apply(self):
+        for host in ('.claude', '.github', '.agents'):
+            (self.root / host / 'skills/example-skill/assets').mkdir(parents=True)
+        self.assertTrue(projection_io.execute(self.root, self.plan, apply=False)['ready'])
+        mkdtemp = tempfile.mkdtemp
+        def add_foreign_file(*args, **kwargs):
+            stage = mkdtemp(*args, **kwargs)
+            self.write('.github/skills/example-skill/assets/.keep', b'concurrent content')
+            return stage
+        with patch.object(projection_io.tempfile, 'mkdtemp', side_effect=add_foreign_file):
+            with self.assertRaisesRegex(ValueError, 'changed after preflight'):
+                projection_io.execute(self.root, self.plan, apply=True)
+        self.assertEqual(self.fingerprint(), {'.github/skills/example-skill/assets/.keep': b'concurrent content'})
+        self.assertFalse((self.root / projection_io.MANIFEST).exists())
+        self.assertEqual(list((self.root / '.mxagile/state').glob('.projection-stage-*')), [])
+
+    def test_nested_reparse_attribute_blocks_all_hosts_without_reading_contents(self):
+        reparses = set()
+        for host in ('.claude', '.github', '.agents'):
+            directory = self.root / host / 'skills/example-skill/assets/nested'
+            directory.mkdir(parents=True)
+            reparses.add(directory)
+        lstat = Path.lstat
+        def reparse_info(path, *args, **kwargs):
+            if path in reparses:
+                return SimpleNamespace(st_mode=stat.S_IFDIR | 0o755, st_file_attributes=1024)
+            return lstat(path, *args, **kwargs)
+        with patch.object(Path, 'lstat', reparse_info):
+            for apply in (False, True):
+                report = projection_io.execute(self.root, self.plan, apply=apply)
+                self.assertFalse(report['ready'])
+                self.assertEqual({c['target'] for c in report['conflicts']}, {f'{h}/skills/example-skill' for h in ('.claude', '.github', '.agents')})
+        self.assertEqual(self.fingerprint(), {})
+
+    def test_nested_symlinks_and_dangling_links_block_all_hosts(self):
+        original_root = self.root
+        for kind in ('directory', 'file', 'dangling'):
+            with self.subTest(kind=kind):
+                self.root = original_root / kind
+                outside = self.root / 'outside'
+                outside.mkdir(parents=True)
+                foreign = outside / 'foreign'
+                foreign.write_bytes(b'outside content')
+                destination = outside if kind == 'directory' else (foreign if kind == 'file' else outside / 'missing')
+                for host in ('.claude', '.github', '.agents'):
+                    parent = self.root / host / 'skills/example-skill/assets'
+                    parent.mkdir(parents=True)
+                    try:
+                        (parent / 'link').symlink_to(destination, target_is_directory=kind != 'file')
+                    except OSError as exc:
+                        self.skipTest(f'OS symlink privilege unavailable: {exc}')
+                for apply in (False, True):
+                    report = projection_io.execute(self.root, self.plan, apply=apply)
+                    self.assertFalse(report['ready'])
+                    self.assertEqual({c['state'] for c in report['conflicts']}, {'TARGET_INVALID'})
+                self.assertEqual(foreign.read_bytes(), b'outside content')
+                self.assertFalse((self.root / '.mxagile').exists())
+        self.root = original_root
+
+    def test_nested_windows_junction_blocks_all_hosts(self):
+        if os.name != 'nt':
+            self.skipTest('Windows junction fixture')
+        outside = self.root / 'outside'
+        outside.mkdir()
+        for host in ('.claude', '.github', '.agents'):
+            parent = self.root / host / 'skills/example-skill/assets'
+            parent.mkdir(parents=True)
+            result = subprocess.run([os.environ.get('COMSPEC', 'cmd.exe'), '/c', 'mklink', '/J', str(parent / 'junction'), str(outside)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for apply in (False, True):
+            report = projection_io.execute(self.root, self.plan, apply=apply)
+            self.assertFalse(report['ready'])
+            self.assertEqual({c['state'] for c in report['conflicts']}, {'TARGET_INVALID'})
+        self.assertEqual(list(outside.iterdir()), [])
 
     def test_manifest_remains_old_when_apply_fails(self):
         projection_io.execute(self.root, self.plan, apply=True)
@@ -99,23 +279,24 @@ class ProjectionIOTests(unittest.TestCase):
 
     def test_legacy_bundle_is_replaced_only_with_complete_hash_proof(self):
         self.plan['outputs'] = []
-        owner = '.claude/skills/mocketeer-design-contract'
         skill = b'legacy skill'
         asset = b'legacy asset'
-        import hashlib
-        self.write(owner + '/SKILL.md', skill)
-        self.write(owner + '/assets/old.html', asset)
-        manifest = {'managed_by': 'skill-bundle-v1', 'skill_name': 'mocketeer-design-contract', 'files': [{'path': 'SKILL.md', 'sha256': hashlib.sha256(skill).hexdigest()}, {'path': 'assets/old.html', 'sha256': hashlib.sha256(asset).hexdigest()}]}
-        self.write(owner + '/bundle-manifest.json', json.dumps(manifest).encode())
+        manifest = {'managed_by': 'skill-bundle-v1', 'skill_name': 'mocketeer-design-contract', 'files': [{'path': 'SKILL.md', 'sha256': projection_io.digest(skill)}, {'path': 'assets/old.html', 'sha256': projection_io.digest(asset)}]}
         content = b'---\nname: mocketeer-design-contract\ndescription: fixture skill\n---\n' + projection_io.HEADER + b'\nnew body'
-        self.plan['outputs'].append({'target': owner + '/SKILL.md', 'owner_root': owner, 'source': '.mxagile/skills/mocketeer-design-contract/SKILL.md', 'data': base64.b64encode(content).decode()})
+        owners = [f'{host}/skills/mocketeer-design-contract' for host in ('.claude', '.github', '.agents')]
+        for owner in owners:
+            self.write(owner + '/SKILL.md', skill)
+            self.write(owner + '/assets/old.html', asset)
+            self.write(owner + '/bundle-manifest.json', json.dumps(manifest).encode())
+            self.plan['outputs'].append({'target': owner + '/SKILL.md', 'owner_root': owner, 'source': '.mxagile/skills/mocketeer-design-contract/SKILL.md', 'data': base64.b64encode(content).decode()})
         report = projection_io.execute(self.root, self.plan, apply=False)
         self.assertTrue(report['ready'], report)
-        self.assertEqual(report['targets'][0]['state'], 'TARGET_STALE_GENERATED')
+        self.assertEqual({t['state'] for t in report['targets']}, {'TARGET_STALE_GENERATED'})
         projection_io.execute(self.root, self.plan, apply=True)
-        self.assertFalse((self.root / owner / 'bundle-manifest.json').exists())
-        self.assertFalse((self.root / owner / 'assets/old.html').exists())
-        self.assertEqual((self.root / owner / 'SKILL.md').read_bytes(), content)
+        for owner in owners:
+            self.assertFalse((self.root / owner / 'bundle-manifest.json').exists())
+            self.assertFalse((self.root / owner / 'assets/old.html').exists())
+            self.assertEqual((self.root / owner / 'SKILL.md').read_bytes(), content)
 
     def test_preflight_asset_proof_survives_core_source_replacement(self):
         projection_io.execute(self.root, self.plan, apply=True)

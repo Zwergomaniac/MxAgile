@@ -110,9 +110,14 @@ The framework repository does not retain these Mocketeer host copies. Packaging 
 tests stage canonical sources in disposable consumer fixtures and use the same
 generator; there is no direct `products/` fallback in framework generation. This
 exception does not remove or change deliberately versioned general `mxagile-*`
-projections. A truly empty unowned skill directory is adoptable only after complete
-all-host inventory preflight. Nonempty unknown/foreign directories, hidden entries,
-foreign assets, file/directory conflicts and reparse points fail with
+projections. `TARGET_EMPTY_UNOWNED` includes structurally empty trees: recursive
+inventory contains only normal directories and no files of any size, hidden files,
+ownership metadata, symlinks, junctions or reparse points. These trees are adoptable
+only after complete all-host inventory preflight. Validated empty subdirectories are
+preserved during apply and repeat generation; they do not authorize files added later.
+Preflight and apply use the same classifier and recheck the entire inventory before
+writing. Nonempty unknown/foreign trees, hidden files, foreign assets,
+file/directory conflicts and reparse points fail with
 `SKILL_PROJECTION_CONFLICT` without overwriting their content. Only a known legacy
 bundle with complete manifest/hash and directory proof may be replaced.
 

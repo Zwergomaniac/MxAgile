@@ -140,7 +140,12 @@ is unobservable, never CURRENT. Equal-contract completed retries are idempotent.
 ### Projection preflight and partial-update resume
 
 The canonical installer checks the future generator inputs and **all host targets before
-Core mutation**. Truly empty unowned skill directories are safe to adopt. Nonempty unknown
+Core mutation**. `TARGET_EMPTY_UNOWNED` also covers structurally empty trees containing
+only normal directories (for example empty `assets/images/` plus empty siblings).
+Recursive inventory must find no files, including hidden or zero-byte files and
+ownership metadata, and no symlinks, junctions, reparse points or unsupported entries.
+These empty subtrees are preserved on apply and repeated generation; all entries
+remain subject to the same classifier and concurrent-change checks. Nonempty unknown
 or foreign content, hidden files, invalid paths and reparse points block the complete plan.
 The existing generator stages rendered bytes, validates apply ownership and publishes its
 file-bound manifest only after every required output succeeds. Unexpected failures after

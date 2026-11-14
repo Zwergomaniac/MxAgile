@@ -145,9 +145,16 @@ The canonical cross-layer strategy is resumable partial update, not automatic Co
 Before the first Core mutation, the existing generator renders the future payload and
 preflights every supported host, source, schema and target inventory. The generator's
 `projection_io.py` backend stages captured bytes and rechecks ownership before apply;
-it is filesystem support, not a second renderer or transaction registry. Truly empty
-unowned directories may be adopted; hidden entries, foreign assets, invalid targets,
-reparse points and mixed ownership block the whole plan. No conflicting target is deleted.
+it is filesystem support, not a second renderer or transaction registry.
+`TARGET_EMPTY_UNOWNED` includes recursively directory-only trees, including empty
+`assets/` and nested or sibling directories. Every entry is inventoried: any file
+(including zero-byte, hidden or ownership metadata), symlink, junction, reparse point
+or unsupported entry excludes unowned-empty adoption. Validated empty subtrees are
+preserved through apply and repeat generation without ignoring later foreign files.
+Preflight and apply share this classifier. Foreign assets, invalid targets, reparse
+points and mixed ownership block the whole plan. No conflicting target is deleted.
+A preflight conflict leaves Core provenance and the projection manifest unchanged,
+does not start contract migration and does not require a partial-update transaction.
 
 The existing `update-transaction.json` has an optional `projection` record with input
 fingerprint, prior asset ownership proofs, Core-applied state, projection completion and

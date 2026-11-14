@@ -146,7 +146,26 @@ def classify(root, owner, outputs, previous):
         if not path.is_dir():
             return 'TARGET_INVALID', {}, 'Expected skill directory'
         entries = inventory(root, path)
-        if not entries:
+        if any(safe_path(root, target).is_dir() for target in expected):
+            return 'TARGET_INVALID', entries, 'Generated file target is an existing directory'
+        if os.name == 'nt':
+            canonical_paths = {target.casefold(): target for target in expected}
+            for target in expected:
+                parent = PurePosixPath(target).parent
+                while parent.as_posix() != owner:
+                    canonical_paths[parent.as_posix().casefold()] = parent.as_posix()
+                    parent = parent.parent
+            canonical_entries = {}
+            for relative, value in entries.items():
+                canonical = canonical_paths.get(relative.casefold(), relative)
+                if canonical != relative and not ((root / canonical).exists() and (root / relative).samefile(root / canonical)):
+                    canonical = relative
+                if canonical in canonical_entries:
+                    return 'TARGET_NONEMPTY_UNKNOWN', entries, 'Multiple entries alias one generated path'
+                canonical_entries[canonical] = value
+            entries = canonical_entries
+        content_paths = {p for p, value in entries.items() if value is not None}
+        if not content_paths:
             return 'TARGET_EMPTY_UNOWNED', entries, None
         skill = path / 'SKILL.md'
         # Portable neutral skills share a directory; every file still needs its own marker.
@@ -179,8 +198,9 @@ def classify(root, owner, outputs, previous):
             if legacy:
                 continue
             if current is None:
-                if target not in allowed_dirs:
-                    return 'TARGET_NONEMPTY_UNKNOWN', entries, f'Unknown directory: {target}'
+                # Preserve validated empty subtrees after adoption, including on repeat apply.
+                if target not in allowed_dirs and any(p.startswith(target + '/') for p in content_paths):
+                    return 'TARGET_NONEMPTY_UNKNOWN', entries, f'Unknown directory with content: {target}'
                 continue
             if legacy and target.endswith('/bundle-manifest.json'):
                 continue
