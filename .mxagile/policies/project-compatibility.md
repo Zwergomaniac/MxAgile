@@ -68,6 +68,47 @@ No task-ID/title similarity is used. A contradiction is DECISION_REQUIRED.
 `assignment_provenance` preserves the rule and exact source; `migrated_from`
 is retained. Workpackages are never invented; absence is reported separately.
 
+## Bound Human Resolution Recovery
+
+`NEEDS_HUMAN` never grants ordinary Edit, shell, Child, lifecycle, model or publication
+permission. `project_compatibility.py resolve --dry-run --project-root <absolute-root>
+--format json` projects supported resolution contracts from the live Doctor diagnosis
+and its existing `contract_migration.decision_references`; it creates no Decision registry.
+
+The dedicated `resolve` operation requires `--diagnostic-id`, `--migration-id`,
+`--source-path`, `--field`, `--source-fingerprint`, `--value`, `--human-reference`,
+`--run-id`, and explicit `--human-confirmed`. The reference must identify an actual
+current-session Human decision (`USER-...`), not an agent-invented approval. The host/caller
+is responsible for supplying that decision evidence; a CLI flag is not independent
+proof of Human identity. Missing confirmation or any stale binding rejects the operation.
+
+The current closed recipe is `requirement_successor`: a canonical superseded Requirement
+with a missing successor may receive exactly `superseded_by: <unique valid REQ-ID>`.
+The original ID, status, semantics, acceptance criteria, source revision and every other
+field remain unchanged. Schema and reference checks reject nonexistent, invalid,
+ambiguous, self-referential or cyclic targets. No other source is automatically repaired.
+Future lifecycle recipes must be independently diagnostic-bound, schema-valid and scoped;
+unknown recipes fail closed rather than becoming general field-edit permissions.
+
+Installed tool hashes and contract identity bind host recovery authorization.
+`HUMAN_RESOLUTION_WRITE` applies only to the exact installed Resolve command, not general
+writes to its source path. Context/Git drift and a blocked Doctor do not prevent this
+narrow recovery; incomplete installation/projections or legacy migration still do.
+
+The existing migration record retains `resolution_receipts` as recovery/audit history,
+not a second Requirement truth: diagnostic, migration/contract identity, source/field,
+before/after fingerprints, Human value/reference, Run and timestamps. A `PENDING` receipt
+precedes atomic source replacement. Failure never records a false `APPLIED`; interrupted
+metadata finalization can resume against the proven after-fingerprint without rewriting
+the source. A verified identical repeat returns `ALREADY_RESOLVED`; a conflicting repeat
+cannot overwrite the earlier resolution.
+
+After the source write, migration is re-evaluated without other source repairs. Only a
+complete migration and finalized receipt permit fresh Doctor, then canonical lifecycle
+reconciliation and scope-preserving Context re-sync. Pending receipts block re-sync;
+applied receipts invalidate older Context checkpoints. Historical Doctor results do not
+replace the current diagnostic report. Recovery never advances a Mission/Wave.
+
 ## Legacy Compatibility Matrix
 
 This matrix separates observed legacy shapes from verified framework producers. Example Project's CCM
@@ -252,8 +293,10 @@ close findings, answer decisions, or verify evidence.
 
 ## BLOCKED-state host enforcement
 
-Current Doctor, migration and update-transaction findings constrain **all** normal
-consumer writes, not only Mendix implementation. Requirements, Specs and planning
+Current Doctor, migration and update-transaction findings constrain normal
+**Delivery** consumer writes, not only Mendix implementation. They do not prohibit an
+independent current User assignment through the bounded Auxiliary operation below.
+Normal tools gain no general write exception. Requirements, Specs and planning
 Tasks are `DELIVERY_WRITE`, not disposable projections. Lifecycle, Evidence, Core
 provenance, migration state and derived-output writes also require current-state
 checks. Legitimate planning/evidence operations in a healthy project do not acquire
@@ -307,6 +350,60 @@ No generic rm/TaskStop exception is introduced. Cleanup needs registered current
 ownership and exact resource identity; flags in tool input are not such evidence.
 Unknown/stale/foreign resources stay blocked. The existing test-harness ownership
 manifest is not automatically authority for arbitrary host tasks/processes.
+
+## Bounded Auxiliary User interruption
+
+BLOCKED Delivery is not a globally blocked agent. The existing adapter distinguishes
+Delivery/Product (`DELIVERY_WRITE`/`IMPLEMENTATION_WRITE`), Lifecycle, bound Recovery,
+`AUXILIARY_WRITE`, diagnostic `EVIDENCE_WRITE`, `FRAMEWORK_RUNTIME_WRITE` and Publication.
+Only the installed, integrity-bound `project_compatibility.py auxiliary` operation can
+obtain Auxiliary authority during BLOCKED state. Normal Edit, Write, shell, child and
+model tools retain their existing gates; a User instruction is not a generic bypass.
+
+The current User request is a closed JSON object with `request_reference` (`USER-...`),
+`request_summary`, `target_path`, `artifact_role`, `scope_relation: independent_noncanonical`,
+`mutation: create|replace`, `before_fingerprint` (`ABSENT` for create, otherwise SHA-256),
+and exact UTF-8 `content`. Encode JSON as URL-safe base64 in `--auxiliary-request`.
+This encoding is transport, not secrecy or authentication. Agent-invented Human approval
+is forbidden. The host/caller must ground the reference and confirmation in the actual
+current User assignment and its reviewed noncanonical artifact function.
+
+Read-only proposal:
+`auxiliary --dry-run --project-root <absolute root> --format json --auxiliary-request <encoded request>`.
+Apply exactly the approved proposal:
+`auxiliary --apply --project-root <absolute root> --format json --auxiliary-request <encoded request>
+--plan-hash <approved SHA-256> --human-reference <same USER reference> --run-id <RUN-...> --human-confirmed`.
+The plan binds the whole assignment, role, path, mutation, before/after content and current
+canonical Delivery/Context/Git fingerprint. It is not a persistent new Mission or Decision
+registry. Chains, redirects, extra flags, altered content/path/role, stale inputs, missing
+confirmation and another User reference deny. Preflight and Apply use the same validator.
+
+Implemented recipes are noncanonical plain-text documentation, retrospective/support
+notes and diagnostic findings (`.md`, `.txt`, `.rst`); arbitrary executable/code recipes
+are not implemented. The role is part of explicit approval, not inferred solely from a
+folder. Known canonical/protected paths, contract artifact names, framework-contract
+documents and documents referenced by canonical inputs remain protected even under docs/.
+Product code, Requirements, lifecycle, migration, model and publication authority cannot
+be claimed through a documentation role. Symlinks/reparse points and unsafe paths deny.
+Portable exact paths are required: Windows trailing-dot/space aliases, short-name (`~`)
+aliases, device names and invalid/control characters cannot evade protected scope.
+Diagnostic runtime destinations such as `.concord/scratch/.../REALITY-FINDING.md` require
+`artifact_role: diagnostic_findings` and produce diagnostic EVIDENCE, never Acceptance PASS.
+
+Before atomic replacement of the one target, the canonical operation records a minimal
+operational interruption watermark in `.mxagile/state/runs/auxiliary-interruption.json` and an
+existing `run_interrupted` audit event. These runtime writes record only assignment/run,
+scope/hash and time; they cannot promote or complete Mission, Wave or Delivery and confer
+no write grant. Required target parent directories may be created. Failed replacement
+leaves original target bytes and the resume barrier intact. No other user artifact is written.
+The watermark survives Core sync and audit retention; it is not a second Lifecycle truth.
+Unknown/corrupt runtime metadata fails closed rather than being overwritten.
+
+Auxiliary completion never resumes or completes the interrupted Delivery. The existing
+Guard derives `AUXILIARY_INTERRUPTION_REQUIRES_RESYNC` until a newer canonical Context
+checkpoint exists. Current migration, Doctor and Lifecycle prerequisites still constrain
+that re-sync; Auxiliary cannot clear historical blocking decisions. Existing canonical
+re-sync clears only the interruption barrier, not unrelated Delivery blocks.
 
 ## Bounded agent repair
 

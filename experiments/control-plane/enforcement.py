@@ -29,6 +29,8 @@ except ImportError:
 READ = "READ"
 IMPLEMENTATION_WRITE = "IMPLEMENTATION_WRITE"
 DELIVERY_WRITE = "DELIVERY_WRITE"
+AUXILIARY_WRITE = "AUXILIARY_WRITE"
+FRAMEWORK_RUNTIME_WRITE = "FRAMEWORK_RUNTIME_WRITE"
 EVIDENCE_WRITE = "EVIDENCE_WRITE"
 LIFECYCLE_WRITE = "LIFECYCLE_WRITE"
 FRAMEWORK_WRITE = "FRAMEWORK_WRITE"
@@ -36,6 +38,7 @@ DERIVED_PROJECTION_WRITE = "DERIVED_PROJECTION_WRITE"
 CHILD_SPAWN = "CHILD_SPAWN"
 EXTERNAL_SIDE_EFFECT = "EXTERNAL_SIDE_EFFECT"
 CONTROLLED_MUTATION = "CONTROLLED_MUTATION"
+HUMAN_RESOLUTION_WRITE = "HUMAN_RESOLUTION_WRITE"
 CONTEXT_INVALIDATING = "CONTEXT_INVALIDATING"
 HIGH_RISK_MUTATION = "HIGH_RISK_MUTATION"
 INTEGRATION_MUTATION = "INTEGRATION_MUTATION"
@@ -46,10 +49,10 @@ TOOLING_SERVICE = "TOOLING_SERVICE"
 DELIVERY_CRITICAL = {IMPLEMENTATION_WRITE, HIGH_RISK_MUTATION, INTEGRATION_MUTATION}
 # Only structurally read-only calls bypass current-state authorization.
 ENFORCED = {IMPLEMENTATION_WRITE, DELIVERY_WRITE, CHILD_SPAWN, HIGH_RISK_MUTATION, INTEGRATION_MUTATION,
-            EVIDENCE_WRITE, LIFECYCLE_WRITE, FRAMEWORK_WRITE, DERIVED_PROJECTION_WRITE,
-            EXTERNAL_SIDE_EFFECT, CONTROLLED_MUTATION, CONTEXT_INVALIDATING, VERIFICATION, TOOLING_SERVICE}
-_SEVERITY = [READ, TOOLING_SERVICE, VERIFICATION, EVIDENCE_WRITE, DERIVED_PROJECTION_WRITE, DELIVERY_WRITE, LIFECYCLE_WRITE,
-             CONTROLLED_MUTATION, CONTEXT_INVALIDATING, EXTERNAL_SIDE_EFFECT, FRAMEWORK_WRITE,
+            AUXILIARY_WRITE, EVIDENCE_WRITE, LIFECYCLE_WRITE, FRAMEWORK_WRITE, FRAMEWORK_RUNTIME_WRITE, DERIVED_PROJECTION_WRITE,
+            EXTERNAL_SIDE_EFFECT, CONTROLLED_MUTATION, HUMAN_RESOLUTION_WRITE, CONTEXT_INVALIDATING, VERIFICATION, TOOLING_SERVICE}
+_SEVERITY = [READ, TOOLING_SERVICE, VERIFICATION, AUXILIARY_WRITE, EVIDENCE_WRITE, FRAMEWORK_RUNTIME_WRITE, DERIVED_PROJECTION_WRITE, DELIVERY_WRITE, LIFECYCLE_WRITE,
+             CONTROLLED_MUTATION, HUMAN_RESOLUTION_WRITE, CONTEXT_INVALIDATING, EXTERNAL_SIDE_EFFECT, FRAMEWORK_WRITE,
              INTEGRATION_MUTATION, HIGH_RISK_MUTATION, PUBLICATION, IMPLEMENTATION_WRITE]
 READ_ONLY_AGENT_TYPES = {"Explore", "Plan", "claude-code-guide", "statusline-setup"}
 MENDIX_MCP_SERVERS = ("mendix-studio-pro", "concord")
@@ -59,6 +62,7 @@ READ_VERB = re.compile(
     re.I)
 MUTATION_VERB = re.compile(r'(?:^|_)(exec|execute|create|alter|drop|apply|write|update|delete|remove|patch|compile|fix|rename)(?:_|$)', re.I)
 PATH_CLASSES: tuple[tuple[tuple[str, ...], str], ...] = (
+    ((".mxagile/state/runs/auxiliary-interruption.json", ".mxagile/state/runs/"), FRAMEWORK_RUNTIME_WRITE),
     (("planning/lifecycle/", "planning/mission/", "planning/execution-waves.md", ".concord/context-epoch.yaml"), LIFECYCLE_WRITE),
     (("planning/evidence/", "planning/parity/", "planning/acceptance-campaigns/", "planning/wave-reports/", ".concord/screenshots/", ".concord/evidence/"), EVIDENCE_WRITE),
     ((".mxagile/migration/", ".mxagile/state/core-provenance.json", ".mxagile/state/update-transaction.json"), FRAMEWORK_WRITE),
@@ -258,6 +262,22 @@ def _classify_segment(root: Path, segment: str) -> str:
         script_index = next(i for i, a in enumerate(args) if a.replace('\\', '/').rsplit('/', 1)[-1] == 'project_compatibility.py')
         subcommand = args[script_index + 1:script_index + 2]
         readonly = subcommand in (['doctor'], ['contract-snapshot'], ['resync-preflight']) or (subcommand == ['migrate'] and '--apply-safe' not in args)
+        if subcommand == ['auxiliary']:
+            tail = args[script_index + 2:]
+            selectors = [a for a in tail if a != '--dry-run']
+            pairs = dict(zip(selectors[::2], selectors[1::2]))
+            readonly = (tail.count('--dry-run') == 1 and len(selectors) == 6
+                        and set(pairs) == {'--project-root', '--format', '--auxiliary-request'}
+                        and pairs.get('--format') == 'json'
+                        and Path(args[script_index]).is_absolute()
+                        and Path(args[script_index]).resolve() == root / '.mxagile/tools/project_compatibility.py'
+                        and Path(pairs['--project-root']).resolve() == root)
+            if not readonly:
+                return AUXILIARY_WRITE
+        if subcommand == ['resolve']:
+            readonly = '--dry-run' in args and not any(a.startswith(('--value', '--human', '--source', '--field', '--migration-id', '--diagnostic-id', '--run-id')) for a in args)
+            if not readonly:
+                return HUMAN_RESOLUTION_WRITE
         if all(a == '-B' for a in args[:script_index]) and readonly and '--apply' not in args:
             return READ
     if head in {'get-mxagilecapabilities.ps1', 'check-studio-pro-status.ps1'}:
@@ -382,15 +402,46 @@ def _controlled_recovery(facts: guard.ProjectFacts, payload: dict[str, Any]) -> 
     program = args.pop(0).lower().replace('\\', '/').rsplit('/', 1)[-1].removesuffix('.exe')
     tools = facts.root / '.mxagile' / 'tools'
     action = None
+    resolution_request = None
+    auxiliary_request = None
     if program in {'python', 'python3', 'py'}:
         if args[:1] == ['-B']:
             args = args[1:]
-        if len(args) != 7 or not Path(args[0]).is_absolute() or Path(args[0]).resolve() != tools / 'project_compatibility.py':
+        if len(args) < 2 or not Path(args[0]).is_absolute() or Path(args[0]).resolve() != tools / 'project_compatibility.py':
             return None
-        if args[1:4] != ['migrate', '--apply-safe', '--project-root'] or args[5:] != ['--format', 'json']:
-            return None
-        root_arg = args[4]
-        action = 'contract_reconciliation'
+        if args[1] == 'auxiliary':
+            selectors = args[2:]
+            if selectors.count('--human-confirmed') != 1 or selectors.count('--apply') != 1:
+                return None
+            selectors = [a for a in selectors if a not in {'--human-confirmed', '--apply'}]
+            if len(selectors) != 12:
+                return None
+            pairs = dict(zip(selectors[::2], selectors[1::2]))
+            if set(pairs) != {'--project-root', '--format', '--auxiliary-request', '--plan-hash', '--human-reference', '--run-id'} or pairs['--format'] != 'json':
+                return None
+            auxiliary_request = pairs
+            root_arg = pairs['--project-root']
+            action = 'auxiliary_write'
+        elif args[1] == 'resolve':
+            selectors = args[2:]
+            if selectors.count('--human-confirmed') != 1:
+                return None
+            selectors = [a for a in selectors if a != '--human-confirmed']
+            if len(selectors) != 20:
+                return None
+            pairs = dict(zip(selectors[::2], selectors[1::2]))
+            names = ('diagnostic-id', 'migration-id', 'source-path', 'field', 'source-fingerprint', 'value', 'human-reference', 'run-id')
+            if set(pairs) != {'--' + name for name in (*names, 'project-root', 'format')} or pairs['--format'] != 'json':
+                return None
+            resolution_request = {name.replace('-', '_'): pairs['--' + name] for name in names}
+            resolution_request['human_confirmed'] = True
+            root_arg = pairs['--project-root']
+            action = 'human_resolution'
+        else:
+            if len(args) != 7 or args[1:4] != ['migrate', '--apply-safe', '--project-root'] or args[5:] != ['--format', 'json']:
+                return None
+            root_arg = args[4]
+            action = 'contract_reconciliation'
     elif program in {'pwsh', 'powershell'}:
         if len(args) != 6 or [a.lower() for a in (args[0], args[1], args[3], args[5])] != ['-noprofile', '-file', '-projectroot', '-preserveevidence']:
             return None
@@ -421,6 +472,15 @@ def _controlled_recovery(facts: guard.ProjectFacts, payload: dict[str, Any]) -> 
         return None
     if action == 'context_resync' and resync_preflight(facts.root)['state'] != 'READY_FOR_RESYNC':
         return None
+    if resolution_request:
+        from project_compatibility import prepare_human_resolution
+        prepare_human_resolution(facts.root, **resolution_request)
+    if auxiliary_request:
+        from project_compatibility import decode_auxiliary_request, prepare_auxiliary_write
+        plan = prepare_auxiliary_write(facts.root, decode_auxiliary_request(auxiliary_request['--auxiliary-request']),
+                                       plan_hash=auxiliary_request['--plan-hash'], human_reference=auxiliary_request['--human-reference'],
+                                       human_confirmed=True, run_id=auxiliary_request['--run-id'])
+        action = 'auxiliary_evidence_write' if plan['operation_class'] == EVIDENCE_WRITE else 'auxiliary_write'
     return action
 
 
@@ -443,8 +503,13 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
             facts = guard.load_project_facts(root)
             recovery = _controlled_recovery(facts, payload)
             if recovery:
-                op_class = CONTROLLED_MUTATION
+                op_class = {'human_resolution': HUMAN_RESOLUTION_WRITE, 'auxiliary_write': AUXILIARY_WRITE,
+                            'auxiliary_evidence_write': EVIDENCE_WRITE}.get(recovery, CONTROLLED_MUTATION)
                 result.update({'operation_class': op_class, 'decision': 'allow', 'reason': 'INTEGRITY_BOUND_CORE_RECOVERY', 'controlled_recovery': recovery})
+            elif op_class == AUXILIARY_WRITE:
+                result.update({'decision': 'deny', 'reason': 'BOUND_AUXILIARY_AUTHORIZATION_REQUIRED', 'recovery': 'inspect'})
+            elif op_class == HUMAN_RESOLUTION_WRITE:
+                result.update({'decision': 'deny', 'reason': 'BOUND_HUMAN_RESOLUTION_REQUIRED', 'recovery': 'human_resolution'})
             elif op_class == CHILD_SPAWN:
                 result.update(_spawn_decision(facts, payload, run_id, evidence))
             else:
@@ -455,7 +520,15 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
                     reason, recovery = _blocking(verdict)
                     result.update({"decision": "deny", "reason": reason, "recovery": recovery, "verdict": verdict})
         except Exception as exc:  # fail closed: no valid guard decision is never an allow
-            result.update({"decision": "deny", "reason": f"GUARD_UNAVAILABLE: {type(exc).__name__}", "recovery": "inspect"})
+            resolution_codes = {'STALE_RESOLUTION', 'CONFLICTING_RESOLUTION', 'RESOLUTION_SCOPE_MISMATCH',
+                                'HUMAN_AUTHORIZATION_REQUIRED', 'RESOLUTION_RUN_REQUIRED', 'INVALID_RESOLUTION_VALUE',
+                                'INVALID_REQUIREMENT_REFERENCE', 'RESOLUTION_RECOVERY_REQUIRED',
+                                'UNSUPPORTED_RESOLUTION_SOURCE', 'HUMAN_RESOLUTION_CONTRACT_UNAVAILABLE',
+                                'INVALID_AUXILIARY_REQUEST', 'AUXILIARY_SCOPE_PROTECTED', 'STALE_AUXILIARY_REQUEST',
+                                'AUXILIARY_AUTHORITY_UNAVAILABLE', 'INVALID_AUXILIARY_INTERRUPT'}
+            code = getattr(exc, 'code', None)
+            result.update({'decision': 'deny', 'reason': code if code in resolution_codes else f'GUARD_UNAVAILABLE: {type(exc).__name__}',
+                           'recovery': 'human_resolution' if code in resolution_codes else 'inspect'})
     result["event"] = {
         "type": ('recovery_required' if result.get('controlled_recovery') else ("child_started" if op_class == CHILD_SPAWN else "delivery_authorized")) if result["decision"] == "allow" and op_class in ENFORCED
         else ("delivery_blocked" if result["decision"] == "deny" else ("publication_requested" if op_class == PUBLICATION else None)),

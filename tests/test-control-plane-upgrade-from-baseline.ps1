@@ -406,16 +406,37 @@ print(json.dumps({'history_preserved': {k: v for k, v in state.items() if k != '
     $epochBefore = (Get-FileHash $epochPath).Hash
     & pwsh -NoProfile -File $installedWriter -ProjectRoot $project -PreserveEvidence 2>&1 | Out-Null
     Assert-True 'direct re-sync refuses a human-blocked migration without changing Epoch' ($LASTEXITCODE -ne 0 -and (Get-FileHash $epochPath).Hash -eq $epochBefore) 'Epoch was fabricated'
-    $approveSuccessor = @'
-import sys, yaml
-from pathlib import Path
-path = Path(sys.argv[1]) / 'requirements/REQ-001.yml'
-value = yaml.safe_load(path.read_text(encoding='utf-8-sig'))
-value['superseded_by'] = 'REQ-111'
-path.write_text(yaml.safe_dump(value, sort_keys=False), encoding='utf-8')
-'@
-    & python -B -c $approveSuccessor $project
-    if ($LASTEXITCODE) { throw 'Explicit fixture successor decision failed.' }
+    $resolutionPlan = (& python -B $doctorTool resolve --dry-run --project-root $project --format json) | ConvertFrom-Json
+    $binding = @($resolutionPlan.resolutions | Where-Object artifact_id -eq 'REQ-001')[0]
+    Assert-True 'human resolution is bound to the missing successor diagnostic' ($binding.field -eq 'superseded_by' -and $binding.human_decision_status -eq 'OPEN' -and $binding.source_path -eq 'requirements/REQ-001.yml')
+    $auxiliaryRequest = @{request_reference='USER-UPGRADE-FINDING';request_summary='Document only the current Reality finding';target_path='.concord/scratch/upgrade/REALITY-FINDING.md';artifact_role='diagnostic_findings';scope_relation='independent_noncanonical';mutation='create';before_fingerprint='ABSENT';content="# Reality finding`nMigration still needs Human resolution.`n"}
+    $encodedAuxiliary = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($auxiliaryRequest | ConvertTo-Json -Compress))).Replace('+','-').Replace('/','_')
+    $auxiliaryProposal = (& python -B $doctorTool auxiliary --dry-run --project-root $project --format json --auxiliary-request $encodedAuxiliary) | ConvertFrom-Json
+    Assert-True 'installed Auxiliary proposal is read-only during NEEDS_HUMAN' ($LASTEXITCODE -eq 0 -and $auxiliaryProposal.read_only -and -not (Test-Path (Join-Path $project $auxiliaryRequest.target_path)))
+    $auxiliaryCommand = "python -B '$doctorTool' auxiliary --apply --project-root '$project' --format json --auxiliary-request $encodedAuxiliary --plan-hash $($auxiliaryProposal.plan.plan_hash) --human-reference USER-UPGRADE-FINDING --run-id RUN-UPGRADE-AUXILIARY --human-confirmed"
+    $auxiliaryHook = Invoke-InstalledAdapter $project @{tool_name='Bash';tool_input=@{command=$auxiliaryCommand}}
+    Assert-True 'installed hook allows only the bound diagnostic assignment' ($auxiliaryHook.hookSpecificOutput.permissionDecision -eq 'allow') ($auxiliaryHook | ConvertTo-Json -Compress)
+    $auxiliaryResult = (& python -B $doctorTool auxiliary --apply --project-root $project --format json --auxiliary-request $encodedAuxiliary --plan-hash $auxiliaryProposal.plan.plan_hash --human-reference USER-UPGRADE-FINDING --run-id RUN-UPGRADE-AUXILIARY --human-confirmed) | ConvertFrom-Json
+    Assert-True 'installed Auxiliary writes exactly its diagnostic target without resuming Delivery' ($LASTEXITCODE -eq 0 -and $auxiliaryResult.result -eq 'APPLIED' -and -not $auxiliaryResult.delivery_resumed -and (Get-Content (Join-Path $project $auxiliaryRequest.target_path) -Raw) -eq $auxiliaryRequest.content)
+    $auxiliaryGuard = Invoke-Guard $project $legacyTransition
+    Assert-True 'Auxiliary completion preserves Human gate and adds canonical resume barrier' ($auxiliaryGuard.verdict -ne 'pass' -and @($auxiliaryGuard.must_findings | ForEach-Object code) -contains 'CONTRACT_MIGRATION_NEEDS_HUMAN' -and @($auxiliaryGuard.must_findings | ForEach-Object code) -contains 'AUXILIARY_INTERRUPTION_REQUIRES_RESYNC')
+    $reqBefore = (& python -B -c "import json,sys,yaml;print(json.dumps(yaml.safe_load(open(sys.argv[1],encoding='utf-8-sig'))))" (Join-Path $project $binding.source_path)) | ConvertFrom-Json
+    $resolveCommand = "python -B '$doctorTool' resolve --project-root '$project' --format json --diagnostic-id '$($binding.diagnostic_id)' --migration-id '$($binding.migration_id)' --source-path '$($binding.source_path)' --field '$($binding.field)' --source-fingerprint '$($binding.current_source_fingerprint)' --value REQ-111 --human-reference USER-UPGRADE-SUCCESSOR --run-id RUN-UPGRADE-HUMAN --human-confirmed"
+    $directEditHook = Invoke-InstalledAdapter $project @{tool_name='Edit';tool_input=@{file_path=(Join-Path $project $binding.source_path)}}
+    Assert-True 'human gate keeps ordinary Requirement edits blocked' ($directEditHook.hookSpecificOutput.permissionDecision -eq 'deny')
+    $withoutHuman = Invoke-InstalledAdapter $project @{tool_name='Bash';tool_input=@{command=$resolveCommand.Replace(' --human-confirmed','')}}
+    Assert-True 'resolve without explicit Human confirmation remains blocked' ($withoutHuman.hookSpecificOutput.permissionDecision -eq 'deny')
+    $resolveHook = Invoke-InstalledAdapter $project @{tool_name='Bash';tool_input=@{command=$resolveCommand}}
+    Assert-True 'installed hook grants only bound Human resolution recovery' ($resolveHook.hookSpecificOutput.permissionDecision -eq 'allow') ($resolveHook | ConvertTo-Json -Compress)
+    $resolution = (& python -B $doctorTool resolve --project-root $project --format json --diagnostic-id $binding.diagnostic_id --migration-id $binding.migration_id --source-path $binding.source_path --field $binding.field --source-fingerprint $binding.current_source_fingerprint --value REQ-111 --human-reference USER-UPGRADE-SUCCESSOR --run-id RUN-UPGRADE-HUMAN --human-confirmed) | ConvertFrom-Json
+    Assert-True 'bound source write completes migration before fresh Doctor' ($LASTEXITCODE -eq 0 -and $resolution.result -eq 'APPLIED' -and $resolution.migration.status -eq 'COMPLETE' -and $resolution.doctor.executed -and $resolution.doctor.compatibility -ne 'BLOCKED')
+    $reqAfter = (& python -B -c "import json,sys,yaml;print(json.dumps(yaml.safe_load(open(sys.argv[1],encoding='utf-8-sig'))))" (Join-Path $project $binding.source_path)) | ConvertFrom-Json
+    $reqAfter.PSObject.Properties.Remove('superseded_by')
+    Assert-True 'resolution changes no other Requirement field' (($reqAfter | ConvertTo-Json -Compress -Depth 20) -eq ($reqBefore | ConvertTo-Json -Compress -Depth 20))
+    $repeatResolution = (& python -B $doctorTool resolve --project-root $project --format json --diagnostic-id $binding.diagnostic_id --migration-id $binding.migration_id --source-path $binding.source_path --field $binding.field --source-fingerprint $binding.current_source_fingerprint --value REQ-111 --human-reference USER-UPGRADE-SUCCESSOR --run-id RUN-UPGRADE-HUMAN --human-confirmed) | ConvertFrom-Json
+    Assert-True 'identical Human resolution is an explicit no-op' ($repeatResolution.result -eq 'ALREADY_RESOLVED')
+    $conflictingResolve = Invoke-InstalledAdapter $project @{tool_name='Bash';tool_input=@{command=$resolveCommand.Replace('--value REQ-111','--value REQ-001')}}
+    Assert-True 'conflicting second Human resolution is blocked' ($conflictingResolve.hookSpecificOutput.permissionDecision -eq 'deny')
     $migrationCommand = "python -B '$doctorTool' migrate --apply-safe --project-root '$project' --format json"
     $migrationHook = Invoke-InstalledAdapter $project @{ tool_name = 'Bash'; tool_input = @{ command = $migrationCommand } }
     Assert-True 'installed hook permits only the integrity-bound contract recovery' ($migrationHook.hookSpecificOutput.permissionDecision -eq 'allow') ($migrationHook | ConvertTo-Json -Compress)

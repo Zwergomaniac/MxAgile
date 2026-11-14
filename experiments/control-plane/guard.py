@@ -10,6 +10,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -78,6 +79,7 @@ class ProjectFacts:
     last_update: dict[str, Any] = field(default_factory=dict)
     core_provenance: dict[str, Any] = field(default_factory=dict)
     projection_status: dict[str, Any] = field(default_factory=dict)
+    auxiliary_interruption: dict[str, Any] = field(default_factory=dict)
     doctor_compatibility: str | None = None
     doctor_blocking: list[str] = field(default_factory=list)
     doctor_diagnostics: list[dict[str, Any]] = field(default_factory=list)
@@ -163,6 +165,13 @@ def load_project_facts(project_root: str | Path) -> ProjectFacts:
     """Read canonical state and current Git identity; never writes to the project."""
     root = Path(project_root).resolve()
     facts = ProjectFacts(root=root)
+    if os.path.lexists(root / '.mxagile/state/runs/auxiliary-interruption.json'):
+        try:
+            sys.path.insert(0, str(SCRIPTS_DIR))
+            from project_compatibility import auxiliary_interruption
+            facts.auxiliary_interruption = auxiliary_interruption(root) or {}
+        except (OSError, ValueError, ImportError):
+            facts.load_issues.append('SOURCE_UNREADABLE:.mxagile/state/runs/auxiliary-interruption.json')
     facts.lifecycle = _load_yaml(root, ".mxagile/lifecycle.yaml", None, facts.load_issues, facts.source_fingerprints)
     # Schema conformance of canonical artifacts is judged by the existing Doctor (with its legacy projection).
     facts.mission = _load_yaml(
@@ -347,6 +356,8 @@ def _lifecycle_integrity(facts: ProjectFacts) -> tuple[list[dict[str, str]], lis
             findings.append(_finding('CONTRACT_IDENTITY_NOT_OBSERVABLE', 'Current schema identity does not match installed Core provenance.', 'unavailable', recovery='inspect'))
         elif not valid_record or record.get('target') != target:
             findings.append(_finding('CONTRACT_MIGRATION_REQUIRED', 'Historical migration completion is not bound to the installed contract.', 'fail', '.mxagile/migration/state.yaml', 'resume'))
+        elif any(item.get('result') == 'PENDING' for item in record.get('resolution_receipts', [])):
+            findings.append(_finding('HUMAN_RESOLUTION_RECOVERY_REQUIRED', 'A bound source resolution needs audit finalization.', 'fail', '.mxagile/migration/state.yaml', 'human_resolution'))
         elif record.get('status') != 'COMPLETE':
             human = record.get('status') == 'NEEDS_HUMAN'
             findings.append(_finding('CONTRACT_MIGRATION_NEEDS_HUMAN' if human else 'CONTRACT_MIGRATION_PENDING', f"Current contract reconciliation is {record.get('status')}.", 'needs_human' if human else 'fail', '.mxagile/migration/state.yaml', 'human_resolution' if human else 'resume'))
@@ -363,8 +374,17 @@ def _lifecycle_integrity(facts: ProjectFacts) -> tuple[list[dict[str, str]], lis
     if installed_at:
         installed_at = installed_at.replace(microsecond=0)
     checkpoint_at = _parse_time((facts.context_epoch.get("repository") or {}).get("checkpoint_time"))
+    interrupted_at = _parse_time(facts.auxiliary_interruption.get('interrupted_at'))
+    if interrupted_at and (checkpoint_at is None or checkpoint_at < interrupted_at):
+        findings.append(_finding('AUXILIARY_INTERRUPTION_REQUIRES_RESYNC', 'Independent user work interrupted the Delivery context; canonical re-sync is required before resume.', 'unavailable', '.mxagile/state/runs/auxiliary-interruption.json', 'resync'))
     if installed_at and (checkpoint_at is None or checkpoint_at < installed_at):
         findings.append(_finding("CONTEXT_STALE_AFTER_UPDATE", "The framework was updated after the last Context Epoch re-sync.", "unavailable", ".mxagile/state/core-provenance.json", "resync"))
+
+    for receipt in (migration.get('contract_migration') or {}).get('resolution_receipts', []):
+        applied_at = _parse_time(receipt.get('applied_at'))
+        if receipt.get('result') == 'APPLIED' and applied_at and (checkpoint_at is None or checkpoint_at < applied_at):
+            findings.append(_finding('CONTEXT_STALE_AFTER_HUMAN_RESOLUTION', 'Canonical Requirement changed after Context Epoch re-sync.', 'unavailable', receipt['source_path'], 'resync'))
+            break
 
     if facts.doctor_compatibility == "BLOCKED":
         categories = ", ".join(facts.doctor_blocking[:5]) or "unspecified"
@@ -534,7 +554,7 @@ def _recovery_plan(facts: ProjectFacts, findings: list[dict[str, str]]) -> dict[
     by_code = {f['code']: f for f in findings}
     primary = None
     blocker = None
-    for code in ('PROJECTION_RECOVERY_REQUIRED', 'UPDATE_NOT_READY', 'MIGRATION_IN_PROGRESS', 'MIGRATION_PARTIAL', 'CONTRACT_IDENTITY_NOT_OBSERVABLE', 'CONTRACT_MIGRATION_REQUIRED', 'CONTRACT_MIGRATION_NEEDS_HUMAN', 'CONTRACT_MIGRATION_PENDING', 'DOCTOR_BLOCKED', 'UPDATE_IDENTITY_NOT_OBSERVABLE'):
+    for code in ('PROJECTION_RECOVERY_REQUIRED', 'UPDATE_NOT_READY', 'MIGRATION_IN_PROGRESS', 'MIGRATION_PARTIAL', 'CONTRACT_IDENTITY_NOT_OBSERVABLE', 'CONTRACT_MIGRATION_REQUIRED', 'HUMAN_RESOLUTION_RECOVERY_REQUIRED', 'CONTRACT_MIGRATION_NEEDS_HUMAN', 'CONTRACT_MIGRATION_PENDING', 'DOCTOR_BLOCKED', 'UPDATE_IDENTITY_NOT_OBSERVABLE'):
         if code in by_code:
             blocker = code
             primary = by_code[code].get('recovery') or 'inspect'

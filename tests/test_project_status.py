@@ -1121,6 +1121,229 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertEqual(repeated['migration'], result['migration'])
       self.assertEqual(tree_fingerprint(self.root), before)
 
+    def human_resolution_fixture(self):
+      self.contract_migration_fixture()
+      project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      contract = project_compatibility.human_resolution_contracts(self.root)[0]
+      return {'diagnostic_id': contract['diagnostic_id'], 'migration_id': contract['migration_id'],
+              'source_path': contract['source_path'], 'field': contract['field'],
+              'source_fingerprint': contract['current_source_fingerprint'], 'value': 'REQ-111',
+              'human_reference': 'USER-FIXTURE-SUCCESSOR', 'human_confirmed': True, 'run_id': 'RUN-HUMAN-FIXTURE'}
+
+    def test_human_resolution_is_bound_and_re_evaluates_migration(self):
+      request = self.human_resolution_fixture()
+      path = self.root / request['source_path']
+      before = project_compatibility.load_yaml(path.read_bytes())
+      result = project_compatibility.resolve_human_resolution(self.root, **request)
+      self.assertEqual(result['result'], 'APPLIED')
+      after = project_compatibility.load_yaml(path.read_bytes())
+      self.assertEqual(after.pop('superseded_by'), 'REQ-111')
+      self.assertEqual(after, before)
+      self.assertEqual(result['migration']['status'], 'COMPLETE')
+      self.assertTrue(result['doctor']['executed'])
+      self.assertNotEqual(result['doctor']['compatibility'], 'BLOCKED')
+      self.assertEqual(project_compatibility.resync_preflight(self.root)['state'], 'READY_FOR_RESYNC')
+      unchanged = tree_fingerprint(self.root)
+      self.assertEqual(project_compatibility.resolve_human_resolution(self.root, **request)['result'], 'ALREADY_RESOLVED')
+      self.assertEqual(tree_fingerprint(self.root), unchanged)
+      with self.assertRaisesRegex(ValueError, 'CONFLICTING_RESOLUTION'):
+        project_compatibility.resolve_human_resolution(self.root, **{**request, 'value': 'REQ-068'})
+      self.assertEqual(tree_fingerprint(self.root), unchanged)
+
+    def test_human_resolution_rejects_unbound_and_stale_requests_without_writes(self):
+      request = self.human_resolution_fixture()
+      cases = ({'human_confirmed': False}, {'human_reference': ''}, {'diagnostic_id': 'DX-wrong'},
+               {'source_path': 'requirements/REQ-111.yml'}, {'field': 'status'},
+               {'migration_id': 'sha256:' + '0' * 64}, {'source_fingerprint': 'sha256:' + '0' * 64},
+               {'value': 'REQ-999'}, {'value': ['REQ-111']}, {'value': 'REQ-001'})
+      before = tree_fingerprint(self.root)
+      for changes in cases:
+        with self.subTest(changes=changes):
+          with self.assertRaises(ValueError):
+            project_compatibility.resolve_human_resolution(self.root, **{**request, **changes})
+          self.assertEqual(tree_fingerprint(self.root), before)
+      path = self.root / request['source_path']
+      path.write_bytes(path.read_bytes() + b'\n# concurrent edit\n')
+      before = tree_fingerprint(self.root)
+      with self.assertRaisesRegex(ValueError, 'STALE_RESOLUTION'):
+        project_compatibility.resolve_human_resolution(self.root, **request)
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_human_resolution_atomic_source_failure_is_recoverable(self):
+      request = self.human_resolution_fixture()
+      path = self.root / request['source_path']
+      original = path.read_bytes()
+      replace = project_compatibility.atomic_replace
+      def fail_source(target, raw):
+        if target == path:
+          raise OSError('source atomic replacement failed')
+        return replace(target, raw)
+      with patch.object(project_compatibility, 'atomic_replace', side_effect=fail_source):
+        with self.assertRaises(OSError):
+          project_compatibility.resolve_human_resolution(self.root, **request)
+      self.assertEqual(path.read_bytes(), original)
+      record = project_compatibility.load_yaml((self.root / '.mxagile/migration/state.yaml').read_bytes())['contract_migration']
+      self.assertEqual(record['status'], 'NEEDS_HUMAN')
+      self.assertEqual(record['resolution_receipts'][0]['result'], 'PENDING')
+      self.assertEqual(project_compatibility.resolve_human_resolution(self.root, **request)['result'], 'APPLIED')
+
+    def test_human_resolution_preserves_concurrent_metadata_before_finalization(self):
+      request = self.human_resolution_fixture()
+      reconcile = project_compatibility.reconcile_contract
+      state_path = self.root / '.mxagile/migration/state.yaml'
+      concurrent = None
+      def change_metadata(root, **kwargs):
+        nonlocal concurrent
+        result = reconcile(root, **kwargs)
+        concurrent = state_path.read_bytes() + b'\n# concurrent metadata update\n'
+        state_path.write_bytes(concurrent)
+        return result
+      with patch.object(project_compatibility, 'reconcile_contract', side_effect=change_metadata):
+        with self.assertRaisesRegex(ValueError, 'STALE_RESOLUTION'):
+          project_compatibility.resolve_human_resolution(self.root, **request)
+      self.assertEqual(state_path.read_bytes(), concurrent)
+      record = project_compatibility.load_yaml(concurrent)['contract_migration']
+      self.assertEqual(record['status'], 'NEEDS_HUMAN')
+      self.assertEqual(record['resolution_receipts'][0]['result'], 'PENDING')
+      self.assertEqual(project_compatibility.resolve_human_resolution(self.root, **request)['result'], 'APPLIED')
+
+    def test_human_resolution_recovers_metadata_failure_without_rewriting_source(self):
+      request = self.human_resolution_fixture()
+      save = project_compatibility._save_contract_migration
+      def fail_final(root, record, expected):
+        if any(r['result'] == 'APPLIED' for r in record.get('resolution_receipts', [])):
+          raise OSError('final audit interrupted')
+        return save(root, record, expected)
+      with patch.object(project_compatibility, '_save_contract_migration', side_effect=fail_final):
+        with self.assertRaises(OSError):
+          project_compatibility.resolve_human_resolution(self.root, **request)
+      self.assertIn('HUMAN_RESOLUTION_RECOVERY_REQUIRED', project_compatibility.resync_preflight(self.root)['reason_codes'])
+      pending = project_compatibility.load_yaml((self.root / '.mxagile/migration/state.yaml').read_bytes())['contract_migration']
+      self.assertEqual(pending['status'], 'NEEDS_HUMAN')
+      with self.assertRaisesRegex(ValueError, 'RESOLUTION_RECOVERY_REQUIRED'):
+        project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      query = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/project_compatibility.py'), 'resolve', '--dry-run', '--project-root', str(self.root), '--format', 'json'], capture_output=True, text=True)
+      self.assertEqual(query.returncode, 0, query.stderr)
+      self.assertEqual(json.loads(query.stdout)['pending_recovery'][0]['result'], 'PENDING')
+      path = self.root / request['source_path']
+      before = path.read_bytes()
+      replace = project_compatibility.atomic_replace
+      def no_source_write(target, raw):
+        self.assertNotEqual(target, path)
+        return replace(target, raw)
+      with patch.object(project_compatibility, 'atomic_replace', side_effect=no_source_write):
+        resolved = project_compatibility.resolve_human_resolution(self.root, **request)
+      self.assertEqual(resolved['result'], 'APPLIED')
+      self.assertEqual(path.read_bytes(), before)
+      self.assertEqual(resolved['receipt']['run_id'], request['run_id'])
+      self.assertEqual(resolved['receipt']['human_decision_status'], 'CONFIRMED')
+
+    def test_human_resolution_rechecks_reference_before_source_write(self):
+      request = self.human_resolution_fixture()
+      path = self.root / request['source_path']
+      original = path.read_bytes()
+      save = project_compatibility._save_contract_migration
+      def competing_change(root, record, expected):
+        result = save(root, record, expected)
+        (root / 'requirements/REQ-111.yml').write_text('ID: REQ-111\ntitle: Changed\ndescription: Changed\nstatus: invalid-state\n')
+        return result
+      with patch.object(project_compatibility, '_save_contract_migration', side_effect=competing_change):
+        with self.assertRaisesRegex(ValueError, 'STALE_RESOLUTION'):
+          project_compatibility.resolve_human_resolution(self.root, **request)
+      self.assertEqual(path.read_bytes(), original)
+
+    def test_human_resolution_does_not_mutate_unrelated_sources_or_lifecycle(self):
+      request = self.human_resolution_fixture()
+      files = {p.relative_to(self.root).as_posix(): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+      project_compatibility.resolve_human_resolution(self.root, **request)
+      for relative, raw in files.items():
+        if relative not in (request['source_path'], '.mxagile/migration/state.yaml'):
+          self.assertEqual((self.root / relative).read_bytes(), raw, relative)
+
+    def test_human_resolution_cli_is_scoped_and_parser_rejects_mixed_modes(self):
+      request = self.human_resolution_fixture()
+      tools = self.root / '.mxagile/tools'
+      tools.mkdir(parents=True, exist_ok=True)
+      for name in ('project_compatibility.py', 'projection_io.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py'):
+        shutil.copyfile(ROOT / 'scripts' / name, tools / name)
+      (tools / 'control-plane').mkdir(exist_ok=True)
+      for name in ('run_events.py', 'run-event.schema.json'):
+        shutil.copyfile(ROOT / 'scripts' / name, tools / 'control-plane' / name)
+      base = [sys.executable, '-B', str(tools / 'project_compatibility.py'), 'resolve', '--project-root', str(self.root), '--format', 'json']
+      query = subprocess.run(base + ['--dry-run'], capture_output=True, text=True)
+      self.assertEqual(query.returncode, 0, query.stderr)
+      self.assertEqual(json.loads(query.stdout)['resolutions'][0]['field'], 'superseded_by')
+      flags = [part for key, value in request.items() if key != 'human_confirmed' for part in ('--' + key.replace('_', '-'), str(value))]
+      before = tree_fingerprint(self.root)
+      denied = subprocess.run(base + flags, capture_output=True, text=True)
+      self.assertEqual(denied.returncode, 3)
+      self.assertIn('HUMAN_AUTHORIZATION_REQUIRED', denied.stderr)
+      self.assertEqual(tree_fingerprint(self.root), before)
+      for mixed in (['--dry-run', '--value', 'REQ-111'], ['--apply'], ['--apply-safe'], ['--candidate-dir', 'elsewhere']):
+        with self.subTest(mixed=mixed):
+          invalid = subprocess.run(base + mixed, capture_output=True, text=True)
+          self.assertEqual(invalid.returncode, 2)
+          self.assertEqual(tree_fingerprint(self.root), before)
+      resolved = subprocess.run(base + flags + ['--human-confirmed'], capture_output=True, text=True)
+      self.assertEqual(resolved.returncode, 0, resolved.stderr)
+      self.assertEqual(json.loads(resolved.stdout)['result'], 'APPLIED')
+
+    def test_human_resolution_preserves_legacy_contract_and_requires_new_resolve_schema(self):
+      self.contract_migration_fixture()
+      path = self.root / '.mxagile/schemas/contract-migration.schema.json'
+      schema = json.loads(path.read_bytes())
+      schema['properties'].pop('resolution_receipts')
+      schema['properties']['decision_references']['items']['properties'].pop('resolution')
+      path.write_text(json.dumps(schema))
+      provenance_path = self.root / '.mxagile/state/core-provenance.json'
+      provenance = json.loads(provenance_path.read_bytes())
+      provenance['artifact_contract'] = project_compatibility.contract_snapshot(self.root)
+      provenance_path.write_text(json.dumps(provenance))
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertEqual(result['migration']['status'], 'NEEDS_HUMAN')
+      self.assertNotIn('resolution', result['migration']['decision_references'][0])
+      contract = project_compatibility.human_resolution_contracts(self.root)[0]
+      before = tree_fingerprint(self.root)
+      with self.assertRaisesRegex(ValueError, 'HUMAN_RESOLUTION_CONTRACT_UNAVAILABLE'):
+        project_compatibility.resolve_human_resolution(self.root, diagnostic_id=contract['diagnostic_id'], migration_id=contract['migration_id'], source_path=contract['source_path'], field=contract['field'], source_fingerprint=contract['current_source_fingerprint'], value='REQ-111', human_reference='USER-FIXTURE-SUCCESSOR', human_confirmed=True, run_id='RUN-HUMAN-FIXTURE')
+      self.assertEqual(tree_fingerprint(self.root), before)
+
+    def test_human_resolution_audit_survives_later_contract_reconciliation(self):
+      request = self.human_resolution_fixture()
+      resolved = project_compatibility.resolve_human_resolution(self.root, **request)
+      path = self.root / '.mxagile/schemas/requirement.schema.json'
+      schema = json.loads(path.read_bytes())
+      schema['description'] += ' fixture next contract'
+      path.write_text(json.dumps(schema))
+      provenance_path = self.root / '.mxagile/state/core-provenance.json'
+      provenance = json.loads(provenance_path.read_bytes())
+      provenance['artifact_contract'] = project_compatibility.contract_snapshot(self.root)
+      provenance_path.write_text(json.dumps(provenance))
+      following = project_compatibility.reconcile_contract(self.root, apply_safe=True)
+      self.assertEqual(following['migration']['resolution_receipts'], resolved['migration']['resolution_receipts'])
+      self.assertEqual(following['migration']['status'], 'COMPLETE')
+
+    def test_human_resolution_reference_targets_are_valid_unique_and_acyclic(self):
+      for kind in ('schema_invalid', 'duplicate', 'cycle'):
+        with self.subTest(kind=kind):
+          self.contract_migration_fixture()
+          target = self.root / 'requirements/REQ-111.yml'
+          value = project_compatibility.load_yaml(target.read_bytes())
+          if kind == 'schema_invalid':
+            value['status'] = 'invalid-state'
+          elif kind == 'cycle':
+            value['status'] = 'superseded'
+            value['superseded_by'] = 'REQ-001'
+          else:
+            write_file(self.root, 'requirements/REQ-999.yml', project_compatibility.yaml.safe_dump(value, sort_keys=False))
+          target.write_text(project_compatibility.yaml.safe_dump(value, sort_keys=False))
+          project_compatibility.reconcile_contract(self.root, apply_safe=True)
+          contract = project_compatibility.human_resolution_contracts(self.root)[0]
+          before = tree_fingerprint(self.root)
+          with self.assertRaisesRegex(ValueError, 'INVALID_REQUIREMENT_REFERENCE'):
+            project_compatibility.resolve_human_resolution(self.root, diagnostic_id=contract['diagnostic_id'], migration_id=contract['migration_id'], source_path=contract['source_path'], field=contract['field'], source_fingerprint=contract['current_source_fingerprint'], value='REQ-111', human_reference='USER-FIXTURE-SUCCESSOR', human_confirmed=True, run_id='RUN-HUMAN-FIXTURE')
+          self.assertEqual(tree_fingerprint(self.root), before)
+
     def test_contract_migration_finishes_only_after_explicit_successor_decision(self):
       self.contract_migration_fixture()
       project_compatibility.reconcile_contract(self.root, apply_safe=True)

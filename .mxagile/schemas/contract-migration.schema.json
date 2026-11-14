@@ -29,13 +29,194 @@
     "decision_references": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["diagnostic_id", "category", "repairability"], "properties": {
         "diagnostic_id": {"type": "string"}, "source_path": {"type": ["string", "null"]}, "authority": {"type": ["string", "null"]},
-        "category": {"type": "string"}, "repairability": {"enum": ["SAFE_DETERMINISTIC", "AGENT_REPAIRABLE", "DECISION_REQUIRED", "UNSUPPORTED"]}
+        "category": {"type": "string"}, "repairability": {"enum": ["SAFE_DETERMINISTIC", "AGENT_REPAIRABLE", "DECISION_REQUIRED", "UNSUPPORTED"]},
+        "resolution": {"$ref": "#/definitions/resolution"}
       }
     }},
+    "resolution_receipts": {"type": "array", "items": {"$ref": "#/definitions/receipt"}},
     "completed_at": {"type": ["string", "null"], "format": "date-time"}
   },
   "allOf": [{"if": {"properties": {"status": {"const": "COMPLETE"}}}, "then": {"properties": {"completed_at": {"type": "string"}}}, "else": {"properties": {"completed_at": {"type": "null"}}}}],
   "definitions": {
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "diagnostic_id",
+        "migration_id",
+        "resolution_type",
+        "artifact_id",
+        "source_path",
+        "field",
+        "current_source_fingerprint",
+        "target_contract",
+        "allowed_value_shape",
+        "human_decision_status"
+      ],
+      "properties": {
+        "diagnostic_id": {
+          "type": "string",
+          "pattern": "^DX-[a-f0-9]{16}$"
+        },
+        "migration_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "resolution_type": {
+          "const": "requirement_successor"
+        },
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^REQ-[0-9]{3,}$"
+        },
+        "source_path": {
+          "type": "string",
+          "pattern": "^requirements/REQ-[0-9]{3,}\\.yml$"
+        },
+        "field": {
+          "const": "superseded_by"
+        },
+        "current_source_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "target_contract": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "allowed_value_shape": {
+          "const": {
+            "type": "string",
+            "pattern": "^REQ-[0-9]{3,}$"
+          }
+        },
+        "human_decision_status": {
+          "const": "OPEN"
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "diagnostic_id",
+        "migration_id",
+        "resolution_type",
+        "artifact_id",
+        "source_path",
+        "field",
+        "current_source_fingerprint",
+        "target_contract",
+        "allowed_value_shape",
+        "human_decision_status",
+        "resolved_value",
+        "human_reference",
+        "run_id",
+        "result",
+        "after_source_fingerprint",
+        "started_at",
+        "applied_at"
+      ],
+      "properties": {
+        "diagnostic_id": {
+          "type": "string",
+          "pattern": "^DX-[a-f0-9]{16}$"
+        },
+        "migration_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "resolution_type": {
+          "const": "requirement_successor"
+        },
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^REQ-[0-9]{3,}$"
+        },
+        "source_path": {
+          "type": "string",
+          "pattern": "^requirements/REQ-[0-9]{3,}\\.yml$"
+        },
+        "field": {
+          "const": "superseded_by"
+        },
+        "current_source_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "target_contract": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "allowed_value_shape": {
+          "const": {
+            "type": "string",
+            "pattern": "^REQ-[0-9]{3,}$"
+          }
+        },
+        "human_decision_status": {
+          "const": "CONFIRMED"
+        },
+        "resolved_value": {
+          "type": "string",
+          "pattern": "^REQ-[0-9]{3,}$"
+        },
+        "human_reference": {
+          "type": "string",
+          "pattern": "^USER-[A-Za-z0-9-]{4,120}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^RUN-[A-Za-z0-9-]{4,80}$"
+        },
+        "result": {
+          "enum": [
+            "PENDING",
+            "APPLIED"
+          ]
+        },
+        "after_source_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "applied_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result": {
+                "const": "APPLIED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "applied_at": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "applied_at": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
     "contract": {"type": "object", "additionalProperties": false,
       "required": ["contract_version", "schemas", "fingerprint"],
       "properties": {

@@ -104,6 +104,43 @@ open_items: []
 
 ---
 
+### FOLLOW_UP: historical Requirement lifecycle and Mocketeer reconciliation
+
+**Not implemented in this change.** The current Requirement schema and status consumers
+share `draft`, `accepted`, `deferred`, `superseded`. Adding retirement, split/merge lineage,
+duplicate/invalid disposition and active-conflict reconciliation consistently would also
+change Board/Project Status, Artifact Index relationships, planning/Test Contract selection
+and diagnostic-bound Human resolution recipes. A status-only addition would leave historical
+Requirements incorrectly usable as current truth. The Human-resolution deadlock/retry takes
+priority; no partial new state machine or silent aliases are introduced.
+
+The bounded follow-up contract is:
+
+| Mocketeer reconciliation | Requirement lifecycle meaning / required traceability |
+|---|---|
+| UNCHANGED / MODIFIED / NEW | Current Requirement semantics; existing active review/acceptance lifecycle. Preserve revisions and prior evidence; do not rewrite historical semantics silently. |
+| SUPERSEDED | Replacement by a different current Requirement; explicit successor/replacement lineage required. |
+| OBSOLETE | Retired without replacement. Preserve original semantics, source revision, Design Contract/mockup refs, decisions, ACs and evidence; require a retirement reason, never an invented successor. Exclude from current planning/test/implementation truth. |
+| SPLIT | Historical Requirement with explicit lineage to multiple current Requirements and transformation rationale. |
+| MERGED | Historical Requirements with explicit lineage to the resulting current Requirement and rationale. |
+| AMBIGUOUS | Diagnostic-bound reconciliation / NEEDS_HUMAN; no automatic choice or semantic merge. |
+| Proven DUPLICATE / INVALID | Explicit diagnostic-bound disposition and evidence. Preserve needed history; neither disposition implies automatic deletion. |
+
+Historical contradictions may remain readable. Unresolved contradictory **active** Requirements
+must generate reconciliation/NEEDS_HUMAN based on explicit authoritative conflict evidence,
+not silent selection; a retired/superseded historical disagreement must not count as a second
+active truth. All transformations use the same Requirement contract, not a Mocketeer-only
+state machine, and extend the existing closed Human-resolution recipes with exact authorized
+field scopes and source fingerprints.
+
+Purge is a separate, explicitly approved exception only for proven technical/noncanonical
+import debris, redundant records without independent business identity, temporary/corrupt
+artifacts with no required traceability. It is not the normal lifecycle for old Requirements
+and is not authorized by Resolve.
+
+The current CAPTRACK decision remains **REQ-001 superseded by REQ-068**. This follow-up neither
+reclassifies it as obsolete nor authorizes any consumer mutation.
+
 ## Spec (`specs/SPEC-NNN.yml`)
 
 Schema: `.mxagile/schemas/spec.schema.json`

@@ -125,8 +125,35 @@ remains read-only. The result includes a separate `migration` record.
 
 Only deterministic safe repairs are automatic. A missing Requirement successor remains
 `NEEDS_HUMAN`; unsupported/reviewable artifacts remain `NEEDS_REVIEW`. Reviewed candidates
-continue through the existing approved plan/hash repair path. Re-run contract reconciliation
-after explicit source resolution, then re-read contracts and use the installed Epoch Writer.
+continue through the existing approved plan/hash repair path. Human successor decisions use
+the dedicated installed `project_compatibility.py resolve`, not ordinary YAML Edit or shell
+manipulation. Obtain the live binding with `resolve --dry-run --project-root <absolute-root>
+--format json`. The mutating command requires the exact diagnostic/migration identity,
+source path/field/fingerprint, valid successor value, Run ID, actual Human decision reference
+and `--human-confirmed`. The installed hook grants only `HUMAN_RESOLUTION_WRITE` for this
+integrity-bound command. Other writes remain blocked.
+
+Resolve changes only the authorized source field, retains recovery/audit receipts in the
+existing migration record, and re-evaluates migration without repairing other sources.
+An identical repeat is `ALREADY_RESOLVED`; conflicting or stale resolutions cannot overwrite.
+After complete migration, fresh Doctor follows, then lifecycle reconciliation, contract
+re-read and the installed Epoch Writer. Pending receipts and unresolved diagnostics block
+re-sync; applied resolution receipts make an older Context checkpoint stale. Migration
+completion and the APPLIED receipt are published in one atomic metadata replacement;
+interrupted finalization remains NEEDS_HUMAN/PENDING and is recoverable through Resolve.
+
+A BLOCKED Delivery does not prohibit a separately confirmed noncanonical documentation or
+diagnostic assignment. Use the dedicated installed `auxiliary --dry-run` / `auxiliary
+--apply` operation with a closed current User request, artifact role, exact target/content,
+create/replace mutation, source fingerprint and approved plan hash. The actual matching
+User reference and confirmation are mandatory. The bounded operation does not allow normal
+Edit or arbitrary shell writes and cannot modify canonical contracts, Product code,
+Requirements, Lifecycle or the model. Supported recipes are plain-text documentation and
+findings; code/executable recipes are unavailable. See
+[Bounded Auxiliary User interruption](../.mxagile/policies/project-compatibility.md#bounded-auxiliary-user-interruption)
+for the complete command/request contract. The existing ignored runtime store retains an
+interruption watermark; original Delivery remains blocked and must pass canonical recovery
+and Context re-sync before resume.
 Its preflight refuses unresolved migration, BLOCKED Doctor, an active update transaction or
 conflicting/missing canonical Mission/Wave/phase before any Epoch write. Recovery does not
 approve ordinary implementation or acceptance.

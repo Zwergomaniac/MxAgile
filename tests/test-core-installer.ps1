@@ -49,6 +49,9 @@ function Test-GenericInstallation {
         # 4. Assert that the .mxagile directory is created.
         $mxagilePath = Join-Path $projectRoot ".mxagile"
         Assert-Condition (Test-Path $mxagilePath -PathType Container) ".mxagile directory should be created."
+        $projectionIo = Join-Path $mxagilePath 'tools/projection_io.py'
+        Assert-Condition (Test-Path $projectionIo -PathType Leaf) "Bound recovery must receive its canonical projection_io dependency."
+        Assert-Condition ((Get-FileHash $projectionIo).Hash -eq (Get-FileHash (Join-Path $PSScriptRoot '../scripts/projection_io.py')).Hash) "Installed projection_io must match the canonical payload."
 
         # 4a. Mocketeer skills are part of the canonical installer payload and generator output.
         $mocketeerSkillNames = @(

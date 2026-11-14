@@ -974,6 +974,7 @@ try {
         throw "project_compatibility.py not found in script directory."
     }
     Copy-Item -LiteralPath $doctorSource -Destination (Join-Path $destToolsDir "project_compatibility.py") -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'projection_io.py') -Destination (Join-Path $destToolsDir 'projection_io.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'git_index_integrity.py') -Destination (Join-Path $destToolsDir 'git_index_integrity.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'test_harness_cleanup.py') -Destination (Join-Path $destToolsDir 'test_harness_cleanup.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'mendix_merge_preflight.py') -Destination (Join-Path $destToolsDir 'mendix_merge_preflight.py') -Force

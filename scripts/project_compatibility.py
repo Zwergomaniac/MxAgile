@@ -1484,7 +1484,7 @@ def _save_contract_migration(root: Path, record: dict, expected: bytes) -> bytes
     return replacement
 
 
-def reconcile_contract(root: Path, *, apply_safe: bool = False) -> dict:
+def reconcile_contract(root: Path, *, apply_safe: bool = False, repair_sources: bool = True, persist: bool = True) -> dict:
     from build_project_status import build_status
     root = root.resolve()
     target = contract_snapshot(root)
@@ -1509,6 +1509,8 @@ def reconcile_contract(root: Path, *, apply_safe: bool = False) -> dict:
         if jsonschema is None or list(contract_migration_validator(schema).iter_errors(previous)):
             raise ValueError('Prior contract migration record is invalid.')
     same_target = previous.get('target') == target
+    if apply_safe and repair_sources and any(item.get('result') == 'PENDING' for item in previous.get('resolution_receipts', [])):
+        raise ResolutionFailure('RESOLUTION_RECOVERY_REQUIRED')
     report = build_status(root)['compatibility']
     plan = repair_plan(root, report, safe_only=True)
     required = not same_target or previous.get('status') != 'COMPLETE' or bool(plan['repairs']) or report['compatibility'] == 'BLOCKED'
@@ -1525,8 +1527,12 @@ def reconcile_contract(root: Path, *, apply_safe: bool = False) -> dict:
         'checked_source_fingerprint': report['source_fingerprint'],
         'decision_references': [], 'completed_at': None,
     }
+    if previous.get('resolution_receipts'):
+        if not same_target and any(item.get('result') == 'PENDING' for item in previous['resolution_receipts']):
+            raise ResolutionFailure('RESOLUTION_RECOVERY_REQUIRED')
+        record['resolution_receipts'] = copy.deepcopy(previous['resolution_receipts'])
     legacy_partial = state.get('status') not in (None, 'complete') or state.get('artifact_canonicalization') == 'in_progress'
-    if apply_safe and not legacy_partial:
+    if apply_safe and not legacy_partial and repair_sources and persist:
         raw = _save_contract_migration(root, record, raw)
         for entry in previous.get('planned_repairs', []) if same_target else []:
             path = safe_file(root, entry['source_path'])
@@ -1545,13 +1551,401 @@ def reconcile_contract(root: Path, *, apply_safe: bool = False) -> dict:
         decisions = [item for item in blocking if item['repairability'] == 'DECISION_REQUIRED']
         record['status'] = 'NEEDS_HUMAN' if decisions else ('NEEDS_REVIEW' if blocking or legacy_partial else 'COMPLETE')
         record['decision_references'] = [{key: item[key] for key in ('diagnostic_id', 'source_path', 'authority', 'category', 'repairability') if key in item} for item in blocking]
+        migration_schema = json.loads((root / '.mxagile/schemas/contract-migration.schema.json').read_bytes())
+        if 'resolution' in migration_schema['properties']['decision_references']['items']['properties']:
+            for reference in record['decision_references']:
+                resolution = _human_resolution_contract(root, record, reference)
+                if resolution:
+                    reference['resolution'] = resolution
         record['checked_source_fingerprint'] = report['source_fingerprint']
         if record['status'] == 'COMPLETE':
             record['completed_at'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         if same_target and previous.get('status') == record['status'] and previous.get('checked_source_fingerprint') == record['checked_source_fingerprint'] and not plan['repairs']:
             record = previous
+        if persist:
+            _save_contract_migration(root, record, raw)
+    return {'stage': 'CONTRACT_MIGRATION_CHECKED', 'read_only': not (apply_safe and persist), 'required': True, 'migration': record, 'plan': plan, 'doctor': report}
+
+
+class ResolutionFailure(ValueError):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+def migration_identity(record: dict) -> str:
+    identity = {key: record.get(key) for key in ('source', 'target', 'from_core_commit', 'to_core_commit')}
+    return digest(json.dumps(identity, sort_keys=True).encode())
+
+
+def _human_resolution_contract(root: Path, record: dict, diagnostic: dict) -> dict | None:
+    relative = diagnostic.get('source_path')
+    if (diagnostic.get('repairability') != 'DECISION_REQUIRED' or diagnostic.get('authority') != 'superseded_by'
+            or diagnostic.get('category') != 'REFERENCE_MISSING' or not isinstance(relative, str)
+            or not re.fullmatch(r'requirements/REQ-[0-9]{3,}\.yml', relative)):
+        return None
+    path = safe_file(root, relative)
+    value = load_yaml(path.read_bytes()) if path else None
+    if not isinstance(value, dict) or value.get('ID') != Path(relative).stem or value.get('status') != 'superseded' or value.get('superseded_by') not in (None, ''):
+        return None
+    return {'diagnostic_id': diagnostic['diagnostic_id'], 'migration_id': migration_identity(record),
+            'resolution_type': 'requirement_successor', 'artifact_id': value.get('ID'), 'source_path': relative,
+            'field': 'superseded_by', 'current_source_fingerprint': digest(path.read_bytes()),
+            'target_contract': record['target']['fingerprint'],
+            'allowed_value_shape': {'type': 'string', 'pattern': '^REQ-[0-9]{3,}$'}, 'human_decision_status': 'OPEN'}
+
+
+def human_resolution_contracts(root: Path) -> list[dict]:
+    from build_project_status import build_status
+    root = root.resolve()
+    _, _, state = _migration_state(root)
+    record = state.get('contract_migration') or {}
+    if record.get('status') != 'NEEDS_HUMAN':
+        return []
+    diagnostics = build_status(root)['compatibility']['diagnostics']
+    persisted = {item['diagnostic_id']: item for item in record.get('decision_references', [])}
+    result = []
+    for diagnostic in diagnostics:
+        reference = persisted.get(diagnostic['diagnostic_id'])
+        if not reference or any(reference.get(k) != diagnostic.get(k) for k in ('source_path', 'authority', 'category')):
+            continue
+        contract = _human_resolution_contract(root, record, diagnostic)
+        if contract:
+            result.append(contract)
+    return result
+
+
+def _successor_value(root: Path, source_id: str, value: str) -> None:
+    if not isinstance(value, str) or not re.fullmatch(r'REQ-[0-9]{3,}', value):
+        raise ResolutionFailure('INVALID_RESOLUTION_VALUE')
+    seen = {source_id}
+    successor = value
+    while successor:
+        if successor in seen:
+            raise ResolutionFailure('INVALID_REQUIREMENT_REFERENCE')
+        seen.add(successor)
+        matches = []
+        for path in (root / 'requirements').glob('*.yml'):
+            safe = safe_file(root, path.relative_to(root).as_posix())
+            if safe is None:
+                raise ResolutionFailure('INVALID_REQUIREMENT_REFERENCE')
+            document = load_yaml(safe.read_bytes())
+            if isinstance(document, dict) and document.get('ID') == successor:
+                matches.append((path, document))
+        if len(matches) != 1 or matches[0][0].name != successor + '.yml':
+            raise ResolutionFailure('INVALID_REQUIREMENT_REFERENCE')
+        path, document = matches[0]
+        projected = compatibility_projection(path.relative_to(root).as_posix(), document)[0]
+        if not schema_validator(root / '.mxagile/schemas/requirement.schema.json').is_valid(projected):
+            raise ResolutionFailure('INVALID_REQUIREMENT_REFERENCE')
+        successor = document.get('superseded_by') if document.get('status') == 'superseded' else None
+        if document.get('status') == 'superseded' and not successor:
+            raise ResolutionFailure('INVALID_REQUIREMENT_REFERENCE')
+
+
+def prepare_human_resolution(root: Path, *, diagnostic_id: str, migration_id: str, source_path: str,
+                             field: str, source_fingerprint: str, value: str, human_reference: str,
+                             human_confirmed: bool, run_id: str) -> dict:
+    from build_project_status import build_status
+    from projection_io import safe_path
+    root = root.resolve()
+    for relative in ('.mxagile/state/core-provenance.json', '.mxagile/migration/state.yaml', '.mxagile/schemas', source_path or ''):
+        try:
+            safe_path(root, relative)
+        except (OSError, ValueError):
+            raise ResolutionFailure('STALE_RESOLUTION') from None
+    if human_confirmed is not True or not isinstance(human_reference, str) or not re.fullmatch(r'USER-[A-Za-z0-9-]{4,120}', human_reference):
+        raise ResolutionFailure('HUMAN_AUTHORIZATION_REQUIRED')
+    if not isinstance(run_id, str) or not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', run_id):
+        raise ResolutionFailure('RESOLUTION_RUN_REQUIRED')
+    provenance_path = safe_file(root, '.mxagile/state/core-provenance.json')
+    provenance = json.loads(provenance_path.read_bytes()) if provenance_path else {}
+    _, raw, state = _migration_state(root)
+    record = state.get('contract_migration') or {}
+    schema_path = safe_file(root, '.mxagile/schemas/contract-migration.schema.json')
+    migration_schema = json.loads(schema_path.read_bytes()) if schema_path else {}
+    if 'resolution_receipts' not in migration_schema.get('properties', {}):
+        raise ResolutionFailure('HUMAN_RESOLUTION_CONTRACT_UNAVAILABLE')
+    if (not schema_path or list(contract_migration_validator(migration_schema).iter_errors(record))
+            or contract_snapshot(root) != provenance.get('artifact_contract') or record.get('target') != provenance.get('artifact_contract')
+            or record.get('to_core_commit') != provenance.get('commit') or migration_identity(record) != migration_id
+            or safe_file(root, '.mxagile/state/update-transaction.json') or not projection_integrity(root, provenance)['ready']
+            or state.get('status') not in (None, 'complete') or state.get('artifact_canonicalization') == 'in_progress'):
+        raise ResolutionFailure('STALE_RESOLUTION')
+    if field != 'superseded_by' or not isinstance(source_path, str) or not re.fullmatch(r'requirements/REQ-[0-9]{3,}\.yml', source_path):
+        raise ResolutionFailure('RESOLUTION_SCOPE_MISMATCH')
+    path = safe_file(root, source_path)
+    if path is None:
+        raise ResolutionFailure('STALE_RESOLUTION')
+    original = path.read_bytes()
+    document = load_yaml(original)
+    if not isinstance(document, dict) or document.get('ID') != Path(source_path).stem or document.get('status') != 'superseded':
+        raise ResolutionFailure('STALE_RESOLUTION')
+    receipts = record.get('resolution_receipts', [])
+    if len({(item['migration_id'], item['diagnostic_id']) for item in receipts}) != len(receipts):
+        raise ResolutionFailure('STALE_RESOLUTION')
+    receipt = next((item for item in receipts if item['diagnostic_id'] == diagnostic_id and item['migration_id'] == migration_id), None)
+    if receipt:
+        if any(receipt.get(k) != v for k, v in {'migration_id': migration_id, 'source_path': source_path, 'field': field, 'current_source_fingerprint': source_fingerprint, 'artifact_id': document['ID'], 'target_contract': record['target']['fingerprint']}.items()):
+            raise ResolutionFailure('STALE_RESOLUTION')
+        if receipt['resolved_value'] != value:
+            raise ResolutionFailure('CONFLICTING_RESOLUTION')
+        if digest(original) == receipt['after_source_fingerprint'] and document.get(field) == value:
+            _successor_value(root, document['ID'], value)
+            return {'result': 'ALREADY_RESOLVED' if receipt['result'] == 'APPLIED' else 'RECOVER_RESOLUTION',
+                    'record': record, 'state_bytes': raw, 'receipt': receipt, 'path': path, 'original': original}
+        if receipt['result'] == 'APPLIED':
+            raise ResolutionFailure('STALE_RESOLUTION')
+    if record.get('status') != 'NEEDS_HUMAN' or digest(original) != source_fingerprint:
+        raise ResolutionFailure('STALE_RESOLUTION')
+    report = build_status(root)['compatibility']
+    if report['source_fingerprint'] != record.get('checked_source_fingerprint'):
+        raise ResolutionFailure('STALE_RESOLUTION')
+    contract = next((item for item in human_resolution_contracts(root) if item['diagnostic_id'] == diagnostic_id), None)
+    if not contract or any(contract[k] != v for k, v in {'migration_id': migration_id, 'source_path': source_path, 'field': field, 'current_source_fingerprint': source_fingerprint}.items()):
+        raise ResolutionFailure('STALE_RESOLUTION')
+    stored = next(item for item in record['decision_references'] if item['diagnostic_id'] == diagnostic_id)
+    if stored.get('resolution') and stored['resolution'] != contract:
+        raise ResolutionFailure('STALE_RESOLUTION')
+    if any(item['result'] == 'PENDING' and item['diagnostic_id'] != diagnostic_id for item in receipts):
+        raise ResolutionFailure('RESOLUTION_RECOVERY_REQUIRED')
+    _successor_value(root, document['ID'], value)
+    text = original.decode('utf-8-sig')
+    node = yaml.compose(text, Loader=CanonicalLoader)
+    if not isinstance(node, yaml.MappingNode) or node.flow_style:
+        raise ResolutionFailure('UNSUPPORTED_RESOLUTION_SOURCE')
+    existing = next((child for key, child in node.value if key.value == field), None)
+    if existing:
+        if not isinstance(existing, yaml.ScalarNode):
+            raise ResolutionFailure('UNSUPPORTED_RESOLUTION_SOURCE')
+        start, end = existing.start_mark.index, existing.end_mark.index
+        prefix = ' ' if start and not text[start - 1].isspace() else ''
+        text = text[:start] + prefix + value + text[end:]
+    else:
+        newline = '\r\n' if b'\r\n' in original else '\n'
+        end_marker = re.search(r'^\.\.\.[ \t]*(?:#.*)?$', text, re.M)
+        index = end_marker.start() if end_marker else len(text)
+        prefix = newline if index and text[index - 1] not in '\r\n' else ''
+        text = text[:index] + prefix + field + ': ' + value + newline + text[index:]
+    replacement = (b'\xef\xbb\xbf' if original.startswith(b'\xef\xbb\xbf') else b'') + text.encode('utf-8')
+    updated = load_yaml(replacement)
+    if ({k: v for k, v in updated.items() if k != field} != {k: v for k, v in document.items() if k != field}
+            or updated.get(field) != value or not schema_validator(root / '.mxagile/schemas/requirement.schema.json').is_valid(compatibility_projection(source_path, updated)[0])):
+        raise ResolutionFailure('INVALID_RESOLUTION_VALUE')
+    return {'result': 'READY_FOR_RESOLUTION', 'record': record, 'state_bytes': raw, 'contract': contract,
+            'path': path, 'original': original, 'replacement': replacement, 'receipt': receipt}
+
+
+def resolve_human_resolution(root: Path, **request) -> dict:
+    from build_project_status import build_status
+    try:
+        from run_events import _FileLock, _safe_event_dir
+    except ImportError:
+        sys.path.insert(0, str(Path(__file__).resolve().parent / 'control-plane'))
+        from run_events import _FileLock, _safe_event_dir
+    root = root.resolve()
+    prepared = prepare_human_resolution(root, **request)
+    if prepared['result'] == 'ALREADY_RESOLVED':
+        return {'result': 'ALREADY_RESOLVED', 'migration': prepared['record'], 'receipt': prepared['receipt']}
+    with _FileLock(_safe_event_dir(root, create=True) / 'human-resolution.lock'):
+        prepared = prepare_human_resolution(root, **request)
+        if prepared['result'] == 'ALREADY_RESOLVED':
+            return {'result': 'ALREADY_RESOLVED', 'migration': prepared['record'], 'receipt': prepared['receipt']}
+        expected_state = prepared['state_bytes']
+        if prepared['result'] == 'READY_FOR_RESOLUTION':
+            record = copy.deepcopy(prepared['record'])
+            receipt = prepared['receipt'] or {**prepared['contract'], 'resolved_value': request['value'],
+                'human_reference': request['human_reference'], 'human_decision_status': 'CONFIRMED',
+                'run_id': request['run_id'], 'result': 'PENDING',
+                'after_source_fingerprint': digest(prepared['replacement']),
+                'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'applied_at': None}
+            if not prepared['receipt']:
+                record.setdefault('resolution_receipts', []).append(receipt)
+            expected_state = _save_contract_migration(root, record, prepared['state_bytes'])
+            fresh = prepare_human_resolution(root, **request)
+            if fresh['result'] != 'READY_FOR_RESOLUTION' or fresh['original'] != prepared['original']:
+                raise ResolutionFailure('STALE_RESOLUTION')
+            atomic_replace(prepared['path'], prepared['replacement'])
+        migration = reconcile_contract(root, apply_safe=True, repair_sources=False, persist=False)['migration']
+        _, raw, _ = _migration_state(root)
+        if raw != expected_state or migration_identity(migration) != request['migration_id']:
+            raise ResolutionFailure('STALE_RESOLUTION')
+        record = migration
+        receipt = next(item for item in record['resolution_receipts'] if item['diagnostic_id'] == request['diagnostic_id'] and item['migration_id'] == request['migration_id'])
+        if digest(prepared['path'].read_bytes()) != receipt['after_source_fingerprint']:
+            raise ResolutionFailure('STALE_RESOLUTION')
+        receipt['result'] = 'APPLIED'
+        receipt['applied_at'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         _save_contract_migration(root, record, raw)
-    return {'stage': 'CONTRACT_MIGRATION_CHECKED', 'read_only': not apply_safe, 'required': True, 'migration': record, 'plan': plan, 'doctor': report}
+        doctor = {'executed': False, 'reason': 'CONTRACT_MIGRATION_NOT_COMPLETE'}
+        if migration['status'] == 'COMPLETE':
+            doctor = {'executed': True, **build_status(root)['compatibility']}
+        return {'result': 'APPLIED', 'migration': record, 'receipt': receipt, 'doctor': doctor,
+                'next_action': 'resync-preflight' if doctor['executed'] and doctor['compatibility'] != 'BLOCKED' else 'inspect'}
+
+
+AUXILIARY_INTERRUPT = '.mxagile/state/runs/auxiliary-interruption.json'
+
+
+def _auxiliary_runtime():
+    directory = Path(__file__).resolve().parent / 'control-plane'
+    if not directory.is_dir():
+        directory = Path(__file__).resolve().parents[1] / 'experiments/control-plane'
+    sys.path.insert(0, str(directory))
+    import guard
+    import run_events
+    return guard, run_events
+
+
+def auxiliary_interruption(root: Path) -> dict | None:
+    from projection_io import safe_path
+    try:
+        path = safe_path(root, AUXILIARY_INTERRUPT)
+        if not path.exists():
+            return None
+        value = json.loads(path.read_bytes())
+        keys = {'request_reference', 'request_fingerprint', 'target_path', 'artifact_role', 'mutation', 'operation_class',
+                'before_fingerprint', 'after_fingerprint', 'context_fingerprint', 'plan_hash', 'schema_version', 'project_root', 'run_id', 'interrupted_at'}
+        if not isinstance(value, dict) or set(value) != keys:
+            raise ValueError('unknown interruption metadata')
+        timestamp = datetime.datetime.fromisoformat(value['interrupted_at'])
+        plan = {k: v for k, v in value.items() if k not in {'schema_version', 'project_root', 'run_id', 'interrupted_at', 'plan_hash'}}
+        if (value['plan_hash'] != digest(json.dumps(plan, sort_keys=True).encode())
+                or value.get('schema_version') != 1 or value.get('project_root') != str(root.resolve()) or timestamp.tzinfo is None
+                or value.get('operation_class') not in {'AUXILIARY_WRITE', 'EVIDENCE_WRITE'}
+                or not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', value.get('run_id', ''))
+                or not re.fullmatch(r'sha256:[0-9a-f]{64}', value.get('plan_hash', ''))):
+            raise ValueError('invalid interruption')
+        return value
+    except (OSError, ValueError, TypeError, KeyError):
+        raise ResolutionFailure('INVALID_AUXILIARY_INTERRUPT') from None
+
+
+def decode_auxiliary_request(encoded: str) -> dict:
+    import base64
+    if not isinstance(encoded, str) or len(encoded) > 262144 or not re.fullmatch(r'[A-Za-z0-9_=-]+', encoded):
+        raise ResolutionFailure('INVALID_AUXILIARY_REQUEST')
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate request key')
+            result[key] = value
+        return result
+    try:
+        value = json.loads(base64.b64decode(encoded, altchars=b'-_', validate=True), object_pairs_hook=unique)
+    except (ValueError, UnicodeDecodeError):
+        raise ResolutionFailure('INVALID_AUXILIARY_REQUEST') from None
+    if not isinstance(value, dict):
+        raise ResolutionFailure('INVALID_AUXILIARY_REQUEST')
+    return value
+
+
+def auxiliary_write_plan(root: Path, request: dict) -> dict:
+    from projection_io import safe_path
+    root = root.resolve()
+    keys = {'request_reference', 'request_summary', 'target_path', 'artifact_role', 'scope_relation',
+            'mutation', 'before_fingerprint', 'content'}
+    if (not isinstance(request, dict) or set(request) != keys or any(not isinstance(v, str) for v in request.values())
+            or not re.fullmatch(r'USER-[A-Za-z0-9-]{4,120}', request['request_reference'])
+            or not 1 <= len(request['request_summary']) <= 2000 or len(request['content'].encode()) > 131072
+            or '\x00' in request['content'] or request['scope_relation'] != 'independent_noncanonical'
+            or request['artifact_role'] not in {'documentation', 'diagnostic_findings', 'retrospective', 'support_note'}
+            or request['mutation'] not in {'create', 'replace'}):
+        raise ResolutionFailure('INVALID_AUXILIARY_REQUEST')
+    relative = request['target_path']
+    if (not relative or '\\' in relative or PurePosixPath(relative).is_absolute()
+            or any(part in ('', '.', '..') or part != part.rstrip(' .') or '~' in part
+                   or re.search(r'[<>"|?*\x00-\x1f]', part)
+                   or re.fullmatch(r'CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]', part.split('.')[0].rstrip().upper())
+                   for part in relative.split('/')) or ':' in relative):
+        raise ResolutionFailure('AUXILIARY_SCOPE_PROTECTED')
+    try:
+        path = safe_path(root, relative)
+        safe_path(root, AUXILIARY_INTERRUPT)
+        safe_path(root, '.mxagile/state/runs')
+        auxiliary_interruption(root)
+    except (OSError, ValueError):
+        raise ResolutionFailure('AUXILIARY_SCOPE_PROTECTED') from None
+    lower = relative.lower()
+    diagnostic_area = lower.startswith(('.concord/scratch/', '.concord/evidence/diagnostics/'))
+    protected = ('requirements', 'specs', 'planning', 'sprints', '.mxagile', '.claude', '.github', '.agents', '.git',
+                 'javascriptsource', 'javasource', 'src', 'themesource', 'theme', 'widgets', 'deployment', 'resources', 'input-resources', 'userlib')
+    canonical_docs = {'schemas.md', 'injection-contract.md', 'installation.md', 'architecture.md', 'agent.md', 'agents.md', 'claude.md'}
+    if (path.suffix.lower() not in {'.md', '.txt', '.rst'} or path.name.lower() in canonical_docs
+            or re.match(r'(req|spec|task|dec|tc|vpl)-[0-9]+', path.name, re.I)
+            or (lower.split('/')[0] in protected and not diagnostic_area)
+            or (lower.startswith('.concord/') and not diagnostic_area)
+            or (diagnostic_area and request['artifact_role'] != 'diagnostic_findings')):
+        raise ResolutionFailure('AUXILIARY_SCOPE_PROTECTED')
+    # References in canonical inputs make a document delivery-relevant regardless of its folder or claimed role.
+    references = [root / 'AGENT.md', root / 'AGENTS.md', root / 'CLAUDE.md', root / 'mxagile-project.yaml']
+    for directory in ('requirements', 'specs', 'planning', '.mxagile/policies'):
+        references.extend(p for p in (root / directory).rglob('*') if p.suffix.lower() in {'.yml', '.yaml', '.md', '.json', '.txt'})
+    needle = re.compile(r'(?<![\w./-])' + re.escape(lower) + r'(?![\w./-])')
+    for reference in references:
+        if reference == path:
+            continue
+        safe = safe_file(root, reference.relative_to(root).as_posix())
+        if safe and needle.search(safe.read_text(encoding='utf-8-sig', errors='replace').lower().replace('\\', '/')):
+            raise ResolutionFailure('AUXILIARY_SCOPE_PROTECTED')
+    before = digest(path.read_bytes()) if path.is_file() else 'ABSENT'
+    if path.exists() and not path.is_file():
+        raise ResolutionFailure('AUXILIARY_SCOPE_PROTECTED')
+    if (request['before_fingerprint'] != before or (request['mutation'] == 'create') != (before == 'ABSENT')):
+        raise ResolutionFailure('STALE_AUXILIARY_REQUEST')
+    guard, _ = _auxiliary_runtime()
+    facts = guard.load_project_facts(root)
+    if (facts.update_transaction_present or not facts.core_provenance.get('artifact_contract')
+            or contract_snapshot(root) != facts.core_provenance['artifact_contract']
+            or not projection_integrity(root, facts.core_provenance)['ready']):
+        raise ResolutionFailure('AUXILIARY_AUTHORITY_UNAVAILABLE')
+    from build_project_status import build_status
+    context = {'project_root': str(root), 'branch': facts.branch, 'head': facts.head,
+               'sources': facts.source_fingerprints, 'doctor_source': build_status(root)['compatibility']['source_fingerprint']}
+    result = {'request_reference': request['request_reference'], 'request_fingerprint': digest(json.dumps(request, sort_keys=True).encode()),
+              'target_path': relative, 'artifact_role': request['artifact_role'], 'mutation': request['mutation'],
+              'operation_class': 'EVIDENCE_WRITE' if request['artifact_role'] == 'diagnostic_findings' else 'AUXILIARY_WRITE',
+              'before_fingerprint': before, 'after_fingerprint': digest(request['content'].encode()),
+              'context_fingerprint': digest(json.dumps(context, sort_keys=True).encode())}
+    result['plan_hash'] = digest(json.dumps(result, sort_keys=True).encode())
+    return result
+
+
+def prepare_auxiliary_write(root: Path, request: dict, *, plan_hash: str, human_reference: str, human_confirmed: bool, run_id: str) -> dict:
+    if human_confirmed is not True or human_reference != request.get('request_reference'):
+        raise ResolutionFailure('HUMAN_AUTHORIZATION_REQUIRED')
+    if not isinstance(run_id, str) or not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', run_id):
+        raise ResolutionFailure('RESOLUTION_RUN_REQUIRED')
+    plan = auxiliary_write_plan(root, request)
+    if plan_hash != plan['plan_hash']:
+        raise ResolutionFailure('STALE_AUXILIARY_REQUEST')
+    return plan
+
+
+def apply_auxiliary_write(root: Path, request: dict, **authorization) -> dict:
+    from projection_io import safe_path
+    root = root.resolve()
+    prepare_auxiliary_write(root, request, **authorization)
+    _, events = _auxiliary_runtime()
+    with events._FileLock(events._safe_event_dir(root, create=True) / 'auxiliary-write.lock'):
+        plan = prepare_auxiliary_write(root, request, **authorization)
+        interruption = {**plan, 'schema_version': 1, 'project_root': str(root), 'run_id': authorization['run_id'],
+                        'interrupted_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        marker = safe_path(root, AUXILIARY_INTERRUPT)
+        atomic_replace(marker, (json.dumps(interruption, sort_keys=True, indent=2) + '\n').encode())
+        events.append_event(root, 'run_interrupted', run_id=authorization['run_id'], actor='auxiliary_write', host='mxagile',
+                            payload={'operation_class': plan['operation_class'], 'request_reference': plan['request_reference'],
+                                     'plan_hash': plan['plan_hash'], 'target_path': plan['target_path'], 'recovery': 'resync'})
+        # Recheck the exact approved content, canonical references and context after journaling, before any target write.
+        prepare_auxiliary_write(root, request, **authorization)
+        path = safe_path(root, plan['target_path'])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path = safe_path(root, plan['target_path'])
+        atomic_replace(path, request['content'].encode())
+        if digest(path.read_bytes()) != plan['after_fingerprint']:
+            raise ResolutionFailure('STALE_AUXILIARY_REQUEST')
+        return {'result': 'APPLIED', 'authorization': plan, 'delivery_resumed': False, 'next_action': 'resync-preflight'}
 
 
 def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase: str = '') -> dict:
@@ -1574,6 +1968,8 @@ def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase:
         reasons.append('CONTRACT_IDENTITY_NOT_OBSERVABLE')
     if not valid_record or record.get('target') != target or record.get('status') != 'COMPLETE':
         reasons.append('CONTRACT_MIGRATION_REQUIRED')
+    if any(item.get('result') == 'PENDING' for item in record.get('resolution_receipts', [])):
+        reasons.append('HUMAN_RESOLUTION_RECOVERY_REQUIRED')
     if state.get('status') not in (None, 'complete') or state.get('artifact_canonicalization') == 'in_progress':
         reasons.append('LEGACY_MIGRATION_INCOMPLETE')
     report = build_status(root)['compatibility']
@@ -1747,7 +2143,7 @@ def board_smoke_exit_code(doctor_code: int, smoke: dict | None, *, required: boo
 
 def main() -> int:
     parser = argparse.ArgumentParser(description='Project compatibility Doctor and scoped contract recovery.', allow_abbrev=False)
-    parser.add_argument('command', choices=['doctor', 'repair', 'contract-snapshot', 'migrate', 'resync-preflight'], nargs='?', default='doctor')
+    parser.add_argument('command', choices=['doctor', 'repair', 'contract-snapshot', 'migrate', 'resolve', 'auxiliary', 'resync-preflight'], nargs='?', default='doctor')
     parser.add_argument('--project-root', type=Path, default=Path.cwd())
     parser.add_argument('--format', choices=['json', 'human'], default='human')
     mode = parser.add_mutually_exclusive_group()
@@ -1759,6 +2155,10 @@ def main() -> int:
     parser.add_argument('--phase', default='')
     parser.add_argument('--plan-hash')
     parser.add_argument('--candidate-dir', type=Path)
+    for flag in ('diagnostic-id', 'migration-id', 'source-path', 'field', 'source-fingerprint', 'value', 'human-reference', 'run-id'):
+        parser.add_argument('--' + flag)
+    parser.add_argument('--human-confirmed', action='store_true')
+    parser.add_argument('--auxiliary-request')
     parser.add_argument('--board-smoke', action='store_true',
                         help='after the Doctor run, also run the bounded Board smoke (opt-in; Doctor exit codes 0/1/2 are kept, exit 4 on a failed smoke)')
     parser.add_argument('--require-board-smoke', action='store_true',
@@ -1776,8 +2176,36 @@ def main() -> int:
         parser.error('Mission, Wave and phase selectors require resync-preflight.')
     if args.command in ('contract-snapshot', 'migrate', 'resync-preflight') and (args.apply or args.plan_hash or args.candidate_dir or args.board_smoke or args.require_board_smoke):
         parser.error('Contract recovery does not accept arbitrary repair or smoke arguments.')
+    resolution_request = {key: getattr(args, key) for key in ('diagnostic_id', 'migration_id', 'source_path', 'field', 'source_fingerprint', 'value', 'human_reference', 'human_confirmed', 'run_id')}
+    if args.command not in ('resolve', 'auxiliary') and any(resolution_request.values()):
+        parser.error('Human resolution selectors require resolve.')
+    if args.command != 'auxiliary' and args.auxiliary_request:
+        parser.error('--auxiliary-request requires auxiliary.')
+    if args.command == 'auxiliary' and (not args.auxiliary_request or not (args.dry_run or args.apply)
+            or args.candidate_dir or args.apply_safe or args.board_smoke or args.require_board_smoke
+            or any(resolution_request[key] for key in ('diagnostic_id', 'migration_id', 'source_path', 'field', 'source_fingerprint', 'value'))
+            or (args.dry_run and (args.plan_hash or args.human_reference or args.human_confirmed or args.run_id))):
+        parser.error('Auxiliary accepts only its bounded request and dry-run or confirmed apply authorization.')
+    if args.command == 'resolve' and (args.apply or args.apply_safe or args.plan_hash or args.candidate_dir or args.board_smoke or args.require_board_smoke or (args.dry_run and any(resolution_request.values()))):
+        parser.error('Resolve accepts only a bound resolution or a read-only --dry-run.')
     run_smoke = args.board_smoke or args.require_board_smoke
     try:
+        if args.command == 'auxiliary':
+            request = decode_auxiliary_request(args.auxiliary_request)
+            result = {'read_only': True, 'plan': auxiliary_write_plan(root, request)} if args.dry_run else apply_auxiliary_write(
+                root, request, plan_hash=args.plan_hash, human_reference=args.human_reference,
+                human_confirmed=args.human_confirmed, run_id=args.run_id)
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0
+        if args.command == 'resolve':
+            if args.dry_run:
+                _, _, state = _migration_state(root)
+                result = {'read_only': True, 'resolutions': human_resolution_contracts(root),
+                          'pending_recovery': [item for item in (state.get('contract_migration') or {}).get('resolution_receipts', []) if item['result'] == 'PENDING']}
+            else:
+                result = resolve_human_resolution(root, **resolution_request)
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0
         if args.command == 'contract-snapshot':
             print(json.dumps(contract_snapshot(root), sort_keys=True))
             return 0
@@ -1799,6 +2227,9 @@ def main() -> int:
                 result = repair_plan(root, report, args.candidate_dir)
             print(json.dumps(result, sort_keys=True, indent=2))
             return 0
+    except ResolutionFailure as exc:
+        print(json.dumps({'error': exc.code, 'action': 'Refresh the migration diagnosis before retrying.'}), file=sys.stderr)
+        return 3
     except RepairFailure as exc:
         print(json.dumps({'error': exc.code, 'action': 'Review Doctor before any retry.'}), file=sys.stderr)
         return 3
