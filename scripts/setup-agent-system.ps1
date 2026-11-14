@@ -15,6 +15,8 @@ param (
     [string]$ProjectRoot = (Get-Location).Path,
     [string]$CoreCommit  = "",
     [string]$CoreVersion = "",
+    [string]$SourceRoot = "",
+    [string]$BundledSkillRoot = "",
     [object[]]$OwnershipBaseline = @(),
     [string]$ExpectedPlanFingerprint = "",
 
@@ -76,6 +78,8 @@ try {
             -ProjectRoot $ProjectRoot `
             -CoreCommit  $CoreCommit `
             -CoreVersion $CoreVersion `
+            -SourceRoot $SourceRoot `
+            -BundledSkillRoot $BundledSkillRoot `
             -DryRun
     }
     else {
@@ -83,6 +87,8 @@ try {
             -ProjectRoot $ProjectRoot `
             -CoreCommit  $CoreCommit `
             -CoreVersion $CoreVersion `
+            -SourceRoot $SourceRoot `
+            -BundledSkillRoot $BundledSkillRoot `
             -OwnershipBaseline $OwnershipBaseline `
             -ExpectedPlanFingerprint $ExpectedPlanFingerprint
     }

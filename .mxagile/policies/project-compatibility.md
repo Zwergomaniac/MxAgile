@@ -351,6 +351,75 @@ ownership and exact resource identity; flags in tool input are not such evidence
 Unknown/stale/foreign resources stay blocked. The existing test-harness ownership
 manifest is not automatically authority for arbitrary host tasks/processes.
 
+## Framework self-update recovery and legacy bootstrap
+
+BLOCKED Delivery must not prevent a verified Core self-update from installing its own
+recovery fixes. The installed `framework_update_recovery.py` is the dedicated operation;
+installation still delegates exclusively to canonical `scripts/install-core.ps1`, including
+its existing update transaction, Projection Ownership Preflight, safe migration and Doctor.
+This is Core-only synchronization: installed Company Layers and product identity are
+preserved, never implicitly updated or replaced from another source.
+
+The adapter recognizes `UPDATE_DISCOVERY` and `UPDATE_RECOVERY`, not a blanket bootstrap
+filename exception. It verifies the exact installed tool/root, installed recovery-tool
+hashes, existing source authority, explicit ref and pinned commit. Only the recorded Git
+source or the recorded distribution canonical URL is eligible; source changes need a
+separate explicit source-adoption contract and are not implemented here. HTTPS and explicit
+existing local Git sources are supported; no implicit Local/Company Layer fallback exists.
+Raw `git ls-remote [--refs|--heads] <configured source> <explicit ref>` is allowed only as
+structured update discovery. Git publication and arbitrary Git/shell/PowerShell operations
+receive no extra authority. Chains, redirects, other scripts and extra selectors deny.
+
+Canonical operation syntax (Python with optional `-B`, absolute installed tool/root):
+
+- `check --project-root <root> --source <existing source> --ref <explicit ref>`
+- `preflight --project-root <root> --source <source> --ref <ref> --commit <resolved SHA>`
+- `apply` or `resume` with the same selectors plus `--plan-hash <approved SHA-256>
+  --human-reference <USER-...> --run-id <RUN-...> --human-confirmed`
+
+Discovery/preflight never modify the Consumer. A clean Git checkout is acquired outside
+the project, pinned to the resolved ref/commit; tracked regular-file payload hashes,
+current Core/transaction/canonical-source fingerprints and the shared projection plan bind
+approval. Git hooks/global configuration are disabled for acquisition, and no user-defined
+shell code or additional installer arguments are accepted. Apply recomputes the approved
+plan before writes. True Foreign/Unknown conflicts block before Core provenance,
+projection manifest or contract migration changes. Partial transactions permit only the
+same source/ref/commit Resume and retain ordinary Delivery blocks. Update success is not
+Migration completion, Acceptance, current Context or publication authority.
+
+**Already installed legacy Guards:** the immutable older grammar cannot recognize this
+new command or safely download/replace its own code under agent authorization. Do not
+exploit an allowed Migration/Epoch command, rename the updater, disable hooks, edit
+settings/enforcement, start a hidden process or grant permanent bypass permissions.
+The one-time legacy route is an explicitly authorized Maintainer/operator terminal call
+of the verified new distribution's canonical `framework_update_recovery.py`: check,
+read-only preflight, then exactly the approved apply. The blocked agent remains blocked;
+this is an overt Human operator boundary, not a simulated old-Guard ALLOW. Audit records
+bind the operation to root/source/ref/commit/plan/Human/run, while old Guard/registration
+bytes remain unchanged until the canonical installer replaces its owned payload.
+
+The one-time operator authority leaves no bypass configuration or reusable general grant
+and is revocable by stopping before apply. Retain the previous Core identity/acquired
+verified distribution and existing update recovery provenance. Physical update rollback
+is only available where the existing canonical rollback/recovery contract reports it;
+this mechanism does not invent or claim whole-project rollback. Do not roll back or delete
+consumer Requirements, migration history, Company Layer state or foreign projections.
+
+**Mandatory session boundary:** before Core apply, the existing ignored run store receives
+`framework-update-recovery.json` with the exact update/run identity and a restart barrier.
+New Guard, Human Resolve and canonical re-sync independently enforce
+`FRAMEWORK_SESSION_RESTART_REQUIRED`. Updating files/registration is not evidence that an
+in-process host has reloaded them. Stop the old agent session and actually restart the host
+session; no automatic Runtime Reload is assumed. Then an explicit Human confirmation of
+that actual restart uses `acknowledge-restart --project-root <root> --update-id <UPDATE-...>
+--human-reference <USER-...> --run-id <new RUN-...> --human-confirmed`. The installed Core,
+tool hashes, contract and update identity must still match and no partial transaction may
+remain. The confirmation is the existing explicit Human/caller evidence convention, not
+cryptographic host attestation; agents may not invent it or use another run ID as proof.
+Acknowledgement clears only the restart barrier, not Migration/Doctor/Lifecycle/Context.
+Continue: new Guard → current provenance/migration → Human Resolve → Migration COMPLETE
+→ fresh Doctor → Lifecycle reconciliation → canonical Context re-sync → reevaluate Guard.
+
 ## Bounded Auxiliary User interruption
 
 BLOCKED Delivery is not a globally blocked agent. The existing adapter distinguishes

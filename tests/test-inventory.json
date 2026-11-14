@@ -1,5 +1,12 @@
 [
   {
+    "File": "test-framework-update-recovery.ps1", "Tier": 2, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": true, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": true,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Disposable old-guard NEEDS_HUMAN bootstrap, authorized local Git distribution, canonical preflight/update, explicit restart, Human resolution, Doctor and re-sync; cached mxcli required."
+  },
+  {
     "File": "test-hygiene-no-project-residue.ps1",
     "Tier": 0,
     "FastGate": true,

@@ -1649,6 +1649,12 @@ def prepare_human_resolution(root: Path, *, diagnostic_id: str, migration_id: st
     from build_project_status import build_status
     from projection_io import safe_path
     root = root.resolve()
+    if os.path.lexists(root / '.mxagile/state/runs/framework-update-recovery.json'):
+        from framework_update_recovery import require_restarted
+        try:
+            require_restarted(root)
+        except ValueError as exc:
+            raise ResolutionFailure(str(exc)) from None
     for relative in ('.mxagile/state/core-provenance.json', '.mxagile/migration/state.yaml', '.mxagile/schemas', source_path or ''):
         try:
             safe_path(root, relative)
@@ -1955,6 +1961,12 @@ def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase:
     _, _, state = _migration_state(root)
     record = state.get('contract_migration') or {}
     reasons = []
+    if os.path.lexists(root / '.mxagile/state/runs/framework-update-recovery.json'):
+        from framework_update_recovery import require_restarted
+        try:
+            require_restarted(root)
+        except ValueError as exc:
+            reasons.append(str(exc))
     if safe_file(root, '.mxagile/state/update-transaction.json'):
         reasons.append('UPDATE_RECOVERY_REQUIRED')
     provenance_path = safe_file(root, '.mxagile/state/core-provenance.json')

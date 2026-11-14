@@ -278,6 +278,34 @@ unavailable, report `NOT_VERIFIED` with the concrete reason, never PASS. Framewo
 installation may still be successful. A failed installer remains a failed update;
 do not use an older successful handoff to override it.
 
+### Bound self-update recovery while Delivery is BLOCKED
+
+The installed `framework_update_recovery.py` provides only `UPDATE_DISCOVERY` and bound
+`UPDATE_RECOVERY` for the current Consumer, existing authorized Git source, explicit ref,
+pinned commit and approved preflight/payload plan. It delegates to this existing transaction
+and canonical installer, preserving Company/Product provenance. Projection preflight and
+apply use the same verified distribution source roots; Consumer runtime locks/state are
+not treated as canonical distribution inputs. Ownership/foreign-target validation remains
+unchanged. No arbitrary shell, setup filename, ordinary Delivery/Lifecycle write or
+publication authority follows from this recovery grant.
+
+Already shipped legacy guards still deny the new command grammar. Only an explicitly
+confirmed, one-time visible maintainer terminal bootstrap may invoke the verified new
+distribution's recovery helper; no Hook-Off, guard/settings patch or hidden agent process.
+See [the bounded recovery and legacy bootstrap contract](project-compatibility.md#framework-self-update-recovery-and-legacy-bootstrap).
+
+This dedicated path has a **mandatory restart barrier**, overriding the same-session
+read-only re-sync exception below. The ignored existing run store records the bound update
+identity before Core mutation. The canonical handoff sets `restart_required: true` and
+`session_contract.state: SESSION_RESTART_REQUIRED`; partial updates remain resumable and
+blocked. Updated files/host registration do not prove that a running host reloaded code.
+After an actual host-session restart, the installed helper's `acknowledge-restart` requires
+an actual Human confirmation, exact update identity, different Run and matching current
+tool/contract provenance. It clears only that operational barrier. Migration, fresh Doctor,
+Lifecycle reconciliation and canonical Context re-sync remain mandatory; ordinary Delivery
+stays blocked until their existing gates pass. No automatic reload or host attestation is
+claimed, and a fabricated confirmation is not permissible.
+
 ### Same-session contract re-sync before completion
 
 Installing files does not reload instructions already loaded by the agent host.

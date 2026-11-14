@@ -39,6 +39,8 @@ CHILD_SPAWN = "CHILD_SPAWN"
 EXTERNAL_SIDE_EFFECT = "EXTERNAL_SIDE_EFFECT"
 CONTROLLED_MUTATION = "CONTROLLED_MUTATION"
 HUMAN_RESOLUTION_WRITE = "HUMAN_RESOLUTION_WRITE"
+UPDATE_RECOVERY = "UPDATE_RECOVERY"
+UPDATE_DISCOVERY = "UPDATE_DISCOVERY"
 CONTEXT_INVALIDATING = "CONTEXT_INVALIDATING"
 HIGH_RISK_MUTATION = "HIGH_RISK_MUTATION"
 INTEGRATION_MUTATION = "INTEGRATION_MUTATION"
@@ -50,9 +52,9 @@ DELIVERY_CRITICAL = {IMPLEMENTATION_WRITE, HIGH_RISK_MUTATION, INTEGRATION_MUTAT
 # Only structurally read-only calls bypass current-state authorization.
 ENFORCED = {IMPLEMENTATION_WRITE, DELIVERY_WRITE, CHILD_SPAWN, HIGH_RISK_MUTATION, INTEGRATION_MUTATION,
             AUXILIARY_WRITE, EVIDENCE_WRITE, LIFECYCLE_WRITE, FRAMEWORK_WRITE, FRAMEWORK_RUNTIME_WRITE, DERIVED_PROJECTION_WRITE,
-            EXTERNAL_SIDE_EFFECT, CONTROLLED_MUTATION, HUMAN_RESOLUTION_WRITE, CONTEXT_INVALIDATING, VERIFICATION, TOOLING_SERVICE}
+            EXTERNAL_SIDE_EFFECT, CONTROLLED_MUTATION, HUMAN_RESOLUTION_WRITE, UPDATE_RECOVERY, UPDATE_DISCOVERY, CONTEXT_INVALIDATING, VERIFICATION, TOOLING_SERVICE}
 _SEVERITY = [READ, TOOLING_SERVICE, VERIFICATION, AUXILIARY_WRITE, EVIDENCE_WRITE, FRAMEWORK_RUNTIME_WRITE, DERIVED_PROJECTION_WRITE, DELIVERY_WRITE, LIFECYCLE_WRITE,
-             CONTROLLED_MUTATION, HUMAN_RESOLUTION_WRITE, CONTEXT_INVALIDATING, EXTERNAL_SIDE_EFFECT, FRAMEWORK_WRITE,
+             CONTROLLED_MUTATION, HUMAN_RESOLUTION_WRITE, UPDATE_DISCOVERY, UPDATE_RECOVERY, CONTEXT_INVALIDATING, EXTERNAL_SIDE_EFFECT, FRAMEWORK_WRITE,
              INTEGRATION_MUTATION, HIGH_RISK_MUTATION, PUBLICATION, IMPLEMENTATION_WRITE]
 READ_ONLY_AGENT_TYPES = {"Explore", "Plan", "claude-code-guide", "statusline-setup"}
 MENDIX_MCP_SERVERS = ("mendix-studio-pro", "concord")
@@ -254,10 +256,15 @@ def _classify_segment(root: Path, segment: str) -> str:
         while rest and rest[0] in {'-C', '-c'}:
             rest = rest[2:]
         subcommand = next((token for token in rest if not token.startswith('-')), '').lower()
+        if subcommand == 'ls-remote':
+            return UPDATE_DISCOVERY
         if subcommand == 'branch' and any(a not in {'branch', '--list', '-l', '--show-current', '-a', '-r', '-v', '-vv'} for a in rest):
             return HIGH_RISK_MUTATION
         return GIT_CLASSES.get(subcommand, HIGH_RISK_MUTATION)
     scripts = [a.replace('\\', '/').rsplit('/', 1)[-1] for a in args if a.endswith('.py')]
+    if head in {'python', 'python3', 'py'} and 'framework_update_recovery.py' in scripts:
+        index = next(i for i, a in enumerate(args) if a.replace('\\', '/').rsplit('/', 1)[-1] == 'framework_update_recovery.py')
+        return UPDATE_DISCOVERY if args[index + 1:index + 2] in (['check'], ['preflight']) else UPDATE_RECOVERY
     if head in {'python', 'python3', 'py'} and 'project_compatibility.py' in scripts:
         script_index = next(i for i, a in enumerate(args) if a.replace('\\', '/').rsplit('/', 1)[-1] == 'project_compatibility.py')
         subcommand = args[script_index + 1:script_index + 2]
@@ -312,7 +319,10 @@ def classify_shell(root: Path, command: str) -> str:
             else:
                 current.append(token)
         segments.append(' '.join(current))
-        return max((_classify_segment(root, segment) for segment in segments), key=_SEVERITY.index, default=READ)
+        classes = [_classify_segment(root, segment) for segment in segments]
+        if len(segments) > 1 and any(item in {UPDATE_DISCOVERY, UPDATE_RECOVERY} for item in classes):
+            return UPDATE_RECOVERY
+        return max(classes, key=_SEVERITY.index, default=READ)
     except ValueError:
         return IMPLEMENTATION_WRITE
 
@@ -387,7 +397,56 @@ def _spawn_decision(facts: guard.ProjectFacts, payload: dict[str, Any], run_id: 
             "handoff": handoff, "handoff_reference": canonical}
 
 
+def _controlled_update(facts, payload):
+    if payload.get('tool_name') != 'Bash':
+        return None
+    command = str((payload.get('tool_input') or {}).get('command') or '')
+    if any(marker in command for marker in ('$(', '`', '<(', '>(')):
+        return None
+    tokens = _shell_tokens(command)
+    if any(token and all(char in ';&|<>\n' for char in token) for token in tokens):
+        return None
+    args = [_strip(token) for token in tokens]
+    if not args:
+        return None
+    program = args.pop(0).lower().replace('\\', '/').rsplit('/', 1)[-1].removesuffix('.exe')
+    from framework_update_recovery import controlled_call, validate_source
+    if program == 'git':
+        if args[:1] != ['ls-remote']:
+            return None
+        values = args[1:]
+        if values[:1] in (['--refs'], ['--heads']):
+            values = values[1:]
+        if len(values) != 2:
+            return None
+        validate_source(facts.root, *values)
+        return 'update_discovery'
+    if program not in {'python', 'python3', 'py'}:
+        return None
+    if args[:1] == ['-B']:
+        args = args[1:]
+    tools = facts.root / '.mxagile/tools'
+    if not args or not Path(args[0]).is_absolute() or Path(args[0]).resolve() != tools / 'framework_update_recovery.py':
+        return None
+    from projection_io import safe_path
+    expected = facts.core_provenance.get('recovery_tools')
+    actual = {}
+    if not isinstance(expected, dict):
+        return None
+    for path in tools.rglob('*.py'):
+        safe_path(facts.root, path.relative_to(facts.root).as_posix())
+        actual[path.relative_to(tools).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    writer = safe_path(facts.root, '.mxagile/tools/Write-MxAgileEpochCheckpoint.ps1')
+    actual[writer.name] = hashlib.sha256(writer.read_bytes()).hexdigest()
+    if actual != expected:
+        return None
+    return controlled_call(facts.root, args[1:])
+
+
 def _controlled_recovery(facts: guard.ProjectFacts, payload: dict[str, Any]) -> str | None:
+    update = _controlled_update(facts, payload)
+    if update:
+        return update
     if payload.get('tool_name') != 'Bash' or facts.update_transaction_present:
         return None
     command = str((payload.get('tool_input') or {}).get('command') or '')
@@ -504,8 +563,12 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
             recovery = _controlled_recovery(facts, payload)
             if recovery:
                 op_class = {'human_resolution': HUMAN_RESOLUTION_WRITE, 'auxiliary_write': AUXILIARY_WRITE,
-                            'auxiliary_evidence_write': EVIDENCE_WRITE}.get(recovery, CONTROLLED_MUTATION)
+                            'auxiliary_evidence_write': EVIDENCE_WRITE, 'update_discovery': UPDATE_DISCOVERY,
+                            'update_preflight': UPDATE_DISCOVERY, 'update_recovery': UPDATE_RECOVERY,
+                            'update_restart_acknowledgement': UPDATE_RECOVERY}.get(recovery, CONTROLLED_MUTATION)
                 result.update({'operation_class': op_class, 'decision': 'allow', 'reason': 'INTEGRITY_BOUND_CORE_RECOVERY', 'controlled_recovery': recovery})
+            elif op_class in {UPDATE_RECOVERY, UPDATE_DISCOVERY}:
+                result.update({'decision': 'deny', 'reason': 'BOUND_UPDATE_RECOVERY_REQUIRED', 'recovery': 'inspect'})
             elif op_class == AUXILIARY_WRITE:
                 result.update({'decision': 'deny', 'reason': 'BOUND_AUXILIARY_AUTHORIZATION_REQUIRED', 'recovery': 'inspect'})
             elif op_class == HUMAN_RESOLUTION_WRITE:
@@ -525,10 +588,19 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
                                 'INVALID_REQUIREMENT_REFERENCE', 'RESOLUTION_RECOVERY_REQUIRED',
                                 'UNSUPPORTED_RESOLUTION_SOURCE', 'HUMAN_RESOLUTION_CONTRACT_UNAVAILABLE',
                                 'INVALID_AUXILIARY_REQUEST', 'AUXILIARY_SCOPE_PROTECTED', 'STALE_AUXILIARY_REQUEST',
-                                'AUXILIARY_AUTHORITY_UNAVAILABLE', 'INVALID_AUXILIARY_INTERRUPT'}
+                                'AUXILIARY_AUTHORITY_UNAVAILABLE', 'INVALID_AUXILIARY_INTERRUPT',
+                                'UPDATE_SOURCE_NOT_AUTHORIZED', 'UPDATE_REF_REQUIRED', 'STALE_UPDATE_TARGET',
+                                'STALE_UPDATE_PLAN', 'UPDATE_RESUME_REQUIRED', 'UPDATE_RESUME_NOT_AVAILABLE',
+                                'FRAMEWORK_SESSION_RESTART_REQUIRED', 'UPDATE_RECOVERY_STATE_INVALID',
+                                'UPDATE_PROJECTION_PREFLIGHT_BLOCKED', 'UPDATE_CANONICAL_PAYLOAD_REQUIRED'}
             code = getattr(exc, 'code', None)
+            recovery_action = 'human_resolution' if code in resolution_codes else 'inspect'
+            if code == 'FRAMEWORK_SESSION_RESTART_REQUIRED':
+                recovery_action = 'restart'
+            elif code and (code.startswith('UPDATE_') or code.startswith('STALE_UPDATE_')):
+                recovery_action = 'inspect'
             result.update({'decision': 'deny', 'reason': code if code in resolution_codes else f'GUARD_UNAVAILABLE: {type(exc).__name__}',
-                           'recovery': 'human_resolution' if code in resolution_codes else 'inspect'})
+                           'recovery': recovery_action})
     result["event"] = {
         "type": ('recovery_required' if result.get('controlled_recovery') else ("child_started" if op_class == CHILD_SPAWN else "delivery_authorized")) if result["decision"] == "allow" and op_class in ENFORCED
         else ("delivery_blocked" if result["decision"] == "deny" else ("publication_requested" if op_class == PUBLICATION else None)),

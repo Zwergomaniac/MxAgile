@@ -115,6 +115,66 @@ installer invocation. Do not reduce completion to filtered version/commit or `[O
 lines: the Example Project reality regression ran Doctor successfully but discarded its `BLOCKED`
 result through exactly that filter, then answered from commit equality alone.
 
+### BLOCKED Delivery: bound Framework self-update recovery
+
+A migration-blocked Delivery can discover and install a verified Core correction without
+opening Delivery authority. The installed `framework_update_recovery.py` accepts only the
+current Consumer root, an existing provenance-authorized Git source, an explicit ref and
+its pinned commit. `check` and `preflight` are read-only; the latter binds the payload,
+current provenance/contract/transaction and canonical projection preflight to a plan hash.
+Foreign projection conflicts stop before Core or recovery-state mutation. Arbitrary setup
+filenames, other sources/roots, shell chains and extra arguments confer no authority.
+
+```powershell
+$root = 'D:\Mendix\Your Project'
+$tool = Join-Path $root '.mxagile\tools\framework_update_recovery.py'
+$source = 'https://github.com/Zwergomaniac/MxAgile.git' # Must match existing provenance.
+$ref = 'experiment/control-plane-sak-principles'
+$target = python -B $tool check --project-root $root --source $source --ref $ref | ConvertFrom-Json
+$preview = python -B $tool preflight --project-root $root --source $source --ref $ref --commit $target.commit | ConvertFrom-Json
+# Run only after the actual User approves this exact source/ref/commit and plan.
+python -B $tool apply --project-root $root --source $source --ref $ref --commit $target.commit --plan-hash $preview.plan.plan_hash --human-reference USER-CONFIRMED-UPDATE --run-id RUN-CURRENT-SESSION --human-confirmed
+```
+
+The dedicated operation invokes only the canonical `scripts/install-core.ps1` with fixed
+arguments and the existing update transaction. Company Layers and Product provenance are
+preserved, not independently updated. A partial transaction requires a fresh approved
+preflight and `resume` with the same source/ref/commit; ordinary writes remain blocked.
+Publication remains a separate authorization.
+
+**Legacy bootstrap boundary:** already shipped guards cannot learn a new command grammar
+before their own update. They continue to deny agent-driven discovery/update. An explicitly
+authorized maintainer must perform the one-time, visible terminal operation using the
+verified new distribution's `scripts/framework_update_recovery.py` instead of `$tool`.
+The chosen distribution must already contain this implementation; uncommitted working-tree
+files are not a Git distribution. No Hook-Off, settings/guard patch, hidden agent process,
+permanent bypass or general PowerShell permission is permitted. Authorization is revocable
+before invocation; interrupted mutation uses the existing transaction recovery. Physical
+rollback is available only where the existing transaction reports it, not as an invented
+whole-project rollback guarantee. Previous provenance and migration history are retained.
+
+A successful dedicated update reports `INSTALLED_RESTART_REQUIRED` and a stale Context.
+The canonical handoff also sets `restart_required: true` and
+`session_contract.state: SESSION_RESTART_REQUIRED`. Disk updates and host registration do
+not prove that a running session has reloaded its authority. Restart the host session;
+only then may the actual User-confirmed restart be acknowledged in a **different Run**:
+
+```powershell
+python -B $tool acknowledge-restart --project-root $root --update-id UPDATE-EXACT-ID-FROM-APPLY --human-reference USER-ACTUAL-RESTART --run-id RUN-NEW-SESSION --human-confirmed
+```
+
+This is an explicit Human evidence contract, not cryptographic host attestation. An agent
+must not invent a restart confirmation. The ignored runtime record in
+`.mxagile/state/runs/framework-update-recovery.json` blocks Human Resolve and canonical
+Epoch re-sync until acknowledgment validates current installed tool/contract provenance.
+Acknowledgment does **not** clear migration, Doctor or lifecycle blockers. Continue with
+the new Guard, bound Human Resolution, migration completion, fresh Doctor, lifecycle
+reconciliation and canonical Context re-sync. Neither update nor acknowledgment promotes
+a Mission/Wave or authorizes Requirements, Product code, Mendix model, Navigation, Security,
+normal writing children or publication. The read-only reload exception above does not
+replace this dedicated restart barrier. See the
+[canonical recovery contract](../.mxagile/policies/project-compatibility.md#framework-self-update-recovery-and-legacy-bootstrap).
+
 ### Contract migration before final Doctor
 
 The canonical installer observes prior/current installed-schema fingerprints independently

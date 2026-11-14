@@ -50,6 +50,7 @@ function Complete-MxAgileCoreUpdateTransaction {
     $handoff=Get-Content -LiteralPath $handoffPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
     $Transaction.projection.doctor_executed=[bool]$handoff.doctor.executed
     $Transaction.compatibility_status=$handoff.doctor.compatibility
+    $Transaction.restart_required=[bool]$handoff.restart_required
     $Transaction.completed_stages=@(@($Transaction.completed_stages) + @($handoff.completed_stages) | Select-Object -Unique)
     $Transaction.state=if ($handoff.doctor.compatibility -eq 'NOT_VERIFIED') { 'COMPATIBILITY_NOT_VERIFIED' } else { 'UPDATE_INSTALLED_RESTART_REQUIRED' }
     $Transaction.current_stage=if ($handoff.doctor.compatibility -eq 'NOT_VERIFIED') { 'POST_UPDATE_DOCTOR' } else { 'CONTEXT_RESYNC' }

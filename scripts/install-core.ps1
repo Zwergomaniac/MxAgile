@@ -165,6 +165,12 @@ function Get-CoreArtifactContract {
 function Invoke-PostUpdateCompatibility {
     param([string]$Root, [string]$ToolsDir, [System.Collections.IDictionary]$CoreProvenance)
 
+    $restartRequired = $false
+    $restartPath = Join-Path $Root '.mxagile/state/runs/framework-update-recovery.json'
+    if (Test-Path -LiteralPath $restartPath -PathType Leaf) {
+        $restartRecord = Get-Content -LiteralPath $restartPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+        $restartRequired = $restartRecord['restart_required'] -and $restartRecord['commit'] -eq $CoreProvenance.commit
+    }
     $result = [ordered]@{
         schema_version = 1
         installed_at = $CoreProvenance.installed_at
@@ -173,7 +179,7 @@ function Invoke-PostUpdateCompatibility {
         failed_stage = $null
         migration = [ordered]@{ status = 'NOT_VERIFIED' }
         context_state = 'STALE'
-        restart_required = $false
+        restart_required = [bool]$restartRequired
         resync_required = $true
         rollback_available = $false
         resume_available = $false
@@ -185,7 +191,7 @@ function Invoke-PostUpdateCompatibility {
             commit = $CoreProvenance.commit
         }
         session_contract = [ordered]@{
-            state = 'RE_SYNC_REQUIRED'
+            state = if ($restartRequired) { 'SESSION_RESTART_REQUIRED' } else { 'RE_SYNC_REQUIRED' }
             policy = '.mxagile/policies/update-contract.md'
         }
         doctor = [ordered]@{
@@ -975,6 +981,7 @@ try {
     }
     Copy-Item -LiteralPath $doctorSource -Destination (Join-Path $destToolsDir "project_compatibility.py") -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'projection_io.py') -Destination (Join-Path $destToolsDir 'projection_io.py') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'framework_update_recovery.py') -Destination (Join-Path $destToolsDir 'framework_update_recovery.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'git_index_integrity.py') -Destination (Join-Path $destToolsDir 'git_index_integrity.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'test_harness_cleanup.py') -Destination (Join-Path $destToolsDir 'test_harness_cleanup.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'mendix_merge_preflight.py') -Destination (Join-Path $destToolsDir 'mendix_merge_preflight.py') -Force
@@ -1199,7 +1206,7 @@ try {
     }
     Write-Host "Calling setup-agent-system.ps1..."
     $updateStage = 'GENERATED_PROJECTIONS'
-    & $setupScript -ProjectRoot $ProjectRoot -CoreCommit $ProvenanceCoreCommit -CoreVersion $coreVersion -OwnershipBaseline @($projectionPreflight.ownership_baseline) -ExpectedPlanFingerprint $projectionPreflight.plan_fingerprint
+    & $setupScript -ProjectRoot $ProjectRoot -CoreCommit $ProvenanceCoreCommit -CoreVersion $coreVersion -SourceRoot (Join-Path $distributionRoot '.mxagile') -BundledSkillRoot $mocketeerSkillSource -OwnershipBaseline @($projectionPreflight.ownership_baseline) -ExpectedPlanFingerprint $projectionPreflight.plan_fingerprint
     Write-Host "[OK] setup-agent-system.ps1 executed."
     $coreProv.activation_state='ACTIVE'
     $coreProv | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $coreProvPath -Encoding UTF8
