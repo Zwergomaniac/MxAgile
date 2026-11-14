@@ -201,7 +201,7 @@ class RecoveryScopeTests(Phase1BFixture):
         tools = self.root / '.mxagile' / 'tools'
         tools.mkdir(parents=True, exist_ok=True)
         sources = GUARD_DIR.parents[1] / 'scripts'
-        for name in ('project_compatibility.py', 'projection_io.py', 'run_events.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py', 'Write-MxAgileEpochCheckpoint.ps1'):
+        for name in ('project_compatibility.py', 'projection_io.py', 'wave_ids.py', 'run_events.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py', 'Write-MxAgileEpochCheckpoint.ps1'):
             shutil.copyfile(sources / name, tools / name)
         hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in tools.iterdir() if p.is_file()}
         self.write('.mxagile/state/core-provenance.json', json.dumps({'installed_at': '2020-01-01T00:00:00Z', 'commit': _git(self.root, 'rev-parse', 'HEAD'), 'artifact_contract': project_compatibility.contract_snapshot(self.root), 'recovery_tools': hashes}))

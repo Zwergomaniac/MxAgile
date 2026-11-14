@@ -14,6 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = (
+    (("scripts/wave_ids.py", "tests/test_wave_ids.py", "tests/test-wave-ids.ps1", ".mxagile/schemas/finding.schema.json", "docs/waves.md",
+      "scripts/install-core.ps1", "scripts/Write-MxAgileEpochCheckpoint.ps1"),
+     2, ("test-wave-ids.ps1", "test_control_plane_guard.py", "test_project_timeline.py", "test-core-installer.ps1", "test-context-lifecycle-operational.ps1")),
     (("scripts/framework_update_recovery.py", "scripts/install-core.ps1", "scripts/setup-agent-system.ps1", "scripts/update-transaction.ps1",
       "tests/test_framework_update_recovery.py", "tests/test-framework-update-recovery.ps1"),
      2, ("test-framework-update-recovery.ps1", "test_control_plane_phase1b.py", "test_project_status.py")),

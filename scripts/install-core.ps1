@@ -981,6 +981,7 @@ try {
     }
     Copy-Item -LiteralPath $doctorSource -Destination (Join-Path $destToolsDir "project_compatibility.py") -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'projection_io.py') -Destination (Join-Path $destToolsDir 'projection_io.py') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'wave_ids.py') -Destination (Join-Path $destToolsDir 'wave_ids.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'framework_update_recovery.py') -Destination (Join-Path $destToolsDir 'framework_update_recovery.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'git_index_integrity.py') -Destination (Join-Path $destToolsDir 'git_index_integrity.py') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'test_harness_cleanup.py') -Destination (Join-Path $destToolsDir 'test_harness_cleanup.py') -Force

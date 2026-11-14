@@ -1264,7 +1264,7 @@ class ProjectStatusTests(unittest.TestCase):
       request = self.human_resolution_fixture()
       tools = self.root / '.mxagile/tools'
       tools.mkdir(parents=True, exist_ok=True)
-      for name in ('project_compatibility.py', 'projection_io.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py'):
+      for name in ('project_compatibility.py', 'projection_io.py', 'wave_ids.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py'):
         shutil.copyfile(ROOT / 'scripts' / name, tools / name)
       (tools / 'control-plane').mkdir(exist_ok=True)
       for name in ('run_events.py', 'run-event.schema.json'):
@@ -1409,7 +1409,7 @@ class ProjectStatusTests(unittest.TestCase):
       self.contract_migration_fixture()
       tools = self.root / '.mxagile/tools'
       tools.mkdir(parents=True, exist_ok=True)
-      for name in ('project_compatibility.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py'):
+      for name in ('project_compatibility.py', 'wave_ids.py', 'build_project_status.py', 'reconciliation_git.py', 'build_project_timeline.py'):
         shutil.copyfile(ROOT / 'scripts' / name, tools / name)
       command = r'''
 param($Source, $Root, $ApplySafe)

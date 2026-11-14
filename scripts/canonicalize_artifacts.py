@@ -321,8 +321,9 @@ def convert_checklist_yaml_to_tasks(source_path, project_root, start_task_num):
         return []
 
     source_rel = str(source_path.relative_to(project_root))
-    wave_match = re.match(r'^(W[A-Z0-9_-]+)-implementation-checklist$', source_path.stem, re.I)
-    wave_fields = {"wave_id": wave_match.group(1).upper()} if wave_match else {}
+    from wave_ids import checklist_wave_id
+    wave_id = checklist_wave_id(source_path.name)
+    wave_fields = {"wave_id": wave_id} if wave_id else {}
     tasks = []
     task_num = start_task_num
 

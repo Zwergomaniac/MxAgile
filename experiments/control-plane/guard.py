@@ -233,10 +233,8 @@ def load_project_facts(project_root: str | Path) -> ProjectFacts:
     else:
         try:
             plan_text = plan_path.read_text(encoding="utf-8")
-            facts.planned_waves = {
-                match.group(1)
-                for match in re.finditer(r"(?im)^\s{0,3}#{1,6}\s+(?:Wave\s+)?(W[0-9]+)\b", plan_text)
-            }
+            from wave_ids import planned_wave_ids
+            facts.planned_waves = planned_wave_ids(plan_text)
             facts.source_fingerprints.append(_fingerprint(plan_path, "planning/execution-waves.md"))
         except OSError:
             facts.load_issues.append("SOURCE_UNREADABLE:planning/execution-waves.md")

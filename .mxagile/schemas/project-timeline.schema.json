@@ -27,7 +27,7 @@
         "scanned_commits": { "type": "integer", "minimum": 0 },
         "build_seconds": { "type": "number", "minimum": 0 },
         "event_count": { "type": "integer", "minimum": 0 },
-        "rule_version": { "const": "project-timeline/v1" }
+        "rule_version": { "const": "project-timeline/v2" }
       }
     },
     "entity": {

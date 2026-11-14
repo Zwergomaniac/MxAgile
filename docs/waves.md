@@ -2,6 +2,38 @@
 
 To manage complexity and group related features, MxAgile uses the concept of "Waves". A wave is a collection of specifications (`.spec` files) that are planned and implemented as a single unit.
 
+## Canonical lifecycle Wave identifiers
+
+The canonical identifier grammar is the existing `wave_id` pattern in
+[`task.schema.json`](../.mxagile/schemas/task.schema.json): `^W[A-Za-z0-9_-]+$`.
+This permits numeric IDs, alphabetic suffixes and existing legacy forms; it is not
+replaced by a narrower numeric-only grammar. Examples: `W15`, `W16a`, `W16b`,
+`W17e`, `W18a`, `W18b`, `W123`, and `WAVE-01`. The leading `W` is uppercase.
+Identifiers are case-sensitive and preserved exactly: no suffix removal, case
+conversion, numeric normalization or collision between `W18a` and `W18b`.
+
+[`wave_ids.py`](../scripts/wave_ids.py) reads this schema definition for plan headings,
+checklist paths, timeline mentions and natural Board/Timeline ordering. A heading
+must contain a complete identifier, not a prefix of an invalid token. Mission,
+Process State, Handoff and Run/Event fields preserve their exact identifiers; their
+other schema constraints remain independent. Finding uses the same identifier pattern.
+Natural sorting orders numeric components before their suffixes; it never changes identity.
+
+A plan heading establishes only planned membership. Canonical lifecycle registration
+and phase come from `planning/lifecycle/process-state.yaml`, with the active Wave
+bound by `planning/mission/mission-state.yaml`. Git commit names and timeline mentions
+are historical evidence, not permission to create retroactive Wave registrations or
+mark Waves done. The legacy `.wave` grouping described below is not an automatic
+lifecycle registration mechanism.
+
+After an identifier-related Guard fix, reconcile lifecycle from canonical evidence
+before project implementation: distinguish planned/history-only Waves from registered,
+not_started, implementing/partial and done Waves. Require current Framework/migration
+compatibility, fresh compatible Doctor, canonical active Wave, resolved revision
+Reconciliation/Acceptance boundary and an understood working tree before the
+Pre-Implementation Checkpoint. Do not promote a Revision or change `active_target`
+to bypass the regular handoff-ready/previous_revision Reconciliation contract.
+
 ## How it Works
 
 1.  **Define Specs:** First, create individual `spec` files for each distinct piece of functionality (e.g., a new entity, a new page, a modified process).

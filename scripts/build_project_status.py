@@ -16,6 +16,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
+from wave_ids import checklist_wave_id, wave_sort_key
 from project_compatibility import compatibility_report, identity_matches, is_standalone_interaction_artifact, load_yaml, projected_for_validation, schema_errors, safe_file, schema_validation_scope
 
 PHASES = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
@@ -722,8 +723,9 @@ def delivery_projection(
     checklist_done = 0 if readable else None
     checklist_source: str | None = None
     checklists_by_wave = {
-        Path(path).name.split("-", 1)[0]: path
+        identifier: path
         for path in checklist_paths
+        if (identifier := checklist_wave_id(Path(path).name)) is not None
     }
     for wave in waves:
         wave_id = wave["wave_id"]
@@ -1331,8 +1333,9 @@ def build_source_references(
     if checklists.exists() and safe_path(root, checklists) and checklists.is_dir():
         for path in sorted(checklists.glob("W*-implementation-checklist.yaml"), key=lambda item: item.as_posix()):
             relative = path.relative_to(root).as_posix()
-            wave_id = path.name.split("-", 1)[0]
-            add("checklist", relative, wave_id, None)
+            wave_id = checklist_wave_id(path.name)
+            if wave_id is not None:
+                add("checklist", relative, wave_id, None)
 
     for manifest, manifest_path in zip(manifests, manifest_paths):
         for entry in manifest.get("entries", []) if isinstance(manifest.get("entries"), list) else []:
@@ -1367,14 +1370,7 @@ def wave_projection(process_state: dict[str, Any] | None) -> tuple[str, list[dic
     counts["unknown"] = 0
     partial = False
 
-    def wave_order(item: tuple[Any, Any]) -> tuple[Any, ...]:
-        identifier = str(item[0])
-        match = re.fullmatch(r"(.*?)(\d+)", identifier)
-        if match:
-            return (0, match.group(1).casefold(), int(match.group(2)), identifier.casefold())
-        return (1, identifier.casefold(), identifier)
-
-    for wave_id, state in sorted(waves_data.items(), key=wave_order):
+    for wave_id, state in sorted(waves_data.items(), key=lambda item: wave_sort_key(item[0])):
         if not isinstance(state, dict):
             phase = None
             gates_data = {}

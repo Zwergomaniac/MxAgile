@@ -393,6 +393,31 @@ try {
     if ($null -ne $tempG) { Remove-TempProject $tempG }
 }
 
+Write-Host ""
+Write-Host "--- H: Legacy checkpoint preserves canonical Wave identity ---" -ForegroundColor Yellow
+
+$tempH = $null
+try {
+    $tempH = New-TempProject
+    $lifecycleDir = Join-Path $tempH 'planning\lifecycle'
+    New-Item -ItemType Directory -Path $lifecycleDir -Force | Out-Null
+    $processPath = Join-Path $lifecycleDir 'process-state.yaml'
+    foreach ($waveId in @('W15', 'W16a', 'W16b', 'W17e', 'W18a', 'W18b', 'W123', 'WAVE-01', 'w18a', 'AW18a', 'W18a.invalid')) {
+        [System.IO.File]::WriteAllText($processPath, "${waveId}:`n  phase: ready`n", [System.Text.UTF8Encoding]::new($false))
+        & $writerScript -ProjectRoot $tempH -MissionId 'MISSION-H-WAVE' -EpochId 'EPOCH-001'
+        $content = Get-Content -LiteralPath (Join-Path $tempH '.concord\context-epoch.yaml') -Raw -Encoding UTF8
+        if ($waveId -cin @('w18a', 'AW18a', 'W18a.invalid')) {
+            Assert-True "H: Invalid whole Wave ID $waveId is not inferred" ($content -notmatch '(?m)^  wave:') 'Invalid Wave or prefix inferred.'
+        } else {
+            Assert-True "H: Complete Wave ID $waveId preserved" ($content -cmatch "(?m)^  wave: $([regex]::Escape($waveId))\r?$") 'Wave identity missing or changed.'
+        }
+    }
+} catch {
+    Assert-True 'H: No unexpected exception' $false "Exception: $_"
+} finally {
+    if ($null -ne $tempH) { Remove-TempProject $tempH }
+}
+
 # ─── Summary ─────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "=== Operational Tests Summary ===" -ForegroundColor Cyan

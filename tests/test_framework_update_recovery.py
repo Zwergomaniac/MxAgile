@@ -168,7 +168,7 @@ class DisposableSelfUpdateTests(Phase1BFixture):
                 archive = subprocess.check_output(['git', '-C', str(repo), 'archive', ref])
                 with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
                     tar.extractall(destination, filter='data')
-            for relative in ('.mxagile/policies/project-compatibility.md', 'scripts/framework_update_recovery.py', 'scripts/install-core.ps1', 'scripts/update-transaction.ps1', 'scripts/setup-agent-system.ps1', 'scripts/project_compatibility.py',
+            for relative in ('.mxagile/policies/project-compatibility.md', '.mxagile/schemas/finding.schema.json', '.mxagile/schemas/project-timeline.schema.json', 'scripts/wave_ids.py', 'scripts/framework_update_recovery.py', 'scripts/install-core.ps1', 'scripts/update-transaction.ps1', 'scripts/setup-agent-system.ps1', 'scripts/project_compatibility.py',
                              'experiments/control-plane/guard.py', 'experiments/control-plane/enforcement.py',
                              'experiments/control-plane/control-plane-verdict.schema.json'):
                 shutil.copyfile(repo / relative, candidate / relative)

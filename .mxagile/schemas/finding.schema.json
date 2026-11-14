@@ -21,7 +21,7 @@
     "origin": { "type": "string", "enum": ["PROJECT", "FRAMEWORK_FOLLOWUP"], "default": "PROJECT" },
     "observation": { "type": "string", "minLength": 1 },
     "interpretation": { "type": "string" },
-    "wave_id": { "type": "string", "pattern": "^W[A-Z0-9_-]+$" },
+    "wave_id": { "type": "string", "pattern": "^W[A-Za-z0-9_-]+$" },
     "workpackage_id": { "type": "string", "minLength": 1 },
     "requirement_ids": { "type": "array", "items": { "type": "string", "pattern": "^REQ-[0-9]{3,}$" } },
     "decision_ids": { "type": "array", "items": { "type": "string", "pattern": "^DEC-[0-9]{3,}$" } },

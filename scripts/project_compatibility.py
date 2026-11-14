@@ -349,7 +349,8 @@ def assignment(
     provenance = task.get('migrated_from')
     if not isinstance(provenance, str):
         return ('explicit', task['wave_id'], None) if isinstance(task.get('wave_id'), str) and task['wave_id'] in waves else ('missing', None, None)
-    match = re.fullmatch(r'planning/checklists/(W[A-Za-z0-9_-]+)-implementation-checklist\.yaml', provenance)
+    from wave_ids import CHECKLIST_PATH_PATTERN
+    match = CHECKLIST_PATH_PATTERN.fullmatch(provenance) if provenance.endswith('.yaml') else None
     if match is None:
         return 'ambiguous', None, provenance
     cached = checklist_cache.get(provenance) if checklist_cache is not None else None

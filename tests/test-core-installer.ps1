@@ -53,6 +53,11 @@ function Test-GenericInstallation {
         Assert-Condition (Test-Path $projectionIo -PathType Leaf) "Bound recovery must receive its canonical projection_io dependency."
         Assert-Condition ((Get-FileHash $projectionIo).Hash -eq (Get-FileHash (Join-Path $PSScriptRoot '../scripts/projection_io.py')).Hash) "Installed projection_io must match the canonical payload."
 
+        $waveReader = 'import sys,json; sys.path.insert(0,sys.argv[1]); from wave_ids import planned_wave_ids; print(json.dumps(sorted(planned_wave_ids("## Wave W18a - Fixture\n## Wave W18b - Fixture"))))'
+        $waveIds = @(& python -B -c $waveReader (Join-Path $mxagilePath 'tools'))
+        Assert-Condition ($LASTEXITCODE -eq 0) 'Installed Wave reader must load its canonical Task schema.'
+        Assert-Condition (($waveIds -join '') -eq '["W18a", "W18b"]') 'Installed Wave reader must preserve both suffix identities.'
+
         # 4a. Mocketeer skills are part of the canonical installer payload and generator output.
         $mocketeerSkillNames = @(
             'mocketeer-discovery',

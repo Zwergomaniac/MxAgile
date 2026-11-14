@@ -200,8 +200,15 @@ $processStatePath = Join-Path $ProjectRoot "planning\lifecycle\process-state.yam
 if ((([string]::IsNullOrEmpty($CurrentPhase)) -or ([string]::IsNullOrEmpty($Wave))) -and
     (Test-Path -LiteralPath $processStatePath)) {
     $psContent = Get-Content -LiteralPath $processStatePath -Raw -Encoding UTF8
-    if ([string]::IsNullOrEmpty($Wave) -and $psContent -match '(?m)^(W\d+):') {
-        $detectedWave = $Matches[1]
+    if ([string]::IsNullOrEmpty($Wave)) {
+        $schemaParent = Split-Path $PSScriptRoot -Parent
+        $waveSchemaPath = Join-Path $schemaParent 'schemas\task.schema.json'
+        if (-not (Test-Path -LiteralPath $waveSchemaPath -PathType Leaf)) {
+            $waveSchemaPath = Join-Path $schemaParent '.mxagile\schemas\task.schema.json'
+        }
+        $waveSchema = Get-Content -LiteralPath $waveSchemaPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $wavePattern = $waveSchema.properties.wave_id.pattern.TrimStart('^').TrimEnd('$')
+        if ($psContent -cmatch "(?m)^($wavePattern):") { $detectedWave = $Matches[1] }
     }
     $wk = if ([string]::IsNullOrEmpty($detectedWave)) { '' } else { $detectedWave }
     if ([string]::IsNullOrEmpty($CurrentPhase) -and

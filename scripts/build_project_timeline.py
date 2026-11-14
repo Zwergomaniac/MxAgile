@@ -27,11 +27,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
+from wave_ids import CHECKLIST_PATH_PATTERN, WAVE_MENTION_PATTERN, wave_sort_key
 
 sys.dont_write_bytecode = True
 
 INDEX_FORMAT = 3
-RULE_VERSION = "project-timeline/v1"
+RULE_VERSION = "project-timeline/v2"
 AUTHORITY_CLASSES = ("CANONICAL_RECORD", "GIT_DERIVED", "COMMIT_TRAILER", "GIT_MENTION")
 BLOB_LIMIT = 256 * 1024
 MAX_COMMITS = 20000
@@ -58,10 +59,10 @@ _ARTIFACTS = (
     ("parity", re.compile(r"^planning/parity/([A-Za-z0-9_.-]+)\.ya?ml$")),
     ("manifest", re.compile(r"^planning/evidence/manifests/([A-Za-z0-9_.-]+?)(?:-evidence-manifest)?\.ya?ml$")),
     ("contract", re.compile(r"^planning/test-contracts/(TC-[A-Za-z0-9_-]+?)(?:-[a-z0-9-]+)?\.ya?ml$")),
-    ("checklist", re.compile(r"^planning/checklists/(W[0-9]+[a-z]?)-implementation-checklist\.ya?ml$")),
+    ("checklist", CHECKLIST_PATH_PATTERN),
 )
 _MENTION_PATTERNS = (
-    ("wave", re.compile(r"\b(W[0-9]+[a-z]?)\b")),
+    ("wave", WAVE_MENTION_PATTERN),
     ("task", re.compile(r"\b(TASK-[0-9]+)\b")),
     ("requirement", re.compile(r"\b(REQ-[0-9]+)\b")),
     ("decision", re.compile(r"\b(DEC-[0-9]+)\b")),
@@ -395,7 +396,7 @@ def _derive_process_state(builder: _Builder, change: dict[str, str], before: dic
     waves_after = after.get("waves") if isinstance(after, dict) and isinstance(after.get("waves"), dict) else {}
     waves_before = before.get("waves") if isinstance(before, dict) and isinstance(before.get("waves"), dict) else {}
     produced = False
-    for wave_id in sorted(waves_after, key=str):
+    for wave_id in sorted(waves_after, key=wave_sort_key):
         now = waves_after[wave_id] if isinstance(waves_after[wave_id], dict) else {}
         was = waves_before.get(wave_id) if isinstance(waves_before.get(wave_id), dict) else None
         entity = [_entity("wave", str(wave_id), "artifact_field")]
@@ -535,7 +536,7 @@ def _commit_events(commit: dict[str, Any], blobs: dict[str, bytes], trailer: dic
         builder.add("commit.recorded", f"Commit {commit['hash'][:7]}: {commit['subject'][:100]}", [], path=None, field="commit", after=commit["hash"], significance=1)
         builder.events[-1]["event_id"] = _event_id("commit.recorded", None, commit["hash"], "commit", commit["hash"])
     _attribute(builder.events, builder.mentions, trailer)
-    summary = {"hash": commit["hash"][:12], "epoch": commit["epoch"], "delivery": delivery, "waves": sorted(linked_waves)}
+    summary = {"hash": commit["hash"][:12], "epoch": commit["epoch"], "delivery": delivery, "waves": sorted(linked_waves, key=wave_sort_key)}
     return builder.events, summary
 
 
