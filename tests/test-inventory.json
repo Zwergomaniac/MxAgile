@@ -1,5 +1,26 @@
 [
   {
+    "File": "test_lifecycle_reality_contracts.py", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Requirement dispositions, assumption provenance and selective revision/freshness contract regression."
+  },
+  {
+    "File": "test_reality_tooling.py", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
+    "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "Host/provider-bound capability truth, PowerShell recovery and routing producer regression."
+  },
+  {
+    "File": "test_reality_resource_ownership.py", "Tier": 1, "FastGate": false,
+    "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": false,
+    "FilesystemFixture": true, "UsesGit": false, "UsesSharedCache": false,
+    "UsesFixedTempPath": false, "ModifiesGlobalState": false, "ParallelSafe": false,
+    "Reason": "TaskStop ownership and fail-closed host evidence regression without stopping real processes."
+  },
+  {
     "File": "test-wave-ids.ps1", "Tier": 1, "FastGate": false,
     "NetworkRequired": false, "RealMxcliRequired": false, "CreatesSubprocesses": true,
     "FilesystemFixture": true, "UsesGit": true, "UsesSharedCache": false,

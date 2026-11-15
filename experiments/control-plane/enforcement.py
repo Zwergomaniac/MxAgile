@@ -56,7 +56,6 @@ ENFORCED = {IMPLEMENTATION_WRITE, DELIVERY_WRITE, CHILD_SPAWN, HIGH_RISK_MUTATIO
 _SEVERITY = [READ, TOOLING_SERVICE, VERIFICATION, AUXILIARY_WRITE, EVIDENCE_WRITE, FRAMEWORK_RUNTIME_WRITE, DERIVED_PROJECTION_WRITE, DELIVERY_WRITE, LIFECYCLE_WRITE,
              CONTROLLED_MUTATION, HUMAN_RESOLUTION_WRITE, UPDATE_DISCOVERY, UPDATE_RECOVERY, CONTEXT_INVALIDATING, EXTERNAL_SIDE_EFFECT, FRAMEWORK_WRITE,
              INTEGRATION_MUTATION, HIGH_RISK_MUTATION, PUBLICATION, IMPLEMENTATION_WRITE]
-READ_ONLY_AGENT_TYPES = {"Explore", "Plan", "claude-code-guide", "statusline-setup"}
 MENDIX_MCP_SERVERS = ("mendix-studio-pro", "concord")
 READ_VERB = re.compile(
     r"(?:^|_)(get|list|read|search|find|glob|describe|inspect|query|show|status|probe|check|validate|diff|discover|"
@@ -105,6 +104,10 @@ def _persist_event(root: Path, result: dict[str, Any], payload: dict[str, Any], 
         "studio_pro" if "mendix-studio-pro" in tool_name.lower() else "claude_code")
     verdict = result.get("verdict") or {}
     codes = [item.get("code") for item in verdict.get("must_findings", []) if item.get("code")]
+    if not codes and result.get("decision") == "deny" and isinstance(result.get("reason"), str):
+        lead = result["reason"].split(":", 1)[0].split("|", 1)[0].strip()
+        if re.fullmatch(r"[A-Z0-9_]+", lead):
+            codes = [lead]
     if event_type == "child_started":
         handoff = result.get("handoff") or {}
         run_id = handoff.get("run_id") or run_id
@@ -159,13 +162,93 @@ class HostBoundaryEvidence:
     """
     classify_dispatch: Callable[[str, dict[str, Any]], str | None] | None = None
     attest_diagnostic_child: Callable[[dict[str, Any], dict[str, Any]], bool] | None = None
+    classify_resource_ownership: Callable[[dict[str, Any]], str | None] | None = None
+
+
+OWNED_RESOURCES_PATH = ".mxagile/state/runs/owned-resources.json"
+RESOURCE_OWNERSHIP_CLASSES = {
+    "SESSION_OWNED_PROCESS",
+    "FRAMEWORK_OWNED_EPHEMERAL",
+    "CONSUMER_OWNED",
+    "USER_OWNED",
+    "UNKNOWN",
+}
+
+
+def record_owned_resource(
+    root: Path,
+    resource_id: str,
+    ownership_class: str,
+    *,
+    command_kind: str = "unknown",
+    run_id: str = "",
+) -> None:
+    """Record a session- or framework-owned ephemeral resource for bounded TaskStop verification (L2)."""
+    if (ownership_class not in RESOURCE_OWNERSHIP_CLASSES or not resource_id
+            or not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', run_id)):
+        return
+    try:
+        sys.path.insert(0, str(guard.SCRIPTS_DIR))
+        from projection_io import atomic_replace, safe_path
+        path = safe_path(root.resolve(), OWNED_RESOURCES_PATH)
+        safe_path(root.resolve(), ".mxagile/state/runs")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing = json.loads(path.read_text(encoding="utf-8-sig")) if path.is_file() else {"schema_version": 1, "resources": {}}
+        if not isinstance(existing, dict) or not isinstance(existing.get("resources"), dict):
+            existing = {"schema_version": 1, "resources": {}}
+        existing["resources"][str(resource_id)] = {
+            "resource_id": str(resource_id),
+            "ownership_class": ownership_class,
+            "command_kind": command_kind,
+            "run_id": run_id,
+            "project_root": str(root.resolve()),
+        }
+        atomic_replace(path, (json.dumps(existing, sort_keys=True, indent=2) + "\n").encode("utf-8"))
+    except Exception:
+        pass
+
+
+def classify_resource_ownership(root: Path, tool_input: dict[str, Any], evidence: HostBoundaryEvidence | None = None) -> str:
+    """Classify TaskStop target ownership; never apply a blanket TaskStop allowlist (L1, L2)."""
+    if evidence and evidence.classify_resource_ownership:
+        observed = evidence.classify_resource_ownership(tool_input)
+        if observed in RESOURCE_OWNERSHIP_CLASSES:
+            return observed
+    task_id = str(tool_input.get("task_id") or tool_input.get("shell_id") or tool_input.get("resource_id") or "").strip()
+    if not task_id:
+        return "UNKNOWN"
+    try:
+        sys.path.insert(0, str(guard.SCRIPTS_DIR))
+        from projection_io import safe_path
+        path = safe_path(root.resolve(), OWNED_RESOURCES_PATH)
+        if not path.is_file():
+            return "UNKNOWN"
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        entry = (data.get("resources") or {}).get(task_id) if isinstance(data, dict) and data.get('schema_version') == 1 else None
+        active_run = os.environ.get('MXAGILE_RUN_ID', '')
+        if (isinstance(entry, dict) and entry.get("project_root") == str(root.resolve())
+                and entry.get('resource_id') == task_id and entry.get('run_id') == active_run
+                and re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', active_run)):
+            cls = entry.get("ownership_class")
+            if cls in {'CONSUMER_OWNED', 'USER_OWNED', 'UNKNOWN'}:
+                return cls
+            # A journal cannot prove that a live PID/task still denotes the captured resource.
+            return 'UNKNOWN'
+    except Exception:
+        pass
+    return "UNKNOWN"
 
 
 def classify_tool_call(root: Path, payload: dict[str, Any], evidence: HostBoundaryEvidence | None = None) -> tuple[str, str]:
     tool = str(payload.get("tool_name") or "")
     tool_input = payload.get("tool_input") or {}
-    if tool in {"Read", "Glob", "Grep", "LS", "WebFetch", "WebSearch", "TodoWrite"}:
+    if tool in {"Read", "Glob", "Grep", "LS", "WebFetch", "WebSearch", "TodoWrite", "TaskOutput"}:
         return READ, tool
+    if tool == "TaskStop":
+        ownership = classify_resource_ownership(root, tool_input, evidence)
+        if ownership in {"FRAMEWORK_OWNED_EPHEMERAL", "SESSION_OWNED_PROCESS"}:
+            return TOOLING_SERVICE, f"TASKSTOP_OWNED:{ownership}"
+        return HIGH_RISK_MUTATION, f"TASKSTOP_UNOWNED:{ownership}"
     if tool in {"Write", "Edit", "MultiEdit", "NotebookEdit"}:
         target = str(tool_input.get("file_path") or tool_input.get("notebook_path") or "")
         return (classify_path(root, target) if target else IMPLEMENTATION_WRITE), target
@@ -268,7 +351,11 @@ def _classify_segment(root: Path, segment: str) -> str:
     if head in {'python', 'python3', 'py'} and 'project_compatibility.py' in scripts:
         script_index = next(i for i, a in enumerate(args) if a.replace('\\', '/').rsplit('/', 1)[-1] == 'project_compatibility.py')
         subcommand = args[script_index + 1:script_index + 2]
-        readonly = subcommand in (['doctor'], ['contract-snapshot'], ['resync-preflight']) or (subcommand == ['migrate'] and '--apply-safe' not in args)
+        readonly = (
+            subcommand in (['doctor'], ['contract-snapshot'], ['resync-preflight'], ['validate-write'], ['delivery-preflight'])
+            or (subcommand == ['migrate'] and '--apply-safe' not in args)
+            or (subcommand == ['repair-last-write'] and '--dry-run' in args and '--apply' not in args)
+        )
         if subcommand == ['auxiliary']:
             tail = args[script_index + 2:]
             selectors = [a for a in tail if a != '--dry-run']
@@ -336,8 +423,6 @@ def _blocking(verdict: dict[str, Any]) -> tuple[str, str | None]:
 def _spawn_decision(facts: guard.ProjectFacts, payload: dict[str, Any], run_id: str, evidence: HostBoundaryEvidence | None = None) -> dict[str, Any]:
     tool_input = payload.get("tool_input") or {}
     agent_type = str(tool_input.get("subagent_type") or "")
-    if agent_type in READ_ONLY_AGENT_TYPES:
-        return {"decision": "allow", "reason": f"read-only agent type {agent_type}"}
     marker = HANDOFF_MARKER.search(str(tool_input.get("prompt") or ""))
     if not marker:
         return {"decision": "deny", "reason": "CHILD_HANDOFF_MISSING: write/verification children need MXAGILE_HANDOFF:<path>", "recovery": "inspect"}
@@ -463,12 +548,26 @@ def _controlled_recovery(facts: guard.ProjectFacts, payload: dict[str, Any]) -> 
     action = None
     resolution_request = None
     auxiliary_request = None
+    repair_last_write_request = None
     if program in {'python', 'python3', 'py'}:
         if args[:1] == ['-B']:
             args = args[1:]
         if len(args) < 2 or not Path(args[0]).is_absolute() or Path(args[0]).resolve() != tools / 'project_compatibility.py':
             return None
-        if args[1] == 'auxiliary':
+        if args[1] == 'repair-last-write':
+            selectors = args[2:]
+            if selectors.count('--apply') != 1:
+                return None
+            selectors = [a for a in selectors if a != '--apply']
+            if len(selectors) % 2 != 0:
+                return None
+            pairs = dict(zip(selectors[::2], selectors[1::2]))
+            if not {'--project-root', '--format', '--plan-hash', '--run-id'} <= set(pairs) or set(pairs) - {'--project-root', '--format', '--plan-hash', '--run-id', '--target-path', '--candidate-file'} or pairs.get('--format') != 'json':
+                return None
+            repair_last_write_request = pairs
+            root_arg = pairs['--project-root']
+            action = 'bounded_write_repair'
+        elif args[1] == 'auxiliary':
             selectors = args[2:]
             if selectors.count('--human-confirmed') != 1 or selectors.count('--apply') != 1:
                 return None
@@ -497,9 +596,10 @@ def _controlled_recovery(facts: guard.ProjectFacts, payload: dict[str, Any]) -> 
             root_arg = pairs['--project-root']
             action = 'human_resolution'
         else:
-            if len(args) != 7 or args[1:4] != ['migrate', '--apply-safe', '--project-root'] or args[5:] != ['--format', 'json']:
+            migration_args = args[:3] + args[4:] if len(args) == 8 and args[3] in {'--record-only', '--contract-only'} else args
+            if len(migration_args) != 7 or migration_args[1:4] != ['migrate', '--apply-safe', '--project-root'] or migration_args[5:] != ['--format', 'json']:
                 return None
-            root_arg = args[4]
+            root_arg = migration_args[4]
             action = 'contract_reconciliation'
     elif program in {'pwsh', 'powershell'}:
         if len(args) != 6 or [a.lower() for a in (args[0], args[1], args[3], args[5])] != ['-noprofile', '-file', '-projectroot', '-preserveevidence']:
@@ -540,7 +640,71 @@ def _controlled_recovery(facts: guard.ProjectFacts, payload: dict[str, Any]) -> 
                                        plan_hash=auxiliary_request['--plan-hash'], human_reference=auxiliary_request['--human-reference'],
                                        human_confirmed=True, run_id=auxiliary_request['--run-id'])
         action = 'auxiliary_evidence_write' if plan['operation_class'] == EVIDENCE_WRITE else 'auxiliary_write'
+    if repair_last_write_request:
+        from project_compatibility import last_canonical_write_repair_plan, ResolutionFailure
+        cand_file = repair_last_write_request.get('--candidate-file')
+        cand_bytes = Path(cand_file).read_bytes() if cand_file else None
+        plan = last_canonical_write_repair_plan(facts.root, target_path=repair_last_write_request.get('--target-path'), candidate_bytes=cand_bytes)
+        active_run = os.environ.get('MXAGILE_RUN_ID', '')
+        if (not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', active_run)
+                or active_run != repair_last_write_request['--run-id'] or plan['journal_run_id'] != active_run):
+            return None
+        if plan['plan_hash'] != repair_last_write_request['--plan-hash']:
+            raise ResolutionFailure('STALE_BOUNDED_REPAIR_PLAN')
     return action
+
+
+def _unprojected_canonical_shell_target(root: Path, payload: dict[str, Any]) -> str | None:
+    if payload.get('tool_name') != 'Bash':
+        return None
+    from project_compatibility import is_canonical_write_target
+    command = str((payload.get('tool_input') or {}).get('command') or '')
+    tokens = _shell_tokens(command)
+    if tokens and _strip(tokens[0]).replace('\\', '/').rsplit('/', 1)[-1].removesuffix('.exe') == 'git':
+        return None
+    for token in tokens:
+        value = _strip(token).split('=', 1)[-1]
+        try:
+            target = Path(value) if Path(value).is_absolute() else root / value
+            relative = target.resolve().relative_to(root).as_posix()
+        except (OSError, ValueError):
+            continue
+        if is_canonical_write_target(relative):
+            return relative
+    return None
+
+
+def _prevalidate_candidate(root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Validate exposed canonical candidates; blocked repair uses the dedicated bound writer."""
+    tool_name = str(payload.get("tool_name") or "")
+    if tool_name not in {"Write", "Edit", "MultiEdit"}:
+        return None
+    if str(guard.SCRIPTS_DIR) not in sys.path:
+        sys.path.insert(0, str(guard.SCRIPTS_DIR))
+    from project_compatibility import prevalidate_canonical_write, project_candidate_bytes
+    projected = project_candidate_bytes(root, tool_name, payload.get("tool_input") or {})
+    if projected is None:
+        return None
+    relative, candidate_bytes, err_code = projected
+    if err_code is not None or candidate_bytes is None:
+        return {
+            "decision": "deny",
+            "reason": f"CANONICAL_WRITE_PREVALIDATION_FAILED: {err_code or 'CANDIDATE_INVALID'} ({relative})",
+            "recovery": "fix_candidate_payload",
+            "prevalidation": {"valid": False, "code": err_code, "target_path": relative},
+        }
+    preval = prevalidate_canonical_write(root, relative, candidate_bytes)
+    if not preval["valid"]:
+        first = (preval.get("diagnostics") or [{}])[0]
+        cat = first.get("category") or "SCHEMA_ERROR"
+        return {
+            "decision": "deny",
+            "reason": f"CANONICAL_WRITE_PREVALIDATION_FAILED: {cat} ({relative})",
+            "recovery": "fix_candidate_payload",
+            "prevalidation": preval,
+        }
+    return {"decision": "prevalidated", "target_path": relative, "prevalidation": preval,
+            "candidate_fingerprint": "sha256:" + hashlib.sha256(candidate_bytes).hexdigest()}
 
 
 def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostBoundaryEvidence | None = None) -> dict[str, Any]:
@@ -555,33 +719,50 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
     if op_class == PUBLICATION:
         # Remote publication is never authorized by delivery state; the developer decides in the host.
         result.update({"decision": "ask", "reason": "PUBLICATION_REQUIRES_DEVELOPER_APPROVAL", "recovery": "human_resolution"})
+    elif str(payload.get("tool_name") or "") == "TaskStop":
+        if detail.startswith("TASKSTOP_OWNED:"):
+            result.update({"decision": "allow", "reason": f"OWNED_RESOURCE_STOP_ALLOWED ({detail})", "controlled_recovery": "stop_owned_resource"})
+        else:
+            result.update({"decision": "deny", "reason": f"TASKSTOP_RESOURCE_NOT_OWNED ({detail})", "recovery": "inspect"})
     elif op_class not in ENFORCED:
         result.update({"decision": "allow", "reason": "not an enforced operation class"})
     else:
         try:
             facts = guard.load_project_facts(root)
-            recovery = _controlled_recovery(facts, payload)
-            if recovery:
-                op_class = {'human_resolution': HUMAN_RESOLUTION_WRITE, 'auxiliary_write': AUXILIARY_WRITE,
-                            'auxiliary_evidence_write': EVIDENCE_WRITE, 'update_discovery': UPDATE_DISCOVERY,
-                            'update_preflight': UPDATE_DISCOVERY, 'update_recovery': UPDATE_RECOVERY,
-                            'update_restart_acknowledgement': UPDATE_RECOVERY}.get(recovery, CONTROLLED_MUTATION)
-                result.update({'operation_class': op_class, 'decision': 'allow', 'reason': 'INTEGRITY_BOUND_CORE_RECOVERY', 'controlled_recovery': recovery})
-            elif op_class in {UPDATE_RECOVERY, UPDATE_DISCOVERY}:
-                result.update({'decision': 'deny', 'reason': 'BOUND_UPDATE_RECOVERY_REQUIRED', 'recovery': 'inspect'})
-            elif op_class == AUXILIARY_WRITE:
-                result.update({'decision': 'deny', 'reason': 'BOUND_AUXILIARY_AUTHORIZATION_REQUIRED', 'recovery': 'inspect'})
-            elif op_class == HUMAN_RESOLUTION_WRITE:
-                result.update({'decision': 'deny', 'reason': 'BOUND_HUMAN_RESOLUTION_REQUIRED', 'recovery': 'human_resolution'})
-            elif op_class == CHILD_SPAWN:
-                result.update(_spawn_decision(facts, payload, run_id, evidence))
+            preval_outcome = _prevalidate_candidate(root, payload)
+            if preval_outcome and preval_outcome["decision"] in {"deny", "allow"}:
+                result.update(preval_outcome)
             else:
-                verdict = guard.delivery_authorization(facts, op_class, run_id, require_implementing=op_class in DELIVERY_CRITICAL)
-                if verdict["verdict"] == "pass":
-                    result.update({"decision": "allow", "reason": "delivery authorized", "verdict": verdict})
+                recovery = _controlled_recovery(facts, payload)
+                if recovery:
+                    op_class = {'human_resolution': HUMAN_RESOLUTION_WRITE, 'auxiliary_write': AUXILIARY_WRITE,
+                                'auxiliary_evidence_write': EVIDENCE_WRITE, 'update_discovery': UPDATE_DISCOVERY,
+                                'update_preflight': UPDATE_DISCOVERY, 'update_recovery': UPDATE_RECOVERY,
+                                'update_restart_acknowledgement': UPDATE_RECOVERY,
+                                'bounded_write_repair': CONTROLLED_MUTATION}.get(recovery, CONTROLLED_MUTATION)
+                    result.update({'operation_class': op_class, 'decision': 'allow', 'reason': 'INTEGRITY_BOUND_CORE_RECOVERY', 'controlled_recovery': recovery})
+                elif op_class in {UPDATE_RECOVERY, UPDATE_DISCOVERY}:
+                    result.update({'decision': 'deny', 'reason': 'BOUND_UPDATE_RECOVERY_REQUIRED', 'recovery': 'inspect'})
+                elif op_class == AUXILIARY_WRITE:
+                    result.update({'decision': 'deny', 'reason': 'BOUND_AUXILIARY_AUTHORIZATION_REQUIRED', 'recovery': 'inspect'})
+                elif op_class == HUMAN_RESOLUTION_WRITE:
+                    result.update({'decision': 'deny', 'reason': 'BOUND_HUMAN_RESOLUTION_REQUIRED', 'recovery': 'human_resolution'})
+                elif op_class == CHILD_SPAWN:
+                    result.update(_spawn_decision(facts, payload, run_id, evidence))
+                elif (target := _unprojected_canonical_shell_target(root, payload)) is not None:
+                    result.update({'decision': 'deny', 'reason': f'CANONICAL_WRITE_NOT_PROJECTABLE ({target})',
+                                   'recovery': 'use_validated_write'})
                 else:
-                    reason, recovery = _blocking(verdict)
-                    result.update({"decision": "deny", "reason": reason, "recovery": recovery, "verdict": verdict})
+                    verdict = guard.delivery_authorization(facts, op_class, run_id, require_implementing=op_class in DELIVERY_CRITICAL)
+                    if verdict["verdict"] == "pass":
+                        if preval_outcome and preval_outcome.get("decision") == "prevalidated":
+                            from project_compatibility import record_last_canonical_write
+                            record_last_canonical_write(root, preval_outcome["target_path"], op_class, run_id,
+                                                        preval_outcome["candidate_fingerprint"])
+                        result.update({"decision": "allow", "reason": "delivery authorized", "verdict": verdict})
+                    else:
+                        reason, recovery = _blocking(verdict)
+                        result.update({"decision": "deny", "reason": reason, "recovery": recovery, "verdict": verdict})
         except Exception as exc:  # fail closed: no valid guard decision is never an allow
             resolution_codes = {'STALE_RESOLUTION', 'CONFLICTING_RESOLUTION', 'RESOLUTION_SCOPE_MISMATCH',
                                 'HUMAN_AUTHORIZATION_REQUIRED', 'RESOLUTION_RUN_REQUIRED', 'INVALID_RESOLUTION_VALUE',
@@ -592,7 +773,10 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
                                 'UPDATE_SOURCE_NOT_AUTHORIZED', 'UPDATE_REF_REQUIRED', 'STALE_UPDATE_TARGET',
                                 'STALE_UPDATE_PLAN', 'UPDATE_RESUME_REQUIRED', 'UPDATE_RESUME_NOT_AVAILABLE',
                                 'FRAMEWORK_SESSION_RESTART_REQUIRED', 'UPDATE_RECOVERY_STATE_INVALID',
-                                'UPDATE_PROJECTION_PREFLIGHT_BLOCKED', 'UPDATE_CANONICAL_PAYLOAD_REQUIRED'}
+                                'UPDATE_PROJECTION_PREFLIGHT_BLOCKED', 'UPDATE_CANONICAL_PAYLOAD_REQUIRED',
+                                'BOUNDED_REPAIR_UNAVAILABLE', 'BOUNDED_REPAIR_NO_JOURNAL', 'BOUNDED_REPAIR_SCOPE_MISMATCH',
+                                'BOUNDED_REPAIR_NOT_BLOCKED', 'BOUNDED_REPAIR_MULTIPLE_TARGETS', 'BOUNDED_REPAIR_CANDIDATE_INVALID',
+                                'STALE_BOUNDED_REPAIR_PLAN', 'BOUNDED_REPAIR_POSTCHECK_FAILED'}
             code = getattr(exc, 'code', None)
             recovery_action = 'human_resolution' if code in resolution_codes else 'inspect'
             if code == 'FRAMEWORK_SESSION_RESTART_REQUIRED':

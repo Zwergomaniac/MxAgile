@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "framework-config.schema.json",
+  "title": "MxAgile framework configuration",
+  "description": "Type checks for Core configuration. Project and Company Layer extensions remain allowed.",
+  "type": "object",
+  "properties": {
+    "knowledge_graph": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "max_affected_depth": { "type": "integer", "minimum": 1 },
+        "auto_refresh_on_resync": { "type": "boolean" }
+      }
+    },
+    "enrichment_provider": { "type": "string", "minLength": 1 },
+    "graphify": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "local_only": { "type": "boolean" },
+        "incremental": { "type": "boolean" },
+        "output_dir": { "type": "string", "minLength": 1 },
+        "version_constraint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "agent_delegation": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean" } }
+    },
+    "context_lifecycle": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "checkpoint_resume": { "type": "boolean" },
+        "manual_rollover": { "type": "boolean" },
+        "pressure_recommendations": { "type": "boolean" },
+        "auto_rollover": { "type": "boolean" },
+        "pressure_thresholds": {
+          "type": "object",
+          "additionalProperties": { "type": ["integer", "null"], "minimum": 1 }
+        },
+        "storage": { "type": "object", "additionalProperties": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}

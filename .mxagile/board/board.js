@@ -55,9 +55,9 @@ function internalLink(label, route) {
 function stateBadge(value, kind = "") {
   const normalized = value === null || value === undefined || value === "" ? "UNKNOWN" : String(value);
   let tone = "unknown";
-  if (["done", "VERIFIED", "CONFIRMED", "passed", "available", "ACTIVE_TARGET", "consistent", "AVAILABLE", "OK"].includes(normalized)) tone = "good";
+  if (["done", "VERIFIED", "CONFIRMED", "passed", "available", "ACTIVE_TARGET", "consistent", "AVAILABLE", "OK", "AUTHORIZED"].includes(normalized)) tone = "good";
   else if (["blocked", "failed", "FAIL", "STALE", "DECISION_REQUIRED", "CRITICAL", "ambiguous", "mismatch", "INVALID", "AMBIGUOUS", "BLOCKED", "PROJECTION_ERROR"].includes(normalized)) tone = "bad";
-  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN", "RESULT_UNKNOWN", "INTERRUPTED", "NEEDS_RECONCILIATION", "REASSESS_REQUIRED", "SUPERSEDED", "RETIRED", "FRAMEWORK_FOLLOWUP", "REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED", "NOT_RECORDED", "UNSUPPORTED", "DEGRADED"].includes(normalized)) tone = "warn";
+  else if (["PROPOSED", "PARTIAL", "partial", "unknown", "UNKNOWN", "RESULT_UNKNOWN", "INTERRUPTED", "NEEDS_RECONCILIATION", "REASSESS_REQUIRED", "SUPERSEDED", "RETIRED", "FRAMEWORK_FOLLOWUP", "REFERENCE_RECONCILIATION_REQUIRED", "DIRTY_REFERENCE_UNRECONCILED", "NOT_RECORDED", "UNSUPPORTED", "DEGRADED", "RECONCILIATION_REQUIRED", "UNKNOWN_REQUIRES_RECONCILIATION"].includes(normalized)) tone = "warn";
   const badge = node("span", `state ${tone}`, normalized.replaceAll("_", " "));
   if (kind) badge.dataset.kind = kind;
   return badge;
@@ -1306,6 +1306,10 @@ function trustWaveRows(items) {
     main.append(node("small", "", parts.join(" · ")));
     const confidence = item.present_confidence.level === "EVIDENCED" ? "EVIDENCED" : item.present_confidence.level === "NOT_EVIDENCED" ? "NOT EVIDENCED" : "NOT OBSERVABLE";
     row.append(main, stateBadge(item.historical_state), stateBadge(confidence.replaceAll(" ", "_")));
+    if (item.reconciliation_state && item.reconciliation_state !== "NOT_REQUIRED") {
+      row.append(stateBadge(item.reconciliation_state));
+      main.append(node("small", "muted", (item.reason_codes || []).join(" · ")));
+    }
     list.append(row);
   }
   return list;
@@ -2396,6 +2400,36 @@ function renderHealthSummary(container) {
     section.append(card);
   }
   container.append(section);
+  renderControlPlaneStatus(container);
+}
+
+function renderControlPlaneStatus(container) {
+  const control = status.health?.control_plane_status;
+  const section = node("section", "plain-section control-plane-status");
+  section.append(node("h3", "", "Control-plane delivery · read-only"));
+  if (!control) {
+    section.append(obsBadge("NOT_LOADED"));
+    container.append(section);
+    return;
+  }
+  section.append(stateBadge(control.delivery_state));
+  const freshness = (value) => value === true ? "STALE" : value === false ? "CURRENT" : "NOT_OBSERVABLE";
+  const entries = [
+    ["Reason codes", control.reason_codes?.join(" · ") || "NONE RECORDED"],
+    ["Primary recovery", control.primary_recovery || "NOT_RECORDED"],
+    ["Allowed recovery", control.allowed_recovery_actions?.join(" · ") || "NOT_RECORDED"],
+    ["Epoch", freshness(control.epoch_stale)],
+    ["Branch", freshness(control.branch_stale)],
+    ["HEAD", freshness(control.head_stale)],
+    ["Doctor", control.doctor_compatibility || "NOT_OBSERVABLE"],
+    ["Migration", control.migration_status || "NOT_RECORDED"],
+    ["Projection", status.projection_state?.state || "NOT_OBSERVABLE"],
+  ];
+  for (const [label, value] of entries) {
+    section.append(node("div", "plain-item", `${label}: ${value}`));
+  }
+  section.append(node("small", "muted", "Derived from canonical artifacts, not authorization to write. Snapshot freshness and historical lifecycle remain separate."));
+  container.append(section);
 }
 
 function diagnosticRow(item) {
@@ -2429,6 +2463,7 @@ function renderHealthView() {
   projectionRow.append(node("div", "item-main", projection ? `Server snapshot · age ${projection.age_seconds === null ? "?" : Math.round(projection.age_seconds)} s` : "Projection state not loaded"), stateBadge(projection ? projection.state : "NOT_LOADED"));
   projectionSection.append(projectionRow);
   root.append(projectionSection);
+  renderControlPlaneStatus(root);
 
   const states = health.observation_states;
   const order = Object.keys(states).sort((a, b) => (states[a] === "AVAILABLE") - (states[b] === "AVAILABLE") || a.localeCompare(b));

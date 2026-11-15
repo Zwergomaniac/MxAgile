@@ -28,15 +28,64 @@ under `.concord/scratch/`, then persist it with:
 & ./.mxagile/tools/Save-MxAgileRoutingDecision.ps1 -ProjectRoot . -InputFile <decision-json>
 ```
 
-The input carries `mission_id`, unique `decision_id`, `session_identity` when known,
+The input carries `schema_version: "1.0"`, `mission_id`, unique `decision_id`,
+`session_identity` (required key, `null` when unknown),
 `work_package`, `requested_agent_type`, `work_class`, bounded `scope`, `artifact_count`,
 `semantic`, `deterministic`, `capability_state`, `requested_profile`, `route`, `reason`,
 `fallback_reason`, `delegation_attempted`, `spawn_outcome`, `delegation_id`,
 `result_reference`, `main_consumed`, `compaction_occurred`, `result_reused`,
-`stale_result_rejected`, `batch_restarted`, and `references` (`path` and optional
-`identity`). The writer timestamps the record, fingerprints referenced sources, and
+`stale_result_rejected`, `batch_restarted`, and `references` (each with required
+`path` and string `identity`; empty identity only when the source has none).
+All listed keys are required, including nullable metadata. `scope.paths` and
+`references` are arrays; counts are integers and observation flags are real JSON
+booleans, never strings. `recorded_at`, `updated_at` and `source_fingerprints` belong
+only to the persisted output, not writer input. The writer timestamps the record, fingerprints referenced sources, and
 links it from the active Context Epoch. Never put source contents or transcripts in
 the input.
+
+### Complete minimal writer input
+
+Replace `mission_id` with the active checkpoint identity. The referenced file must exist;
+this example declares a helper route, not a spawn or an acceptance PASS.
+
+```json
+{
+  "schema_version": "1.0",
+  "mission_id": "MISSION-example",
+  "decision_id": "ROUTE-example",
+  "session_identity": null,
+  "work_package": "Validate one requirement candidate",
+  "requested_agent_type": null,
+  "work_class": "deterministic",
+  "scope": {"summary": "One requirement", "paths": ["requirements/REQ-001.yml"]},
+  "artifact_count": 1,
+  "semantic": false,
+  "deterministic": true,
+  "capability_state": "not_applicable",
+  "requested_profile": null,
+  "route": "HELPER",
+  "reason": "Deterministic validation is sufficient",
+  "fallback_reason": null,
+  "delegation_attempted": false,
+  "spawn_outcome": "not_attempted",
+  "delegation_id": null,
+  "result_reference": null,
+  "main_consumed": false,
+  "compaction_occurred": false,
+  "result_reused": false,
+  "stale_result_rejected": false,
+  "batch_restarted": false,
+  "references": [{"path": "requirements/REQ-001.yml", "identity": "REQ-001"}]
+}
+```
+
+A pre-spawn DELEGATE input retains every key above and changes `work_class` to
+`bounded_semantic`, `semantic` to true, `deterministic` to false, `route` to DELEGATE,
+and `spawn_outcome` to pending. Set the actually observed agent/profile and supported
+capability; never infer them from registry declarations. Canonical `delegation_id`, when
+known, uses `DELEGATION-...` (case-sensitive), not a host UUID or agent name. Unknown
+identity remains null. The writer computes `source_fingerprints`; input references require
+`identity` but do not contain a caller-invented hash. Reconcile actual dispatch afterward.
 
 Routing order:
 
@@ -53,6 +102,10 @@ with the main agent or contain multiple bounded packages; work in separate Waves
 run in parallel only when their dependencies and shared-state risks permit it. The main
 agent retains integration and all lifecycle/gate authority.
 
+For `DELEGATE`, the pre-spawn record uses `delegation_attempted: false`,
+`spawn_outcome: pending`, a concrete requested agent/profile and the bounded scope.
+After dispatch, record `delegation_attempted: true` and observed `started` or `failed`;
+only completed results may become `completed` and `main_consumed: true`.
 For `DELEGATE`, persist the decision first, then invoke the harness-native named-agent,
 subagent, or fork operation actually exposed by the current session. Use only its
 observed tool name and supported parameters. Pass the bounded handoff, requested
@@ -122,6 +175,21 @@ preflight record. Every dependent handoff references that same record through `a
 Consumers must not generate a second recipe or reconstruct arguments. Secret values are never
 stored in the record; secret arguments are represented only by their authoritative references
 and are resolved at the actual credential-consuming operation.
+
+## Read-Only Diagnostic and Dispatcher Boundaries
+
+`read_only_diagnostic` is a capability plus a schema-valid bounded handoff, not
+an agent-name permission. It binds parent run/project, safe paths and fingerprints,
+actual read tools, `authorization: read_only`, no write/evidence destinations or
+commit, and `output_contract: diagnostic-findings/1`. Host-attested tool/path
+restrictions and run correlation are required. A diagnostic conclusion cannot
+grant Delivery or Acceptance authority. Without host attestation report
+`NOT_OBSERVABLE` and retain the existing safe fallback; do not expand Explore names.
+
+`concord_invoke` and `execute_handler` dispatchers are classified by the discovered
+inner operation's complete argument contract, never just the outer tool or an
+agent-supplied `read_only` flag. The current stdin hook has no live provider for
+that attestation and fails closed; synthetic boundary tests are not live evidence.
 
 ## Anti-Amplification
 
@@ -206,6 +274,18 @@ reasoning effort when applicable, and fallback use/reason. Result schema 1.1 add
 this evidence while the reader continues to accept compact 1.0 results. Dynamic or
 undisclosed runtime choices remain unresolved rather than being inferred from the
 adapter.
+
+For empirical routing, keep the selected Core profile, model/effort actually
+present in the spawn request, and host-observed child model as separate evidence.
+FAST/MID/DEEP labels in a host are not new Core profiles: translate only through
+an explicit adapter mapping to LIGHT/MID/HIGH. Classify observed failures as
+`FRAMEWORK_PROFILE_RESOLUTION_FAILED` (requested profile not resolved),
+`HOST_IGNORED_PROFILE` (verified request and different observed child),
+`HOST_DOES_NOT_SUPPORT_CHILD_MODEL_SELECTION` (verified host limitation), or
+`MAIN_MODEL_INHERITED` (host-confirmed inheritance). Missing spawn/child evidence
+is `NOT_OBSERVABLE`, never inferred from the parent model, task title, plugin name
+or model catalog. A supported model-selection declaration does not prove request
+acceptance or actual child identity.
 
 Session completion should report spawned mission IDs, requested profiles, resolved
 model identifiers only when the harness proves them, result references, reused results,

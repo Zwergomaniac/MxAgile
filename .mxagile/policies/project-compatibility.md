@@ -109,6 +109,70 @@ reconciliation and scope-preserving Context re-sync. Pending receipts block re-s
 applied receipts invalidate older Context checkpoints. Historical Doctor results do not
 replace the current diagnostic report. Recovery never advances a Mission/Wave.
 
+## Canonical candidate validation and bounded last-write recovery
+
+Before an exposed canonical `Write`, `Edit` or `MultiEdit`, project the complete candidate
+in memory and validate syntax, schema, identity and relevant existing canonical references.
+An empty reference inventory does not waive referential integrity. Config and Checklist
+validation retain Company/Project extensions while checking known Core field types and task
+progress. Parent Spec/Test Contract references must resolve uniquely to valid canonical
+artifacts; Verification Plan assignments must name an actual parent proof point. Native Windows
+case aliases do not bypass canonical matching. Noncanonical source edits do not incur this
+canonical validation scan.
+
+```powershell
+python .mxagile/tools/project_compatibility.py validate-write --project-root . --target-path planning/decisions/DEC-058.yml --candidate-file .concord/scratch/decision-candidate.yaml
+python .mxagile/tools/project_compatibility.py repair-last-write --project-root . --dry-run
+python .mxagile/tools/project_compatibility.py repair-last-write --project-root . --apply --plan-hash <approved-hash> --run-id <current-run>
+python .mxagile/tools/project_compatibility.py delivery-preflight --project-root .
+```
+
+A rejected candidate never reaches the host writer. Unprojectable shell mutations with an
+exposed canonical target are denied; use a candidate-validating writer instead of redirecting
+shell output into canonical files. A verification/service keyword does not exempt an opaque
+command with an exposed canonical target. Git index operations are not source-content mutations.
+Dynamic program side effects without an exposed target remain a host observability boundary,
+not evidence of successful prevalidation. A host must preserve the validated bytes and atomic
+replacement semantics; a PreToolUse response alone does not attest the host's write algorithm.
+
+The last-write journal binds the authorized Run, exact target, before snapshot and exact
+candidate fingerprint. Bounded repair requires that the actual invalid bytes match that
+candidate, all blocking diagnostics concern that target, and no incomplete update/migration
+requires a different recovery. An unrelated later edit cannot become the authorized mutation.
+Old journals without candidate identity fail closed. A candidate repair must preserve the
+Before snapshot's protected phase/gate/status/identity values, using the existing repair
+contract. Missing or corrupt Before data denies nonidentical repair; exact Before bytes
+may still be restored when their fingerprint matches, without inventing semantic values.
+The dedicated integrity-bound repair
+command verifies plan/source fingerprints, applies an atomic replacement or exact rollback,
+and rechecks Doctor. The journal Run, supplied Run and host-provided `MXAGILE_RUN_ID` must
+match; without a current host Run, mutation is `BOUNDED_REPAIR_RUN_NOT_OBSERVABLE`, not
+allowed on the strength of a caller's Run label. General Edit remains blocked; recovery never
+grants delivery authority.
+
+## Delivery phase prerequisites
+
+Run `delivery-preflight` immediately before major workpackages or transitions into implementing,
+verifying and closure, not before every read. The transition guard reuses current Doctor,
+Mission/Wave, Context and canonical Task/Spec links. Matching PROPOSED governing Decisions
+block entry; plan prose and legacy `requirements.assigned` annotations cannot supply authority.
+Current nonterminal tasks prevent verifying/DONE. A required or recorded Security Gate cannot
+be omitted at closure, and its PASS needs its own fingerprinted evidence. Clean model checks,
+Browser-Smokes and unrelated gate proofs do not substitute for this evidence.
+
+`--require-capability` records `NOT_OBSERVABLE` until an appropriate current host/provider
+execution probe is available; a registry declaration is not EXECUTABLE_AVAILABLE and absence
+of a probe is not global Playwright UNAVAILABLE. Pre-implementation checkpoints are recommended
+for major migrations/replacements/revisions, not mandatory commits for every small edit.
+Before a larger experimental implementation: finish required Core update/migration, run the
+current Doctor, reconcile relevant Mocketeer targets, understand the working tree (including
+foreign changes), then create a bounded explicitly authorized checkpoint commit. Only then
+begin the experimental implementation; never include foreign changes just to obtain a clean tree.
+The preflight reports missing Git observability as unknown, not clean. Its checkpoint count is
+Mission-declared history, not verified Git evidence, acceptance or publication authorization.
+Scope-relevant PROPOSED decisions are rechecked before delivery workpackage delegation;
+a trusted read-only diagnostic handoff remains the separate existing non-delivery path.
+
 ## Legacy Compatibility Matrix
 
 This matrix separates observed legacy shapes from verified framework producers. Example Project's CCM

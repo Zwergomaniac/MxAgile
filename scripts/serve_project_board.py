@@ -46,11 +46,11 @@ UI_FILES = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styl
 STATUS_FILES = (
     "mxagile-project.yaml", ".mxagile/config.yaml", ".mxagile/version.yaml",
     "planning/lifecycle/process-state.yaml", "planning/lifecycle/context-epoch.yaml",
-    "planning/mission/mission-state.yaml",
+    "planning/mission/mission-state.yaml", ".concord/context-epoch.yaml",
 )
 STATUS_ROOTS = (
     "requirements", "specs", "scripts", "planning", "input-resources/ui-ux", "mprcontents",
-    ".mxagile/schemas", ".mxagile/tools", ".mxagile/state",
+    ".mxagile/schemas", ".mxagile/tools", ".mxagile/state", ".mxagile/migration",
 )
 SKIP_STATUS_DIRS = {".git", ".concord", ".mxcli", "__pycache__", "node_modules", "deployment"}
 PREVIEW_EXTENSIONS = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2", ".ttf"}

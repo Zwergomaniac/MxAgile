@@ -127,6 +127,11 @@ files and their current provenance remain the source of truth for what is actual
 installed. `.mxagile/state/last-update-result.json` is only the last attempt's handoff,
 not current state. Compare its `installed_at`/commit and transaction ID with current
 `core-provenance.json` and Company Layer `provenance.json` before relying on it.
+Each result is written afresh for its `update_attempt_id`; historical fields are never
+merged into a new generation. `framework.commit`/`installed_at` describe observed Core
+provenance, while `update_transaction.target_core` describes the requested target.
+Core completion rejects a handoff from another attempt, even at the same commit.
+A successful framework result is not proof of current compatibility or loaded contracts.
 
 Update states:
 
@@ -177,8 +182,19 @@ through the enclosing Company bootstrap. A completed repeat resume verifies the 
 read-only and does not rewrite Core identity, manifest timestamps or the prior handoff.
 
 After requested Core/Layer stages complete: observe contract delta -> persist scoped contract
-plan -> apply only deterministic safe repairs -> defer review/real decisions -> rebuild derived
-compatibility -> final Doctor -> invalidate/re-read context -> canonical lifecycle re-sync.
+plan -> report source repairs/review/real decisions -> final Doctor -> invalidate/re-read context
+-> canonical lifecycle re-sync. Installer completion uses `migrate --apply-safe --contract-only`:
+it persists reconciliation and applies only the existing lossless versioned Decision-alias and
+typed-inspect normalizations. It never silently derives Task/Wave assignments or applies ordinary
+project-source repairs. `--record-only` persists reconciliation without any source changes.
+A separate explicitly authorized migration/repair mission may apply its deterministic safe plan;
+a SAFE_DETERMINISTIC classification alone is not installer authority to change a Task's Wave.
+Projection-only resume of a pinned older Core uses that installed producer's own migration
+contract when it predates `--contract-only`; never pass newer runner flags or replace the old
+producer merely to make resume work. This is preservation of the pinned Core's existing behavior,
+not proof that it implements the current Core's narrower source-repair contract.
+`doctor.executed` records actual invocation, not successful validation. Invalid/unavailable
+output keeps compatibility NOT_VERIFIED and repair counts unknown.
 The existing migration state holds a nested contract record; historical root `complete`
 flags do not prove current compatibility. NEEDS_HUMAN is an intentional unresolved decision,
 not failed installation. No ordinary delivery or Epoch write may bypass that boundary.

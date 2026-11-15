@@ -2,12 +2,14 @@
 # Covers: deterministic hash, same-content = same hash, create_revision.py,
 # gate cannot self-authorize (requires DEC-NNN), no empty revision creation.
 
+$ownsFixture = $false
 try {
 
     # --- Setup ---
-    $TestDir = Join-Path $env:TEMP "tmp-test-spa-bundle-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
-    if (Test-Path $TestDir) { Remove-Item -Recurse -Force $TestDir }
+    $TestDir = Join-Path $env:TEMP "tmp-test-spa-bundle-$([System.Guid]::NewGuid().ToString('N'))"
+    if (Test-Path $TestDir) { throw 'Fixture path collision; refusing to delete an unowned directory.' }
     New-Item -ItemType Directory -Path $TestDir | Out-Null
+    $ownsFixture = $true
 
     $PSScriptRoot        = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
     $HashScriptPath      = Join-Path $PSScriptRoot "..\scripts\artifact_hashing.py"
@@ -28,6 +30,12 @@ try {
     function Assert-Condition {
         param ($Condition, $Message)
         if (-not $Condition) { throw "Assertion Failed: $Message" }
+    }
+
+    function Write-ConfirmedDecision([string]$Id) {
+        @{ ID = $Id; title = 'Accepted bundle'; status = 'CONFIRMED'; decision_type = 'mockup_refinement';
+           topic = 'SPA target'; decision_text = 'Developer accepts this target.'; owner = 'developer' } |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $DecisionsDir "$Id.yml") -Encoding UTF8
     }
 
     # Helper: call hash_spa_bundle via inline Python
@@ -65,13 +73,13 @@ print(hash_spa_bundle(r'$Dir'))
     # --- Test 4: create_revision.py requires DEC-NNN file to exist ---
     Write-Host "[TEST] Running: create_revision.py requires decision file"
     $output = & python $RevisionScriptPath --path $TestDir --mockup test-bundle --decision DEC-999 2>&1
-    Assert-Condition ($LASTEXITCODE -ne 0) "create_revision.py should fail when DEC-999.md does not exist."
-    Assert-Condition ($output -match "Decision file not found") "Expected 'Decision file not found' error message."
+    Assert-Condition ($LASTEXITCODE -ne 0) "create_revision.py should fail when a canonical CONFIRMED DEC-999.yml does not exist."
+    Assert-Condition ($output -match "CONFIRMED decision required") "Expected canonical confirmation error message."
     Write-Host "[PASS] create_revision.py requires decision file"
 
     # --- Test 5: create_revision.py succeeds when DEC-NNN exists ---
     Write-Host "[TEST] Running: create_revision.py happy path"
-    Set-Content -Path (Join-Path $DecisionsDir "DEC-001.md") -Value "# DEC-001: Accept test-bundle REV-001`nAccepted."
+    Write-ConfirmedDecision 'DEC-001'
     & python $RevisionScriptPath --path $TestDir --mockup test-bundle --decision DEC-001
     Assert-Condition ($LASTEXITCODE -eq 0) "create_revision.py failed unexpectedly."
     $revDir = Join-Path $MockupRoot "test-bundle\_history\REV-001"
@@ -100,7 +108,7 @@ print(hash_spa_bundle(r'$Dir'))
 
     # --- Test 8: create_revision.py blocks identical revision (no change) ---
     Write-Host "[TEST] Running: create_revision.py blocks identical revision"
-    Set-Content -Path (Join-Path $DecisionsDir "DEC-002.md") -Value "# DEC-002: Second acceptance"
+    Write-ConfirmedDecision 'DEC-002'
     # Working bundle is unchanged — should be blocked
     $output = & python $RevisionScriptPath --path $TestDir --mockup test-bundle --decision DEC-002 2>&1
     Assert-Condition ($LASTEXITCODE -ne 0) "create_revision.py should refuse to create identical revision."
@@ -121,7 +129,7 @@ print(hash_spa_bundle(r'$Dir'))
 
     # --- Test 10: --dry-run does not write files ---
     Write-Host "[TEST] Running: --dry-run"
-    Set-Content -Path (Join-Path $DecisionsDir "DEC-003.md") -Value "# DEC-003: Dry run test"
+    Write-ConfirmedDecision 'DEC-003'
     Add-Content -Path (Join-Path $BundleDir "index.html") -Value "<!-- v3 -->"
     & python $RevisionScriptPath --path $TestDir --mockup test-bundle --decision DEC-003 --dry-run
     $rev3Dir = Join-Path $MockupRoot "test-bundle\_history\REV-003"
@@ -132,7 +140,7 @@ print(hash_spa_bundle(r'$Dir'))
     Write-Error "A test failed: $_"
     exit 1
 } finally {
-    if (Test-Path $TestDir) {
+    if ($ownsFixture -and (Test-Path $TestDir)) {
         Remove-Item -Recurse -Force $TestDir -ErrorAction SilentlyContinue
         Write-Host "[INFO] Cleaned up test directory."
     }

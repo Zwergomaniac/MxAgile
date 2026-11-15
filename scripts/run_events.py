@@ -306,25 +306,40 @@ def active_runs(events: list[dict]) -> list[dict]:
             grouped.setdefault(event["run_id"], []).append(event)
     result = []
     for run_id, rows in grouped.items():
-        rows.sort(key=lambda item: (item["occurred_at"], item["sequence"], item["event_id"]))
+        # Sequence is monotonic within a run; wall clocks can skew across hosts.
+        rows.sort(key=lambda item: (item["sequence"], item["event_id"]))
         first = rows[0]
         last = rows[-1]
-        terminal = next((item for item in reversed(rows) if item["event_type"] in TERMINAL_TYPES), None)
-        if terminal:
+        terminal_by_start = {
+            "child_started": {"child_accepted", "child_partial", "child_rejected", "child_stale", "child_needs_human"},
+            "run_started": {"run_completed", "run_abandoned"},
+            "update_started": {"update_completed"}, "migration_started": {"migration_completed"},
+            "lifecycle_resync_started": {"lifecycle_resync_completed"},
+        }
+        open_operations: set[str] = set()
+        interrupted = False
+        for row in rows:
+            event_type = row["event_type"]
+            if event_type in START_TYPES:
+                open_operations.add(event_type)
+            elif event_type == "run_resumed":
+                if not open_operations:
+                    open_operations.add(first["event_type"] if first["event_type"] in START_TYPES else "run_started")
+                interrupted = False
+            elif event_type == "run_interrupted":
+                interrupted = True
+            else:
+                open_operations = {operation for operation in open_operations
+                                   if event_type not in terminal_by_start[operation]}
+        if not open_operations:
             continue
-        interrupted = any(item["event_type"] == "run_interrupted" for item in rows) and not any(
-            item["event_type"] == "run_resumed" and item["occurred_at"] > max(
-                row["occurred_at"] for row in rows if row["event_type"] == "run_interrupted") for item in rows)
-        if interrupted:
-            status = "INTERRUPTED"
-        else:
-            status = "RESULT_UNKNOWN"
+        status = "INTERRUPTED" if interrupted else "RESULT_UNKNOWN"
         result.append({"run_id": run_id, "parent_run_id": first["parent_run_id"], "mission_id": first["mission_id"],
                        "wave_id": first["wave_id"], "capability": first["capability"], "actor": first["actor"],
                        "host": first["host"], "status": status, "started_at": first["occurred_at"],
                        "last_event_at": last["occurred_at"], "event_count": len(rows),
                        "correlation": first["correlation"],
-                       "reconciliation_state": "NEEDS_RECONCILIATION" if not terminal else None})
+                       "reconciliation_state": "NEEDS_RECONCILIATION"})
     result.sort(key=lambda item: (item["started_at"], item["run_id"]), reverse=True)
     return result
 

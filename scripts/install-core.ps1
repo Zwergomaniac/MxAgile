@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
     [string]$ProjectRoot,
@@ -29,10 +29,24 @@ param (
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+# Refuse unsupported runtimes before loading helpers containing PS7-only syntax.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    $installedVersion = $PSVersionTable.PSVersion.ToString()
+    Write-Host "ERROR: PowerShell 7 or later is required to install or update MxAgile." -ForegroundColor Red
+    Write-Host "  Detected: Windows PowerShell $installedVersion"
+    Write-Host "  Required: PowerShell 7+ (pwsh)"
+    Write-Host "  winget install Microsoft.PowerShell"
+    Write-Host "  https://aka.ms/powershell"
+    Write-Host "Then re-run the setup script with: pwsh -File mxagile-setup.ps1"
+    exit 1
+}
+
 $updateMutationStarted = $false
 $updateStage = 'PREFLIGHT'
 $updateTransactionPath = $null
 $ownsUpdateTransaction = $false
+$transaction = $null
 . (Join-Path $PSScriptRoot 'update-transaction.ps1')
 
 function Invoke-CoreProjectionResume {
@@ -137,7 +151,7 @@ print('INSTALLED_CORE_VERIFIED')
         $transaction.company_layer_result = 'NO_UPDATE_AVAILABLE'; $transaction.company_layer_completed = $true
         $transaction.current_stage = 'POST_UPDATE_DOCTOR'; $transaction.projection.contract_migration_started = $true
         Save-MxAgileUpdateTransaction -Root $Root -Transaction $transaction
-        Invoke-PostUpdateCompatibility -Root $Root -ToolsDir (Join-Path $Root '.mxagile/tools') -CoreProvenance $core
+        Invoke-PostUpdateCompatibility -Root $Root -ToolsDir (Join-Path $Root '.mxagile/tools') -CoreProvenance $core -Transaction $transaction
         Complete-MxAgileCoreUpdateTransaction -Root $Root -Transaction $transaction
     } catch {
         $transaction.state='PARTIAL_UPDATE'; $transaction.failed_stage=$transaction.current_stage; $transaction.failure=$_.Exception.Message
@@ -163,7 +177,7 @@ function Get-CoreArtifactContract {
 }
 
 function Invoke-PostUpdateCompatibility {
-    param([string]$Root, [string]$ToolsDir, [System.Collections.IDictionary]$CoreProvenance)
+    param([string]$Root, [string]$ToolsDir, [System.Collections.IDictionary]$CoreProvenance, [System.Collections.IDictionary]$Transaction)
 
     $restartRequired = $false
     $restartPath = Join-Path $Root '.mxagile/state/runs/framework-update-recovery.json'
@@ -173,6 +187,8 @@ function Invoke-PostUpdateCompatibility {
     }
     $result = [ordered]@{
         schema_version = 1
+        update_attempt_id = if ($Transaction) { $Transaction.update_attempt_id } else { $null }
+        reported_at = [DateTime]::UtcNow.ToString('o')
         installed_at = $CoreProvenance.installed_at
         update_state = if ($CoreProvenance.install_mode -eq 'update') { 'UPDATE_INSTALLED_RESTART_REQUIRED' } else { 'INSTALL_COMPLETED' }
         completed_stages = @('CORE_INSTALL', 'GENERATED_PROJECTIONS')
@@ -218,7 +234,15 @@ function Invoke-PostUpdateCompatibility {
             if (-not (Test-Path -LiteralPath $doctorPath -PathType Leaf)) { throw 'Doctor script missing' }
             $doctor.reason = 'DOCTOR_EXECUTION_FAILED: check Python and .mxagile/tools/requirements.txt'
             $PSNativeCommandUseErrorActionPreference = $false
-            $doctorOutput = & $pythonCommand.Source -B $doctorPath migrate --apply-safe --project-root $Root --format json 2>$null
+            $migrationArguments = @('-B', $doctorPath, 'migrate', '--apply-safe')
+            if ([System.IO.File]::ReadAllText($doctorPath).Contains("add_argument('--contract-only'")) {
+                $migrationArguments += '--contract-only'
+            } else {
+                Write-Host 'Contract migration: pinned legacy producer; using its installed migration contract, not newer runner flags.'
+            }
+            $migrationArguments += @('--project-root', $Root, '--format', 'json')
+            $doctorOutput = & $pythonCommand.Source @migrationArguments 2>$null
+            $doctor.executed = $true
             $doctor.exit_code = $LASTEXITCODE
             if ($doctor.exit_code -notin @(0, 1, 2)) {
                 $doctor.reason = "DOCTOR_EXIT_$($doctor.exit_code): check Python and .mxagile/tools/requirements.txt"
@@ -230,7 +254,6 @@ function Invoke-PostUpdateCompatibility {
             $result.migration = $migrationResult.migration
             $result.completed_stages += 'CONTRACT_MIGRATION'
             $report = $migrationResult.doctor
-            $doctor.executed = $true
             $result.completed_stages += 'DOCTOR'
             if ($report.stage -ne 'PROJECT_COMPATIBILITY_CHECKED' -or $report.read_only -ne $true -or
                 $report.compatibility -notin @('COMPATIBLE', 'PARTIAL', 'BLOCKED') -or
@@ -259,11 +282,14 @@ function Invoke-PostUpdateCompatibility {
 
     $handoff = Join-Path $Root '.mxagile/state/last-update-result.json'
     $json = $result | ConvertTo-Json -Depth 30
+    $temporary = "$handoff.$([Guid]::NewGuid().ToString('N')).tmp"
     try {
-        [System.IO.File]::WriteAllText($handoff, $json + "`n", [System.Text.UTF8Encoding]::new($false))
+        if (Test-Path -LiteralPath $handoff -PathType Container) { throw 'Result path is a directory.' }
+        [System.IO.File]::WriteAllText($temporary, $json + "`n", [System.Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temporary -Destination $handoff -Force
     } catch {
-        Write-Host 'Compatibility handoff could not be saved; consume the result below.' -ForegroundColor Yellow
-    }
+        throw "UPDATE_RESULT_PERSISTENCE_FAILED: $($_.Exception.Message)"
+    } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
     Write-Host ''
     Write-Host 'MxAgile update completion (framework and project compatibility are separate):'
     Write-Host "Update: SUCCESS"
@@ -293,15 +319,19 @@ function Invoke-PostUpdateCompatibility {
         }
     }
     Write-Host 'Agent completion MUST report framework success AND project compatibility; read .mxagile/state/last-update-result.json.'
-    Write-Host 'SESSION_CONTRACT: RE_SYNC_REQUIRED (installed projections do not reload this running session).'
-    Write-Host 'Before answering, explicitly re-read .mxagile/policies/update-contract.md and follow its same-session contract re-sync, including active instructions/skills.'
-    Write-Host 'Report CONTRACTS_RE_SYNCED only after successful re-reads; otherwise UPDATE_INSTALLED_RESTART_REQUIRED and Project compatibility NOT_VERIFIED.'
+    Write-Host "SESSION_CONTRACT: $($result.session_contract.state) (installed projections do not reload this running session)."
+    if ($restartRequired) {
+        Write-Host 'Restart the host session, start a new Run, then acknowledge-restart with the installed framework_update_recovery.py before contract re-sync. No automatic contract reload is claimed.'
+    } else {
+        Write-Host 'Before answering, explicitly re-read .mxagile/policies/update-contract.md and follow its same-session contract re-sync, including active instructions/skills.'
+        Write-Host 'Report CONTRACTS_RE_SYNCED only after successful re-reads; otherwise UPDATE_INSTALLED_RESTART_REQUIRED and Project compatibility NOT_VERIFIED.'
+    }
     $countFields = @('blocking_diagnostic_count', 'safe_deterministic_count', 'agent_repairable_count', 'decision_required_count', 'unsupported_count')
     $counts = foreach ($field in $countFields) {
         $value = if ($null -eq $doctor[$field]) { 'UNKNOWN' } else { $doctor[$field] }
         "$field=$value"
     }
-    Write-Host "version=$($CoreProvenance.version) commit=$commit Framework_update=SUCCESS Doctor_executed=$($doctor.executed) Compatibility=$($doctor.compatibility) repair_status=$($doctor.repair_status) $($counts -join ' ') SESSION_CONTRACT=RE_SYNC_REQUIRED; re-read .mxagile/policies/update-contract.md before completion; otherwise UPDATE_INSTALLED_RESTART_REQUIRED / NOT_VERIFIED"
+    Write-Host "version=$($CoreProvenance.version) commit=$commit Framework_update=SUCCESS Doctor_executed=$($doctor.executed) Compatibility=$($doctor.compatibility) repair_status=$($doctor.repair_status) $($counts -join ' ') SESSION_CONTRACT=$($result.session_contract.state); explicitly re-read .mxagile/policies/update-contract.md before completion; otherwise UPDATE_INSTALLED_RESTART_REQUIRED / NOT_VERIFIED"
     $summary = [ordered]@{ installed_at = $result.installed_at; framework = $result.framework; migration = $result.migration; session_contract = $result.session_contract; doctor = [ordered]@{} }
     foreach ($key in $doctor.Keys) {
         if ($key -ne 'report') { $summary.doctor[$key] = $doctor[$key] }
@@ -392,29 +422,6 @@ function Add-ContextModeRuntimeGitIgnore {
         & $gitCommand.Source -C $Root check-ignore --quiet -- $probe 2>$null
         if ($LASTEXITCODE -ne 0) { throw 'RUN_EVENT_STORE_NOT_GITIGNORED: .mxagile/state/runs/append.lock is not ignored.' }
     }
-}
-
-# =========================================================================
-# PowerShell Version Preflight (RF-005)
-# MxAgile requires PowerShell 7+ (pwsh). Windows PowerShell 5.x is NOT
-# supported — it has known encoding and parsing incompatibilities that cause
-# cryptic mid-install failures. Fail before any state mutation.
-# =========================================================================
-if ($PSVersionTable.PSVersion.Major -lt 7) {
-    $installedVersion = $PSVersionTable.PSVersion.ToString()
-    Write-Host ""
-    Write-Host "ERROR: PowerShell 7 or later is required to install or update MxAgile." -ForegroundColor Red
-    Write-Host ""
-    Write-Host "  Detected: Windows PowerShell $installedVersion"
-    Write-Host "  Required: PowerShell 7+ (pwsh)"
-    Write-Host ""
-    Write-Host "Install PowerShell 7:"
-    Write-Host "  winget install Microsoft.PowerShell"
-    Write-Host "  https://aka.ms/powershell"
-    Write-Host ""
-    Write-Host "Then re-run the setup script with: pwsh -File mxagile-setup.ps1"
-    Write-Host ""
-    exit 1
 }
 
 try {
@@ -952,6 +959,12 @@ try {
     }
     Copy-Item -LiteralPath $impactResolverSource -Destination (Join-Path $destToolsDir "resolve_impact.py") -Force
     Write-Host "[OK] Distributed .mxagile/tools/resolve_impact.py (read-only impact fingerprint support)."
+    $artifactIndexBuilderSource = Join-Path $PSScriptRoot "build_artifact_index.py"
+    if (-not (Test-Path -LiteralPath $artifactIndexBuilderSource -PathType Leaf)) {
+        throw "build_artifact_index.py not found in script directory."
+    }
+    Copy-Item -LiteralPath $artifactIndexBuilderSource -Destination (Join-Path $destToolsDir "build_artifact_index.py") -Force
+    Write-Host "[OK] Distributed .mxagile/tools/build_artifact_index.py (derived index; shared source fingerprint)."
     foreach ($securityProjectionTool in @("security_projection.py", "generate-security-matrix.ps1")) {
         $securityProjectionSource = Join-Path $PSScriptRoot $securityProjectionTool
         if (-not (Test-Path -LiteralPath $securityProjectionSource -PathType Leaf)) {
@@ -1420,7 +1433,7 @@ try {
             $transaction.current_stage='POST_UPDATE_DOCTOR'; $transaction.projection.contract_migration_started=$true
             Save-MxAgileUpdateTransaction -Root $ProjectRoot -Transaction $transaction
         }
-        Invoke-PostUpdateCompatibility -Root $ProjectRoot -ToolsDir $destToolsDir -CoreProvenance $coreProv
+        Invoke-PostUpdateCompatibility -Root $ProjectRoot -ToolsDir $destToolsDir -CoreProvenance $coreProv -Transaction $transaction
         if ($ownsUpdateTransaction) { Complete-MxAgileCoreUpdateTransaction -Root $ProjectRoot -Transaction $transaction }
         Invoke-BoardSmokeOffer -Root $ProjectRoot -ToolsDir $destToolsDir -Requested ([bool]$BoardSmoke) -IsUpdateRun ([bool]$IsUpdate)
     }

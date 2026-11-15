@@ -73,6 +73,39 @@ run's routing notes and mark that operation path `UNSUPPORTED` for this run. Do 
 equivalent operation with guessed names. Select a verified alternative path or stop with
 `NEEDS_ALTERNATIVE_TOOL` / `NEEDS_HUMAN`.
 
+## Browser Declaration, Discovery and Execution
+
+Registry/toolchain availability is not executable browser capability. For the
+specific provider, operation and run, use an opt-in bounded observation:
+
+```powershell
+pwsh .mxagile/tools/Get-MxAgileCapabilities.ps1 -ProjectRoot . -Format json -BrowserEvidenceFile .concord/scratch/browser-observation.json
+```
+
+Input keys: `provider`, `host` (`UNKNOWN` when unobserved), `run_id`, `observed_at`,
+`operation`, `declared_available`, `tools_observed`, `operation_discovered` and
+`execution_status` (`NOT_OBSERVED`, `PASSED`, `FAILED`, `TIMEOUT`). Observed execution
+also requires a non-empty `execution_reference` to its source evidence. Boolean keys are
+real JSON booleans. Execution means a bounded successful same-provider/same-operation
+probe in this run, not package presence, an availability status, or a historical
+report. Bind the observation to its current source evidence before routing.
+
+`DECLARED_AVAILABLE` means a declaration only; `DISCOVERED_AVAILABLE` means the
+required operation is exposed; `EXECUTABLE_AVAILABLE` requires successful execution.
+A positive declaration with observed missing operations, or failed/timed-out execution,
+is `PARTIAL`; an inspected absent path without a positive declaration is
+`UNAVAILABLE`. Missing observation remains `UNKNOWN`. Only
+`browser.route_allowed: true` authorizes this operation's Runtime/Visual route.
+A declared or discovered path may get one bounded execution probe, not a retry loop.
+
+Do not infer global browser unavailability from Studio-Pro-MCP exposing no
+`browser_*` handlers despite `playwright_status` declaring availability. An independently
+verified local Node Playwright/Chromium path is a separate provider. Historical
+local `@playwright/cli` Chromium build 1243 evidence belongs to that run; its agent
+host remains UNKNOWN unless attested. Neither provider identity nor report date
+proves the host, exact execution time or current availability. Evidence-only resolver
+modes are read-only, bounded to 256 KiB, and never alter discovery state.
+
 ## Context Mode Integration Evidence
 
 `context_mode_integration` carries an `integration` object (harness, mode, configured, loaded,

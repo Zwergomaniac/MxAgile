@@ -474,46 +474,9 @@ class KnowledgeGraph:
         return stored_fp != current_fp
 
     def _compute_current_fingerprint(self):
-        """
-        Compute the source fingerprint of all canonical artifact files.
-        Must stay in sync with the fingerprint algorithm in build_artifact_index.py.
-        """
-        artifact_locations = [
-            ('requirements',                    '*.yml'),
-            ('specs',                           '*.yml'),
-            ('planning/tasks',                  '*.yml'),
-            ('planning/ui-inventory',           '*.yaml'),
-            ('planning/scenarios',              '*.yaml'),
-            ('planning/test-contracts',         '*.yaml'),
-            ('planning/verification-plans',     '*.yaml'),
-            ('planning/decisions',              '*.yml'),
-        ]
-        entries = []
-        for rel_dir, pattern in artifact_locations:
-            d = self._root / rel_dir
-            if d.exists():
-                for f in sorted(d.glob(pattern)):
-                    rel = str(f.relative_to(self._root)).replace('\\', '/')
-                    sha = hashlib.sha256(f.read_bytes()).hexdigest()
-                    entries.append((rel, sha))
-
-        # Revision files
-        target_dir = self._root / 'planning' / 'target-mockups'
-        if target_dir.exists():
-            for mockup_dir in sorted(target_dir.iterdir()):
-                history_dir = mockup_dir / '_history'
-                if history_dir.exists():
-                    for rev_dir in sorted(history_dir.iterdir()):
-                        rev_file = rev_dir / 'revision.yaml'
-                        if rev_file.exists():
-                            rel = str(rev_file.relative_to(self._root)).replace('\\', '/')
-                            sha = hashlib.sha256(rev_file.read_bytes()).hexdigest()
-                            entries.append((rel, sha))
-
-        entries.sort(key=lambda x: x[0])
-        manifest = '\n'.join(f'{p}:{h}' for p, h in entries)
-        fp = hashlib.sha256(manifest.encode('utf-8')).hexdigest()
-        return f'sha256:{fp}'
+        """Use the canonical builder's exact indexed-source selection."""
+        from build_artifact_index import compute_current_fingerprint
+        return compute_current_fingerprint(self._root)
 
     def _run_builder(self):
         """Invoke build_artifact_index.py as a subprocess."""

@@ -33,6 +33,7 @@ Write-Host ""
 $entryPoints = @(
     @{ File = "mxagile-setup.ps1"; Desc = "Public bootstrap entry point" }
     @{ File = "scripts\install-core.ps1"; Desc = "Canonical installer" }
+    @{ File = "mxagile-setup-company-layer.ps1"; Desc = "Company bootstrap" }
 )
 
 foreach ($ep in $entryPoints) {
@@ -57,16 +58,14 @@ foreach ($ep in $entryPoints) {
     try {
         $content = Get-Content $filePath -Raw
         $preflightPos = $content.IndexOf("PSVersionTable.PSVersion.Major")
-        $firstMutationPattern = "Install-MxAgile|Copy-Item|New-Item|Set-Content|install-core"
+        $firstMutationPattern = '(?m)^\s*(?:\.\s*\(|(?:Install-MxAgile|Copy-Item|New-Item|Set-Content)\s)'
         $mutations = [regex]::Matches($content, $firstMutationPattern)
         $firstMutationPos = if ($mutations.Count -gt 0) { $mutations[0].Index } else { [int]::MaxValue }
 
         if ($preflightPos -ge 0 -and $preflightPos -lt $firstMutationPos) {
             Pass $t
-        } elseif ($preflightPos -ge 0) {
-            Pass $t  # preflight exists; position check is a best-effort heuristic
         } else {
-            Fail $t "PS preflight not found"
+            Fail $t "PS preflight missing or later than executable helper load/mutation"
         }
     } catch {
         Fail $t "Exception: $_"
@@ -123,6 +122,33 @@ try {
     }
 } catch {
     Fail $t "Exception: $_"
+}
+
+if (Get-Command powershell.exe -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+    foreach ($ep in $entryPoints) {
+        $t = "$($ep.File): PS5 reports unsupported runtime before loading PS7 helpers"
+        $fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("mxagile-ps5-preflight-" + [guid]::NewGuid().ToString('N'))
+        [System.IO.Directory]::CreateDirectory($fixtureRoot) | Out-Null
+        $marker = Join-Path $fixtureRoot 'untouched.txt'
+        [System.IO.File]::WriteAllText($marker, 'before')
+        try {
+            $filePath = Join-Path $repoRoot $ep.File
+            $output = (& powershell.exe -NoProfile -NonInteractive -File $filePath -ProjectRoot $fixtureRoot 2>&1 | Out-String)
+            $code = $LASTEXITCODE
+            $children = @(Get-ChildItem -LiteralPath $fixtureRoot -Force -Recurse)
+            if ($code -eq 1 -and $output -match 'PowerShell 7.*required' -and $output -notmatch 'ParserError|Unexpected token' -and
+                $children.Count -eq 1 -and [System.IO.File]::ReadAllText($marker) -eq 'before') {
+                Pass $t
+            } else {
+                Fail $t "exit=$code; children=$($children.Count); output=$output"
+            }
+        } finally {
+            [System.IO.Directory]::Delete($fixtureRoot, $true)
+        }
+    }
+} else {
+    Write-Host 'NOT_OBSERVABLE: Windows PowerShell 5 runtime is not available.'
 }
 
 # -----------------------------------------------------------------------

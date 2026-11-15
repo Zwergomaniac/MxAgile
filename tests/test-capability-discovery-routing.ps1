@@ -365,14 +365,14 @@ Set-Content $checklist 'wave_id: W01' -Encoding UTF8
 Set-Content $taskPath ($taskBase + 'migrated_from: planning/checklists/W01-implementation-checklist.yaml') -Encoding UTF8
 $beforeTask = (Get-FileHash $taskPath).Hash
 $safe = Invoke-FixtureUpdate $proj 'U5' -CompletionOnly
-Assert-True 'U5 safe repair need is reported, not green and not applied' ($safe.doctor.compatibility -ne 'COMPATIBLE' -and $safe.doctor.repair_status -eq 'PROJECT_REPAIR_REQUIRED' -and $safe.doctor.safe_deterministic_count -eq 1 -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and ($CompletionOutput -join "`n") -match 'SAFE_DETERMINISTIC: 1') 'safe repair hidden or applied'
+Assert-True 'U5 safe repair need is reported, not green and not applied' ($safe.doctor.compatibility -ne 'COMPATIBLE' -and $safe.doctor.repair_status -eq 'PROJECT_REPAIR_REQUIRED' -and $safe.doctor.safe_deterministic_count -eq 1 -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and ($CompletionOutput -join "`n") -match 'SAFE_DETERMINISTIC: 1') ("safe repair hidden or applied: " + ($safe.doctor | ConvertTo-Json -Depth 5 -Compress))
 
 Set-Content $checklist 'wave_id: W02' -Encoding UTF8
 $beforeChecklist = (Get-FileHash $checklist).Hash
 $beforeLifecycle = (Get-FileHash $invalidProcess).Hash
 $beforeMission = (Get-FileHash (Join-Path $proj 'planning/mission/mission-state.yaml')).Hash
 $decision = Invoke-FixtureUpdate $proj 'U6' -CompletionOnly
-Assert-True 'U6 decision required is reported without business repair' ($decision.doctor.repair_status -eq 'DECISION_REQUIRED' -and $decision.doctor.decision_required_count -gt 0 -and (Get-FileHash $checklist).Hash -eq $beforeChecklist -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and (Get-FileHash $invalidProcess).Hash -eq $beforeLifecycle -and (Get-FileHash (Join-Path $proj 'planning/mission/mission-state.yaml')).Hash -eq $beforeMission) 'decision or lifecycle was changed'
+Assert-True 'U6 decision required is reported without business repair' ($decision.doctor.repair_status -eq 'DECISION_REQUIRED' -and $decision.doctor.decision_required_count -gt 0 -and (Get-FileHash $checklist).Hash -eq $beforeChecklist -and (Get-FileHash $taskPath).Hash -eq $beforeTask -and (Get-FileHash $invalidProcess).Hash -eq $beforeLifecycle -and (Get-FileHash (Join-Path $proj 'planning/mission/mission-state.yaml')).Hash -eq $beforeMission) ("decision or lifecycle was changed: " + ($decision.doctor | ConvertTo-Json -Depth 5 -Compress))
 
 $currentProvenance = Read-FixtureProvenance $proj
 $notChecked = & {
@@ -397,7 +397,7 @@ foreach ($scenario in @('exit3', 'invalid-json', 'exit-mismatch', 'validator-mis
             } else {
                 @{ category='SCHEMA_ERROR'; affected_board_area='tasks'; message='Schema constraints failed: SCHEMA_UNAVAILABLE.'; blocking=$true; repairability='AGENT_REPAIRABLE'; source_path='planning/tasks/TASK-001.yml' }
             }
-            @{ stage='PROJECT_COMPATIBILITY_CHECKED'; read_only=$true; compatibility='BLOCKED'; repair_status='PROJECT_REPAIR_REQUIRED'; diagnostics=@($diagnostic) } | ConvertTo-Json -Depth 10 -Compress
+            @{ stage='CONTRACT_MIGRATION_CHECKED'; migration=@{status='NO_MIGRATION_REQUIRED'}; doctor=@{stage='PROJECT_COMPATIBILITY_CHECKED'; read_only=$true; compatibility='BLOCKED'; repair_status='PROJECT_REPAIR_REQUIRED'; diagnostics=@($diagnostic)} } | ConvertTo-Json -Depth 10 -Compress
         }
         Invoke-PostUpdateCompatibility -Root $proj -ToolsDir (Join-Path $proj '.mxagile/tools') -CoreProvenance $currentProvenance
     } | ConvertFrom-Json

@@ -181,18 +181,7 @@ function Get-PostUpdateDoctor {
 
 function Save-UpdateHandoff {
     param([System.Collections.IDictionary]$Transaction, [System.Collections.IDictionary]$Doctor)
-    $handoffPath = Join-Path $ProjectRoot '.mxagile/state/last-update-result.json'
-    $handoff = if (Test-Path -LiteralPath $handoffPath -PathType Leaf) {
-        Get-Content -LiteralPath $handoffPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
-    } else { [ordered]@{ schema_version = 1 } }
-    $handoff.update_state = $Transaction.state
-    $handoff.update_transaction = $Transaction
-    $handoff.doctor = $Doctor
-    $handoff.compatibility_status = $Doctor.compatibility
-    $handoff.session_contract = [ordered]@{ state = 'RE_SYNC_REQUIRED'; policy = '.mxagile/policies/update-contract.md' }
-    $tempPath = "$handoffPath.$([Guid]::NewGuid().ToString('N')).tmp"
-    [System.IO.File]::WriteAllText($tempPath, (($handoff | ConvertTo-Json -Depth 40) + "`n"), [System.Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath $tempPath -Destination $handoffPath -Force
+    Save-MxAgileUpdateHandoff -Root $ProjectRoot -Transaction $Transaction -Doctor $Doctor
 }
 
 try {

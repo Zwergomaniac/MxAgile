@@ -1121,6 +1121,30 @@ class ProjectStatusTests(unittest.TestCase):
       self.assertEqual(repeated['migration'], result['migration'])
       self.assertEqual(tree_fingerprint(self.root), before)
 
+    def test_contract_only_normalizes_aliases_but_preserves_derived_task_assignment(self):
+      self.contract_migration_fixture()
+      write_file(self.root, "planning/checklists/W01-implementation-checklist.yaml", "wave_id: W01\n")
+      write_task(self.root, "TASK-880", "pending", migrated_from="planning/checklists/W01-implementation-checklist.yaml")
+      task = self.root / "planning/tasks/TASK-880.yml"
+      before = task.read_bytes()
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=True, contract_only=True)
+      self.assertEqual(len(result["migration"]["applied"]), 2)
+      self.assertEqual(task.read_bytes(), before)
+      self.assertTrue(any(item["proposed_repair_type"] == "ADD_WAVE_ID" for item in result["doctor"]["diagnostics"]))
+      self.assertEqual({entry["repair_type"] for entry in result["plan"]["repairs"]}, {"LEGACY_DECISION_ALIASES_V1"})
+      before_tree = tree_fingerprint(self.root)
+      repeated = project_compatibility.reconcile_contract(self.root, apply_safe=True, contract_only=True)
+      self.assertEqual(repeated["migration"], result["migration"])
+      self.assertEqual(tree_fingerprint(self.root), before_tree)
+
+    def test_record_only_preserves_even_lossless_alias_sources(self):
+      documents = self.contract_migration_fixture()
+      before = {path: (self.root / path).read_bytes() for path in documents if path != '.mxagile/migration/state.yaml'}
+      result = project_compatibility.reconcile_contract(self.root, apply_safe=True, repair_sources=False)
+      self.assertEqual(result["migration"]["applied"], [])
+      for path, raw in before.items():
+        self.assertEqual((self.root / path).read_bytes(), raw)
+
     def human_resolution_fixture(self):
       self.contract_migration_fixture()
       project_compatibility.reconcile_contract(self.root, apply_safe=True)
@@ -2322,7 +2346,7 @@ class LifecycleClarityTests(unittest.TestCase):
         self.assertEqual((item["severity"], item["blocking"], item["repairability"]), ("WARNING", False, "DECISION_REQUIRED"))
         self.assertIn("REV-037", item["message"])
 
-    def test_page_bindings_by_target_mockup_source_mockup_or_target_revision_clear_the_diagnostic(self) -> None:
+    def test_only_explicit_revision_binding_clears_the_diagnostic(self) -> None:
         write_file(self.root, "planning/revisions/REV-037.yaml",
                    "revision_id: REV-037\nrevision: 37\nactive_target: true\nartifact_path: input-resources/ui-ux/rev37.html\n")
         for index, page_fields in enumerate((
@@ -2334,7 +2358,11 @@ class LifecycleClarityTests(unittest.TestCase):
                 path = self.root / f"planning/ui-inventory/PAGE-BIND-{index}.yaml"
                 write_file(self.root, f"planning/ui-inventory/PAGE-BIND-{index}.yaml",
                            f"page_id: PAGE-BIND-{index}\n{page_fields}\n")
-                self.assertEqual(self.diagnostics("ACTIVE_REVISION_UNBOUND"), [])
+                found = self.diagnostics("ACTIVE_REVISION_UNBOUND")
+                if "target_revision: REV-037" in page_fields:
+                    self.assertEqual(found, [])
+                else:
+                    self.assertEqual(len(found), 1, "A shared source/target path falsely bound the revision")
                 path.unlink()
 
     def test_standalone_interaction_artifact_does_not_bind_a_revision(self) -> None:
@@ -3130,6 +3158,57 @@ class ObservationStateTests(unittest.TestCase):
         self.assertEqual((first, before), (second, after))
 
 
+class ControlPlaneProjectionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(ROOT / "experiments/control-plane"))
+
+    def test_unavailable_projection_never_reports_freshness_success(self):
+        import guard
+        with patch.object(guard, "load_project_facts", side_effect=OSError("unreadable")):
+            projection = build_project_status._build_control_plane_status(ROOT, {"compatibility": {}})
+        self.assertIsNotNone(projection)
+        self.assertEqual(projection["delivery_state"], "UNAVAILABLE")
+        self.assertIn("CONTROL_PLANE_UNAVAILABLE", projection["reason_codes"])
+        for field in ("epoch_stale", "branch_stale", "head_stale"):
+            self.assertIsNone(projection[field])
+
+    def test_blocked_unreadable_inputs_do_not_imply_current_epoch_branch_or_head(self):
+        import guard
+        from types import SimpleNamespace
+        facts = SimpleNamespace(migration_state={}, load_issues=["SOURCE_UNREADABLE:context-epoch"])
+        verdict = {"verdict": "fail", "must_findings": [{"code": "CANONICAL_SOURCE_UNREADABLE"}]}
+        def loader(root):
+            return facts
+        with patch.object(guard, "load_project_facts", loader), patch.object(guard, "delivery_authorization", return_value=verdict):
+            projection = build_project_status._build_control_plane_status(ROOT, {"compatibility": {}})
+        self.assertEqual(projection["delivery_state"], "BLOCKED")
+        for field in ("epoch_stale", "branch_stale", "head_stale"):
+            self.assertIsNone(projection[field])
+
+    def test_projection_uses_canonical_verdict_without_modifying_live_doctor(self):
+        import guard
+        original = guard._run_doctor
+        from types import SimpleNamespace
+        facts = SimpleNamespace(migration_state={})
+        verdict = {"verdict": "fail", "must_findings": [
+            {"code": "HEAD_STALE"}, {"code": "BRANCH_STALE"}, {"code": "EPOCH_MISSION_MISMATCH"}],
+            "recovery_plan": {"primary_next_action": "resync", "allowed_recovery_actions": ["doctor", "resync"]}}
+        # The loader sees a local Doctor dependency; the shared enforcement module must stay untouched.
+        def loader(root):
+            self.assertIs(guard._run_doctor, original)
+            return facts
+        with patch.object(guard, "load_project_facts", loader), patch.object(guard, "delivery_authorization", return_value=verdict):
+            projection = build_project_status._build_control_plane_status(ROOT, {"compatibility": {"compatibility": "NEEDS_MIGRATION"}})
+        self.assertEqual(projection["delivery_state"], "BLOCKED")
+        self.assertEqual(projection["primary_recovery"], "resync")
+        self.assertTrue(all(projection[field] for field in ("epoch_stale", "branch_stale", "head_stale")))
+        self.assertEqual(projection["doctor_compatibility"], "NEEDS_MIGRATION")
+        self.assertIsNone(projection["migration_status"])
+        self.assertEqual(projection["state_authority"], "canonical_artifacts")
+        self.assertIs(guard._run_doctor, original)
+
+
 class CurrentWorkAndAssessmentTests(unittest.TestCase):
     """001-board-redesign CS-4: derived Current Work, DONE trust, delivery assessment, canonical projections."""
 
@@ -3325,7 +3404,50 @@ class CurrentWorkAndAssessmentTests(unittest.TestCase):
         self.assertEqual(group.get("DONE_BASIS_NOT_RECORDED"), "framework_compat")
         self.assertNotIn("DONE_BASIS_NOT_RECORDED", [item["category"] for item in status["compatibility"]["diagnostics"] if item["diagnostic_group"] == "project_attention"])
 
-    def test_open_tasks_are_superseded_only_with_a_recorded_or_legacy_basis(self) -> None:
+    def test_incomplete_acceptance_and_legacy_markers_do_not_supersede_open_tasks(self) -> None:
+        for gate in ({"result": "failed"}, {"result": "pending"},
+                     {"result": "passed", "pending_decisions": [{"id": "DEC-058", "text": "Proposed"}]}):
+            with self.subTest(gate=gate):
+                raw = {"waves": {"W18a": {"phase": "done", "gates": {"acceptance_gate": gate}}}}
+                trust = build_project_status.build_waves_trust(
+                    [{"wave_id": "W18a", "phase": "done"}], raw,
+                    [{"id": "TASK-259", "wave_id": "W18a", "status": "pending"}], [], [], {})[0]
+                self.assertEqual(trust["historical_state"], "DONE")
+                self.assertEqual(trust["open_tasks_superseded"], [])
+                self.assertEqual(trust["open_tasks_unexplained"], ["TASK-259"])
+                self.assertEqual(trust["reconciliation_state"], "RECONCILIATION_REQUIRED")
+
+    def test_plan_done_is_evidence_only_and_pending_delivery_remains_visible(self) -> None:
+        self.set_waves({"W18a": self.wave("implementing")})
+        self.set_mission("in_progress", "W18a")
+        write_file(self.root, "planning/execution-waves.md", "| Wave | Status | Commit |\n| W18a | done | 1234567 |\n")
+        write_task(self.root, "TASK-258", "done", wave_id="W18a")
+        write_task(self.root, "TASK-259", "pending", wave_id="W18a")
+        write_file(self.root, "planning/decisions/DEC-058.yml", "ID: DEC-058\ntitle: Business assumption\nstatus: PROPOSED\n")
+        checklist = write_file(self.root, "planning/checklists/W18a-implementation-checklist.yaml", "wave: W18a\nstatus: in_progress\nitems: []\n")
+        before_checklist = checklist.read_bytes()
+        before = (self.root / "planning/lifecycle/process-state.yaml").read_bytes()
+        snapshot = self.status()
+        self.assertEqual(list(Draft7Validator(json.loads(SCHEMA.read_text(encoding="utf-8"))).iter_errors(snapshot)), [])
+        trust = snapshot["waves_trust"][0]
+        self.assertEqual(trust["historical_state"], "IMPLEMENTING")
+        self.assertEqual(trust["reconciliation_state"], "RECONCILIATION_REQUIRED")
+        self.assertIn("PLAN_PROCESS_STATE_CONFLICT", trust["reason_codes"])
+        tasks = {item["id"]: item["status"] for item in snapshot["delivery"]["tasks"]["items"]}
+        self.assertEqual((tasks["TASK-258"], tasks["TASK-259"]), ("done", "pending"))
+        decision = next(item for item in snapshot["decisions"]["items"] if item["id"] == "DEC-058")
+        self.assertEqual(decision["status"], "PROPOSED")
+        self.assertEqual(checklist.read_bytes(), before_checklist)
+        self.assertEqual((self.root / "planning/lifecycle/process-state.yaml").read_bytes(), before)
+
+    def test_canonical_object_acceptance_evidence_is_preserved(self) -> None:
+        raw = {"waves": {"W18a": {"phase": "done", "gates": {"acceptance_gate": {
+            "result": "passed", "evidence": {"wave_report": "planning/wave-reports/W18a.yaml"}}}}}}
+        trust = build_project_status.build_waves_trust(
+            [{"wave_id": "W18a", "phase": "done"}], raw, [], [], [], {})[0]
+        self.assertEqual(trust["done_basis"]["evidence"], ["planning/wave-reports/W18a.yaml"])
+
+    def test_open_tasks_are_superseded_only_with_a_passing_acceptance_basis(self) -> None:
         write_task(self.root, "TASK-010", "pending", wave_id="W02")
         write_task(self.root, "TASK-011", "pending", wave_id="W03")
         write_task(self.root, "TASK-012", "pending", wave_id="W04")
@@ -3338,7 +3460,9 @@ class CurrentWorkAndAssessmentTests(unittest.TestCase):
         self.assertEqual(trust["W02"]["done_basis"]["state"], "RECORDED")
         self.assertEqual(trust["W02"]["open_tasks_superseded"], ["TASK-010"])
         self.assertEqual(trust["W03"]["done_basis"]["state"], "LEGACY")
-        self.assertEqual(trust["W03"]["open_tasks_superseded"], ["TASK-011"])
+        self.assertEqual(trust["W03"]["open_tasks_superseded"], [])
+        self.assertEqual(trust["W03"]["open_tasks_unexplained"], ["TASK-011"])
+        self.assertEqual(trust["W03"]["reconciliation_state"], "UNKNOWN_REQUIRES_RECONCILIATION")
         self.assertEqual(trust["W04"]["open_tasks_unexplained"], ["TASK-012"])
 
     # ------------------------------------------------------------------ delivery assessment (FR-062, OD-1)

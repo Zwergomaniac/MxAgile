@@ -5,6 +5,20 @@
   "type": "object",
   "required": ["revision_id", "mockup_name", "created_at", "entry_point", "bundle_hash", "lifecycle_trigger", "change_classification", "impact_scope", "lifecycle_status", "refinement_status"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "active_target": { "const": true } }, "required": ["active_target"] },
+      "then": { "properties": { "refinement_status": { "const": "ACCEPTED" }, "lifecycle_status": { "enum": ["SOURCE", "REFINED_TARGET"] } } }
+    },
+    {
+      "if": { "properties": { "lifecycle_trigger": { "enum": ["refinement_accepted", "source_rebase_accepted"] }, "refinement_status": { "const": "ACCEPTED" } }, "required": ["lifecycle_trigger", "refinement_status"] },
+      "then": { "required": ["acceptance_decisions"], "properties": { "acceptance_decisions": { "minItems": 1 } } }
+    },
+    {
+      "if": { "properties": { "impact_scope": { "const": "targeted" } }, "required": ["impact_scope"] },
+      "then": { "required": ["affected_screens"], "properties": { "affected_screens": { "minItems": 1 } } }
+    }
+  ],
   "properties": {
     "revision_id": {
       "type": "string",
@@ -33,7 +47,7 @@
     },
     "active_target": {
       "type": "boolean",
-      "description": "True if this is the currently active acceptance target for UI implementation and verification. At most ONE revision per mockup bundle may have active_target: true at any time. When this field is true, lifecycle_status must be REFINED_TARGET or SOURCE. Setting active_target: true on a new revision automatically requires setting it to false on the prior active revision (enforced by create_revision.py).",
+      "description": "True if this is the currently active acceptance target for UI implementation and verification. At most ONE revision per mockup bundle may have active_target: true at any time. When this field is true, lifecycle_status must be REFINED_TARGET or SOURCE. Setting active_target: true requires a cross-document transition that sets it to false on the prior active revision. JSON Schema cannot enforce that atomic transition or uniqueness across files.",
       "default": false
     },
     "change_scope": {

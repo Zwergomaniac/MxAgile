@@ -69,9 +69,11 @@ For each AC in `acceptance_criteria`:
 
 For each entry in a role's `cannot[]`:
 - Create a negative proof point with `role: !ROLE-NNN`.
-- Assign `security_dimensions: [VISIBILITY, AUTHORIZATION]` (at minimum).
+- Assign AUTHORIZATION for the explicitly forbidden operation. Assign VISIBILITY only when
+  the source separately forbids visibility; inability to mutate does not imply hidden navigation.
 - `claim`: "A [role] user cannot [action]."
-- Required layers: at minimum `[MODEL, FRONTEND]`.
+- Required layers: at minimum `[MODEL, FRONTEND]`; add RUNTIME for an executed operation or
+  data-scope claim. Frontend discoverability observation does not prove execution authorization.
 
 ### Layer assignment defaults
 
@@ -109,6 +111,32 @@ non-visual work. The proof must cover the active navigation target, the bridge's
 materialized root/resources, expected dynamic content, blocking error dialogs, and critical
 console errors. Use the existing UI parity/runtime evidence contracts; do not create a second
 verification state or globally require whole-app coverage.
+
+### Business State Ownership
+
+For a claim involving shared or local business state, record the state quantity, authoritative
+owner, local projection, shared context, mutation/event, expected synchronization and affected
+follow-up views before implementation. Use existing Requirement ACs, Test Contract `notes` and
+proof-point `claim`/`data_state`/traceability fields; do not invent a new schema field or global
+state engine. This is business UI state, not an agent context epoch.
+
+Derive a scoped runtime proof that triggers the context change and checks the local display,
+shared display and relevant follow-up view. Intentionally independent local/global state must
+be declared; an unclear owner is an unresolved business gap. Preserve inferred/proposed
+assumptions until an authoritative source or confirmed Decision settles them. A technical
+implementation or successful test cannot authorize an assumed business rule.
+
+### Acceptance Completeness and Security
+
+AUTHORIZATION, DISCOVERABILITY and BEHAVIOR are independent claims. Visible navigation and
+page grants cannot establish permitted data scope or meaningful role-specific behavior.
+Derive the required positive/negative operation and role/state proofs from declared intent;
+do not invent role permissions to explain observed empty content.
+
+A model check with no errors is not a passed security gate. Security closure requires explicit,
+fresh in-scope access/data/operation evidence and disposition of governing Decisions. A
+PROPOSED Decision, missing evidence or partial runtime PASS cannot establish acceptance complete.
+Track missing, failed and unavailable evidence separately; no new acceptance state machine.
 
 ### Security dimension assignment
 

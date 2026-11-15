@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "implementation-checklist.schema.json",
+  "title": "MxAgile implementation checklist",
+  "description": "Checklist projection identity and task progress. Legacy items and project metadata remain supported.",
+  "type": "object",
+  "properties": {
+    "wave_id": { "$ref": "task.schema.json#/properties/wave_id" },
+    "wave": { "$ref": "task.schema.json#/properties/wave_id" },
+    "tasks": { "type": "array", "items": { "$ref": "#/definitions/item" } },
+    "items": { "type": "array", "items": { "$ref": "#/definitions/item" } }
+  },
+  "definitions": {
+    "item": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "task.schema.json#/properties/status" },
+        "req": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-[0-9]{3,}$" } }
+      }
+    }
+  }
+}

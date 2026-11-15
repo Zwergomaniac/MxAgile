@@ -160,6 +160,31 @@ Model change → validate and apply through the authorized project tool route �
 feedback when useful → adjust → next model change. Model mutation syntax belongs to the selected
 tool's current command contract; this policy defines no mxcli argv.
 
+## Studio Pro Start Readiness
+
+For `run_and_await_ready`, distinguish `PROGRESS`, `READY`, `BLOCKED`, `TIMEOUT`
+and `UNKNOWN`. A transient normal Studio Pro build/deploy/progress dialog is
+`PROGRESS`, not immediately `BLOCKED`; continue bounded observation within the
+original startup deadline. `BLOCKED` requires an observed error or actionable
+modal that actually prevents startup. `READY` requires the selected runtime's
+reachability gate, not a dismissed dialog or successful stop/redeploy call.
+At deadline report `TIMEOUT` with the last observed stage; insufficient tool
+visibility is `UNKNOWN`. After redeploy stops the app, record the restart outcome
+explicitly; do not leave a stopped runtime disguised as successful redeploy.
+This is a caller recovery contract, not a claim that the upstream Concord handler
+implements these states or that any current live host was tested.
+
+## Resource Ownership
+
+Cleanup distinguishes `SESSION_OWNED_PROCESS`, `FRAMEWORK_OWNED_EPHEMERAL`,
+`CONSUMER_OWNED`, `USER_OWNED` and `UNKNOWN`. Authority needs an exact resource ID,
+current run/project binding and trusted ownership evidence. A parent session's or
+historical run's record is not automatic authority for the current run. Unknown,
+stale or foreign resources are not stopped. Tool-input ownership flags are not
+host evidence. Never add a blanket `TaskStop` allowlist; an unexplained historical
+TaskStop block remains `UNKNOWN` until current host/session evidence identifies it.
+See `policies/project-compatibility.md` for the existing enforcement boundary.
+
 ## Recovery
 
 If the development runtime terminates unexpectedly or does not reach APPLICATION_REACHABLE:
@@ -314,7 +339,7 @@ Before starting, reusing, or terminating a runtime, classify it:
 
 | Classification | Evidence | Action |
 |---|---|---|
-| `OWNED_RUNTIME` | PID recorded by this MxAgile session; project path matches; ports match | Safe to manage (reuse, monitor, terminate) |
+| `OWNED_RUNTIME` | Trusted live identity matches this Run's captured resource; project path and ports match | Manage only within the authorized runtime scope |
 | `REUSABLE_RUNTIME` | Compatible project/config/db; ownership positively identified | Reuse when safe; do not restart unnecessarily |
 | `FOREIGN_RUNTIME` | Belongs to another project/session/user | Do NOT terminate; classify and report |
 | `STALE_OWNED_RUNTIME` | Previously owned by MxAgile; ownership provable; lifecycle no longer active | May terminate autonomously with evidence |
@@ -322,9 +347,10 @@ Before starting, reusing, or terminating a runtime, classify it:
 
 ### Ownership Evidence
 
-Sufficient ownership evidence requires at least TWO of:
+Termination requires a trusted current host attestation that the live process/task still
+matches the captured identity (including PID/task-ID reuse checks), plus at least TWO of:
 
-- PID recorded in process-state by this MxAgile session
+- Resource captured in this Run's operational ownership journal
 - Command-line arguments match expected project path
 - Runtime/app/admin ports match expected configuration
 - Process start time is consistent with this session's lifecycle
@@ -339,7 +365,7 @@ Before terminating ANY mxcli process:
 2. Verify ownership evidence (minimum TWO matching signals)
 3. Only `STALE_OWNED_RUNTIME` may be terminated autonomously
 4. `FOREIGN_RUNTIME` and `UNKNOWN_RUNTIME`: classify and report, do not kill
-5. Record termination evidence in process-state
+5. Record termination as operational Run evidence, never as a Wave lifecycle transition
 
 A process MUST NOT be terminated merely because:
 - Its executable is mxcli
@@ -364,13 +390,12 @@ Before starting a new runtime:
 Full mxbuild orphan detection and Safe Build Recovery Ladder:
 `policies/runtime-startup-recovery.md — Orphan / Stale Build Process Handling`
 
-Record runtime ownership in process-state:
-
-```yaml
-prerequisite_state:
-  runtime_ownership: owned | reusable | none
-  runtime_owner_pid: <PID>
-```
+Record captured resources through the Core operational ownership journal
+`.mxagile/state/runs/owned-resources.json` and runtime events, not through invented
+`process-state.yaml` fields. The journal binds exact resource ID, project and Run but
+cannot prove a live identity or authorize termination by itself. The adapter returns
+`UNKNOWN` for positive journal-only ownership; only the trusted host boundary can
+attest current ownership. Missing host evidence remains unavailable, not an allowlist.
 
 ## Readiness Gate Contract
 

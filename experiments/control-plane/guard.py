@@ -656,6 +656,16 @@ def can_transition(facts: ProjectFacts, request: dict[str, Any]) -> dict[str, An
         return _finish(facts, request, "transition", findings, checked)
     target = request.get("target_phase")
     current = (wave or {}).get("phase")
+    prerequisites = {}
+    if target in {"implementing", "verifying", "done"}:
+        if str(SCRIPTS_DIR) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS_DIR))
+        from project_compatibility import wave_delivery_prerequisites
+        prerequisites = wave_delivery_prerequisites(facts.root, request.get("wave_id"))
+        if prerequisites["open_decisions"]:
+            findings.append(_finding("OPEN_WAVE_DECISION_PROPOSED", "A governing decision for this Wave remains PROPOSED.", "needs_human"))
+        if target in {"verifying", "done"} and prerequisites["unfinished_tasks"]:
+            findings.append(_finding("IMPLEMENTATION_NOT_COMPLETE", "Current Wave tasks remain nonterminal; smoke success does not close them.", "unavailable"))
     phase_rule = ((facts.lifecycle.get("lifecycle") or {}).get("phases") or {}).get(current, {})
     forward = set(phase_rule.get("next") or [])
     returns = set(phase_rule.get("returns_to") or [])
@@ -686,6 +696,15 @@ def can_transition(facts: ProjectFacts, request: dict[str, Any]) -> dict[str, An
         for required_gate in ("quality_gate", "ui_verification", "acceptance_gate"):
             if (gates.get(required_gate) or {}).get("result") != "passed":
                 findings.append(_finding("EXIT_GATE_NOT_PASSED", f"Exit gate {required_gate} is not evidenced as passed.", "unavailable"))
+        if ("security_gate" in gates or "security_gate" in ((wave or {}).get("gates") or {})
+                or prerequisites.get("security_required")) and (gates.get("security_gate") or {}).get("result") != "passed":
+            findings.append(_finding("SECURITY_GATE_NOT_PASSED", "No model error does not establish a passed Security Gate; explicit security_gate evidence is required.", "unavailable"))
+        resume_note = str((wave or {}).get("resume_from") or "")
+        if re.search(r"security[-_\s]?gate.*(offen|ausstehend|pending|nicht dokumentiert)|update security.*steht aus", resume_note, re.I) and (gates.get("security_gate") or {}).get("result") != "passed":
+            findings.append(_finding("SECURITY_GATE_NOT_PASSED", "Wave notes an open Entity Security Gate; zero Studio Pro model errors cannot substitute for security gate completion.", "unavailable"))
+        security = gates.get('security_gate') or {}
+        if security.get('result') == 'passed' and not security.get('evidence_references'):
+            findings.append(_finding('SECURITY_GATE_EVIDENCE_MISSING', 'Security PASS requires its own fingerprinted scope evidence, not a clean model or unrelated smoke.', 'unavailable'))
         refs = [ref for result in gates.values() if isinstance(result, dict) for ref in result.get("evidence_references", [])]
         findings.extend(_evidence_findings(facts, refs))
     checked.append(f"transition:{current or 'unknown'}->{target or 'unknown'}")
@@ -833,6 +852,13 @@ def can_delegate(facts: ProjectFacts, request: dict[str, Any]) -> dict[str, Any]
     findings, checked, wave = _base_checks(facts, request)
     if wave is None:
         return _finish(facts, request, "delegation", findings, checked)
+    if wave.get("phase") in {"implementing", "verifying"}:
+        if str(SCRIPTS_DIR) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS_DIR))
+        from project_compatibility import wave_delivery_prerequisites
+        prerequisites = wave_delivery_prerequisites(facts.root, request.get("wave_id"))
+        if prerequisites["open_decisions"]:
+            findings.append(_finding("OPEN_WAVE_DECISION_PROPOSED", "A governing decision for this Wave remains PROPOSED before workpackage delegation.", "needs_human"))
     route_reference = request.get("route_decision_reference")
     route_path = _safe_project_file(facts.root, str(route_reference or ""))
     route_decision: dict[str, Any] = {}

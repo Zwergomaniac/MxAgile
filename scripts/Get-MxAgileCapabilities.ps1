@@ -161,7 +161,11 @@ param(
 
     [string]$ConcordMcpBoundProjectPath = '',
 
-    [string]$HomeDir = ''
+    [string]$HomeDir = '',
+
+    [string]$ArtifactInvariantEvidenceFile = '',
+
+    [string]$BrowserEvidenceFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -183,6 +187,156 @@ $mxagileDir = Join-Path $ProjectRoot '.mxagile'
 if (-not (Test-Path $mxagileDir)) {
     Write-Error "Not an MxAgile project: .mxagile directory not found at '$ProjectRoot'"
     exit 1
+}
+
+# Opt-in observation assessment does not scan the model, discover tools, or run a browser.
+function Read-BoundedObservation {
+    param([string]$Path)
+    if ((Get-Item -LiteralPath $Path).Length -gt 262144) { throw 'Observation exceeds the 256 KiB compact evidence limit.' }
+    return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+}
+
+function Test-ObservationFields {
+    param($Object, [string[]]$Fields)
+    if ($null -eq $Object) { return $false }
+    foreach ($field in $Fields) {
+        if (@($Object.PSObject.Properties | ForEach-Object { $_.Name }) -notcontains $field -or $null -eq $Object.$field) { return $false }
+    }
+    return $true
+}
+
+function Test-ObservedStringArray {
+    param($Value)
+    if ($Value -isnot [array]) { return $false }
+    foreach ($item in $Value) {
+        if ($item -isnot [string] -or [string]::IsNullOrWhiteSpace($item)) { return $false }
+    }
+    return $true
+}
+
+function Test-ObservedRoleSet {
+    param([string[]]$Expected, [string[]]$Observed)
+    return (@($Expected | Where-Object { $_ -cnotin $Observed }).Count -eq 0 -and
+            @($Observed | Where-Object { $_ -cnotin $Expected }).Count -eq 0)
+}
+
+function Resolve-ArtifactInvariant {
+    param($Check)
+    if (-not (Test-ObservationFields $Check @('invariant', 'artifact'))) { throw 'Each scoped check needs an invariant and artifact identity.' }
+    $result = [ordered]@{ invariant = $Check.invariant; artifact = $Check.artifact; result = 'NOT_OBSERVABLE'; reason = 'Required fresh scope evidence is missing.' }
+    if (-not (Test-ObservationFields $Check @('evidence_reference', 'view_state', 'expected', 'observed')) -or
+        [string]::IsNullOrWhiteSpace([string]$Check.evidence_reference) -or $Check.view_state -cne 'FRESH') { return $result }
+    $result.evidence_reference = $Check.evidence_reference
+    $expected = $Check.expected
+    $observed = $Check.observed
+    $valid = $false
+    switch ($Check.invariant) {
+        'EXECUTABLE_NANOFLOW_ROLE_INVARIANT' {
+            if (-not (Test-ObservationFields $expected @('required_roles')) -or
+                -not (Test-ObservationFields $observed @('excluded', 'allowed_roles')) -or
+                $observed.excluded -isnot [bool] -or
+                -not (Test-ObservedStringArray $expected.required_roles) -or
+                -not (Test-ObservedStringArray $observed.allowed_roles)) { return $result }
+            $valid = -not $observed.excluded -and (Test-ObservedRoleSet $expected.required_roles $observed.allowed_roles)
+        }
+        'REPLACEMENT_TARGET_INVARIANT' {
+            if (-not (Test-ObservationFields $expected @('active_page', 'required_roles', 'backup_pages')) -or
+                -not (Test-ObservationFields $observed @('active_page', 'excluded', 'allowed_roles', 'navigation_targets', 'backup_pages')) -or
+                $observed.excluded -isnot [bool] -or $observed.backup_pages -isnot [array] -or
+                -not (Test-ObservedStringArray $expected.required_roles) -or -not (Test-ObservedStringArray $expected.backup_pages) -or
+                -not (Test-ObservedStringArray $observed.allowed_roles) -or -not (Test-ObservedStringArray $observed.navigation_targets) -or
+                [string]::IsNullOrWhiteSpace([string]$expected.active_page)) { return $result }
+            $valid = $observed.active_page -ceq $expected.active_page -and -not $observed.excluded -and
+                (Test-ObservedRoleSet $expected.required_roles $observed.allowed_roles) -and
+                @($observed.navigation_targets | Where-Object { $_ -cne $expected.active_page }).Count -eq 0
+            foreach ($page in $expected.backup_pages) {
+                $backups = @($observed.backup_pages | Where-Object { (Test-ObservationFields $_ @('page')) -and $_.page -ceq $page })
+                if ($backups.Count -ne 1 -or -not (Test-ObservationFields $backups[0] @('excluded', 'allowed_roles')) -or
+                    $backups[0].excluded -isnot [bool] -or -not (Test-ObservedStringArray $backups[0].allowed_roles)) { return $result }
+                # A deliberately excluded backup needs no roles; a runnable backup needs
+                # an explicit accepted exception, not a name-based BAK exemption.
+                if (-not $backups[0].excluded) {
+                    if (-not (Test-ObservationFields $expected @('runnable_backup_pages')) -or
+                        -not (Test-ObservedStringArray $expected.runnable_backup_pages) -or
+                        $page -cnotin $expected.runnable_backup_pages -or
+                        -not (Test-ObservedRoleSet $expected.required_roles $backups[0].allowed_roles)) { $valid = $false }
+                }
+            }
+        }
+        'JS_ACTION_PARAMETER_INVARIANT' {
+            if (-not (Test-ObservationFields $expected @('user_code_identifiers')) -or
+                -not (Test-ObservationFields $observed @('generated_identifiers')) -or
+                -not (Test-ObservedStringArray $expected.user_code_identifiers) -or
+                -not (Test-ObservedStringArray $observed.generated_identifiers)) { return $result }
+            $valid = @($expected.user_code_identifiers | Where-Object { $_ -cnotin $observed.generated_identifiers }).Count -eq 0
+        }
+        'HTML_BRIDGE_MATERIALIZATION_INVARIANT' {
+            if (-not (Test-ObservationFields $expected @('root_selector', 'required_resources')) -or
+                -not (Test-ObservationFields $observed @('root_selector', 'root_materialized', 'materialized_resources', 'explicitly_loaded_resources')) -or
+                $observed.root_materialized -isnot [bool] -or
+                [string]::IsNullOrWhiteSpace([string]$expected.root_selector) -or
+                -not (Test-ObservedStringArray $expected.required_resources) -or
+                -not (Test-ObservedStringArray $observed.materialized_resources) -or
+                -not (Test-ObservedStringArray $observed.explicitly_loaded_resources)) { return $result }
+            $available = @($observed.materialized_resources) + @($observed.explicitly_loaded_resources)
+            $valid = $observed.root_materialized -and $observed.root_selector -ceq $expected.root_selector -and
+                @($expected.required_resources | Where-Object { $_ -cnotin $available }).Count -eq 0
+        }
+        default { $result.reason = 'Unknown invariant; no verification claim.'; return $result }
+    }
+    $result.result = if ($valid) { 'PASS' } else { 'FAIL' }
+    $result.reason = if ($valid) { 'Observed scoped facts satisfy the accepted contract.' } else { 'Observed scoped facts violate the accepted contract.' }
+    return $result
+}
+
+function Resolve-BrowserObservation {
+    param($Evidence)
+    $required = @('provider', 'host', 'run_id', 'observed_at', 'operation', 'declared_available', 'tools_observed', 'operation_discovered', 'execution_status')
+    if (-not (Test-ObservationFields $Evidence $required)) { throw 'Browser observation requires provider, host, run, time, operation, declaration, discovery and execution evidence.' }
+    foreach ($field in @('declared_available', 'tools_observed', 'operation_discovered')) {
+        if ($Evidence.$field -isnot [bool]) { throw "Browser $field must be boolean." }
+    }
+    foreach ($field in @('provider', 'host', 'run_id', 'observed_at', 'operation')) {
+        if ([string]::IsNullOrWhiteSpace([string]$Evidence.$field)) { throw "Browser $field must be non-empty; use UNKNOWN for an unobserved host." }
+    }
+    if ($Evidence.execution_status -notin @('NOT_OBSERVED', 'PASSED', 'FAILED', 'TIMEOUT')) { throw 'Invalid browser execution_status.' }
+    if ($Evidence.execution_status -ne 'NOT_OBSERVED' -and
+        (-not (Test-ObservationFields $Evidence @('execution_reference')) -or
+         [string]::IsNullOrWhiteSpace([string]$Evidence.execution_reference))) {
+        throw 'Observed browser execution requires a source execution_reference.'
+    }
+    $state = 'UNKNOWN'
+    if ($Evidence.execution_status -eq 'PASSED') { $state = 'EXECUTABLE_AVAILABLE' }
+    elseif ($Evidence.execution_status -in @('FAILED', 'TIMEOUT')) { $state = 'PARTIAL' }
+    elseif ($Evidence.tools_observed -and $Evidence.operation_discovered) { $state = 'DISCOVERED_AVAILABLE' }
+    elseif ($Evidence.tools_observed) { $state = if ($Evidence.declared_available) { 'PARTIAL' } else { 'UNAVAILABLE' } }
+    elseif ($Evidence.declared_available) { $state = 'DECLARED_AVAILABLE' }
+    return [ordered]@{
+        provider = $Evidence.provider; host = $Evidence.host; run_id = $Evidence.run_id
+        observed_at = $Evidence.observed_at; operation = $Evidence.operation
+        declared_available = $Evidence.declared_available
+        discovered_available = if ($Evidence.tools_observed) { $Evidence.operation_discovered } else { $null }
+        executable_available = $Evidence.execution_status -eq 'PASSED'
+        execution_status = $Evidence.execution_status
+        execution_reference = if (Test-ObservationFields $Evidence @('execution_reference')) { $Evidence.execution_reference } else { $null }
+        state = $state
+        route_allowed = $state -eq 'EXECUTABLE_AVAILABLE'
+    }
+}
+
+if ($ArtifactInvariantEvidenceFile -or $BrowserEvidenceFile) {
+    if ($Format -ne 'json' -or $UpdateDiscoveryState -or $CheckUpgrades -or $Capability -or $ResolveBuilderKit -or $ResolveOperatingMode) {
+        throw 'Scoped observation assessment requires -Format json and cannot update or mix registry discovery.'
+    }
+    $assessment = [ordered]@{ project_root = $ProjectRoot; resolved_at = (Get-Date).ToUniversalTime().ToString('o') }
+    if ($ArtifactInvariantEvidenceFile) {
+        $inputEvidence = Read-BoundedObservation $ArtifactInvariantEvidenceFile
+        if (-not (Test-ObservationFields $inputEvidence @('checks')) -or $inputEvidence.checks -isnot [array]) { throw 'Artifact evidence requires a checks array.' }
+        $assessment.artifact_invariants = @($inputEvidence.checks | ForEach-Object { Resolve-ArtifactInvariant $_ })
+    }
+    if ($BrowserEvidenceFile) { $assessment.browser = Resolve-BrowserObservation (Read-BoundedObservation $BrowserEvidenceFile) }
+    $assessment | ConvertTo-Json -Depth 10
+    exit 0
 }
 
 # ---------------------------------------------------------------------------

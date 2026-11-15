@@ -175,6 +175,23 @@ class BoardPerformanceTests(unittest.TestCase):
             cache.get()
         self.assertEqual(cache.build_count, 2)
 
+    def test_context_and_migration_authority_edits_invalidate_projection(self) -> None:
+        relatives = (".concord/context-epoch.yaml", ".mxagile/migration/state.yaml",
+                     ".mxagile/migration/contracts/latest-complete.yaml")
+        for relative in relatives:
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("state: complete\n", encoding="utf-8")
+        for relative in relatives:
+            with self.subTest(source=relative):
+                cache = serve_project_board.ProjectStatusCache(self.root)
+                with patch.object(serve_project_board, "build_status_summary", side_effect=lambda root: self._stub_status()), \
+                        patch.object(serve_project_board, "build_report", side_effect=self._stub_reconciliation):
+                    cache.get()
+                    (self.root / relative).write_text("state: blocked\n", encoding="utf-8")
+                    cache.get()
+                self.assertEqual(cache.build_count, 2)
+
     def test_p5_framework_schema_change_invalidates_projection(self) -> None:
         cache = serve_project_board.ProjectStatusCache(self.root)
         with patch.object(serve_project_board, "build_status_summary", side_effect=lambda root: self._stub_status()), \

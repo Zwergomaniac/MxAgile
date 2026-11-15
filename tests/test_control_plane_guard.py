@@ -238,7 +238,8 @@ class DelegationTests(GuardFixture):
             "route": "DELEGATE", "reason": "bounded analysis", "fallback_reason": None, "delegation_attempted": False,
             "spawn_outcome": "pending", "delegation_id": "DELEGATION-1", "result_reference": None,
             "main_consumed": False, "compaction_occurred": False, "result_reused": False,
-            "stale_result_rejected": False, "batch_restarted": False, "source_fingerprints": fingerprints,
+            "stale_result_rejected": False, "batch_restarted": False,
+            "source_fingerprints": [{**item, "identity": ""} for item in fingerprints],
         }
         self.write(".concord/routing-decisions/ROUTE-1.json", json.dumps(route))
         handoff = {

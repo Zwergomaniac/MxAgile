@@ -179,13 +179,22 @@ replace this dedicated restart barrier. See the
 
 The canonical installer observes prior/current installed-schema fingerprints independently
 of version and commit labels. It runs the installed compatibility producer's
-`migrate --apply-safe` after installation and before final Doctor. The Company Layer setup
+`migrate --apply-safe --contract-only` after installation and before final Doctor. The Company Layer setup
 delegates to the same producer only after Core and Layer stages complete; a partial update
 remains read-only. The result includes a separate `migration` record.
 
-Only deterministic safe repairs are automatic. A missing Requirement successor remains
-`NEEDS_HUMAN`; unsupported/reviewable artifacts remain `NEEDS_REVIEW`. Reviewed candidates
-continue through the existing approved plan/hash repair path. Human successor decisions use
+Installer completion records the contract plan and preserves existing lossless Decision-alias
+and typed-inspect normalizations, without applying ordinary project-source repairs.
+SAFE_DETERMINISTIC alone does not authorize deriving Task/Wave assignments during update.
+`migrate --apply-safe --record-only` remains available to persist reconciliation with no source edits.
+A separately authorized migration/repair mission can apply the reviewed deterministic plan.
+A missing Requirement successor remains `NEEDS_HUMAN`; unsupported/reviewable artifacts remain
+`NEEDS_REVIEW`. Reviewed candidates continue through the existing approved plan/hash repair path.
+Projection-only resume of an older pinned Core retains its installed producer and original
+migration contract when that producer predates `--contract-only`; newer CLI flags are not passed
+to it. Preserving old behavior is not an assertion that the old Core has the current narrower
+repair-scope contract. `doctor.executed` records invocation; invalid output still means
+NOT_VERIFIED and unknown counts. Human successor decisions use
 the dedicated installed `project_compatibility.py resolve`, not ordinary YAML Edit or shell
 manipulation. Obtain the live binding with `resolve --dry-run --project-root <absolute-root>
 --format json`. The mutating command requires the exact diagnostic/migration identity,

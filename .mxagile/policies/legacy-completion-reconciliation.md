@@ -33,6 +33,19 @@ classify it using the following vocabulary before drawing any completeness concl
 **Implementation evidence alone (implementation artifact exists, checklist ticked) MUST NOT
 by itself mean `VERIFIED_LEGACY_STATE`.** Evidence must include acceptance or equivalence.
 
+Execution-plan `done` text, commit names and commit existence are non-authoritative evidence,
+not lifecycle transitions. A plan/process disagreement remains `RECONCILIATION_REQUIRED`;
+a historical completion without evidenced acceptance or developer confirmation remains
+`UNKNOWN_REQUIRES_RECONCILIATION`. Never promote a proposed decision, partial runtime
+result, pending task or in-progress checklist to acceptance or Wave DONE. Implementation
+exists, runtime partially verified, acceptance complete and Wave DONE are independent claims.
+
+The read-only Board preserves canonical historical phases while exposing reconciliation
+separately. A legacy note or `completion_override` marker alone does not explain away open
+tasks; failed/pending acceptance and unresolved gate decisions/blockers do not supersede them.
+A passed canonical acceptance gate can explain historical tasks without rewriting their status.
+Run events remain audit/history; unrelated resync/update completion does not accept a child.
+
 ---
 
 ## Evidence-Based Reconciliation

@@ -44,10 +44,45 @@ function New-MxAgileCoreUpdateTransaction {
     }
 }
 
+function Save-MxAgileUpdateHandoff {
+    param([string]$Root, [System.Collections.IDictionary]$Transaction, [System.Collections.IDictionary]$Doctor)
+    $PSNativeCommandUseErrorActionPreference=$false
+    & python -B -c 'import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); from projection_io import safe_path; root=Path(sys.argv[2]); safe_path(root,".mxagile/state/last-update-result.json"); safe_path(root,".mxagile/state/core-provenance.json")' $PSScriptRoot $Root
+    if ($LASTEXITCODE -ne 0) { throw 'Unsafe update handoff path.' }
+    $corePath=Join-Path $Root '.mxagile/state/core-provenance.json'
+    $core=if (Test-Path -LiteralPath $corePath -PathType Leaf) { Get-Content -LiteralPath $corePath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable } else { @{} }
+    $handoff=[ordered]@{
+        schema_version=1; update_attempt_id=$Transaction.update_attempt_id; reported_at=[DateTime]::UtcNow.ToString('o')
+        installed_at=$core['installed_at']; update_state=$Transaction.state; completed_stages=@($Transaction.completed_stages)
+        failed_stage=$Transaction.failed_stage; update_transaction=$Transaction
+        framework=[ordered]@{
+            update_successful=$Transaction.state -eq 'UPDATE_INSTALLED_RESTART_REQUIRED'
+            previous_version=$Transaction.previous_core.version; previous_commit=$Transaction.previous_core.commit
+            version=$core['version']; commit=$core['commit']
+        }
+        migration=if ($Doctor.Contains('migration')) { $Doctor.migration } else { @{status='NOT_VERIFIED'} }
+        doctor=$Doctor; compatibility_status=$Doctor.compatibility; context_state=$Transaction.context_state
+        restart_required=[bool]$Transaction.restart_required; resync_required=[bool]$Transaction.resync_required
+        resume_available=[bool]$Transaction.resume_available; rollback_available=[bool]$Transaction.rollback.available
+        session_contract=@{state=if ($Transaction.restart_required) { 'SESSION_RESTART_REQUIRED' } else { 'RE_SYNC_REQUIRED' }; policy='.mxagile/policies/update-contract.md'}
+    }
+    $path=Join-Path $Root '.mxagile/state/last-update-result.json'
+    $temporary="$path.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        if (Test-Path -LiteralPath $path -PathType Container) { throw 'Update result path is a directory.' }
+        [IO.File]::WriteAllText($temporary, (($handoff | ConvertTo-Json -Depth 40) + "`n"), [Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temporary -Destination $path -Force
+    } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+}
+
 function Complete-MxAgileCoreUpdateTransaction {
     param([string]$Root, [System.Collections.IDictionary]$Transaction)
     $handoffPath=Join-Path $Root '.mxagile/state/last-update-result.json'
     $handoff=Get-Content -LiteralPath $handoffPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+    $core=Get-Content -LiteralPath (Join-Path $Root '.mxagile/state/core-provenance.json') -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+    if (-not $handoff['update_attempt_id'] -or $handoff['update_attempt_id'] -ne $Transaction.update_attempt_id -or
+        $handoff.framework.commit -ne $Transaction.target_core.commit -or $handoff.framework.commit -ne $core['commit'] -or
+        $handoff.installed_at -ne $core['installed_at']) { throw 'UPDATE_RESULT_GENERATION_MISMATCH: completion requires the current attempt and installed Core handoff.' }
     $Transaction.projection.doctor_executed=[bool]$handoff.doctor.executed
     $Transaction.compatibility_status=$handoff.doctor.compatibility
     $Transaction.restart_required=[bool]$handoff.restart_required

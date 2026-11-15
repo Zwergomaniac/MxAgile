@@ -25,16 +25,37 @@ $unexpected = @($actualProperties | Where-Object { $_ -notin $allowedProperties 
 $missing = @($allowedProperties | Where-Object { $_ -notin $actualProperties })
 if ($unexpected.Count -gt 0) { throw "Unexpected routing decision properties: $($unexpected -join ', ')" }
 if ($missing.Count -gt 0) { throw "Missing routing decision properties: $($missing -join ', ')" }
-if ($input.schema_version -ne '1.0') { throw "Unsupported routing decision schema version '$($input.schema_version)'" }
-if ($input.decision_id -notmatch '^ROUTE-[A-Za-z0-9._-]+$') { throw 'Invalid decision_id.' }
-if ($input.work_class -notin @('deterministic', 'raw_source_retrieval', 'bounded_semantic', 'integration', 'lifecycle', 'other')) { throw 'Invalid work_class.' }
-if ($input.capability_state -notin @('supported', 'unsupported', 'unknown', 'not_applicable')) { throw 'Invalid capability_state.' }
-if ($input.requested_profile -notin @('LIGHT', 'MID', 'HIGH', $null)) { throw 'Invalid requested_profile.' }
-if ($input.route -notin @('DELEGATE', 'MAIN_AGENT', 'CONTEXT_MODE', 'HELPER', 'FALLBACK')) { throw 'Invalid route.' }
-if ($input.spawn_outcome -notin @('not_attempted', 'pending', 'started', 'failed', 'completed')) { throw 'Invalid spawn_outcome.' }
+foreach ($field in @('schema_version', 'mission_id', 'decision_id', 'work_package', 'work_class', 'capability_state', 'route', 'reason', 'spawn_outcome')) {
+    if ($input.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($input.$field)) { throw "Routing field '$field' must be non-empty text; coercion is not evidence." }
+}
+foreach ($field in @('session_identity', 'requested_agent_type', 'requested_profile', 'fallback_reason', 'delegation_id', 'result_reference')) {
+    if ($null -ne $input.$field -and $input.$field -isnot [string]) { throw "Routing field '$field' must be text or null." }
+}
+if ($null -eq $input.scope -or $input.scope.summary -isnot [string] -or [string]::IsNullOrWhiteSpace($input.scope.summary)) { throw 'scope must contain a non-empty text summary.' }
+if ($input.schema_version -cne '1.0') { throw "Unsupported routing decision schema version '$($input.schema_version)'" }
+if ($input.decision_id -isnot [string] -or $input.decision_id -cnotmatch '^ROUTE-[A-Za-z0-9._-]+$') { throw 'Invalid decision_id.' }
+if ($null -ne $input.delegation_id -and ($input.delegation_id -isnot [string] -or $input.delegation_id -cnotmatch '^DELEGATION-[A-Za-z0-9._-]+$')) {
+    throw 'Invalid delegation_id; canonical DELEGATION identity required.'
+}
+if ($input.work_class -cnotin @('deterministic', 'raw_source_retrieval', 'bounded_semantic', 'integration', 'lifecycle', 'other')) { throw 'Invalid work_class.' }
+if ($input.capability_state -cnotin @('supported', 'unsupported', 'unknown', 'not_applicable')) { throw 'Invalid capability_state.' }
+if ($input.requested_profile -cnotin @('LIGHT', 'MID', 'HIGH', $null)) { throw 'Invalid requested_profile.' }
+if ($input.route -cnotin @('DELEGATE', 'MAIN_AGENT', 'CONTEXT_MODE', 'HELPER', 'FALLBACK')) { throw 'Invalid route.' }
+if ($input.spawn_outcome -cnotin @('not_attempted', 'pending', 'started', 'failed', 'completed')) { throw 'Invalid spawn_outcome.' }
 if ([string]::IsNullOrWhiteSpace([string]$input.work_package) -or [string]::IsNullOrWhiteSpace([string]$input.reason)) { throw 'work_package and reason must be non-empty.' }
-if ([int]$input.artifact_count -lt 0) { throw 'artifact_count cannot be negative.' }
-if ($input.semantic -isnot [bool] -or $input.deterministic -isnot [bool] -or $input.delegation_attempted -isnot [bool]) { throw 'Routing classifications and delegation_attempted must be booleans.' }
+if (($input.artifact_count -isnot [int] -and $input.artifact_count -isnot [long]) -or $input.artifact_count -lt 0) { throw 'artifact_count must be a non-negative integer.' }
+foreach ($field in @('semantic', 'deterministic', 'delegation_attempted', 'main_consumed', 'compaction_occurred', 'result_reused', 'stale_result_rejected', 'batch_restarted')) {
+    if ($input.$field -isnot [bool]) { throw "Routing field '$field' must be a boolean; coercion is not evidence." }
+}
+if ($input.scope.paths -isnot [array] -or $input.references -isnot [array]) { throw 'scope.paths and references must be arrays.' }
+foreach ($path in $input.scope.paths) {
+    if ($path -isnot [string]) { throw 'scope.paths entries must be strings.' }
+}
+foreach ($reference in $input.references) {
+    if (@($reference.PSObject.Properties | ForEach-Object { $_.Name }) -notcontains 'identity' -or $reference.identity -isnot [string]) {
+        throw 'Each routing reference requires a string identity (empty only when no source identity exists).'
+    }
+}
 if ($input.route -eq 'DELEGATE') {
     if ($input.work_class -ne 'bounded_semantic' -or -not $input.semantic -or $input.deterministic) { throw 'DELEGATE requires bounded semantic, non-deterministic work.' }
     if ($input.capability_state -ne 'supported') { throw 'DELEGATE requires current-session capability state supported.' }
@@ -107,7 +128,7 @@ if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
         'failed' { @('failed') }
         'completed' { @('completed') }
     }
-    if ($input.spawn_outcome -notin $validOutcomes) { throw 'Routing decision spawn outcome cannot move backward.' }
+    if ($input.spawn_outcome -cnotin $validOutcomes) { throw 'Routing decision spawn outcome cannot move backward.' }
     $sourceFingerprints = @($previous.source_fingerprints)
     $recordedAt = [string]$previous.recorded_at
     $updatedAt = (Get-Date).ToUniversalTime().ToString('o')
@@ -123,7 +144,7 @@ $result = [ordered]@{
     requested_agent_type = $input.requested_agent_type
     work_class = [string]$input.work_class
     scope = [ordered]@{ summary = [string]$input.scope.summary; paths = @($input.scope.paths) }
-    artifact_count = [int]$input.artifact_count
+    artifact_count = [long]$input.artifact_count
     semantic = [bool]$input.semantic
     deterministic = [bool]$input.deterministic
     capability_state = [string]$input.capability_state

@@ -253,7 +253,12 @@ Vor Abschluss nur die Invarianten prüfen, die vom tatsächlichen Wave-Artefakts
   akzeptiertem Security-Vertrag erforderlichen erlaubten Rollen.
 - `REPLACEMENT_TARGET_INVARIANT`: Ersetzt eine Wave eine aktive Page, zeigen Navigation und
   relevante Navigations-Flows auf die neue aktive Page, nicht auf eine Backup-/ersetzte Page,
-  sofern das nicht ausdrücklich beabsichtigt ist.
+  sofern das nicht ausdrücklich beabsichtigt ist. Die aktive Page ist nicht excluded und
+  besitzt die akzeptierten allowedRoles. Für Original/Ersatz/Backup sind Identität,
+  excluded-Zustand, Rollen und tatsächliche Referenzziele gemeinsam zu beobachten.
+  Ein bewusst ausgeschlossenes Backup benötigt keine Rollen. Ein ausführbares Backup
+  braucht eine explizite akzeptierte Ausnahme und passende Rollen; weder `_BAK` noch
+  ein konkreter Projekt-/Page-Name begründet eine Sonderregel.
 - `JS_ACTION_PARAMETER_INVARIANT`: User-Code referenziert exakt die tatsächlich generierten,
   case-sensitiven JavaScript-Identifier. Die Studio-Pro-Anzeige allein ist kein Beleg.
 - `HTML_BRIDGE_MATERIALIZATION_INVARIANT`: Benötigte Templates und DOM-Ressourcen liegen
@@ -268,6 +273,53 @@ Führe jede scopespezifisch anwendbare Invariante als ID in
 `proof_points[].artifact_invariants` des bestehenden Test Contracts und ordne ihr die
 erforderlichen Verification-Layer zu. Fehlende Beobachtbarkeit bleibt dort ein Evidence-Gap,
 kein erfolgreicher Gate-Status.
+
+### Maschinenprüfbare Scope-Auswertung
+
+Der bestehende Resolver wertet kompakte explizite Beobachtungen aus, ohne das
+Projekt global zu scannen oder neue Rollen/Artefakte zu erfinden:
+
+```powershell
+pwsh .mxagile/tools/Get-MxAgileCapabilities.ps1 -ProjectRoot . -Format json -ArtifactInvariantEvidenceFile .concord/scratch/invariants.json
+```
+
+Das JSON enthält `checks: []`. Jeder Check nennt `invariant`, `artifact`,
+`evidence_reference`, `view_state`, `expected` und `observed`. `expected` stammt
+vom akzeptierten Scope-/Security-/Bridge-Vertrag, `observed` vom autoritativen
+Model-/Code-/Runtime-Readback nach erforderlicher Synchronisation. Keine Namen
+oder Display-Labels als Ersatz für Readback. Der Caller bindet die Referenz an
+die tatsächlich geprüften Projekt-/Run-/Model-Inputs; der Resolver attestiert
+keinen Live-Host und macht eine bloße Caller-Behauptung nicht autoritativ.
+Fehlende oder nicht `FRESH` belegte Sicht ergibt `NOT_OBSERVABLE`.
+
+| Invariante | `expected` | `observed` |
+|---|---|---|
+| Nanoflow | `required_roles` | `excluded`, `allowed_roles` |
+| Replacement | `active_page`, `required_roles`, `backup_pages`; optional akzeptierte `runnable_backup_pages` | `active_page`, `excluded`, `allowed_roles`, `navigation_targets`, `backup_pages` mit je `page`, `excluded`, `allowed_roles` |
+| JS-Identifier | `user_code_identifiers` der Parameterbindung | `generated_identifiers` aus dem generierten Funktionsheader |
+| HTML-Bridge | `root_selector`, `required_resources` | `root_selector`, `root_materialized`, `materialized_resources`, `explicitly_loaded_resources` |
+
+Rollen, Ressourcen, Identifier, Backup-Identitäten und Navigationsziele sind
+Arrays case-sensitiver Strings; excluded/root_materialized sind echte Booleans.
+`required_roles` bezeichnet die vollständige akzeptierte Rollenmenge im geprüften
+Scope: fehlende und zusätzliche unautorisierte Grants sind gleichermaßen `FAIL`.
+Leere Arrays bedeuten ausdrücklich beobachtete Abwesenheit, nicht unbekannte
+Beobachtung. Fehlende Felder und unbekannte Invariant-IDs liefern
+`NOT_OBSERVABLE`; ein belegter Widerspruch `FAIL`, vollständig passende Fakten
+`PASS`. Das Ergebnis ist scopespezifisch, kein Whole-App- oder Acceptance-PASS.
+Der Prozess-Exitcode 0 bestätigt nur die Auswertung; der Caller MUSS jedes
+`artifact_invariants[].result` konsumieren, bevor er einen Gate-Claim macht.
+
+### Scope-aware Runtime Smoke
+
+Nur bei Runtime-/UI-/Navigation-/Rollen-/Bridge-Impact die betroffenen Route-,
+Rollen- und State-Kombinationen prüfen: aktive Zielpage erreicht, kein blocking
+error dialog, keine kritischen Console Errors, Root materialisiert, erforderliche
+dynamische Inhalte sichtbar. Shared fachlicher State braucht einen deklarierten
+Owner/Context und einen gezielten Wechseltest der betroffenen Projektionen.
+Login, Navigation oder null Modellfehler allein beweisen diese Claims nicht.
+Ein nicht-visuelles Workpackage löst keinen automatischen Full-Playwright-Lauf aus;
+SMOKE ersetzt nicht Parity oder fachliche Acceptance.
 
 ## Mendix UserRole Identity in XPath
 

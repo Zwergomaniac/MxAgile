@@ -280,7 +280,9 @@ STEP 1 — Identify change scope from revision manifest
 
 STEP 2 — Determine artifact staleness scope
   If change_classification == non_material AND confirmed by developer:
-    → No staleness propagation. Update bundle_hash in affected page YAMLs only.
+    → Preserve unchanged semantic proof definitions/evidence only where equivalence is proven.
+      Changed visual comparison scope still needs a focused spot-check with fresh evidence;
+      do not rewrite old evidence hashes/identities as if the new target had been compared.
   If change_classification == material OR unknown:
     → Apply staleness per impact_scope:
       targeted: mark parity STALE only for affected_screens
@@ -350,17 +352,15 @@ An agent MUST NOT classify `non_material` autonomously for a change that affects
 
 These require developer confirmation or result in `change_classification: material`.
 
-### Revision-Aware Resolver Extension
+### Resolver Boundary
 
-```bash
-python scripts/resolve_impact.py --path <project_root> --revision REV-003
-```
-
-Outputs:
-- List of STALE parity artifacts for REV-003's affected_screens
-- List of IMPACTED or NEEDS_RERUN test contracts
-- List of affected planning tasks
-- Recommended propagation action per artifact
+`resolve_impact.py` supports PAGE, REQ, SPEC and mockup-bundle queries. It does not
+implement a `--revision` command, perform propagation, or prove semantic equivalence.
+Its verified index or direct canonical traversal supplies candidates for the algorithm above.
+A stale or unfingerprinted index whose rebuild fails is not candidate authority; fall back
+to current canonical files. Unsupported direct query types return an explicit error.
+Revision and page-binding diagnostics belong to the compatibility/reconciliation evaluator;
+its observational result does not itself mutate lifecycle, bindings or evidence.
 
 ### Active Target Invariant during Propagation
 
@@ -370,8 +370,15 @@ target_revision: REV-003      # was: REV-002
 bundle_hash: sha256:abc123    # new accepted bundle hash
 ```
 
-After propagation, no page YAML for this mockup_name may still reference a
-`lifecycle_status: SUPERSEDED_TARGET` revision as its `target_revision`.
+After propagation, no **affected** page may use a superseded binding as a current-target PASS.
+Do not bind a new ACTIVE_TARGET indiscriminately to all pages. An unaffected page may retain
+its historical binding/evidence only after reconciliation proves unchanged relevant target
+content, requirements, shared components, roles/states and runtime scope with traceable
+comparison identity/freshness. No file diff alone is not proof of semantic equivalence.
+Unknown impact or missing mapping is unassessed, not UNCHANGED. Surface
+`ACTIVE_REVISION_UNBOUND` in the affected delivery/verification scope; partial binding must not
+produce a scope-wide BOUND/PASS. Keep historical evidence, but mark changed-scope evidence
+STALE. Never relabel an old comparison identity to the new revision to manufacture freshness.
 
 ---
 

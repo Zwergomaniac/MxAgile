@@ -58,7 +58,7 @@
             "properties": {
               "diagnostic_id": { "type": "string", "pattern": "^DX-[0-9a-f]{16}$" },
               "severity": { "enum": ["INFO", "WARNING", "ERROR"] },
-              "category": { "enum": ["SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "REFERENCE_MISSING", "REFERENCE_AMBIGUOUS", "WAVE_ASSIGNMENT_MISSING", "LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DUPLICATE_ID", "AUTHORITY_CONFLICT", "FRESHNESS_UNKNOWN", "MISSING", "UNASSIGNED", "STALE", "DONE_BASIS_NOT_RECORDED", "CHANGE_SET_SCHEMA_INVALID", "ACTIVE_REVISION_UNBOUND", "EXPECTATION_MISSING"] },
+              "category": { "enum": ["SYNTAX_ERROR", "SCHEMA_ERROR", "ID_MISMATCH", "REFERENCE_MISSING", "REFERENCE_AMBIGUOUS", "WAVE_ASSIGNMENT_MISSING", "LEGACY_VARIANT", "UNSUPPORTED_VARIANT", "DUPLICATE_ID", "AUTHORITY_CONFLICT", "FRESHNESS_UNKNOWN", "MISSING", "UNASSIGNED", "STALE", "DONE_BASIS_NOT_RECORDED", "CHANGE_SET_SCHEMA_INVALID", "ACTIVE_REVISION_UNBOUND", "EXPECTATION_MISSING", "PLAN_PROCESS_STATE_CONFLICT", "WAVE_RECONCILIATION_REQUIRED", "MOCKETEER_REVISION_UNRECONCILED"] },
               "source_path": { "type": ["string", "null"] },
               "line": { "type": ["integer", "null"], "minimum": 1 },
               "column": { "type": ["integer", "null"], "minimum": 1 },
@@ -66,7 +66,7 @@
               "affected_board_area": { "type": "string" },
               "message": { "type": "string" },
               "repairability": { "enum": ["SAFE_DETERMINISTIC", "AGENT_REPAIRABLE", "DECISION_REQUIRED", "UNSUPPORTED"] },
-              "proposed_repair_type": { "enum": ["QUOTE_TEXT_SCALAR", "ADD_WAVE_ID", "TASK_INSPECT_TYPED_TARGET_V1", "LEGACY_DECISION_ALIASES_V1", "requirement_created_v1", "requirement_created_at_yaml_date_v1", "requirement_design_contract_revision_v1", "evidence_manifest_created_v1", "evidence_manifest_created_at_yaml_date_v1", "evidence_manifest_scenarios_v1", "page_section_id_v1", "page_navigation_target_v1", null] },
+              "proposed_repair_type": { "enum": ["QUOTE_TEXT_SCALAR", "ADD_WAVE_ID", "TASK_INSPECT_TYPED_TARGET_V1", "LEGACY_DECISION_ALIASES_V1", "requirement_created_v1", "requirement_created_at_yaml_date_v1", "requirement_design_contract_revision_v1", "requirement_lifecycle_status_v1", "evidence_manifest_created_v1", "evidence_manifest_created_at_yaml_date_v1", "evidence_manifest_scenarios_v1", "page_section_id_v1", "page_navigation_target_v1", null] },
               "diagnostic_group": { "enum": ["project_attention", "projection_health", "framework_compat", "optional_metadata"] },
               "authority": { "type": ["string", "null"] },
               "blocking": { "type": "boolean" }
@@ -403,6 +403,13 @@
             "accepted": { "$ref": "#/definitions/nullable_count" },
             "deferred": { "$ref": "#/definitions/nullable_count" },
             "superseded": { "$ref": "#/definitions/nullable_count" },
+            "obsolete": { "$ref": "#/definitions/nullable_count" },
+            "retired": { "$ref": "#/definitions/nullable_count" },
+            "split": { "$ref": "#/definitions/nullable_count" },
+            "merged": { "$ref": "#/definitions/nullable_count" },
+            "duplicate": { "$ref": "#/definitions/nullable_count" },
+            "invalid": { "$ref": "#/definitions/nullable_count" },
+            "ambiguous": { "$ref": "#/definitions/nullable_count" },
             "unknown": { "$ref": "#/definitions/nullable_count" }
           }
         },
@@ -415,8 +422,13 @@
             "properties": {
               "id": { "type": "string" },
               "title": { "type": ["string", "null"] },
-              "status": { "type": ["string", "null"], "enum": ["draft", "accepted", "deferred", "superseded", null] },
+              "status": { "type": ["string", "null"], "enum": ["draft", "accepted", "deferred", "superseded", "obsolete", "retired", "split", "merged", "duplicate", "invalid", "ambiguous", null] },
               "superseded_by": { "type": ["string", "null"], "pattern": "^(REQ-[0-9]{3,})?$" },
+              "replacement_ids": { "type": "array", "items": { "type": "string", "pattern": "^REQ-[0-9]{3,}$" } },
+              "merged_into": { "type": ["string", "null"], "pattern": "^(REQ-[0-9]{3,})?$" },
+              "retirement_reason": { "type": ["string", "null"] },
+              "mocketeer_lifecycle": { "type": ["string", "null"], "enum": ["UNCHANGED", "MODIFIED", "SUPERSEDED", "OBSOLETE", "SPLIT", "MERGED", "NEW", "AMBIGUOUS", null] },
+              "implementation_impact": { "type": ["object", "null"], "additionalProperties": true },
               "delivery_assessment": { "$ref": "#/definitions/delivery_assessment" },
               "canonical_path": { "type": "string" },
               "content_hash": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }
@@ -978,6 +990,8 @@
           "type": "object", "required": ["state", "gate_result", "evidence"], "additionalProperties": false,
           "properties": { "state": { "enum": ["RECORDED", "NOT_RECORDED", "LEGACY"] }, "gate_result": { "type": ["string", "null"] }, "evidence": { "type": "array", "items": { "type": "string" } } }
         },
+        "reconciliation_state": { "enum": ["NOT_REQUIRED", "RECONCILIATION_REQUIRED", "UNKNOWN_REQUIRES_RECONCILIATION"] },
+        "reason_codes": { "type": "array", "items": { "type": "string" } },
         "open_tasks_superseded": { "type": "array", "items": { "type": "string" } },
         "open_tasks_unexplained": { "type": "array", "items": { "type": "string" } },
         "later_findings": { "type": "array", "items": { "type": "string" } },
@@ -1070,6 +1084,24 @@
           "properties": {
             "compatibility": { "type": ["string", "null"] },
             "repair_status": { "type": ["string", "null"] }
+          }
+        },
+        "control_plane_status": {
+          "type": "object",
+          "description": "Read-only derived control-plane delivery projection (K2); never a new lifecycle authority.",
+          "required": ["delivery_state", "reason_codes", "primary_recovery", "epoch_stale", "branch_stale", "head_stale", "doctor_compatibility", "migration_status", "state_authority"],
+          "additionalProperties": false,
+          "properties": {
+            "delivery_state": { "type": "string", "enum": ["AUTHORIZED", "BLOCKED", "NEEDS_HUMAN", "UNAVAILABLE"] },
+            "reason_codes": { "type": "array", "items": { "type": "string" } },
+            "primary_recovery": { "type": ["string", "null"] },
+            "allowed_recovery_actions": { "type": "array", "items": { "type": "string" } },
+            "epoch_stale": { "type": ["boolean", "null"], "description": "null means freshness could not be observed; never treat as current." },
+            "branch_stale": { "type": ["boolean", "null"] },
+            "head_stale": { "type": ["boolean", "null"] },
+            "doctor_compatibility": { "type": ["string", "null"] },
+            "migration_status": { "type": ["string", "null"] },
+            "state_authority": { "const": "canonical_artifacts" }
           }
         }
       }

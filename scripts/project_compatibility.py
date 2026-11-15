@@ -108,6 +108,17 @@ def compatibility_projection(relative: str, value: Any) -> tuple[Any, list[str],
                 projected['source'] = 'design_contract'
                 projected['source_ref'] = source_ref
                 rules.append('requirement_design_contract_revision_v1')
+        raw_status = projected.get('status')
+        if isinstance(raw_status, str):
+            status_aliases = {
+                'ACTIVE': 'accepted', 'DRAFT': 'draft', 'DEFERRED': 'deferred',
+                'SUPERSEDED': 'superseded', 'OBSOLETE': 'obsolete', 'RETIRED': 'retired',
+                'SPLIT': 'split', 'MERGED': 'merged', 'DUPLICATE': 'duplicate',
+                'INVALID': 'invalid', 'AMBIGUOUS': 'ambiguous',
+            }
+            if raw_status in status_aliases:
+                projected['status'] = status_aliases[raw_status]
+                rules.append('requirement_lifecycle_status_v1')
     elif artifact == 'decision':
         aliases = {'decided_at': 'confirmed_at', 'decided_by': 'confirmed_by'}
         status = projected.get('status')
@@ -240,14 +251,24 @@ def digest(raw: bytes) -> str:
 
 
 @lru_cache(maxsize=8192)
+def _canonical_path_key(relative: str) -> str:
+    normalized = relative.replace('\\', '/')
+    return normalized.casefold() if sys.platform == 'win32' else normalized
+
+
+def _canonical_pattern_matches(relative: str, pattern: str) -> bool:
+    return PurePosixPath(_canonical_path_key(relative)).match(_canonical_path_key(pattern))
+
+
+@lru_cache(maxsize=8192)
 def contract_for(relative: str) -> tuple[str, str] | None:
     if is_standalone_interaction_artifact(relative):
         return None
-    return next(((schema, area) for pattern, schema, area in CONTRACTS if PurePosixPath(relative).match(pattern)), None)
+    return next(((schema, area) for pattern, schema, area in CONTRACTS if _canonical_pattern_matches(relative, pattern)), None)
 
 
 def is_standalone_interaction_artifact(relative: str) -> bool:
-    return any(PurePosixPath(relative).match(pattern) for pattern in (
+    return any(_canonical_pattern_matches(relative, pattern) for pattern in (
         'planning/ui-inventory/interaction-metadata-*.yaml',
         'planning/ui-inventory/interaction-states-*.yaml',
         'planning/ui-inventory/PAGE-INTERACTION-STATES-*.yaml',
@@ -518,9 +539,9 @@ def _change_set_diagnostics(root: Path, add: Any) -> None:
 
 
 def _active_revision_diagnostics(root: Path, parsed_documents: dict, add: Any) -> None:
-    """ACTIVE_REVISION_UNBOUND: a ledger revision marked active_target that no Page in the UI inventory
-    binds (target_revision, target_mockup or source_mockup). Pages bound to an older reference are not
-    reported here; only a revision without any Page binding."""
+    """Report an active ledger revision lacking explicit current revision binding.
+    A shared source/target path is not a revision identity or unchanged-scope proof.
+    """
     base = root / 'planning/revisions'
     if not base.is_dir() or base.is_symlink():
         return
@@ -547,16 +568,17 @@ def _active_revision_diagnostics(root: Path, parsed_documents: dict, add: Any) -
             continue
         revision_id = normalized(value.get('revision_id')) or path.stem
         identities = {identity for identity in (revision_id, normalized(value.get('revision'))) if identity}
-        artifact = normalized(value.get('artifact_path'))
+        namespace = normalized(value.get('mockup_name')) or normalized(value.get('mockup_id'))
         bound = any(
             normalized(page.get('target_revision')) in identities
-            or (artifact is not None and artifact in (normalized(page.get('target_mockup')), normalized(page.get('source_mockup'))))
+            and (not namespace or not (page.get('mockup_name') or page.get('mockup_id'))
+                 or namespace == (normalized(page.get('mockup_name')) or normalized(page.get('mockup_id'))))
             for page in pages
         )
         if not bound:
             add('ACTIVE_REVISION_UNBOUND', relative, 'references',
                 f'Revision {revision_id} is marked active_target but no Page in planning/ui-inventory binds it '
-                '(target_revision, target_mockup or source_mockup). The Board and Doctor cannot show where it applies.',
+                '(explicit target_revision required; shared artifact paths do not bind revisions). The Board and Doctor cannot show where it applies.',
                 repairability='DECISION_REQUIRED', severity='WARNING', authority='ACTIVE_TARGET')
 
 
@@ -566,12 +588,13 @@ DIAGNOSTIC_GROUPS = ('project_attention', 'projection_health', 'framework_compat
 _DIAGNOSTIC_GROUP_BY_CATEGORY = {
     'AUTHORITY_CONFLICT': 'project_attention', 'REFERENCE_AMBIGUOUS': 'project_attention',
     'DUPLICATE_ID': 'project_attention', 'ACTIVE_REVISION_UNBOUND': 'project_attention',
+    'PLAN_PROCESS_STATE_CONFLICT': 'project_attention', 'MOCKETEER_REVISION_UNRECONCILED': 'project_attention',
     'SYNTAX_ERROR': 'projection_health', 'SCHEMA_ERROR': 'projection_health', 'ID_MISMATCH': 'projection_health',
     'REFERENCE_MISSING': 'projection_health', 'MISSING': 'projection_health', 'STALE': 'projection_health',
     'FRESHNESS_UNKNOWN': 'projection_health',
     'LEGACY_VARIANT': 'framework_compat', 'UNSUPPORTED_VARIANT': 'framework_compat',
     'DONE_BASIS_NOT_RECORDED': 'framework_compat', 'CHANGE_SET_SCHEMA_INVALID': 'framework_compat',
-    'EXPECTATION_MISSING': 'framework_compat',
+    'EXPECTATION_MISSING': 'framework_compat', 'WAVE_RECONCILIATION_REQUIRED': 'framework_compat',
     'UNASSIGNED': 'optional_metadata',
 }
 
@@ -833,19 +856,60 @@ def compatibility_report(
                 blocking=True, repairability='DECISION_REQUIRED', authority='superseded_by')
 
     for relative, value in documents.items():
-        if contract_for(relative)[0] != 'requirement' or value.get('status') != 'superseded':
+        if contract_for(relative)[0] != 'requirement':
             continue
-        successor = value.get('superseded_by')
-        targets = requirement_identities.get(successor, []) if isinstance(successor, str) else []
-        if not isinstance(successor, str) or not successor:
-            category = 'REFERENCE_MISSING'
-        elif len(targets) != 1 or targets[0] == relative:
-            category = 'REFERENCE_MISSING' if not targets else 'REFERENCE_AMBIGUOUS'
-        else:
-            continue
-        add(category, relative, 'requirements',
-            'Superseded Requirement needs one different, unique canonical successor; no successor is inferred.',
-            blocking=True, repairability='DECISION_REQUIRED', authority='superseded_by')
+        req_status = value.get('status')
+        if req_status == 'superseded':
+            successor = value.get('superseded_by')
+            targets = requirement_identities.get(successor, []) if isinstance(successor, str) else []
+            if not isinstance(successor, str) or not successor:
+                category = 'REFERENCE_MISSING'
+            elif len(targets) != 1 or targets[0] == relative:
+                category = 'REFERENCE_MISSING' if not targets else 'REFERENCE_AMBIGUOUS'
+            else:
+                continue
+            add(category, relative, 'requirements',
+                'Superseded Requirement needs one different, unique canonical successor; no successor is inferred.',
+                blocking=True, repairability='DECISION_REQUIRED', authority='superseded_by')
+        elif req_status in ('obsolete', 'retired', 'invalid'):
+            if value.get('superseded_by'):
+                add('AUTHORITY_CONFLICT', relative, 'requirements',
+                    'Obsolete/retired Requirement is retired without replacement and must not declare superseded_by.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='superseded_by')
+            impact = value.get('implementation_impact')
+            if isinstance(impact, dict) and impact.get('disposition') == 'NEEDS_HUMAN' and not impact.get('decision_ref'):
+                add('AUTHORITY_CONFLICT', relative, 'requirements',
+                    'Obsolete/retired Requirement implementation impact requires an explicit human decision before keeping or removing artifacts.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='implementation_impact')
+        elif req_status == 'split':
+            replacements = value.get('replacement_ids')
+            if not isinstance(replacements, list) or len(set(replacements)) < 2:
+                add('REFERENCE_MISSING', relative, 'requirements',
+                    'Split Requirement needs at least two distinct canonical replacement_ids.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='replacement_ids')
+            elif any(not isinstance(item, str) or not requirement_identities.get(item) or requirement_identities.get(item) == [relative] for item in replacements):
+                add('REFERENCE_MISSING', relative, 'requirements',
+                    'Split Requirement replacement_ids must resolve to existing distinct canonical Requirements.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='replacement_ids')
+            elif any(len(requirement_identities.get(item, [])) != 1 for item in replacements):
+                add('REFERENCE_AMBIGUOUS', relative, 'requirements',
+                    'Split Requirement replacement_ids resolve to multiple canonical targets.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='replacement_ids')
+        elif req_status in ('merged', 'duplicate'):
+            target_id = value.get('merged_into') or value.get('superseded_by')
+            targets = requirement_identities.get(target_id, []) if isinstance(target_id, str) else []
+            if not isinstance(target_id, str) or not target_id or not targets or targets == [relative]:
+                add('REFERENCE_MISSING', relative, 'requirements',
+                    'Merged/duplicate Requirement needs one different, unique canonical merged_into or superseded_by target.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='merged_into')
+            elif len(targets) > 1:
+                add('REFERENCE_AMBIGUOUS', relative, 'requirements',
+                    'Merged/duplicate Requirement target resolves to multiple canonical Requirements.',
+                    blocking=True, repairability='DECISION_REQUIRED', authority='merged_into')
+        elif req_status == 'ambiguous':
+            add('AUTHORITY_CONFLICT', relative, 'requirements',
+                'Requirement has unresolved AMBIGUOUS lifecycle status.',
+                blocking=True, repairability='DECISION_REQUIRED', authority='status')
 
     waves_doc = documents.get('planning/lifecycle/process-state.yaml', {}).get('waves', {})
     waves = set(waves_doc) if isinstance(waves_doc, dict) else set()
@@ -1265,8 +1329,11 @@ def repair_candidates(root: Path, report: dict, candidate_dir: Path | None = Non
     return candidates
 
 
-def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None, *, safe_only: bool = False) -> dict:
+def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None, *, safe_only: bool = False,
+                allowed_types: frozenset[str] | None = None) -> dict:
     candidates = repair_candidates(root, report, candidate_dir)
+    if allowed_types is not None:
+        candidates = {path: candidate for path, candidate in candidates.items() if candidate[1] in allowed_types}
     if safe_only:
         candidates = {path: candidate for path, candidate in candidates.items() if any(
             item['source_path'] == path and item['proposed_repair_type'] == candidate[1]
@@ -1299,6 +1366,8 @@ def repair_plan(root: Path, report: dict, candidate_dir: Path | None = None, *, 
     }
     if safe_only:
         plan['repairability_scope'] = 'SAFE_DETERMINISTIC'
+    if allowed_types is not None:
+        plan['allowed_repair_types'] = sorted(allowed_types)
     plan['plan_hash'] = digest(json.dumps(plan, sort_keys=True).encode('utf-8'))
     return plan
 
@@ -1320,11 +1389,12 @@ def atomic_replace(path: Path, raw: bytes) -> None:
             Path(temporary).unlink(missing_ok=True)
 
 
-def apply_repair(root: Path, expected_hash: str, candidate_dir: Path | None = None, *, safe_only: bool = False) -> dict:
+def apply_repair(root: Path, expected_hash: str, candidate_dir: Path | None = None, *, safe_only: bool = False,
+                 allowed_types: frozenset[str] | None = None) -> dict:
     from build_project_status import build_status
     before = build_status(root)
     report = before['compatibility']
-    plan = repair_plan(root, report, candidate_dir, safe_only=safe_only)
+    plan = repair_plan(root, report, candidate_dir, safe_only=safe_only, allowed_types=allowed_types)
     if plan['plan_hash'] != expected_hash:
         raise ValueError('Repair plan is stale or unapproved; rerun dry run.')
     replacements = repair_candidates(root, report, candidate_dir)
@@ -1485,7 +1555,8 @@ def _save_contract_migration(root: Path, record: dict, expected: bytes) -> bytes
     return replacement
 
 
-def reconcile_contract(root: Path, *, apply_safe: bool = False, repair_sources: bool = True, persist: bool = True) -> dict:
+def reconcile_contract(root: Path, *, apply_safe: bool = False, repair_sources: bool = True, persist: bool = True,
+                       contract_only: bool = False) -> dict:
     from build_project_status import build_status
     root = root.resolve()
     target = contract_snapshot(root)
@@ -1510,10 +1581,11 @@ def reconcile_contract(root: Path, *, apply_safe: bool = False, repair_sources: 
         if jsonschema is None or list(contract_migration_validator(schema).iter_errors(previous)):
             raise ValueError('Prior contract migration record is invalid.')
     same_target = previous.get('target') == target
-    if apply_safe and repair_sources and any(item.get('result') == 'PENDING' for item in previous.get('resolution_receipts', [])):
+    if apply_safe and (repair_sources or persist) and any(item.get('result') == 'PENDING' for item in previous.get('resolution_receipts', [])):
         raise ResolutionFailure('RESOLUTION_RECOVERY_REQUIRED')
     report = build_status(root)['compatibility']
-    plan = repair_plan(root, report, safe_only=True)
+    allowed_types = frozenset({'LEGACY_DECISION_ALIASES_V1', 'TASK_INSPECT_TYPED_TARGET_V1'}) if contract_only else None
+    plan = repair_plan(root, report, safe_only=True, allowed_types=allowed_types)
     required = not same_target or previous.get('status') != 'COMPLETE' or bool(plan['repairs']) or report['compatibility'] == 'BLOCKED'
     if not required:
         return {'stage': 'CONTRACT_MIGRATION_CHECKED', 'read_only': True, 'required': False, 'migration': previous, 'plan': plan, 'doctor': report}
@@ -1540,7 +1612,7 @@ def reconcile_contract(root: Path, *, apply_safe: bool = False, repair_sources: 
             if path and digest(path.read_bytes()) == entry['after_fingerprint']:
                 record['applied'].append(entry['source_path'])
         try:
-            applied = apply_repair(root, plan['plan_hash'], safe_only=True)
+            applied = apply_repair(root, plan['plan_hash'], safe_only=True, allowed_types=allowed_types)
         except Exception:
             record['status'] = 'FAILED'
             _save_contract_migration(root, record, raw)
@@ -1857,13 +1929,14 @@ def auxiliary_write_plan(root: Path, request: dict) -> dict:
             or not re.fullmatch(r'USER-[A-Za-z0-9-]{4,120}', request['request_reference'])
             or not 1 <= len(request['request_summary']) <= 2000 or len(request['content'].encode()) > 131072
             or '\x00' in request['content'] or request['scope_relation'] != 'independent_noncanonical'
-            or request['artifact_role'] not in {'documentation', 'diagnostic_findings', 'retrospective', 'support_note'}
-            or request['mutation'] not in {'create', 'replace'}):
+            or request['artifact_role'] not in {'documentation', 'diagnostic_findings', 'retrospective', 'support_note', 'auxiliary_script'}
+            or request['mutation'] not in {'create', 'replace', 'delete'}
+            or (request['mutation'] == 'delete' and request['content'] != '')):
         raise ResolutionFailure('INVALID_AUXILIARY_REQUEST')
     relative = request['target_path']
     if (not relative or '\\' in relative or PurePosixPath(relative).is_absolute()
             or any(part in ('', '.', '..') or part != part.rstrip(' .') or '~' in part
-                   or re.search(r'[<>"|?*\x00-\x1f]', part)
+                   or re.search(r'[<>"|?*[\]\x00-\x1f]', part)
                    or re.fullmatch(r'CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]', part.split('.')[0].rstrip().upper())
                    for part in relative.split('/')) or ':' in relative):
         raise ResolutionFailure('AUXILIARY_SCOPE_PROTECTED')
@@ -1877,10 +1950,14 @@ def auxiliary_write_plan(root: Path, request: dict) -> dict:
     lower = relative.lower()
     diagnostic_area = lower.startswith(('.concord/scratch/', '.concord/evidence/diagnostics/'))
     protected = ('requirements', 'specs', 'planning', 'sprints', '.mxagile', '.claude', '.github', '.agents', '.git',
-                 'javascriptsource', 'javasource', 'src', 'themesource', 'theme', 'widgets', 'deployment', 'resources', 'input-resources', 'userlib')
-    canonical_docs = {'schemas.md', 'injection-contract.md', 'installation.md', 'architecture.md', 'agent.md', 'agents.md', 'claude.md'}
-    if (path.suffix.lower() not in {'.md', '.txt', '.rst'} or path.name.lower() in canonical_docs
-            or re.match(r'(req|spec|task|dec|tc|vpl)-[0-9]+', path.name, re.I)
+                 'javascriptsource', 'javasource', 'src', 'themesource', 'theme', 'widgets', 'deployment', 'resources',
+                 'input-resources', 'userlib', 'scripts', 'tests', 'experiments', 'products')
+    canonical_docs = {'schemas.md', 'injection-contract.md', 'installation.md', 'architecture.md', 'agent.md', 'agents.md',
+                      'claude.md', 'mxagile-project.yaml', 'mxagile-setup.ps1', 'mxagile-setup-company-layer.ps1',
+                      'install-mxagile.ps1', 'install-mxagile-company-layer.ps1', 'update-mxcli.ps1'}
+    allowed_suffixes = {'.ps1', '.sh', '.py', '.mjs', '.js', '.cmd', '.bat'} if request['artifact_role'] == 'auxiliary_script' else {'.md', '.txt', '.rst', '.json', '.yaml', '.yml'}
+    if (path.suffix.lower() not in allowed_suffixes or path.name.lower() in canonical_docs
+            or re.match(r'(req|spec|task|dec|tc|vpl|find|rev|page)-[0-9a-z_-]+', path.name, re.I)
             or (lower.split('/')[0] in protected and not diagnostic_area)
             or (lower.startswith('.concord/') and not diagnostic_area)
             or (diagnostic_area and request['artifact_role'] != 'diagnostic_findings')):
@@ -1899,7 +1976,9 @@ def auxiliary_write_plan(root: Path, request: dict) -> dict:
     before = digest(path.read_bytes()) if path.is_file() else 'ABSENT'
     if path.exists() and not path.is_file():
         raise ResolutionFailure('AUXILIARY_SCOPE_PROTECTED')
-    if (request['before_fingerprint'] != before or (request['mutation'] == 'create') != (before == 'ABSENT')):
+    if (request['before_fingerprint'] != before
+            or (request['mutation'] == 'create' and before != 'ABSENT')
+            or (request['mutation'] in {'replace', 'delete'} and before == 'ABSENT')):
         raise ResolutionFailure('STALE_AUXILIARY_REQUEST')
     guard, _ = _auxiliary_runtime()
     facts = guard.load_project_facts(root)
@@ -1910,10 +1989,11 @@ def auxiliary_write_plan(root: Path, request: dict) -> dict:
     from build_project_status import build_status
     context = {'project_root': str(root), 'branch': facts.branch, 'head': facts.head,
                'sources': facts.source_fingerprints, 'doctor_source': build_status(root)['compatibility']['source_fingerprint']}
+    after_fp = 'ABSENT' if request['mutation'] == 'delete' else digest(request['content'].encode())
     result = {'request_reference': request['request_reference'], 'request_fingerprint': digest(json.dumps(request, sort_keys=True).encode()),
               'target_path': relative, 'artifact_role': request['artifact_role'], 'mutation': request['mutation'],
               'operation_class': 'EVIDENCE_WRITE' if request['artifact_role'] == 'diagnostic_findings' else 'AUXILIARY_WRITE',
-              'before_fingerprint': before, 'after_fingerprint': digest(request['content'].encode()),
+              'before_fingerprint': before, 'after_fingerprint': after_fp,
               'context_fingerprint': digest(json.dumps(context, sort_keys=True).encode())}
     result['plan_hash'] = digest(json.dumps(result, sort_keys=True).encode())
     return result
@@ -1947,11 +2027,16 @@ def apply_auxiliary_write(root: Path, request: dict, **authorization) -> dict:
         # Recheck the exact approved content, canonical references and context after journaling, before any target write.
         prepare_auxiliary_write(root, request, **authorization)
         path = safe_path(root, plan['target_path'])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path = safe_path(root, plan['target_path'])
-        atomic_replace(path, request['content'].encode())
-        if digest(path.read_bytes()) != plan['after_fingerprint']:
-            raise ResolutionFailure('STALE_AUXILIARY_REQUEST')
+        if plan['mutation'] == 'delete':
+            path.unlink()
+            if path.exists():
+                raise ResolutionFailure('STALE_AUXILIARY_REQUEST')
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path = safe_path(root, plan['target_path'])
+            atomic_replace(path, request['content'].encode())
+            if digest(path.read_bytes()) != plan['after_fingerprint']:
+                raise ResolutionFailure('STALE_AUXILIARY_REQUEST')
         return {'result': 'APPLIED', 'authorization': plan, 'delivery_resumed': False, 'next_action': 'resync-preflight'}
 
 
@@ -2009,6 +2094,1208 @@ def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase:
         reasons.append('CANONICAL_PHASE_CONFLICT')
     return {'stage': 'RESYNC_PREFLIGHT', 'read_only': True, 'state': 'RECONCILIATION_REQUIRED' if reasons else 'READY_FOR_RESYNC',
             'reason_codes': reasons, 'mission_id': canonical_mission, 'wave_id': canonical_wave, 'phase': canonical_phase}
+
+
+LAST_CANONICAL_WRITE = '.mxagile/state/runs/last-canonical-write.json'
+EXTRA_CANONICAL_PATTERNS = (
+    ('.concord/context-epoch.yaml', 'context-epoch', 'context'),
+    ('.concord/routing-decisions/*.json', 'routing-decision', 'routing'),
+    ('.concord/delegation-handoffs/*.json', 'delegation-handoff', 'delegation'),
+    ('planning/reconciliation/change-sets/*.json', 'change-set', 'provenance'),
+    ('planning/revisions/REV-*.yaml', 'revision-ledger', 'references'),
+    ('planning/checklists/W*-implementation-checklist.yaml', 'checklist', 'tasks'),
+    ('.mxagile/config.yaml', 'mxagile-config', 'project'),
+)
+
+
+def canonical_write_contract(relative: str) -> tuple[str, str] | None:
+    if not isinstance(relative, str) or not relative:
+        return None
+    normalized = relative.replace('\\', '/')
+    contract = contract_for(normalized)
+    if contract:
+        return contract
+    return next(((schema, area) for pattern, schema, area in EXTRA_CANONICAL_PATTERNS
+                 if _canonical_pattern_matches(normalized, pattern)), None)
+
+
+def is_canonical_write_target(relative: str) -> bool:
+    return canonical_write_contract(relative) is not None
+
+
+def project_candidate_bytes(root: Path, tool_name: str, tool_input: dict) -> tuple[str, bytes | None, str | None] | None:
+    """Compute candidate bytes in memory before a Write/Edit/MultiEdit on a canonical artifact.
+
+    Returns None when the call is not a canonical write or has no mutation payload (e.g. path-only probe).
+    Returns (relative_path, candidate_bytes, error_code) otherwise.
+    """
+    if tool_name not in {'Write', 'Edit', 'MultiEdit'} or not isinstance(tool_input, dict):
+        return None
+    raw_target = tool_input.get('file_path') or tool_input.get('path')
+    if not isinstance(raw_target, str) or not raw_target:
+        return None
+    try:
+        resolved = (Path(raw_target) if Path(raw_target).is_absolute() else (root / raw_target)).resolve()
+        relative = resolved.relative_to(root.resolve()).as_posix()
+    except (OSError, ValueError):
+        return None
+    if not is_canonical_write_target(relative):
+        return None
+    has_payload = any(key in tool_input for key in ('content', 'new_string', 'old_string', 'edits'))
+    if not has_payload:
+        return None
+    if tool_name == 'Write':
+        content = tool_input.get('content')
+        if not isinstance(content, str):
+            return relative, None, 'CANDIDATE_CONTENT_INVALID'
+        return relative, content.encode('utf-8'), None
+    existing_path = safe_file(root, relative)
+    if existing_path is None:
+        return relative, None, 'CANDIDATE_TARGET_MISSING'
+    try:
+        current_raw = existing_path.read_bytes()
+        bom = b'\xef\xbb\xbf' if current_raw.startswith(b'\xef\xbb\xbf') else b''
+        text = current_raw.decode('utf-8-sig')
+    except (OSError, UnicodeDecodeError):
+        return relative, None, 'CANDIDATE_TARGET_UNREADABLE'
+    edits = tool_input.get('edits') if tool_name == 'MultiEdit' else [tool_input]
+    if not isinstance(edits, list) or not edits:
+        return relative, None, 'CANDIDATE_MUTATION_UNAPPLICABLE'
+    for edit_op in edits:
+        if not isinstance(edit_op, dict):
+            return relative, None, 'CANDIDATE_MUTATION_UNAPPLICABLE'
+        old_str = edit_op.get('old_string')
+        new_str = edit_op.get('new_string')
+        replace_all = bool(edit_op.get('replace_all'))
+        if not isinstance(old_str, str) or not isinstance(new_str, str) or not old_str:
+            return relative, None, 'CANDIDATE_MUTATION_UNAPPLICABLE'
+        occurrences = text.count(old_str)
+        if occurrences == 0 or (occurrences > 1 and not replace_all):
+            return relative, None, 'CANDIDATE_MUTATION_UNAPPLICABLE'
+        text = text.replace(old_str, new_str) if replace_all else text.replace(old_str, new_str, 1)
+    return relative, bom + text.encode('utf-8'), None
+
+
+def prevalidate_canonical_write(root: Path, relative: str, candidate_bytes: bytes) -> dict[str, Any]:
+    """Validate projected candidate bytes in-memory before any canonical write (A1)."""
+    root = root.resolve()
+    normalized = relative.replace('\\', '/')
+    contract = canonical_write_contract(normalized)
+    if contract is None:
+        return {'valid': True, 'target_path': normalized, 'artifact_type': 'non_canonical', 'diagnostics': []}
+    artifact_type, area = contract
+    diagnostics: list[dict[str, str]] = []
+
+    def fail_diag(category: str, message: str, authority: str | None = None) -> None:
+        diagnostics.append({
+            'category': category,
+            'source_path': normalized,
+            'artifact_type': artifact_type,
+            'affected_board_area': area,
+            'message': message,
+            'authority': authority or f'.mxagile/schemas/{artifact_type}.schema.json',
+        })
+
+    if not isinstance(candidate_bytes, (bytes, bytearray)) or not candidate_bytes.strip():
+        fail_diag('SYNTAX_ERROR', 'Candidate canonical payload is empty.')
+        return {'valid': False, 'code': 'CANONICAL_WRITE_PREVALIDATION_FAILED', 'target_path': normalized,
+                'artifact_type': artifact_type, 'diagnostics': diagnostics}
+
+    try:
+        text = bytes(candidate_bytes).decode('utf-8-sig')
+    except UnicodeDecodeError:
+        fail_diag('SYNTAX_ERROR', 'Candidate canonical payload is not valid UTF-8.')
+        return {'valid': False, 'code': 'CANONICAL_WRITE_PREVALIDATION_FAILED', 'target_path': normalized,
+                'artifact_type': artifact_type, 'diagnostics': diagnostics}
+
+    if PurePosixPath(normalized).suffix.casefold() == '.json':
+        def _unique_json_pairs(pairs):
+            obj = {}
+            for key, val in pairs:
+                if key in obj:
+                    raise ValueError(f'duplicate JSON key: {key}')
+                obj[key] = val
+            return obj
+        try:
+            value = json.loads(text, object_pairs_hook=_unique_json_pairs)
+        except ValueError as exc:
+            fail_diag('SYNTAX_ERROR', f'Candidate JSON is syntactically invalid: {exc}.')
+            return {'valid': False, 'code': 'CANONICAL_WRITE_PREVALIDATION_FAILED', 'target_path': normalized,
+                    'artifact_type': artifact_type, 'diagnostics': diagnostics}
+    else:
+        try:
+            value = load_yaml(text)
+        except yaml.YAMLError as exc:
+            fail_diag('SYNTAX_ERROR', f'Candidate YAML is syntactically invalid ({type(exc).__name__}).')
+            return {'valid': False, 'code': 'CANONICAL_WRITE_PREVALIDATION_FAILED', 'target_path': normalized,
+                    'artifact_type': artifact_type, 'diagnostics': diagnostics}
+
+    if not isinstance(value, dict):
+        fail_diag('SCHEMA_ERROR', 'Candidate canonical artifact root must be a mapping/object.')
+        return {'valid': False, 'code': 'CANONICAL_WRITE_PREVALIDATION_FAILED', 'target_path': normalized,
+                'artifact_type': artifact_type, 'diagnostics': diagnostics}
+
+    # 1. Schema validation (including compatibility projection where applicable)
+    if contract_for(normalized) is not None:
+        _, _, conflicts = compatibility_projection(normalized, value)
+        for field_conflict in conflicts:
+            fail_diag('AUTHORITY_CONFLICT', f'Legacy and current fields disagree ({field_conflict}).', field_conflict)
+        for message, _rep, auth in schema_diagnostics(normalized, value):
+            fail_diag('SCHEMA_ERROR', message, auth)
+        if not diagnostics and schema_errors(normalized, value):
+            fail_diag('SCHEMA_ERROR', 'Candidate failed canonical schema validation: ' + ', '.join(schema_errors(normalized, value)))
+    elif artifact_type in {'context-epoch', 'routing-decision', 'delegation-handoff', 'change-set'}:
+        schema_path = (root / '.mxagile/schemas' / f'{artifact_type}.schema.json')
+        if not schema_path.is_file():
+            schema_path = SCHEMA_ROOT / f'{artifact_type}.schema.json'
+        if not schema_path.is_file() or jsonschema is None:
+            fail_diag('SCHEMA_UNAVAILABLE', f'Canonical validator unavailable for {artifact_type}.')
+        else:
+            for err in sorted(schema_validator(schema_path).iter_errors(value), key=lambda e: [str(p) for p in e.path])[:5]:
+                loc = '/'.join(str(p) for p in err.path) or '$'
+                fail_diag('SCHEMA_ERROR', f'Canonical schema constraint failed at {loc}: {err.validator}.', f'{artifact_type}.schema.json#/{loc}')
+    elif artifact_type == 'revision-ledger':
+        stem = PurePosixPath(normalized).stem
+        rev_id = value.get('revision_id')
+        if rev_id != stem or not re.fullmatch(r'REV-[0-9]{3,}', str(rev_id or '')):
+            fail_diag('ID_MISMATCH', f'Revision ledger revision_id must match filename stem {stem}.', 'revision_id')
+        # A historical ledger is not a SPA bundle manifest; do not invent bundle fields.
+        if value.get('lifecycle_status') not in {None, 'SOURCE', 'REFINED_TARGET', 'SUPERSEDED_TARGET'}:
+            fail_diag('SCHEMA_ERROR', 'Invalid lifecycle_status in revision ledger.', 'lifecycle_status')
+        if value.get('refinement_status') not in {None, 'PROPOSED', 'ACCEPTED', 'REJECTED'}:
+            fail_diag('SCHEMA_ERROR', 'Invalid refinement_status in revision ledger.', 'refinement_status')
+        if 'active_target' in value and not isinstance(value.get('active_target'), bool):
+            fail_diag('SCHEMA_ERROR', 'active_target must be a boolean.', 'active_target')
+        if value.get('active_target') is True and (value.get('refinement_status') != 'ACCEPTED'
+                or value.get('lifecycle_status') not in {'SOURCE', 'REFINED_TARGET'}):
+            fail_diag('REVISION_ACTIVE_WITHOUT_ACCEPTANCE', 'Active ledger target requires accepted, current lifecycle state.', 'active_target')
+        if 'acceptance_decisions' in value and (not isinstance(value.get('acceptance_decisions'), list)
+                or any(not isinstance(ref, str) or not re.fullmatch(r'DEC-[0-9]{3,}', ref) for ref in value['acceptance_decisions'])):
+            fail_diag('SCHEMA_ERROR', 'acceptance_decisions must contain canonical DEC-NNN identifiers.', 'acceptance_decisions')
+    elif artifact_type in {'checklist', 'mxagile-config'}:
+        schema_name = 'implementation-checklist' if artifact_type == 'checklist' else 'framework-config'
+        schema_path = SCHEMA_ROOT / f'{schema_name}.schema.json'
+        if jsonschema is None or not schema_path.is_file():
+            fail_diag('SCHEMA_UNAVAILABLE', f'Canonical validator unavailable for {artifact_type}.')
+        else:
+            for err in schema_validator(schema_path).iter_errors(value):
+                loc = '/'.join(str(p) for p in err.path) or '$'
+                fail_diag('SCHEMA_ERROR', f'Canonical schema constraint failed at {loc}: {err.validator}.', f'{schema_name}.schema.json#/{loc}')
+    if artifact_type == 'checklist':
+        from wave_ids import checklist_wave_id
+        expected_wave = checklist_wave_id(PurePosixPath(normalized).name)
+        declared_wave = value.get('wave_id', value.get('wave'))
+        if declared_wave is not None and declared_wave != expected_wave:
+            fail_diag('ID_MISMATCH', f'Checklist declared wave ({declared_wave}) disagrees with filename wave ({expected_wave}).', 'wave_id')
+
+    document = projected_for_validation(normalized, value) if contract_for(normalized) else value
+    stem = PurePosixPath(normalized).stem
+
+    # 2. Stem & primary-key identity invariants
+    if artifact_type in {'requirement', 'spec', 'task', 'decision', 'finding', 'verification-plan'}:
+        doc_id = document.get('ID')
+        if not isinstance(doc_id, str) or doc_id != stem:
+            fail_diag('ID_MISMATCH', f'Artifact ID ({doc_id!r}) does not match filename stem ({stem!r}).', 'ID')
+    elif artifact_type == 'test-contract':
+        if not identity_matches(normalized, document.get('ID'), stem):
+            fail_diag('ID_MISMATCH', f'Test Contract ID ({document.get("ID")!r}) does not match filename ({stem!r}).', 'ID')
+    elif artifact_type == 'routing-decision':
+        if document.get('decision_id') != stem:
+            fail_diag('ID_MISMATCH', f'Routing decision_id ({document.get("decision_id")!r}) does not match filename ({stem!r}).', 'decision_id')
+
+    # 3. Cross-contract reference & invariant validation against existing project artifacts
+    if artifact_type in {'revision', 'revision-ledger'} and not diagnostics:
+        if document.get('refinement_status') == 'ACCEPTED' or document.get('active_target') is True:
+            acceptance = document.get('acceptance_decisions')
+            if not isinstance(acceptance, list) or not acceptance:
+                fail_diag('REVISION_ACCEPTANCE_NOT_CONFIRMED', 'Accepted revision requires canonical confirmation references.', 'acceptance_decisions')
+                acceptance = []
+            for decision_id in acceptance:
+                decision_relative = f'planning/decisions/{decision_id}.yml'
+                decision_file = safe_file(root, decision_relative)
+                try:
+                    decision = load_yaml(decision_file.read_text(encoding='utf-8-sig')) if decision_file else None
+                    confirmed = (isinstance(decision, dict) and decision.get('ID') == decision_id
+                                 and decision.get('status') == 'CONFIRMED' and not schema_errors(decision_relative, decision))
+                except (OSError, UnicodeError, yaml.YAMLError):
+                    confirmed = False
+                if not confirmed:
+                    fail_diag('REVISION_ACCEPTANCE_NOT_CONFIRMED', f'Acceptance requires canonical CONFIRMED {decision_id}.', 'acceptance_decisions')
+        if document.get('active_target') is True:
+            namespace = document.get('mockup_name') or document.get('mockup_id')
+            namespace = _canonical_path_key(namespace.strip()) if isinstance(namespace, str) and namespace.strip() else None
+            if namespace is None:
+                fail_diag('ACTIVE_TARGET_STATE_NOT_OBSERVABLE', 'Active target requires an explicit mockup namespace.', 'active_target')
+            revision_paths = list(root.glob('planning/revisions/REV-*.yaml')) + list(root.glob('planning/target-mockups/*/_history/REV-*/revision.yaml'))
+            for revision_file in revision_paths:
+                other_relative = revision_file.relative_to(root).as_posix()
+                if _canonical_path_key(other_relative) == _canonical_path_key(normalized):
+                    continue
+                safe = safe_file(root, other_relative)
+                try:
+                    other = load_yaml(safe.read_text(encoding='utf-8-sig')) if safe else None
+                except (OSError, UnicodeError, yaml.YAMLError):
+                    other = None
+                if not isinstance(other, dict):
+                    fail_diag('ACTIVE_TARGET_STATE_NOT_OBSERVABLE', f'Cannot establish active-target scope of {other_relative}.', 'active_target')
+                    continue
+                if other.get('active_target') is True:
+                    other_namespace = other.get('mockup_name') or other.get('mockup_id')
+                    other_namespace = _canonical_path_key(other_namespace.strip()) if isinstance(other_namespace, str) and other_namespace.strip() else None
+                    if other_namespace is None or other_namespace == namespace:
+                        fail_diag('ACTIVE_TARGET_CONFLICT', f'Existing active target in the same or unknown namespace: {other_relative}.', 'active_target')
+    page_ids: set[str] = set()
+    ui_dir = root / 'planning/ui-inventory'
+    if ui_dir.is_dir() and not ui_dir.is_symlink():
+        for p in sorted(ui_dir.glob('*.yaml')):
+            rel_p = p.relative_to(root).as_posix()
+            if _canonical_path_key(rel_p) == _canonical_path_key(normalized) or is_standalone_interaction_artifact(rel_p):
+                continue
+            safe_p = safe_file(root, rel_p)
+            if safe_p is None:
+                continue
+            try:
+                doc_p = load_yaml(safe_p.read_bytes().decode('utf-8-sig'))
+                if isinstance(doc_p, dict) and isinstance(doc_p.get('page_id'), str):
+                    if artifact_type == 'page' and doc_p.get('page_id') == document.get('page_id'):
+                        fail_diag('DUPLICATE_ID', f'page_id {document.get("page_id")} already exists in {rel_p}.', 'page_id')
+                    page_ids.add(doc_p['page_id'])
+            except (OSError, UnicodeError, yaml.YAMLError):
+                continue
+    if artifact_type == 'page' and isinstance(document.get('page_id'), str):
+        page_ids.add(document['page_id'])
+
+    req_ids: set[str] = set()
+    req_dir = root / 'requirements'
+    if req_dir.is_dir() and not req_dir.is_symlink():
+        for p in sorted(req_dir.glob('*.yml')):
+            rel_p = p.relative_to(root).as_posix()
+            if _canonical_path_key(rel_p) == _canonical_path_key(normalized):
+                continue
+            safe_p = safe_file(root, rel_p)
+            if safe_p is None:
+                continue
+            try:
+                doc_r = load_yaml(safe_p.read_bytes().decode('utf-8-sig'))
+                if isinstance(doc_r, dict) and isinstance(doc_r.get('ID'), str) and doc_r['ID'] == p.stem:
+                    req_ids.add(doc_r['ID'])
+            except (OSError, UnicodeError, yaml.YAMLError):
+                continue
+    if artifact_type == 'requirement' and isinstance(document.get('ID'), str):
+        req_ids.add(document['ID'])
+
+    dec_ids: set[str] = set()
+    dec_dir = root / 'planning/decisions'
+    if dec_dir.is_dir() and not dec_dir.is_symlink():
+        for p in sorted(dec_dir.glob('*.yml')):
+            rel_p = p.relative_to(root).as_posix()
+            if _canonical_path_key(rel_p) == _canonical_path_key(normalized):
+                continue
+            safe_p = safe_file(root, rel_p)
+            if safe_p is None:
+                continue
+            try:
+                doc_d = load_yaml(safe_p.read_bytes().decode('utf-8-sig'))
+                if isinstance(doc_d, dict) and isinstance(doc_d.get('ID'), str) and doc_d['ID'] == p.stem:
+                    dec_ids.add(doc_d['ID'])
+            except (OSError, UnicodeError, yaml.YAMLError):
+                continue
+    if artifact_type == 'decision' and isinstance(document.get('ID'), str):
+        dec_ids.add(document['ID'])
+
+    for screen_field in ('affected_screens', 'screens'):
+        screens = document.get(screen_field)
+        if isinstance(screens, list):
+            for scr in screens:
+                if not isinstance(scr, str) or not re.fullmatch(r'PAGE-[A-Z0-9_-]+', scr):
+                    fail_diag('SCHEMA_ERROR', f'{screen_field} entry {scr!r} is not a canonical PAGE-ID (^PAGE-[A-Z0-9_-]+$).', screen_field)
+                elif scr not in page_ids:
+                    fail_diag('REFERENCE_MISSING', f'{screen_field} references unknown canonical Page ID {scr}.', screen_field)
+    for single_screen_field in ('derivedFrom', 'page_id'):
+        scr = document.get(single_screen_field)
+        if isinstance(scr, str) and single_screen_field == 'derivedFrom':
+            if not re.fullmatch(r'PAGE-[A-Z0-9_-]+', scr):
+                fail_diag('SCHEMA_ERROR', f'derivedFrom ({scr!r}) is not a canonical PAGE-ID.', 'derivedFrom')
+            elif scr not in page_ids:
+                fail_diag('REFERENCE_MISSING', f'derivedFrom references unknown canonical Page ID {scr}.', 'derivedFrom')
+    if artifact_type == 'parity-verification' and isinstance(document.get('page_id'), str) and document['page_id'] not in page_ids:
+        fail_diag('REFERENCE_MISSING', f'Parity report page_id {document["page_id"]} has no canonical UI inventory target.', 'page_id')
+
+    for req_field in ('req', 'requirements', 'requirement_ids', 'affected_requirements'):
+        refs = document.get(req_field)
+        if isinstance(refs, list):
+            for ref in refs:
+                if not isinstance(ref, str) or ref not in req_ids:
+                    fail_diag('REFERENCE_MISSING', f'{req_field} references missing canonical Requirement {ref!r}.', req_field)
+
+    parent_documents: dict[str, dict] = {}
+    for field in ('spec', 'test_contract', 'test_contract_id'):
+        ref = document.get(field)
+        if not isinstance(ref, str):
+            continue
+        paths = [root / 'specs' / f'{ref}.yml'] if field == 'spec' else sorted((root / 'planning/test-contracts').glob('TC-*.yaml'))
+        matches: list[tuple[str, dict]] = []
+        for path in paths:
+            try:
+                parent_relative = path.relative_to(root).as_posix()
+                safe_parent = safe_file(root, parent_relative)
+                if safe_parent is None:
+                    continue
+                parent = load_yaml(safe_parent.read_bytes().decode('utf-8-sig'))
+                if isinstance(parent, dict) and parent.get('ID') == ref:
+                    matches.append((parent_relative, parent))
+            except (OSError, ValueError, UnicodeError, yaml.YAMLError):
+                continue
+        if not matches:
+            fail_diag('REFERENCE_MISSING', f'{field} references missing canonical parent {ref}.', field)
+        elif len(matches) != 1:
+            fail_diag('REFERENCE_AMBIGUOUS', f'{field} resolves to multiple canonical parents {ref}.', field)
+        else:
+            parent_relative, parent = matches[0]
+            valid_parent = identity_matches(parent_relative, ref, PurePosixPath(parent_relative).stem) and not schema_errors(parent_relative, parent)
+            req_field = 'requirements' if field == 'spec' else 'requirement_ids'
+            valid_parent = valid_parent and all(req in req_ids for req in parent.get(req_field, []))
+            if valid_parent and field != 'spec':
+                valid_parent = all(req in req_ids for point in parent.get('proof_points', [])
+                                   for req in (point.get('traceability') or {}).get('requirement_ids', []))
+            if not valid_parent:
+                fail_diag('REFERENCE_AMBIGUOUS', f'{field} parent identity, schema or requirements are invalid.', field)
+            else:
+                parent_documents[field] = parent
+    if artifact_type == 'verification-plan' and 'test_contract_id' in parent_documents:
+        proof_points = {point.get('id') for point in parent_documents['test_contract_id'].get('proof_points', []) if isinstance(point, dict)}
+        assignments = document.get('layer_assignments')
+        for assignment in assignments if isinstance(assignments, list) else []:
+            if isinstance(assignment, dict) and assignment.get('proof_point_id') not in proof_points:
+                fail_diag('REFERENCE_MISSING', 'Verification plan references an absent parent proof point.', 'layer_assignments/proof_point_id')
+
+    for dec_field in ('decision_ids', 'acceptance_decisions'):
+        refs = document.get(dec_field)
+        if isinstance(refs, list):
+            for ref in refs:
+                if not isinstance(ref, str) or ref not in dec_ids:
+                    fail_diag('REFERENCE_MISSING', f'{dec_field} references missing canonical Decision {ref!r}.', dec_field)
+
+    if artifact_type == 'requirement':
+        req_status = document.get('status')
+        self_id = document.get('ID')
+        if req_status == 'superseded':
+            succ = document.get('superseded_by')
+            if not isinstance(succ, str) or not succ or succ == self_id or (req_ids and succ not in req_ids):
+                fail_diag('REFERENCE_MISSING', 'Superseded Requirement requires one valid, distinct canonical superseded_by target.', 'superseded_by')
+        elif req_status in ('obsolete', 'retired', 'invalid'):
+            if document.get('superseded_by'):
+                fail_diag('AUTHORITY_CONFLICT', 'Obsolete/retired Requirement must not declare superseded_by.', 'superseded_by')
+        elif req_status == 'split':
+            reps = document.get('replacement_ids')
+            if not isinstance(reps, list) or len(set(reps)) < 2 or (self_id in (reps or [])) or (req_ids and any(r not in req_ids for r in reps)):
+                fail_diag('REFERENCE_MISSING', 'Split Requirement requires at least two distinct existing canonical replacement_ids.', 'replacement_ids')
+        elif req_status in ('merged', 'duplicate'):
+            target_id = document.get('merged_into') or document.get('superseded_by')
+            if not isinstance(target_id, str) or not target_id or target_id == self_id or (req_ids and target_id not in req_ids):
+                fail_diag('REFERENCE_MISSING', 'Merged/duplicate Requirement requires one valid, distinct canonical merged_into or superseded_by target.', 'merged_into')
+        elif req_status == 'ambiguous':
+            fail_diag('AUTHORITY_CONFLICT', 'Canonical Requirement cannot be written with unresolved AMBIGUOUS status.', 'status')
+
+    if artifact_type == 'decision' and document.get('status') == 'SUPERSEDED':
+        succ = document.get('superseded_by')
+        if not isinstance(succ, str) or not succ or succ == document.get('ID') or (dec_ids and succ not in dec_ids):
+            fail_diag('REFERENCE_MISSING', 'SUPERSEDED Decision requires one valid, distinct canonical superseded_by target.', 'superseded_by')
+
+    return {
+        'valid': not diagnostics,
+        'code': None if not diagnostics else 'CANONICAL_WRITE_PREVALIDATION_FAILED',
+        'target_path': normalized,
+        'artifact_type': artifact_type,
+        'diagnostics': diagnostics,
+    }
+
+
+def record_last_canonical_write(root: Path, relative: str, operation_class: str, run_id: str,
+                                candidate_fingerprint: str | None = None) -> None:
+    """Bind recovery to the before snapshot and exact authorized candidate, not any later edit."""
+    import base64
+    from projection_io import safe_path
+    root = root.resolve()
+    normalized = relative.replace('\\', '/')
+    if not is_canonical_write_target(normalized):
+        return
+    try:
+        target = safe_path(root, normalized)
+        journal_path = safe_path(root, LAST_CANONICAL_WRITE)
+        safe_path(root, '.mxagile/state/runs')
+        journal_path.parent.mkdir(parents=True, exist_ok=True)
+        existed = target.is_file()
+        raw = target.read_bytes() if existed else b''
+        before_fp = digest(raw) if existed else 'ABSENT'
+        record = {
+            'schema_version': 1,
+            'project_root': str(root),
+            'run_id': run_id,
+            'target_path': normalized,
+            'operation_class': operation_class,
+            'existed': existed,
+            'before_fingerprint': before_fp,
+            'authorized_result_fingerprint': candidate_fingerprint,
+            'before_content_b64': base64.b64encode(raw).decode('ascii') if existed and len(raw) <= 262144 else None,
+            'authorized_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+        atomic_replace(journal_path, (json.dumps(record, sort_keys=True, indent=2) + '\n').encode('utf-8'))
+    except (OSError, ValueError):
+        pass
+
+
+def last_canonical_write_journal(root: Path) -> dict | None:
+    from projection_io import safe_path
+    try:
+        path = safe_path(root.resolve(), LAST_CANONICAL_WRITE)
+        if not path.is_file():
+            return None
+        value = json.loads(path.read_text(encoding='utf-8-sig'))
+        if (not isinstance(value, dict) or value.get('schema_version') != 1
+                or value.get('project_root') != str(root.resolve())
+                or not isinstance(value.get('target_path'), str)
+                or not is_canonical_write_target(value['target_path'])):
+            return None
+        return value
+    except (OSError, ValueError):
+        return None
+
+
+def last_canonical_write_repair_plan(
+    root: Path,
+    *,
+    target_path: str | None = None,
+    candidate_bytes: bytes | None = None,
+) -> dict[str, Any]:
+    """Build a tightly bound recovery plan for the last invalid canonical write when Doctor is BLOCKED (A2)."""
+    import base64
+    from build_project_status import build_status
+    from projection_io import safe_path
+    root = root.resolve()
+    if os.path.lexists(root / '.mxagile/state/runs/framework-update-recovery.json'):
+        from framework_update_recovery import require_restarted
+        try:
+            require_restarted(root)
+        except ValueError as exc:
+            raise ResolutionFailure(str(exc)) from None
+    if safe_file(root, '.mxagile/state/update-transaction.json'):
+        raise ResolutionFailure('BOUNDED_REPAIR_UNAVAILABLE')
+    _, _, mig_state = _migration_state(root)
+    mig_record = mig_state.get('contract_migration') or {}
+    if mig_state.get('status') not in (None, 'complete') or mig_state.get('artifact_canonicalization') == 'in_progress':
+        raise ResolutionFailure('BOUNDED_REPAIR_UNAVAILABLE')
+    if mig_record and mig_record.get('status') not in (None, 'COMPLETE'):
+        raise ResolutionFailure('BOUNDED_REPAIR_UNAVAILABLE')
+
+    journal = last_canonical_write_journal(root)
+    if journal is None:
+        raise ResolutionFailure('BOUNDED_REPAIR_NO_JOURNAL')
+    journal_target = journal['target_path']
+    if target_path is not None and _canonical_path_key(target_path) != _canonical_path_key(journal_target):
+        raise ResolutionFailure('BOUNDED_REPAIR_SCOPE_MISMATCH')
+    report = build_status(root)['compatibility']
+    blocking = [item for item in report['diagnostics'] if item.get('blocking')]
+    if report['compatibility'] != 'BLOCKED' or not blocking:
+        raise ResolutionFailure('BOUNDED_REPAIR_NOT_BLOCKED')
+    if any(_canonical_path_key(str(item.get('source_path') or '')) != _canonical_path_key(journal_target) for item in blocking):
+        raise ResolutionFailure('BOUNDED_REPAIR_MULTIPLE_TARGETS')
+
+    current_file = safe_path(root, journal_target)
+    if not current_file.is_file():
+        raise ResolutionFailure('BOUNDED_REPAIR_TARGET_MISSING')
+    current_raw = current_file.read_bytes()
+    current_fp = digest(current_raw)
+    expected_result = journal.get('authorized_result_fingerprint')
+    if (not isinstance(expected_result, str) or not re.fullmatch(r'sha256:[a-f0-9]{64}', expected_result)
+            or current_fp != expected_result or current_fp == journal['before_fingerprint']):
+        raise ResolutionFailure('BOUNDED_REPAIR_NOT_CAUSAL')
+
+    if candidate_bytes is not None:
+        preval = prevalidate_canonical_write(root, journal_target, candidate_bytes)
+        if not preval['valid']:
+            raise ResolutionFailure('BOUNDED_REPAIR_CANDIDATE_INVALID')
+        if digest(candidate_bytes) != journal['before_fingerprint']:
+            if not journal.get('existed') or not isinstance(journal.get('before_content_b64'), str):
+                raise ResolutionFailure('BOUNDED_REPAIR_BEFORE_SNAPSHOT_UNAVAILABLE')
+            try:
+                before_bytes = base64.b64decode(journal['before_content_b64'].encode('ascii'), validate=True)
+                if digest(before_bytes) != journal['before_fingerprint']:
+                    raise ResolutionFailure('BOUNDED_REPAIR_JOURNAL_CORRUPT')
+                before_value = load_yaml(before_bytes.decode('utf-8-sig'))
+                candidate_value = load_yaml(candidate_bytes.decode('utf-8-sig'))
+            except (ValueError, UnicodeError, yaml.YAMLError):
+                raise ResolutionFailure('BOUNDED_REPAIR_JOURNAL_CORRUPT') from None
+            if not isinstance(before_value, dict) or protected_values(before_value) != protected_values(candidate_value):
+                raise ResolutionFailure('BOUNDED_REPAIR_PROTECTED_VALUES_CHANGED')
+        action = 'replace'
+        after_fp = digest(candidate_bytes)
+    else:
+        if journal['existed'] and isinstance(journal.get('before_content_b64'), str):
+            restored = base64.b64decode(journal['before_content_b64'].encode('ascii'))
+            if digest(restored) != journal['before_fingerprint']:
+                raise ResolutionFailure('BOUNDED_REPAIR_JOURNAL_CORRUPT')
+            preval = prevalidate_canonical_write(root, journal_target, restored)
+            if not preval['valid']:
+                raise ResolutionFailure('BOUNDED_REPAIR_ROLLBACK_INVALID')
+            action = 'rollback'
+            after_fp = journal['before_fingerprint']
+        elif not journal['existed']:
+            action = 'rollback_delete'
+            after_fp = 'ABSENT'
+        else:
+            raise ResolutionFailure('BOUNDED_REPAIR_ROLLBACK_UNAVAILABLE')
+
+    plan = {
+        'schema_version': 1,
+        'target_path': journal_target,
+        'action': action,
+        'journal_run_id': journal['run_id'],
+        'before_fingerprint': journal['before_fingerprint'],
+        'current_invalid_fingerprint': current_fp,
+        'after_fingerprint': after_fp,
+        'blocking_diagnostic_ids': sorted(item['diagnostic_id'] for item in blocking),
+        'source_fingerprint': report['source_fingerprint'],
+    }
+    plan['plan_hash'] = digest(json.dumps(plan, sort_keys=True).encode('utf-8'))
+    return plan
+
+
+def apply_last_canonical_write_repair(
+    root: Path,
+    *,
+    plan_hash: str,
+    run_id: str,
+    target_path: str | None = None,
+    candidate_bytes: bytes | None = None,
+) -> dict[str, Any]:
+    """Atomically execute the bounded last-write rollback or prevalidated repair (A2)."""
+    import base64
+    from build_project_status import build_status
+    from projection_io import safe_path
+    if not isinstance(run_id, str) or not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', run_id):
+        raise ResolutionFailure('RESOLUTION_RUN_REQUIRED')
+    active_run = os.environ.get('MXAGILE_RUN_ID', '')
+    if not active_run:
+        raise ResolutionFailure('BOUNDED_REPAIR_RUN_NOT_OBSERVABLE')
+    if active_run != run_id:
+        raise ResolutionFailure('BOUNDED_REPAIR_RUN_MISMATCH')
+    root = root.resolve()
+    plan = last_canonical_write_repair_plan(root, target_path=target_path, candidate_bytes=candidate_bytes)
+    if plan['journal_run_id'] != run_id:
+        raise ResolutionFailure('BOUNDED_REPAIR_RUN_MISMATCH')
+    if plan['plan_hash'] != plan_hash:
+        raise ResolutionFailure('STALE_BOUNDED_REPAIR_PLAN')
+    journal = last_canonical_write_journal(root)
+    target = safe_path(root, plan['target_path'])
+    original_invalid = target.read_bytes()
+    if digest(original_invalid) != plan['current_invalid_fingerprint']:
+        raise ResolutionFailure('STALE_BOUNDED_REPAIR_PLAN')
+    try:
+        if plan['action'] == 'replace' and candidate_bytes is not None:
+            atomic_replace(target, candidate_bytes)
+        elif plan['action'] == 'rollback' and journal and isinstance(journal.get('before_content_b64'), str):
+            restored = base64.b64decode(journal['before_content_b64'].encode('ascii'))
+            atomic_replace(target, restored)
+        elif plan['action'] == 'rollback_delete':
+            target.unlink()
+        else:
+            raise ResolutionFailure('BOUNDED_REPAIR_UNAVAILABLE')
+        after = build_status(root)['compatibility']
+        remaining_blocking = [item for item in after['diagnostics'] if item.get('blocking')]
+        if remaining_blocking:
+            raise ResolutionFailure('BOUNDED_REPAIR_POSTCHECK_FAILED')
+        _, events = _auxiliary_runtime()
+        try:
+            events.append_event(root, 'recovery_required', run_id=run_id, actor='bounded_write_repair', host='mxagile',
+                                payload={'operation_class': 'CONTROLLED_MUTATION', 'target_path': plan['target_path'],
+                                         'action': plan['action'], 'plan_hash': plan['plan_hash']})
+        except Exception:
+            pass
+        return {'result': 'APPLIED', 'plan': plan, 'compatibility': after['compatibility'], 'blocking_diagnostic_count': 0}
+    except Exception:
+        atomic_replace(target, original_invalid)
+        raise
+
+
+def inspect_mocketeer_sources(root: Path, source_paths: list[Path] | None = None) -> list[dict[str, Any]]:
+    """Observe embedded source declarations, including nested SPA entry points."""
+    root = root.resolve()
+    ui_ux = root / 'input-resources/ui-ux'
+    if source_paths is None and (not ui_ux.is_dir() or ui_ux.is_symlink()):
+        return []
+    sources: list[dict[str, Any]] = []
+    spec_re = re.compile(r'<script[^>]*\bid=["\']mocketeer-spec["\'][^>]*>(.*?)</script>', re.I | re.S)
+    for html_path in sorted(source_paths if source_paths is not None else ui_ux.rglob('*')):
+        if html_path.suffix.lower() not in ('.html', '.htm') or (source_paths is None and any(
+            part in ('_archive', '_history') for part in html_path.relative_to(ui_ux).parts
+        )):
+            continue
+        relative = html_path.relative_to(root).as_posix()
+        safe = safe_file(root, relative)
+        if safe is None:
+            continue
+        try:
+            raw = safe.read_bytes()
+            match = spec_re.search(raw.decode('utf-8-sig', errors='replace'))
+        except OSError:
+            continue
+        if not match:
+            continue
+        try:
+            spec = json.loads(match.group(1))
+        except ValueError:
+            spec = None
+        if not isinstance(spec, dict):
+            sources.append({'path': relative, 'sha256': digest(raw), 'valid_json': False,
+                            'contract_readiness': 'MALFORMED_CONTRACT', 'handoff_ready': False})
+            continue
+        mockup = spec.get('mockup') if isinstance(spec.get('mockup'), dict) else {}
+        readiness = spec.get('consumer_readiness') if isinstance(spec.get('consumer_readiness'), dict) else {}
+        assessment = spec.get('assessment') if isinstance(spec.get('assessment'), dict) else {}
+        mockup_id = mockup.get('id') if isinstance(mockup.get('id'), str) and mockup['id'].strip() else None
+        revision = mockup.get('revision')
+        revision = revision if type(revision) is int and revision >= 1 else None
+        previous = mockup.get('previous_revision')
+        previous = previous if type(previous) is int and previous >= 1 else None
+        contract_ready = (type(spec.get('schema_version')) is int and spec['schema_version'] == 1
+                          and mockup_id is not None and revision is not None
+                          and (mockup.get('previous_revision') is None or (previous is not None and previous < revision))
+                          and isinstance(spec.get('roles'), list) and isinstance(spec.get('requirements'), list))
+        handoff_ready = (readiness.get('status') == 'READY'
+                         or readiness.get('MOCKETEER_HANDOFF_READY') in ('JA', 'YES', True)
+                         or assessment.get('development_handoff_readiness') in ('HANDOFF_READY', 'READY'))
+        runtime_claim = ('VERIFIED' if readiness.get('runtime_verified') is True
+                         else 'PARTIAL' if readiness.get('runtime_validation') == 'PARTIAL' else 'NOT_VERIFIED')
+        screens = spec.get('screens') if isinstance(spec.get('screens'), list) else []
+        lifecycle = spec.get('requirement_lifecycle') if isinstance(spec.get('requirement_lifecycle'), list) else []
+        sources.append({
+            'path': relative, 'sha256': digest(raw), 'valid_json': True,
+            'canonical_source_type': 'embedded_mocketeer_spec', 'mockup_id': mockup_id,
+            'revision': revision, 'previous_revision': previous,
+            'contract_readiness': 'CONTRACT_READY' if contract_ready else 'INCOMPLETE',
+            'handoff_ready': bool(handoff_ready), 'readiness_origin': 'SOURCE_DECLARATION',
+            'runtime_verification': runtime_claim, 'runtime_verification_origin': 'SOURCE_DECLARATION',
+            'embedded_active_target_claim': mockup.get('active_target') is True,
+            'requirement_count': len(spec['requirements']) if isinstance(spec.get('requirements'), list) else 0,
+            'decision_count': len(spec['decisions']) if isinstance(spec.get('decisions'), list) else 0,
+            'screen_ids': [s.get('id') or s.get('screen_id') for s in screens
+                           if isinstance(s, dict) and isinstance(s.get('id') or s.get('screen_id'), str)],
+            'requirement_lifecycle_summary': {
+                status: sum(1 for item in lifecycle if isinstance(item, dict) and item.get('lifecycle') == status)
+                for status in ('UNCHANGED', 'MODIFIED', 'SUPERSEDED', 'OBSOLETE', 'SPLIT', 'MERGED', 'NEW', 'AMBIGUOUS')
+                if any(isinstance(item, dict) and item.get('lifecycle') == status for item in lifecycle)
+            },
+        })
+    return sources
+
+
+def classify_revision_dimensions(root: Path, revision_doc: dict, mocketeer_source: dict | None = None) -> dict[str, Any]:
+    """Project acceptance needs actual canonical approvals; source claims remain declarations."""
+    root = root.resolve()
+    decisions: dict[str, list[dict]] = {}
+    for path in sorted((root / 'planning/decisions').glob('*.yml')):
+        safe = safe_file(root, path.relative_to(root).as_posix())
+        if safe is None:
+            continue
+        try:
+            doc = load_yaml(safe.read_text(encoding='utf-8-sig'))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            continue
+        if isinstance(doc, dict) and isinstance(doc.get('ID'), str):
+            decisions.setdefault(doc['ID'], []).append({'path': path, 'document': doc})
+    refs = revision_doc.get('acceptance_decisions')
+    refs_valid = (isinstance(refs, list) and bool(refs) and all(
+        isinstance(ref, str) and re.fullmatch(r'DEC-[0-9]{3,}', ref) for ref in refs
+    ) and len(set(refs)) == len(refs))
+    confirmed, unresolved = [], []
+    for ref in refs if refs_valid else []:
+        matches = decisions.get(ref, [])
+        if (len(matches) == 1 and matches[0]['path'].stem == ref
+                and matches[0]['document'].get('status') == 'CONFIRMED'
+                and not raw_schema_errors(matches[0]['path'].relative_to(root).as_posix(), matches[0]['document'])):
+            confirmed.append(ref)
+        else:
+            unresolved.append(ref)
+    project_accepted = revision_doc.get('refinement_status') == 'ACCEPTED' and bool(refs_valid) and not unresolved
+    active_claim = revision_doc.get('active_target') is True
+    lifecycle_valid = revision_doc.get('lifecycle_status') in ('SOURCE', 'REFINED_TARGET')
+    source = mocketeer_source or {}
+    return {
+        'revision_id': revision_doc.get('revision_id'),
+        'mocketeer_contract_ready': source.get('contract_readiness') == 'CONTRACT_READY',
+        'mocketeer_handoff_ready': source.get('handoff_ready') is True,
+        'readiness_origin': 'SOURCE_DECLARATION' if mocketeer_source else 'UNASSESSED',
+        'runtime_verification': 'NOT_VERIFIED',
+        'source_runtime_verification_claim': source.get('runtime_verification', 'NOT_VERIFIED'),
+        'project_accepted_revision': project_accepted,
+        'project_active_target': active_claim and project_accepted and lifecycle_valid,
+        'active_target_without_acceptance': active_claim and not project_accepted,
+        'active_target_lifecycle_conflict': active_claim and not lifecycle_valid,
+        'confirmed_acceptance_decisions': confirmed, 'unresolved_acceptance_decisions': unresolved,
+    }
+
+
+def evaluate_mocketeer_reconciliation(root: Path) -> dict[str, Any]:
+    """Read both revision stores; reconcile exact source identities without target mutations."""
+    root = root.resolve()
+    sources = inspect_mocketeer_sources(root)
+    records, diagnostics = [], []
+    paths = sorted(set((root / 'planning/revisions').glob('REV-*.yaml')) | set(
+        (root / 'planning/target-mockups').glob('*/_history/REV-*/revision.yaml')))
+    for path in paths:
+        relative = path.relative_to(root).as_posix()
+        safe = safe_file(root, relative)
+        if safe is None:
+            diagnostics.append({'path': relative, 'reason': 'REVISION_UNREADABLE'})
+            continue
+        try:
+            raw = safe.read_bytes()
+            doc = load_yaml(raw.decode('utf-8-sig'))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            doc = None
+        if not isinstance(doc, dict):
+            diagnostics.append({'path': relative, 'reason': 'REVISION_INVALID_DOCUMENT'})
+            continue
+        archive = path.name == 'revision.yaml'
+        container_id = path.parent.name if archive else path.stem
+        rid = doc.get('revision_id')
+        namespace = doc.get('mockup_name') or (path.parent.parent.parent.name if archive else doc.get('mockup_id'))
+        namespace_valid = isinstance(namespace, str) and bool(namespace.strip())
+        if doc.get('mockup_id') is not None and not (isinstance(doc['mockup_id'], str) and doc['mockup_id'].strip()):
+            namespace_valid = False
+        if archive and namespace_valid:
+            namespace_valid = _canonical_path_key(namespace) == _canonical_path_key(path.parent.parent.parent.name)
+        if not namespace_valid or rid != container_id or not re.fullmatch(r'REV-[0-9]{3,}', rid or ''):
+            diagnostics.append({'path': relative, 'reason': 'REVISION_IDENTITY_AMBIGUOUS'})
+            continue
+        number = int(rid.split('-')[1])
+        if number < 1 or ('revision' in doc and (type(doc['revision']) is not int or doc['revision'] != number)):
+            diagnostics.append({'path': relative, 'reason': 'REVISION_NUMBER_CONFLICT'})
+            continue
+        predecessor = doc.get('previous_revision')
+        predecessor_id = doc.get('predecessor_revision_id')
+        lineage_valid = (predecessor is None or (type(predecessor) is int and 1 <= predecessor < number))
+        if predecessor_id is not None:
+            lineage_valid = lineage_valid and isinstance(predecessor_id, str) and bool(re.fullmatch(r'REV-[0-9]{3,}', predecessor_id))
+            if lineage_valid:
+                pred_num = int(predecessor_id.split('-')[1])
+                lineage_valid = 1 <= pred_num < number and (predecessor is None or pred_num == predecessor)
+        fingerprint = doc.get('artifact_hash')
+        fingerprint_valid = fingerprint is None or (isinstance(fingerprint, str) and bool(re.fullmatch(r'sha256:[a-f0-9]{64}', fingerprint)))
+        fingerprint_scope = 'source_artifact'
+        source_id = doc.get('mockup_id') or namespace
+        source_revision = number
+        source_previous = predecessor if predecessor is not None else (int(predecessor_id.split('-')[1]) if lineage_valid and predecessor_id else None)
+        if archive:
+            entry = doc.get('entry_point', 'index.html')
+            entry_path = safe_file(root, (path.parent.relative_to(root) / entry).as_posix()) if isinstance(entry, str) else None
+            if entry_path:
+                try:
+                    snapshot_hash = digest(entry_path.read_bytes())
+                    if fingerprint and fingerprint != doc.get('bundle_hash') and fingerprint != snapshot_hash:
+                        fingerprint_valid = False
+                    if doc.get('bundle_hash'):
+                        from artifact_hashing import hash_spa_bundle
+                        if any(item.is_symlink() for item in path.parent.rglob('*')) or hash_spa_bundle(path.parent, exclude_revision_yaml=True) != doc['bundle_hash']:
+                            fingerprint_valid = False
+                    fingerprint = snapshot_hash
+                    fingerprint_scope = 'archived_entry_point'
+                    archived_sources = inspect_mocketeer_sources(root, [entry_path])
+                    archived_source = archived_sources[0] if len(archived_sources) == 1 else {}
+                    source_id = archived_source.get('mockup_id')
+                    source_revision = archived_source.get('revision')
+                    source_previous = archived_source.get('previous_revision')
+                except (OSError, ValueError):
+                    fingerprint_valid = False
+            else:
+                fingerprint = None
+                fingerprint_valid = False
+                source_id = source_revision = source_previous = None
+        observed_fields = ('revision_id', 'revision', 'mockup_id', 'mockup_name', 'previous_revision',
+                           'predecessor_revision_id', 'artifact_path', 'artifact_hash', 'bundle_hash',
+                           'entry_point', 'refinement_status', 'lifecycle_status', 'active_target',
+                           'acceptance_decisions', 'impact_scope', 'affected_screens', 'screens', 'revision_delta')
+        observed_doc = {key: doc[key] for key in observed_fields if key in doc}
+        record = {
+            'path': relative, 'manifest_fingerprint': digest(raw), 'document': observed_doc,
+            'mockup_id': namespace, 'revision': number, 'revision_id': rid,
+            'source_mockup_id': source_id, 'source_revision': source_revision, 'source_previous_revision': source_previous,
+            'source_fingerprint': fingerprint, 'fingerprint_valid': bool(fingerprint_valid),
+            'fingerprint_scope': fingerprint_scope, 'lineage_valid': bool(lineage_valid),
+            'dimensions': classify_revision_dimensions(root, doc),
+        }
+        records.append(record)
+    by_identity: dict[tuple, list[dict]] = {}
+    for record in records:
+        by_identity.setdefault((record['source_mockup_id'], record['source_revision']), []).append(record)
+    source_hashes: dict[tuple, set[str]] = {}
+    for source in sources:
+        source_hashes.setdefault((source.get('mockup_id'), source.get('revision')), set()).add(source['sha256'])
+    unreconciled, reconciled, unassessed = [], [], []
+    for source in sources:
+        key = (source.get('mockup_id'), source.get('revision'))
+        matches = by_identity.get(key, [])
+        reason = None
+        if source.get('contract_readiness') != 'CONTRACT_READY':
+            reason = 'SOURCE_CONTRACT_UNASSESSED'
+        elif len(source_hashes[key]) > 1 or len(matches) > 1:
+            reason = 'SOURCE_REVISION_AMBIGUOUS'
+        elif not matches:
+            reason = 'SOURCE_REVISION_NOT_RECORDED'
+        else:
+            record = matches[0]
+            if not record['lineage_valid']:
+                reason = 'REVISION_LINEAGE_CONFLICT'
+            elif source.get('previous_revision') is not None and source['previous_revision'] != record['source_previous_revision']:
+                reason = 'SOURCE_LINEAGE_UNRECONCILED'
+            elif not record['fingerprint_valid'] or record['source_fingerprint'] != source['sha256']:
+                reason = 'SOURCE_FINGERPRINT_CHANGED_OR_UNVERIFIED'
+        if reason is None:
+            reconciled.append({**source, 'reconciliation_state': 'RECONCILED', 'revision_path': matches[0]['path'],
+                               'fingerprint_scope': matches[0]['fingerprint_scope'],
+                               'dimensions': classify_revision_dimensions(root, matches[0]['document'], source)})
+        else:
+            item = {**source, 'reconciliation_state': 'RECONCILIATION_REQUIRED', 'reason': reason,
+                    'auto_set_active_target': False, 'recommended_action': 'initiate_mocketeer_delta_and_impact_reconciliation'}
+            (unreconciled if source.get('handoff_ready') else unassessed).append(item)
+    return {
+        'canonical_delivery_source': 'embedded_mocketeer_spec', 'sources_inspected': len(sources),
+        'reconciled': reconciled, 'unreconciled_handoff_ready': unreconciled, 'unassessed_sources': unassessed,
+        'reconciliation_required': bool(unreconciled), 'revision_records': records, 'revision_diagnostics': diagnostics,
+    }
+
+
+def reconcile_page_revision_bindings(root: Path, revision_id: str | None = None, *, mockup_name: str | None = None,
+                                     _evaluation: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Evaluate accepted-target bindings and reuse eligibility without rewriting artifacts or declaring evidence PASS."""
+    root = root.resolve()
+    evaluation = _evaluation if _evaluation is not None else evaluate_mocketeer_reconciliation(root)
+    records = evaluation['revision_records']
+    candidates = [r for r in records if (r['revision_id'] == revision_id if revision_id
+                                       else r['document'].get('active_target') is True)
+                  and (mockup_name is None or _canonical_path_key(r['mockup_id']) == _canonical_path_key(mockup_name))]
+    result = {'revision_id': revision_id, 'state': 'NO_ACTIVE_REVISION', 'bound_pages': [],
+              'impacted_pages': [], 'unchanged_pages': [], 'missing_pages': [], 'ambiguous_pages': [],
+              'unrelated_pages': [], 'revision_diagnostics': evaluation['revision_diagnostics'],
+              'selective_binding_rule': 'only_impacted_pages_require_re_binding_and_stale_propagation',
+              'retention_requires_existing_valid_evidence': True, 'evidence_retention_is_pass': False}
+    if len(candidates) > 1:
+        result['state'] = 'AMBIGUOUS_REVISION'
+        return result
+    if not candidates:
+        if evaluation['revision_diagnostics']:
+            result['state'] = 'REVISION_SCOPE_UNASSESSED'
+        return result
+    target = candidates[0]
+    if sum(_canonical_path_key(r['mockup_id']) == _canonical_path_key(target['mockup_id']) and r['revision_id'] == target['revision_id'] for r in records) != 1:
+        result['state'] = 'AMBIGUOUS_REVISION'
+        return result
+    result['revision_id'] = target['revision_id']
+    result['mockup_id'] = target['mockup_id']
+    if not target['dimensions']['project_active_target'] or not target['lineage_valid']:
+        result['state'] = 'REVISION_NOT_ACTIVE_OR_ACCEPTED'
+        return result
+    if not target['fingerprint_valid']:
+        result['state'] = 'REVISION_FINGERPRINT_CONFLICT'
+        return result
+    doc = target['document']
+    scope = doc.get('impact_scope', 'unknown')
+    affected = set()
+    scope_invalid = scope not in ('targeted', 'full', 'cross_cutting', 'unknown')
+    screen_refs = doc.get('affected_screens', [])
+    if not isinstance(screen_refs, list):
+        screen_refs, scope_invalid = [], True
+    for sid in screen_refs:
+        if isinstance(sid, str) and re.fullmatch(r'PAGE-[A-Z0-9_-]+', sid):
+            affected.add(sid)
+        else:
+            scope_invalid = True
+    unchanged_proven = set()
+    screens = doc.get('screens') if isinstance(doc.get('screens'), list) else []
+    for screen in screens:
+        if not isinstance(screen, dict):
+            scope_invalid = True
+            continue
+        sid = screen.get('page_id') or screen.get('screen_id')
+        deltas = [v for k, v in screen.items() if k.startswith('delta_')]
+        if not isinstance(sid, str) or not re.fullmatch(r'PAGE-[A-Z0-9_-]+', sid):
+            scope_invalid = True
+        elif deltas and all(delta == 'UNCHANGED' for delta in deltas):
+            unchanged_proven.add(sid)
+        elif deltas:
+            affected.add(sid)
+    delta = doc.get('revision_delta') if isinstance(doc.get('revision_delta'), dict) else {}
+    effects = delta.get('effects') if isinstance(delta.get('effects'), list) else []
+    shared_change = any(delta.get(flag) is True for flag in ('roles_refined', 'permissions_refined', 'business_rules_refined', 'platform_boundaries_refined'))
+    for effect in effects:
+        if not isinstance(effect, dict):
+            scope_invalid = True
+            continue
+        if effect.get('type') in ('NAVIGATION', 'ROLE', 'PERMISSION', 'BUSINESS_RULE') and effect.get('change') != 'NO_CHANGE':
+            shared_change = True
+        sid = effect.get('target')
+        if isinstance(sid, str) and re.fullmatch(r'PAGE-[A-Z0-9_-]+', sid):
+            (unchanged_proven if effect.get('change') == 'NO_CHANGE' else affected).add(sid)
+    if scope == 'targeted' and not affected:
+        scope_invalid = True
+    pages: dict[str, list[dict]] = {}
+    for path in sorted((root / 'planning/ui-inventory').glob('*.yaml')):
+        relative = path.relative_to(root).as_posix()
+        if is_standalone_interaction_artifact(relative):
+            continue
+        safe = safe_file(root, relative)
+        if safe is None:
+            continue
+        try:
+            page = load_yaml(safe.read_text(encoding='utf-8-sig'))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            continue
+        if not isinstance(page, dict) or not isinstance(page.get('page_id'), str):
+            continue
+        pid = page['page_id']
+        page_namespace = page.get('mockup_name')
+        namespaces = {page_namespace} if isinstance(page_namespace, str) and page_namespace.strip() else set()
+        if len(namespaces) != 1:
+            artifact_path = doc.get('artifact_path')
+            related_path = isinstance(artifact_path, str) and artifact_path in (page.get('target_mockup'), page.get('source_mockup'))
+            if pid in affected or page.get('target_revision') == target['revision_id'] or related_path or target['mockup_id'] in namespaces:
+                result['ambiguous_pages'].append(pid)
+        elif _canonical_path_key(target['mockup_id']) not in {_canonical_path_key(name) for name in namespaces}:
+            result['unrelated_pages'].append(pid)
+        else:
+            pages.setdefault(pid, []).append(page)
+    broad_scope = scope in ('full', 'cross_cutting', 'unknown') or shared_change or scope_invalid
+    if broad_scope:
+        affected.update(pages)
+    result['missing_pages'] = sorted(affected - pages.keys())
+    for pid, matches in sorted(pages.items()):
+        if len(matches) != 1:
+            result['ambiguous_pages'].append(pid)
+            continue
+        is_bound = matches[0].get('target_revision') == target['revision_id']
+        if is_bound:
+            result['bound_pages'].append(pid)
+        if pid in affected:
+            result['impacted_pages'].append({'page_id': pid, 'bound_to_active': is_bound,
+                                            'evidence_disposition': 'STALE_REVERIFY_REQUIRED'})
+        else:
+            result['unchanged_pages'].append({'page_id': pid, 'bound_to_active': is_bound,
+                'evidence_disposition': 'RETAIN_VALID_EVIDENCE' if pid in unchanged_proven else 'UNCHANGED_SCOPE_UNVERIFIED'})
+    if scope_invalid or scope == 'unknown':
+        result['state'] = 'IMPACT_SCOPE_UNASSESSED'
+    elif result['ambiguous_pages']:
+        result['state'] = 'AMBIGUOUS_PAGE_MAPPING'
+    elif result['missing_pages'] or not result['impacted_pages']:
+        result['state'] = 'MISSING_PAGE_MAPPING'
+    elif all(page['bound_to_active'] for page in result['impacted_pages']):
+        result['state'] = 'BOUND'
+    elif any(page['bound_to_active'] for page in result['impacted_pages']):
+        result['state'] = 'PARTIALLY_BOUND'
+    else:
+        result['state'] = 'ACTIVE_REVISION_UNBOUND'
+    return result
+
+
+def evaluate_wave_reconciliation(root: Path) -> dict[str, Any]:
+    """Compare execution-waves.md claims against canonical process-state.yaml (C2, C3)."""
+    from wave_ids import extract_plan_wave_claims
+    root = root.resolve()
+    plan_path = safe_file(root, 'planning/execution-waves.md')
+    process_path = safe_file(root, 'planning/lifecycle/process-state.yaml')
+    plan_text = plan_path.read_text(encoding='utf-8-sig') if plan_path else ''
+    process_doc = load_yaml(process_path.read_text(encoding='utf-8-sig')) if process_path else {}
+    waves = process_doc.get('waves', {}) if isinstance(process_doc, dict) and isinstance(process_doc.get('waves'), dict) else {}
+    claims = extract_plan_wave_claims(plan_text)
+    conflicts = []
+    legacy_unreconciled = []
+
+    for wave_id, entry in sorted(claims.items()):
+        statuses = {item[0] for item in entry['statuses']}
+        commits = {item[0] for item in entry['commits']}
+        if len(statuses) > 1:
+            conflicts.append({
+                'wave_id': wave_id,
+                'conflict_type': 'INTERNAL_PLAN_STATUS_CONFLICT',
+                'status': 'RECONCILIATION_REQUIRED',
+                'claimed_statuses': sorted(statuses),
+            })
+        if len(commits) > 1:
+            conflicts.append({
+                'wave_id': wave_id,
+                'conflict_type': 'INTERNAL_PLAN_COMMIT_CONFLICT',
+                'status': 'RECONCILIATION_REQUIRED',
+                'claimed_commits': sorted(commits),
+            })
+        canonical = waves.get(wave_id)
+        canonical_phase = canonical.get('phase') if isinstance(canonical, dict) else None
+        if 'done' in statuses and canonical_phase != 'done':
+            conflicts.append({
+                'wave_id': wave_id,
+                'conflict_type': 'PLAN_DONE_VS_PROCESS_STATE',
+                'status': 'RECONCILIATION_REQUIRED',
+                'plan_claim': 'done',
+                'canonical_phase': canonical_phase,
+            })
+
+    for wave_id, block in sorted(waves.items()):
+        if not isinstance(block, dict):
+            continue
+        resume_note = str(block.get('resume_from') or '')
+        if 'UNKNOWN_REQUIRES_RECONCILIATION' in resume_note:
+            legacy_unreconciled.append({
+                'wave_id': wave_id,
+                'phase': block.get('phase'),
+                'classification': 'UNKNOWN_REQUIRES_RECONCILIATION',
+                'auto_promote_to_done': False,
+            })
+
+    return {
+        'reconciliation_required': bool(conflicts or legacy_unreconciled),
+        'plan_process_conflicts': conflicts,
+        'legacy_waves_requiring_reconciliation': legacy_unreconciled,
+    }
+
+
+def wave_delivery_prerequisites(root: Path, wave_id: str | None) -> dict[str, Any]:
+    """Read governing decisions and current work from canonical Task/Spec links, not plan prose."""
+    result: dict[str, Any] = {'requirement_ids': [], 'open_decisions': [], 'unfinished_tasks': [], 'security_required': False}
+    if not wave_id:
+        return result
+    req_ids: set[str] = set()
+    for path in sorted((root / 'planning/tasks').glob('*.yml')):
+        relative = path.relative_to(root).as_posix()
+        safe = safe_file(root, relative)
+        if safe is None:
+            continue
+        try:
+            task = load_yaml(safe.read_bytes().decode('utf-8-sig'))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            continue
+        if (not isinstance(task, dict) or schema_errors(relative, task)
+                or assignment(root, task, {wave_id})[1] != wave_id):
+            continue
+        req_ids.update(ref for ref in task.get('req', []) if isinstance(ref, str))
+        spec_id = task.get('spec')
+        spec_file = safe_file(root, f'specs/{spec_id}.yml') if isinstance(spec_id, str) else None
+        if spec_file:
+            try:
+                spec = load_yaml(spec_file.read_bytes().decode('utf-8-sig'))
+                if isinstance(spec, dict) and not schema_errors(f'specs/{spec_id}.yml', spec):
+                    req_ids.update(ref for ref in spec.get('requirements', []) if isinstance(ref, str))
+            except (OSError, UnicodeError, yaml.YAMLError):
+                pass
+        if task.get('status', 'pending') in {'pending', 'in_progress', 'failed', 'blocked'}:
+            result['unfinished_tasks'].append(task.get('ID') or path.stem)
+        if task.get('type') == 'security':
+            result['security_required'] = True
+    for path in sorted((root / 'planning/decisions').glob('*.yml')):
+        relative = path.relative_to(root).as_posix()
+        safe = safe_file(root, relative)
+        if safe is None:
+            continue
+        try:
+            decision = projected_for_validation(relative, load_yaml(safe.read_bytes().decode('utf-8-sig')))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            continue
+        if (isinstance(decision, dict) and not schema_errors(relative, decision)
+                and decision.get('status') == 'PROPOSED'
+                and req_ids.intersection(decision.get('affected_requirements') or [])):
+            result['open_decisions'].append({'id': decision.get('ID') or path.stem,
+                                              'affected_requirements': decision.get('affected_requirements', [])})
+    result['requirement_ids'] = sorted(req_ids)
+    return result
+
+
+def delivery_preflight(root: Path, *, require_capability: str = '') -> dict[str, Any]:
+    """Fast, scope-aware preflight before starting a Delivery phase or larger Workpackage (B1, B2, H2)."""
+    from build_project_status import build_status
+    root = root.resolve()
+    guard, _ = _auxiliary_runtime()
+    facts = guard.load_project_facts(root)
+    auth = guard.delivery_authorization(facts, 'IMPLEMENTATION_WRITE')
+    blocker_codes = [item['code'] for item in auth.get('must_findings', [])]
+    warning_codes = [item['code'] for item in auth.get('should_findings', []) if item.get('code') not in {'MODEL_SCOPE_NOT_OBSERVABLE', 'PROJECT_IDENTITY_NOT_OBSERVED'}]
+
+    wave_id = facts.mission.get('active_wave') if isinstance(facts.mission, dict) else None
+    wave_block = (facts.process_state.get('waves') or {}).get(wave_id) if isinstance(facts.process_state, dict) and wave_id else {}
+    wave_block = wave_block if isinstance(wave_block, dict) else {}
+    prerequisites = wave_delivery_prerequisites(root, wave_id)
+    open_decisions = prerequisites['open_decisions']
+    if open_decisions:
+        blocker_codes.append('OPEN_WAVE_DECISION_PROPOSED')
+
+    # Check Security Gate status (H2: No Model Error != Security Gate Passed)
+    resume_text = str(wave_block.get('resume_from') or '')
+    gates = wave_block.get('gates') if isinstance(wave_block.get('gates'), dict) else {}
+    security_gate = gates.get('security_gate') if isinstance(gates, dict) else None
+    security_gate_open = bool(
+        (isinstance(security_gate, dict) and security_gate.get('result') != 'passed')
+        or re.search(r'security[-_\s]?gate.*(offen|ausstehend|pending|nicht dokumentiert)|update security.*steht aus', resume_text, re.I)
+    )
+    if security_gate_open:
+        warning_codes.append('SECURITY_GATE_OPEN')
+
+    mocketeer = evaluate_mocketeer_reconciliation(root)
+    if mocketeer['reconciliation_required'] or mocketeer['revision_diagnostics']:
+        warning_codes.append('MOCKETEER_REVISION_UNRECONCILED')
+    active_scopes = sorted({(record['mockup_id'], record['revision_id']) for record in mocketeer['revision_records']
+                            if record['document'].get('active_target') is True})
+    page_bindings = [reconcile_page_revision_bindings(root, rid, mockup_name=name, _evaluation=mocketeer)
+                     for name, rid in active_scopes]
+    if any(binding['state'] != 'BOUND' for binding in page_bindings):
+        warning_codes.append('ACTIVE_REVISION_PAGE_BINDING_UNRECONCILED')
+
+    wave_reconcil = evaluate_wave_reconciliation(root)
+    if wave_reconcil['plan_process_conflicts']:
+        warning_codes.append('PLAN_PROCESS_STATE_CONFLICT')
+
+    # Pre-Implementation Checkpoint check (B2)
+    dirty_output = guard._git_value(root, 'status', '--porcelain')
+    working_tree_clean = None if dirty_output is None else not bool(dirty_output)
+    checkpoints = facts.mission.get('checkpoint_commits') if isinstance(facts.mission, dict) and isinstance(facts.mission.get('checkpoint_commits'), list) else []
+    if working_tree_clean is None:
+        warning_codes.append('PRE_IMPLEMENTATION_CHECKPOINT_NOT_OBSERVABLE')
+    elif not working_tree_clean:
+        warning_codes.append('PRE_IMPLEMENTATION_CHECKPOINT_RECOMMENDED')
+
+    capability_state = 'NOT_REQUESTED'
+    if require_capability:
+        # A registry declaration is not a current host/provider execution probe.
+        capability_state = 'NOT_OBSERVABLE'
+        blocker_codes.append(f'REQUIRED_CAPABILITY_NOT_OBSERVABLE:{require_capability}')
+
+    state = 'DELIVERY_PREFLIGHT_BLOCKED' if blocker_codes else ('DELIVERY_PREFLIGHT_WARNING' if warning_codes else 'READY_FOR_DELIVERY')
+    return {
+        'stage': 'DELIVERY_PHASE_PREFLIGHT',
+        'read_only': True,
+        'state': state,
+        'mission_id': facts.mission.get('mission_id') if isinstance(facts.mission, dict) else None,
+        'active_wave': wave_id,
+        'wave_phase': wave_block.get('phase'),
+        'doctor_compatibility': facts.doctor_compatibility,
+        'blocker_codes': sorted(set(blocker_codes)),
+        'warning_codes': sorted(set(warning_codes)),
+        'open_decisions': open_decisions,
+        'security_gate': {
+            'open': security_gate_open,
+            'model_clean_implies_security_passed': False,
+        },
+        'mocketeer_reconciliation': {
+            'reconciliation_required': mocketeer['reconciliation_required'],
+            'unreconciled_count': len(mocketeer['unreconciled_handoff_ready']),
+            'page_bindings': page_bindings,
+            'revision_diagnostics': mocketeer['revision_diagnostics'],
+        },
+        'wave_reconciliation': wave_reconcil,
+        'pre_implementation_checkpoint': {
+            'working_tree_clean': working_tree_clean,
+            'recorded_checkpoints': len(checkpoints),
+            'checkpoint_provenance': 'MISSION_DECLARED_NOT_GIT_VERIFIED',
+            'recommended_before_major_wave': working_tree_clean is not True,
+        },
+        'required_capability': {'id': require_capability or None, 'state': capability_state},
+    }
 
 
 BOARD_SMOKE_FAILING_RESULTS = ('FAIL', 'TIMEOUT', 'ERROR')
@@ -2156,18 +3443,24 @@ def board_smoke_exit_code(doctor_code: int, smoke: dict | None, *, required: boo
 
 def main() -> int:
     parser = argparse.ArgumentParser(description='Project compatibility Doctor and scoped contract recovery.', allow_abbrev=False)
-    parser.add_argument('command', choices=['doctor', 'repair', 'contract-snapshot', 'migrate', 'resolve', 'auxiliary', 'resync-preflight'], nargs='?', default='doctor')
+    parser.add_argument('command', choices=['doctor', 'repair', 'contract-snapshot', 'migrate', 'resolve', 'auxiliary', 'resync-preflight', 'validate-write', 'repair-last-write', 'delivery-preflight'], nargs='?', default='doctor')
     parser.add_argument('--project-root', type=Path, default=Path.cwd())
     parser.add_argument('--format', choices=['json', 'human'], default='human')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--dry-run', action='store_true')
     mode.add_argument('--apply', action='store_true')
     mode.add_argument('--apply-safe', action='store_true')
+    migration_scope = parser.add_mutually_exclusive_group()
+    migration_scope.add_argument('--record-only', action='store_true', help='persist reconciliation without source repairs (migrate --apply-safe only)')
+    migration_scope.add_argument('--contract-only', action='store_true', help='apply only lossless versioned contract normalizations, not assignments or ordinary source repairs (migrate --apply-safe only)')
     parser.add_argument('--mission-id', default='')
     parser.add_argument('--wave', default='')
     parser.add_argument('--phase', default='')
     parser.add_argument('--plan-hash')
     parser.add_argument('--candidate-dir', type=Path)
+    parser.add_argument('--target-path')
+    parser.add_argument('--candidate-file', type=Path)
+    parser.add_argument('--require-capability', default='')
     for flag in ('diagnostic-id', 'migration-id', 'source-path', 'field', 'source-fingerprint', 'value', 'human-reference', 'run-id'):
         parser.add_argument('--' + flag)
     parser.add_argument('--human-confirmed', action='store_true')
@@ -2185,12 +3478,14 @@ def main() -> int:
         parser.error('the Board smoke is a Doctor option; it cannot be combined with repair.')
     if args.apply_safe and args.command != 'migrate':
         parser.error('--apply-safe requires migrate.')
+    if (args.record_only or args.contract_only) and (args.command != 'migrate' or not args.apply_safe):
+        parser.error('--record-only / --contract-only require migrate --apply-safe.')
     if args.command != 'resync-preflight' and (args.mission_id or args.wave or args.phase):
         parser.error('Mission, Wave and phase selectors require resync-preflight.')
     if args.command in ('contract-snapshot', 'migrate', 'resync-preflight') and (args.apply or args.plan_hash or args.candidate_dir or args.board_smoke or args.require_board_smoke):
         parser.error('Contract recovery does not accept arbitrary repair or smoke arguments.')
     resolution_request = {key: getattr(args, key) for key in ('diagnostic_id', 'migration_id', 'source_path', 'field', 'source_fingerprint', 'value', 'human_reference', 'human_confirmed', 'run_id')}
-    if args.command not in ('resolve', 'auxiliary') and any(resolution_request.values()):
+    if args.command not in ('resolve', 'auxiliary', 'repair-last-write') and any(resolution_request.values()):
         parser.error('Human resolution selectors require resolve.')
     if args.command != 'auxiliary' and args.auxiliary_request:
         parser.error('--auxiliary-request requires auxiliary.')
@@ -2203,6 +3498,27 @@ def main() -> int:
         parser.error('Resolve accepts only a bound resolution or a read-only --dry-run.')
     run_smoke = args.board_smoke or args.require_board_smoke
     try:
+        if args.command == 'validate-write':
+            if not args.target_path or not args.candidate_file:
+                parser.error('validate-write requires --target-path and --candidate-file.')
+            result = prevalidate_canonical_write(root, args.target_path, args.candidate_file.read_bytes())
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0 if result['valid'] else 2
+        if args.command == 'repair-last-write':
+            candidate_raw = args.candidate_file.read_bytes() if args.candidate_file else None
+            if args.apply:
+                if not args.plan_hash or not args.run_id:
+                    parser.error('--apply requires --plan-hash and --run-id.')
+                result = apply_last_canonical_write_repair(root, plan_hash=args.plan_hash, run_id=args.run_id,
+                                                           target_path=args.target_path, candidate_bytes=candidate_raw)
+            else:
+                result = {'read_only': True, 'plan': last_canonical_write_repair_plan(root, target_path=args.target_path, candidate_bytes=candidate_raw)}
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0
+        if args.command == 'delivery-preflight':
+            result = delivery_preflight(root, require_capability=args.require_capability)
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0 if result['state'] != 'DELIVERY_PREFLIGHT_BLOCKED' else 2
         if args.command == 'auxiliary':
             request = decode_auxiliary_request(args.auxiliary_request)
             result = {'read_only': True, 'plan': auxiliary_write_plan(root, request)} if args.dry_run else apply_auxiliary_write(
@@ -2223,7 +3539,7 @@ def main() -> int:
             print(json.dumps(contract_snapshot(root), sort_keys=True))
             return 0
         if args.command == 'migrate':
-            result = reconcile_contract(root, apply_safe=args.apply_safe)
+            result = reconcile_contract(root, apply_safe=args.apply_safe, repair_sources=not args.record_only, contract_only=args.contract_only)
             print(json.dumps(result, sort_keys=True, indent=2))
             return {'COMPATIBLE': 0, 'PARTIAL': 1, 'BLOCKED': 2}[result['doctor']['compatibility']]
         if args.command == 'resync-preflight':

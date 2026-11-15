@@ -148,6 +148,95 @@ class UpdateRecoveryTests(Phase1BFixture):
         self.assertEqual(path.read_bytes(), old)
 
 
+class UpdateHandoffTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.workspace = tempfile.TemporaryDirectory(prefix='mxagile-update-result-')
+        self.addCleanup(self.workspace.cleanup)
+        self.root = Path(self.workspace.name)
+        self.state_dir = self.root / '.mxagile/state'
+        self.state_dir.mkdir(parents=True)
+        self.repo = GUARD_DIR.parents[1]
+
+    def run_powershell(self, body):
+        def quote(value):
+            return "'" + str(value).replace("'", "''") + "'"
+        script = f"$ErrorActionPreference='Stop'; $root={quote(self.root)}; $repo={quote(self.repo)}; " + r'''
+. (Join-Path $repo 'scripts/update-transaction.ps1')
+$tokens=$null; $errors=$null
+$ast=[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/install-core.ps1'),[ref]$tokens,[ref]$errors)
+$function=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-PostUpdateCompatibility'},$true)
+Invoke-Expression $function.Extent.Text
+$transaction=New-MxAgileCoreUpdateTransaction -Root $root -TargetCore @{commit=('b'*40);version='2';source='fixture-core';ref='fixture-ref'}
+$transaction.completed_stages=@('CORE_UPDATE','GENERATED_PROJECTIONS')
+$core=@{commit=('b'*40);version='2';installed_at='2026-11-15T00:00:00Z';install_mode='update';previous_version='1';previous_commit=('a'*40)}
+$core | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root '.mxagile/state/core-provenance.json')
+''' + body + "\nWrite-Output 'FIXTURE_VALIDATED'\n"
+        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script], capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout
+
+    def test_company_handoff_never_merges_previous_generation(self):
+        previous = {'schema_version': 1, 'installed_at': 'old', 'framework': {'commit': 'a' * 40, 'update_successful': True},
+                    'migration': {'status': 'COMPLETE'}, 'completed_stages': ['DOCTOR'], 'restart_required': False,
+                    'update_transaction': {'update_attempt_id': 'OLD'}, 'unknown_historical_field': 'old'}
+        handoff = self.state_dir / 'last-update-result.json'
+        handoff.write_text(json.dumps(previous))
+        # Exercise the public adapter; it must delegate to the canonical writer.
+        self.run_powershell(r'''
+$tokens=$null; $errors=$null
+$ast=[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'mxagile-setup-company-layer.ps1'),[ref]$tokens,[ref]$errors)
+$function=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Save-UpdateHandoff'},$true)
+Invoke-Expression $function.Extent.Text
+$ProjectRoot=$root
+$transaction.state='PARTIAL_UPDATE'; $transaction.restart_required=$true
+$core | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root '.mxagile/state/core-provenance.json')
+$doctor=@{executed=$false;compatibility='NOT_VERIFIED';reason='PROJECTIONS_INCOMPLETE'}
+Save-UpdateHandoff -Transaction $transaction -Doctor $doctor
+''')
+        value = json.loads(handoff.read_bytes())
+        self.assertEqual(value['framework']['commit'], 'b' * 40)
+        self.assertFalse(value['framework']['update_successful'])
+        self.assertEqual(value['installed_at'], '2026-11-15T00:00:00Z')
+        self.assertEqual(value['migration']['status'], 'NOT_VERIFIED')
+        self.assertNotIn('DOCTOR', value['completed_stages'])
+        self.assertNotIn('unknown_historical_field', value)
+        self.assertEqual(value['update_attempt_id'], value['update_transaction']['update_attempt_id'])
+        self.assertTrue(value['restart_required'])
+        self.assertEqual(value['session_contract']['state'], 'SESSION_RESTART_REQUIRED')
+
+    def test_core_completion_rejects_another_attempt_even_at_same_commit(self):
+        self.run_powershell(r'''
+Invoke-PostUpdateCompatibility -Root $root -ToolsDir $root -CoreProvenance $core -Transaction $transaction | Out-Null
+$transaction.update_attempt_id='UPDATE-another-attempt'
+$before=[IO.File]::ReadAllText((Join-Path $root '.mxagile/state/last-update-result.json'))
+try { Complete-MxAgileCoreUpdateTransaction -Root $root -Transaction $transaction; throw 'accepted stale handoff' }
+catch { if ($_.Exception.Message -notmatch 'UPDATE_RESULT_GENERATION_MISMATCH') { throw } }
+if ([IO.File]::ReadAllText((Join-Path $root '.mxagile/state/last-update-result.json')) -ne $before) { throw 'stale handoff changed' }
+''')
+
+    def test_core_handoff_persistence_failure_is_not_success(self):
+        self.run_powershell(r'''
+New-Item -ItemType Directory -Path (Join-Path $root '.mxagile/state/last-update-result.json') | Out-Null
+try { Invoke-PostUpdateCompatibility -Root $root -ToolsDir $root -CoreProvenance $core -Transaction $transaction; throw 'accepted missing result' }
+catch { if ($_.Exception.Message -notmatch 'UPDATE_RESULT_PERSISTENCE_FAILED') { throw } }
+''')
+
+    def test_dedicated_restart_console_matches_persisted_result(self):
+        output = self.run_powershell(r'''
+New-Item -ItemType Directory -Path (Join-Path $root '.mxagile/state/runs') -Force | Out-Null
+@{restart_required=$true;commit=$core.commit} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root '.mxagile/state/runs/framework-update-recovery.json')
+Invoke-PostUpdateCompatibility -Root $root -ToolsDir $root -CoreProvenance $core -Transaction $transaction
+Complete-MxAgileCoreUpdateTransaction -Root $root -Transaction $transaction
+''')
+        self.assertIn('SESSION_CONTRACT: SESSION_RESTART_REQUIRED', output)
+        self.assertNotIn('Report CONTRACTS_RE_SYNCED', output)
+        self.assertNotIn('same-session contract re-sync', output)
+        value = json.loads((self.state_dir / 'last-update-result.json').read_bytes())
+        self.assertEqual(value['update_attempt_id'], value['update_transaction']['update_attempt_id'])
+        self.assertTrue(value['restart_required'])
+
+
 class DisposableSelfUpdateTests(Phase1BFixture):
     def test_legacy_operator_bootstrap_to_resolution_and_ready(self):
         import io
@@ -247,8 +336,17 @@ class DisposableSelfUpdateTests(Phase1BFixture):
             self.assertEqual(handoff['session_contract']['state'], 'SESSION_RESTART_REQUIRED')
             self.assertTrue(handoff['update_transaction']['restart_required'])
             self.assertEqual(layer.read_bytes(), layer_bytes)
-            self.assertEqual(json.loads(core_path.read_bytes())['product_flavor'], 'fixture-product')
-            self.assertEqual(json.loads(core_path.read_bytes())['commit'], commit)
+            installed_core = json.loads(core_path.read_bytes())
+            self.assertEqual(installed_core['product_flavor'], 'fixture-product')
+            self.assertEqual(installed_core['flavor'], 'fixture-product')
+            self.assertEqual(installed_core['installation_flavor'], 'company-layer')
+            self.assertEqual(installed_core['source'], str(candidate))
+            self.assertEqual(installed_core['source_type'], 'git')
+            self.assertEqual(installed_core['ref'], 'recovery-fixture')
+            self.assertEqual(installed_core['commit'], commit)
+            self.assertEqual(installed_core['source_identity'], f'git:{candidate}#{commit}')
+            self.assertEqual(handoff['framework']['version'], installed_core['version'])
+            self.assertEqual(handoff['update_attempt_id'], handoff['update_transaction']['update_attempt_id'])
             self.assertNotEqual((tools / 'control-plane/enforcement.py').read_bytes(), old_guard)
             blocked()
             installed = tools / 'framework_update_recovery.py'

@@ -162,12 +162,15 @@ def get_display_name(content, artifact_type, fallback):
     return content.get('description') or fallback
 
 
-def _read_yaml(filepath):
+def _read_yaml(filepath, log=print):
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f) or {}
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            value = yaml.safe_load(f) or {}
+        if not isinstance(value, dict):
+            raise ValueError('Canonical artifact must be a mapping')
+        return value
     except Exception as e:
-        print(f'[ERROR] Could not read or parse YAML for {filepath}: {e}')
+        log(f'[ERROR] Could not read or parse YAML for {filepath}: {e}')
         return None
 
 
@@ -194,8 +197,8 @@ def _emit_edge(edges, from_id, to_id, edge_type, provenance_type, source_field,
 # Stage 1: Find canonical artifacts
 # ---------------------------------------------------------------------------
 
-def find_artifacts(project_root):
-    print('[INFO] Stage 1: Indexing artifacts from filesystem...')
+def find_artifacts(project_root, log=print):
+    log('[INFO] Stage 1: Indexing artifacts from filesystem...')
     artifacts = collections.defaultdict(dict)
 
     # Standard YAML-based artifact locations.
@@ -213,14 +216,14 @@ def find_artifacts(project_root):
     for loc in artifact_locations:
         dir_path = project_root / loc['path']
         if not dir_path.exists():
-            print(f'[DEBUG] Directory does not exist, skipping: {dir_path}')
+            log(f'[DEBUG] Directory does not exist, skipping: {dir_path}')
             continue
 
         for filepath in sorted(dir_path.glob(loc['filter'])):
             relative_path = filepath.relative_to(project_root).as_posix()
             if loc['type'] == 'page' and is_standalone_interaction_artifact(relative_path):
                 continue
-            content = _read_yaml(filepath)
+            content = _read_yaml(filepath, log)
             if content is None:
                 continue
 
@@ -228,7 +231,7 @@ def find_artifacts(project_root):
             if loc['type'] == 'page':
                 artifact_id = content.get('page_id')
                 if not isinstance(artifact_id, str) or not re.fullmatch(r'PAGE-[A-Z0-9_-]+', artifact_id):
-                    print(f'[WARN] Skipping Page without a valid logical page_id: {filepath}')
+                    log(f'[WARN] Skipping Page without a valid logical page_id: {filepath}')
                     continue
                 if artifact_id in artifacts['page']:
                     raise ValueError(f'Duplicate Page logical identity; refusing ambiguous index: {artifact_id}')
@@ -236,7 +239,7 @@ def find_artifacts(project_root):
                 artifact_id = content.get(loc['id_field'], file_id_from_name)
 
             if loc['type'] != 'page' and artifact_id != file_id_from_name:
-                print(f'[WARN] ID mismatch: file={file_id_from_name}, '
+                log(f'[WARN] ID mismatch: file={file_id_from_name}, '
                       f'{loc["id_field"]}={artifact_id} in {filepath}')
 
             entry = {
@@ -255,10 +258,10 @@ def find_artifacts(project_root):
                 entry['mendix_page_name'] = content['page_name']
 
             artifacts[loc['type']][artifact_id] = entry
-            print(f'[DEBUG] Indexed {loc["type"]}: {artifact_id}')
+            log(f'[DEBUG] Indexed {loc["type"]}: {artifact_id}')
 
     # Revision artifacts live in planning/target-mockups/*/_history/REV-*/revision.yaml
-    _find_revisions(project_root, artifacts)
+    _find_revisions(project_root, artifacts, log)
 
     type_counts = ', '.join(
         f'{len(artifacts[t])} {t}s' for t in [
@@ -266,11 +269,11 @@ def find_artifacts(project_root):
             'test_contract', 'verification_plan', 'decision', 'revision'
         ] if artifacts[t]
     )
-    print(f'[INFO] YAML indexing complete. Found: {type_counts}.')
+    log(f'[INFO] YAML indexing complete. Found: {type_counts}.')
     return artifacts
 
 
-def _find_revisions(project_root, artifacts):
+def _find_revisions(project_root, artifacts, log=print):
     """Index revision.yaml files from planning/target-mockups/*/_history/REV-*/."""
     target_dir = project_root / 'planning' / 'target-mockups'
     if not target_dir.exists():
@@ -288,7 +291,7 @@ def _find_revisions(project_root, artifacts):
             rev_file = rev_dir / 'revision.yaml'
             if not rev_file.exists():
                 continue
-            content = _read_yaml(rev_file)
+            content = _read_yaml(rev_file, log)
             if content is None:
                 continue
             rev_id = content.get('revision_id', rev_dir.name)
@@ -303,7 +306,7 @@ def _find_revisions(project_root, artifacts):
                 'mockup_name':  mockup_dir.name,
             }
             artifacts['revision'][rev_id] = entry
-            print(f'[DEBUG] Indexed revision: {rev_id} (mockup: {mockup_dir.name})')
+            log(f'[DEBUG] Indexed revision: {rev_id} (mockup: {mockup_dir.name})')
 
 
 # ---------------------------------------------------------------------------
@@ -694,6 +697,11 @@ def _as_list(value):
 # ---------------------------------------------------------------------------
 # Stage 4: Source fingerprint
 # ---------------------------------------------------------------------------
+
+def compute_current_fingerprint(project_root):
+    """Use the builder's exact indexed-source selection without emitting CLI noise."""
+    return compute_source_fingerprint(find_artifacts(Path(project_root), log=lambda *_: None))
+
 
 def compute_source_fingerprint(artifacts):
     """

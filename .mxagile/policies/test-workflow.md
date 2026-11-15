@@ -122,6 +122,11 @@ einem separaten Prozess/Terminal ausfuehren. Keine Ausgabe bedeutet `SILENT`, ni
 `HUNG` erst mit nicht-destruktiver Evidenz fehlender Aktivitaet/Progression klassifizieren;
 eine beliebige Zeitspanne ohne Ausgabe reicht nicht.
 
+Ein autorisierter breiter Lauf darf commitgebunden im Hintergrund laufen, solange
+Commit-/Input-Identität und eigene Prozess-Session erhalten bleiben. Er ist nicht
+nach jedem Commit, jeder Wave oder Feature-Branch-Push automatisch erforderlich.
+Ein bewusst großer Checkpoint braucht die explizite zugehörige Gate-Authority.
+
 `RUNNING` und `SILENT` beschreiben Prozessbeobachtungen, keine Testergebnisse. `PASS` gilt
 nur nach erfolgreichem Abschluss gemaess Command-Vertrag; `FAIL` nur bei nachgewiesenem
 Test-/Produktfehler. Wenn externe Infrastruktur, Netzwerk oder Authentifizierung die

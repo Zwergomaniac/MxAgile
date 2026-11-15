@@ -352,10 +352,17 @@ Each `parity-verification.schema.json` file is produced by a specific verificati
 (`scenario_id` field). The scenario defines which role, data state, viewport, and dimensions
 are in scope. Full scenario contract: `policies/verification-scenario.md`.
 
-A parity record becomes `STALE` when:
-- The active target mockup version changes
+A parity record becomes `STALE` when its relevant comparison scope changes:
+- The page's accepted target content/binding changes
 - The Requirement acceptance clause changes
-- The widget/component selection changes materially
+- The widget/component selection, shared context, relevant roles/states or runtime scope changes materially
+
+A project-wide ACTIVE_TARGET revision number alone does not stale every page and does not
+bind every page. Reconciliation must identify affected pages, including shared component,
+navigation and rule impacts. Unchanged-scope evidence may remain valid only with documented
+semantic equivalence and traceable comparison identity/freshness; retain the original identity,
+not a relabeled historical PASS. Unknown impact or an unbound affected page is unassessed and
+cannot establish current-target acceptance. See `policies/impact-resolution.md`.
 
 STALE required dimensions prevent Full Parity PASS. Targeted re-verification is sufficient.
 

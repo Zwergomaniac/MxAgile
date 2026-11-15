@@ -16,12 +16,14 @@ from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
-from wave_ids import checklist_wave_id, wave_sort_key
+from wave_ids import checklist_wave_id, extract_plan_wave_claims, wave_sort_key
 from project_compatibility import compatibility_report, identity_matches, is_standalone_interaction_artifact, load_yaml, projected_for_validation, schema_errors, safe_file, schema_validation_scope
 
 PHASES = ("discovery", "refinement", "ready", "implementing", "verifying", "done")
 TASK_STATUSES = ("pending", "in_progress", "done", "failed", "blocked", "deferred")
 REQUIREMENT_STATUSES = ("draft", "accepted", "deferred", "superseded")
+EXTENDED_REQUIREMENT_STATUSES = ("obsolete", "retired", "split", "merged", "duplicate", "invalid", "ambiguous")
+ALL_REQUIREMENT_STATUSES = REQUIREMENT_STATUSES + EXTENDED_REQUIREMENT_STATUSES
 DECISION_STATUSES = ("PROPOSED", "CONFIRMED", "REJECTED", "SUPERSEDED")
 CONTRACT_STATUSES = ("draft", "active", "stale", "impacted", "superseded")
 PROOF_POINT_STATUSES = ("active", "stale", "impacted", "deferred", "not_applicable")
@@ -1673,7 +1675,66 @@ def attach_observation_states(result: dict[str, Any], hashes: dict[str, str]) ->
     return states
 
 
-def build_health(status: dict[str, Any], *, include_diagnostics: bool = False) -> dict[str, Any]:
+def _build_control_plane_status(root: Path | None, status: dict[str, Any]) -> dict[str, Any] | None:
+    if root is None:
+        return None
+    unavailable = {
+        "delivery_state": "UNAVAILABLE", "reason_codes": ["CONTROL_PLANE_UNAVAILABLE"],
+        "primary_recovery": None, "allowed_recovery_actions": [],
+        "epoch_stale": None, "branch_stale": None, "head_stale": None,
+        "doctor_compatibility": (status.get("compatibility") or {}).get("compatibility"),
+        "migration_status": None, "state_authority": "canonical_artifacts",
+    }
+    cp_dir = Path(__file__).resolve().parent / "control-plane"
+    if not cp_dir.is_dir():
+        cp_dir = Path(__file__).resolve().parents[1] / "experiments/control-plane"
+    if not cp_dir.is_dir():
+        return unavailable
+    if str(cp_dir) not in sys.path:
+        sys.path.insert(0, str(cp_dir))
+    try:
+        from types import FunctionType
+        import guard
+        compatibility = status.get("compatibility") or {}
+
+        def _reuse_doctor(facts: Any) -> None:
+            facts.doctor_compatibility = compatibility.get("compatibility")
+            facts.doctor_diagnostics = [item for item in compatibility.get("diagnostics", []) if item.get("blocking")]
+            facts.doctor_blocking = sorted({str(item.get("category")) for item in compatibility.get("diagnostics", []) if item.get("blocking")})
+
+        # Bind the already observed Doctor report locally: no recursion and no global
+        # monkeypatch of the live enforcement module during concurrent Board requests.
+        loader = guard.load_project_facts
+        local_loader = FunctionType(loader.__code__, {**loader.__globals__, "_run_doctor": _reuse_doctor},
+                                    loader.__name__, loader.__defaults__, loader.__closure__)
+        local_loader.__kwdefaults__ = loader.__kwdefaults__
+        facts = local_loader(root)
+        verdict = guard.delivery_authorization(facts, "model_mutation")
+        codes = [item["code"] for item in verdict.get("must_findings", []) if item.get("code")]
+        plan = verdict.get("recovery_plan") or {}
+        mig_state = facts.migration_state or {}
+        cm_record = mig_state.get("contract_migration") or {}
+        mig_status = cm_record.get("status") or mig_state.get("status")
+        epoch_codes = {"CONTEXT_STALE_AFTER_UPDATE", "CONTEXT_STALE_AFTER_HUMAN_RESOLUTION", "AUXILIARY_INTERRUPTION_REQUIRES_RESYNC", "EPOCH_MISSION_MISMATCH"}
+        epoch_missing = any(item.get("code") == "CANONICAL_SOURCE_MISSING" and item.get("reference") == "context-epoch" for item in verdict.get("must_findings", []))
+        freshness_observed = verdict.get("verdict") in ("pass", "fail", "needs_human") and not getattr(facts, "load_issues", [])
+        return {
+            "delivery_state": {"pass": "AUTHORIZED", "fail": "BLOCKED", "needs_human": "NEEDS_HUMAN"}.get(verdict.get("verdict"), "UNAVAILABLE"),
+            "reason_codes": codes,
+            "primary_recovery": plan.get("primary_next_action"),
+            "allowed_recovery_actions": list(plan.get("allowed_recovery_actions") or []),
+            "epoch_stale": True if epoch_missing or epoch_codes & set(codes) else (False if freshness_observed else None),
+            "branch_stale": True if "BRANCH_STALE" in codes else (False if freshness_observed and not epoch_missing else None),
+            "head_stale": True if "HEAD_STALE" in codes else (False if freshness_observed and not epoch_missing else None),
+            "doctor_compatibility": compatibility.get("compatibility"),
+            "migration_status": str(mig_status) if mig_status is not None else None,
+            "state_authority": "canonical_artifacts",
+        }
+    except Exception:
+        return unavailable
+
+
+def build_health(status: dict[str, Any], *, include_diagnostics: bool = False, root: Path | None = None) -> dict[str, Any]:
     """Projection/Data health, derived only from the projection itself (never project authority).
 
     Attention vs. health vs. framework diagnostics: the group counts keep non-blocking framework or
@@ -1702,6 +1763,9 @@ def build_health(status: dict[str, Any], *, include_diagnostics: bool = False) -
             "repair_status": compatibility.get("repair_status"),
         },
     }
+    cp_status = status.get("health", {}).get("control_plane_status") or _build_control_plane_status(root, status)
+    if cp_status is not None:
+        health["control_plane_status"] = cp_status
     if include_diagnostics:
         health["diagnostics"] = listed
     return health
@@ -2054,7 +2118,7 @@ def _changes_after_done(phase: str | None, wave_id: str, history: dict[str, Any]
 def build_waves_trust(
     waves: list[dict[str, Any]], process_doc: dict[str, Any] | None, tasks: list[dict[str, Any]],
     requirements: list[dict[str, Any]], findings: list[dict[str, Any]], activity: dict[str, Any],
-    history: dict[str, Any] | None = None,
+    history: dict[str, Any] | None = None, plan_claims: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """'Trust in DONE' per Wave (K.5): historical DONE stays DONE; present confidence is reported separately."""
     waves_doc = process_doc.get("waves") if isinstance(process_doc, dict) and isinstance(process_doc.get("waves"), dict) else {}
@@ -2074,11 +2138,35 @@ def build_waves_trust(
             basis_state = "LEGACY"
         else:
             basis_state = "NOT_RECORDED"
-        evidence = acceptance.get("evidence") if acceptance and isinstance(acceptance.get("evidence"), list) else []
+        evidence = acceptance.get("evidence") if acceptance else []
+        # The canonical acceptance schema uses an object; older records used a list.
+        def references(value: Any) -> list[str]:
+            if isinstance(value, str):
+                return [value]
+            if isinstance(value, dict):
+                return [ref for child in value.values() for ref in references(child)]
+            if isinstance(value, list):
+                return [ref for child in value for ref in references(child)]
+            return []
+        evidence_refs = references(evidence)
         wave_tasks = [task for task in tasks if task.get("wave_id") == wave_id]
         open_tasks = sorted(task["id"] for task in wave_tasks if task.get("status") not in ("done", "deferred"))
         done_wave = wave["phase"] == "done"
-        explained = basis_state in ("RECORDED", "LEGACY")
+        explained = result == "passed" and not acceptance.get("pending_decisions") and not acceptance.get("blockers_open")
+        claims = (plan_claims or {}).get(wave_id, {})
+        claimed_statuses = {claim[0] for claim in claims.get("statuses", [])}
+        claimed_commits = {claim[0] for claim in claims.get("commits", [])}
+        reason_codes = []
+        if len(claimed_statuses) > 1 or ('done' in claimed_statuses and not done_wave):
+            reason_codes.append("PLAN_PROCESS_STATE_CONFLICT")
+        if len(claimed_commits) > 1:
+            reason_codes.append("PLAN_COMMIT_CONFLICT")
+        if done_wave and not explained:
+            reason_codes.append("WAVE_RECONCILIATION_REQUIRED")
+        reconciliation_state = (
+            "RECONCILIATION_REQUIRED" if reason_codes and (claimed_statuses or acceptance)
+            else "UNKNOWN_REQUIRES_RECONCILIATION" if reason_codes else "NOT_REQUIRED"
+        )
         wave_findings = sorted(finding["id"] for finding in findings if finding.get("wave_id") == wave_id)
         labels: dict[str, int] = {}
         for req_id in wave.get("requirement_ids") or []:
@@ -2095,7 +2183,8 @@ def build_waves_trust(
         reasons.append("Evidence currency against the current model is not observable.")
         trust.append({
             "wave_id": wave_id, "phase": wave["phase"], "historical_state": "DONE" if done_wave else (wave["phase"] or "UNKNOWN").upper(),
-            "done_basis": {"state": basis_state, "gate_result": result, "evidence": [str(item) for item in evidence][:6]},
+            "done_basis": {"state": basis_state, "gate_result": result, "evidence": evidence_refs[:6]},
+            "reconciliation_state": reconciliation_state, "reason_codes": reason_codes,
             "open_tasks_superseded": open_tasks if done_wave and explained else [],
             "open_tasks_unexplained": open_tasks if done_wave and not explained else [],
             "later_findings": wave_findings[:12],
@@ -2176,6 +2265,7 @@ def attach_cs4_projections(
     result["waves_trust"] = build_waves_trust(
         result["delivery"]["waves"]["items"], process_doc, result["delivery"]["tasks"]["items"],
         result["requirements"]["items"], result["findings"]["items"], activity, _timeline_wave_history(root),
+        extract_plan_wave_claims(((parsed_documents or {}).get("planning/execution-waves.md", {}).get("raw") or b"").decode("utf-8-sig", errors="replace")),
     )
     result["project"]["revision_ledger"] = build_revision_ledger(root, hashes, gaps, parsed_documents)
     result["verification"]["parity_reports"] = build_parity_report_states(parity_records, parity_paths)
@@ -2203,6 +2293,17 @@ def _build_status(
     process_doc, process_state = read_yaml_file(root, "planning/lifecycle/process-state.yaml", hashes, gaps, parsed_documents)
     mission_doc, mission_state = read_yaml_file(root, "planning/mission/mission-state.yaml", hashes, gaps, parsed_documents)
     context_doc, context_state = read_yaml_file(root, "planning/lifecycle/context-epoch.yaml", hashes, gaps, parsed_documents)
+    plan_path = "planning/execution-waves.md"
+    plan_file = safe_file(root, plan_path)
+    if plan_file is None:
+        hashes[f"!missing:{plan_path}"] = "missing"
+    else:
+        try:
+            raw_plan = plan_file.read_bytes()
+            hashes[plan_path] = hashlib.sha256(raw_plan).hexdigest()
+            parsed_documents[plan_path] = {"state": "raw_only", "raw": raw_plan, "value": None, "digest": hashes[plan_path]}
+        except OSError:
+            hashes[f"!invalid:{plan_path}"] = "invalid"
     _emit_project_stage("project_config_and_lifecycle_inputs", stage_started, hashed_sources=len(hashes))
 
     stage_started = time.perf_counter()
@@ -2314,22 +2415,42 @@ def _build_status(
         return state if state in ("available", "partial", "unavailable", "ambiguous") else "unavailable"
 
     req_counts = status_counts(requirements, "status", REQUIREMENT_STATUSES, available(requirement_state))
+    if available(requirement_state):
+        ext_recognized = 0
+        for ext_status in EXTENDED_REQUIREMENT_STATUSES:
+            ext_count = sum(1 for item in requirements if item.get("status") == ext_status)
+            if ext_count:
+                req_counts[ext_status] = ext_count
+                ext_recognized += ext_count
+        if ext_recognized and isinstance(req_counts.get("unknown"), int):
+            req_counts["unknown"] = max(0, req_counts["unknown"] - ext_recognized)
     task_counts = status_counts(tasks, "status", TASK_STATUSES, available(task_state))
     decision_counts = status_counts(decisions, "status", DECISION_STATUSES, available(decision_state))
     contract_counts = status_counts(contracts, "status", CONTRACT_STATUSES, available(contract_state))
     plan_counts = status_counts(plans, "status", PLAN_STATUSES, available(plan_state))
-    requirement_items = [
-        {
+    requirement_items = []
+    for record, path in zip(requirements, requirement_paths):
+        if not isinstance(record.get("ID"), str):
+            continue
+        req_item: dict[str, Any] = {
             "id": record["ID"],
             "title": record.get("title") if isinstance(record.get("title"), str) else None,
-            "status": record.get("status") if record.get("status") in REQUIREMENT_STATUSES else None,
+            "status": record.get("status") if record.get("status") in ALL_REQUIREMENT_STATUSES else None,
             "superseded_by": record.get("superseded_by") if isinstance(record.get("superseded_by"), str) else None,
             "canonical_path": path,
             "content_hash": f"sha256:{hashes[path]}" if hashes.get(path) else None,
         }
-        for record, path in zip(requirements, requirement_paths)
-        if isinstance(record.get("ID"), str)
-    ]
+        if isinstance(record.get("replacement_ids"), list):
+            req_item["replacement_ids"] = [str(x) for x in record["replacement_ids"] if isinstance(x, str)]
+        if isinstance(record.get("merged_into"), str):
+            req_item["merged_into"] = record["merged_into"]
+        if isinstance(record.get("retirement_reason"), str):
+            req_item["retirement_reason"] = record["retirement_reason"]
+        if isinstance(record.get("mocketeer_lifecycle"), str):
+            req_item["mocketeer_lifecycle"] = record["mocketeer_lifecycle"]
+        if isinstance(record.get("implementation_impact"), dict):
+            req_item["implementation_impact"] = record["implementation_impact"]
+        requirement_items.append(req_item)
     decision_items = [
         {
             "id": record["ID"],
@@ -2777,7 +2898,7 @@ def _build_status(
         parsed_documents=parsed_documents, active_wave_id=active_wave_id, next_action=context_status.get("next_action"),
     )
     result["health"] = {"observation_states": attach_observation_states(result, hashes)}
-    result["health"] = build_health(result)
+    result["health"] = build_health(result, root=root)
     _emit_project_stage("compatibility_and_fingerprint", stage_started,
                         diagnostics=len(result["compatibility"].get("diagnostics", [])), hashed_sources=len(hashes))
     return result

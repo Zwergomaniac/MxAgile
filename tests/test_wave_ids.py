@@ -16,6 +16,12 @@ import canonicalize_artifacts as canonicalize
 
 
 class WaveReaderTests(unittest.TestCase):
+    def test_plan_claim_reader_respects_status_column_not_commit_column(self):
+        from wave_ids import extract_plan_wave_claims
+        claims = extract_plan_wave_claims('| Wave | Status | Commit |\n| W18a | done | `abcdef1` |\n')
+        self.assertEqual(claims['W18a']['statuses'][0][0], 'done')
+        self.assertEqual(claims['W18a']['commits'][0][0], 'abcdef1')
+
     def test_board_natural_order_preserves_suffix_and_legacy_identity(self):
         expected = ['W2', 'W15', 'W16a', 'W16b', 'W17e', 'W018a', 'W18A', 'W18a', 'W18b', 'W123', 'WAVE-01', 'Imported']
         waves = {wave: {'phase': 'not_started', 'gates': {}} for wave in reversed(expected)}

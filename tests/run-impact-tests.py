@@ -14,6 +14,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RULES = (
+    (("scripts/create_revision.py", ".mxagile/policies/spa-mockup-bundle.md", "tests/test-spa-bundle-revision.ps1"),
+     1, ("test-revision-lifecycle.ps1", "test-spa-bundle-revision.ps1", "test_lifecycle_reality_contracts.py")),
+    (("scripts/install-core.ps1", "mxagile-setup.ps1", "mxagile-setup-company-layer.ps1", "tests/test-hardening-rf005-ps-preflight.ps1"),
+     1, ("test-hardening-rf005-ps-preflight.ps1",)),
+    (("tests/test_lifecycle_reality_contracts.py", "scripts/project_compatibility.py", "scripts/resolve_impact.py", "scripts/create_revision.py",
+      "scripts/build_artifact_index.py", "scripts/graph_capability.py",
+      ".mxagile/policies/design-contract-intake.md", ".mxagile/policies/impact-resolution.md",
+      ".mxagile/policies/mockup-lifecycle.md", ".mxagile/policies/ui-parity.md", ".mxagile/schemas/requirement.schema.json"),
+     1, ("test_lifecycle_reality_contracts.py",)),
+    (("tests/test_reality_tooling.py", "scripts/Get-MxAgileCapabilities.ps1", "scripts/Write-MxAgileEpochCheckpoint.ps1",
+      "scripts/Save-MxAgileRoutingDecision.ps1", ".mxagile/policies/capability-discovery.md",
+      ".mxagile/policies/agent-delegation.md", ".mxagile/policies/implementation-control.md"),
+     1, ("test_reality_tooling.py",)),
+    (("tests/test_reality_resource_ownership.py", "experiments/control-plane/enforcement.py"),
+     1, ("test_reality_resource_ownership.py",)),
+    ((".mxagile/policies/legacy-completion-reconciliation.md",),
+     1, ("test_project_status.py", "test_run_activity_board.py")),
     (("scripts/wave_ids.py", "tests/test_wave_ids.py", "tests/test-wave-ids.ps1", ".mxagile/schemas/finding.schema.json", "docs/waves.md",
       "scripts/install-core.ps1", "scripts/Write-MxAgileEpochCheckpoint.ps1"),
      2, ("test-wave-ids.ps1", "test_control_plane_guard.py", "test_project_timeline.py", "test-core-installer.ps1", "test-context-lifecycle-operational.ps1")),
@@ -49,7 +66,7 @@ RULES = (
     (("scripts/test_harness_cleanup.py", "tests/test_test_harness_cleanup.py", "tests/test-test-harness-cleanup.ps1", ".mxagile/policies/test-harness-cleanup.md"),
      1, ("test_test_harness_cleanup.py", "test-hardening-rf010-completion-cleanliness.ps1")),
     (("scripts/project_compatibility.py", ".mxagile/policies/project-compatibility.md", "tests/test_project_status.py"),
-    1, ("test_project_status.py", "test_parity_gallery.py", "test_control_plane_phase1d.py", "test_control_plane_phase2.py")),
+    1, ("test_project_status.py", "test_parity_gallery.py", "test_control_plane_guard.py", "test_control_plane_phase1b.py", "test_control_plane_phase1d.py", "test_control_plane_phase2.py")),
     (("tests/fixtures/legacy-upgrade/*",), 2,
      ("test_project_status.py", "test-control-plane-upgrade-from-baseline.ps1")),
     ((".mxagile/policies/migration-dfc-to-mxagile.md",), 2,
@@ -185,7 +202,7 @@ RULES = (
         ("test_run_events.py", "test_run_activity_board.py", "test_control_plane_phase2.py", "test-control-plane-upgrade-from-baseline.ps1")),
     (("tests/helpers/MxAgileBaselineFixture.ps1",), 1,
      ("test-startup-priority.ps1", "test-session-bootstrap.ps1", "test-mxagile-dev-cli.ps1")),
-    (("scripts/build_artifact_index.py",), 1,
+    (("scripts/build_artifact_index.py", "scripts/graph_capability.py", "scripts/resolve_impact.py"), 1,
      ("test-wp10-artifact-schemas.ps1", "test-artifact-trace-index.ps1", "test-graph-capability.ps1", "test-impact-resolver.ps1")),
     ((".mxagile/schemas/*", ".mxagile/templates/generic/ui-inventory/template.yaml", "docs/injection-contract.md"), 2,
      ("test_project_status.py", "test-negative-schema.ps1", "test-injection-contract.ps1",
@@ -206,6 +223,7 @@ RULES = (
 
 
 def select(paths: list[str]) -> dict:
+    paths = [Path(path).as_posix() for path in paths]
     suites = set()
     selected_by: dict[str, set[tuple[str, tuple[str, ...]]]] = {}
     unknown = []
@@ -285,8 +303,11 @@ def main() -> int:
     print(json.dumps({"paths": paths, **plan}, indent=2), flush=True)
     if args.list:
         return 0
+    if plan["unmapped"] and args.tier != "release":
+        print("Development Gate: BLOCKED (unmapped paths); map the scope before verification")
+        return 2
     started = time.perf_counter()
-    subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=True)
+    subprocess.run(["git", "diff", "--check", "--", *paths], cwd=ROOT, check=True)
     for relative in paths:
         path = ROOT / relative
         if path.is_file() and path.suffix == ".py":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import threading
@@ -16,6 +17,47 @@ sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
 import run_events  # noqa: E402
 import serve_project_board  # noqa: E402
 from test_board_http import write_board_fixture  # noqa: E402
+
+
+class ControlPlaneBoardTests(unittest.TestCase):
+    def test_readonly_projection_renders_block_recovery_and_unknown_freshness(self):
+        script = r'''
+const fs = require('fs');
+const source = fs.readFileSync(process.argv[1], 'utf8');
+const status = JSON.parse(process.argv[2]);
+function node(tag, className = '', text = '') {
+  return {tag, text, children: [], append(...items) { this.children.push(...items); }};
+}
+function stateBadge(value) { return node('span', '', value); }
+function obsBadge(value) { return stateBadge(value); }
+eval(source.slice(source.indexOf('function renderControlPlaneStatus('), source.indexOf('function diagnosticRow(')));
+const root = node('main');
+renderControlPlaneStatus(root);
+console.log(JSON.stringify(root));
+'''
+        for projection in ({"delivery_state": "BLOCKED", "reason_codes": ["HEAD_STALE"],
+                            "primary_recovery": "resync", "allowed_recovery_actions": ["doctor"],
+                            "epoch_stale": True, "branch_stale": None, "head_stale": True,
+                            "doctor_compatibility": "NEEDS_MIGRATION", "migration_status": "pending"},
+                           {"delivery_state": "UNAVAILABLE", "reason_codes": ["CONTROL_PLANE_UNAVAILABLE"]}):
+            with self.subTest(state=projection["delivery_state"]):
+                snapshot = {"health": {"control_plane_status": projection}, "projection_state": {"state": "STALE"}}
+                before = json.dumps(snapshot)
+                result = subprocess.run(["node", "-e", script, str(ROOT / ".mxagile/board/board.js"), before],
+                                        capture_output=True, text=True, check=True)
+                tree = json.loads(result.stdout)
+                def flatten(element):
+                    return [element] + [item for child in element["children"] for item in flatten(child)]
+                elements = flatten(tree)
+                text = "\n".join(element["text"] for element in elements)
+                self.assertIn(projection["delivery_state"], text)
+                self.assertIn("Branch: NOT_OBSERVABLE", text)
+                self.assertIn("Projection: STALE", text)
+                if projection["delivery_state"] == "BLOCKED":
+                    for expected in ("HEAD_STALE", "Primary recovery: resync", "Epoch: STALE", "Doctor: NEEDS_MIGRATION", "Migration: pending"):
+                        self.assertIn(expected, text)
+                self.assertFalse(any(element["tag"] in ("button", "input", "form") for element in elements))
+                self.assertEqual(json.dumps(snapshot), before)
 
 
 class RunActivityBoardTests(unittest.TestCase):

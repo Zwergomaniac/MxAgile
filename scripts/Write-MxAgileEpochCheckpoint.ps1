@@ -120,10 +120,36 @@ if (Test-Path -LiteralPath $coreProvenancePath -PathType Leaf) {
         if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
         if (-not $python) { throw 'RESYNC_PREFLIGHT_UNAVAILABLE: Python required.' }
         $PSNativeCommandUseErrorActionPreference = $false
-        $preflightOutput = & $python.Source -B $compatibilityTool resync-preflight --project-root $ProjectRoot --mission-id $MissionId --wave $Wave --phase $CurrentPhase
+        # Windows PowerShell 5.1 drops empty native arguments. Omitted options preserve
+        # the preflight's authoritative inference instead of consuming the next flag.
+        $preflightArgs = @('-B', $compatibilityTool, 'resync-preflight', '--project-root', $ProjectRoot)
+        foreach ($option in @(@('--mission-id', $MissionId), @('--wave', $Wave), @('--phase', $CurrentPhase))) {
+            if (-not [string]::IsNullOrWhiteSpace($option[1])) { $preflightArgs += $option }
+        }
+        $preflightOutput = & $python.Source @preflightArgs
         $preflightExit = $LASTEXITCODE
-        $preflight = ($preflightOutput -join "`n") | ConvertFrom-Json
-        if ($preflightExit -ne 0 -or $preflight.state -ne 'READY_FOR_RESYNC') { throw "RECONCILIATION_REQUIRED: $($preflight.reason_codes -join ', ')" }
+        try {
+            $preflight = ($preflightOutput -join "`n") | ConvertFrom-Json -ErrorAction Stop
+            $properties = @($preflight.PSObject.Properties.Name)
+            if ($null -eq $preflight -or $preflight -is [array] -or 'state' -notin $properties -or $preflight.state -isnot [string]) {
+                throw 'Missing structured state.'
+            }
+        } catch {
+            throw 'RESYNC_PREFLIGHT_INVALID_OUTPUT: Expected a structured preflight result; epoch unchanged.'
+        }
+        if ($preflightExit -ne 0 -or $preflight.state -ne 'READY_FOR_RESYNC') {
+            $reasons = if ('reason_codes' -in $properties) { $preflight.reason_codes -join ', ' } else { 'PREFLIGHT_FAILED' }
+            throw "RECONCILIATION_REQUIRED: $reasons"
+        }
+        if ('mission_id' -notin $properties -or $preflight.mission_id -isnot [string] -or [string]::IsNullOrWhiteSpace($preflight.mission_id) -or
+            'wave_id' -notin $properties -or 'phase' -notin $properties) {
+            throw 'RESYNC_PREFLIGHT_INVALID_OUTPUT: Ready result lacks its authoritative context; epoch unchanged.'
+        }
+        foreach ($field in @('wave_id', 'phase')) {
+            if ($null -ne $preflight.$field -and $preflight.$field -isnot [string]) {
+                throw "RESYNC_PREFLIGHT_INVALID_OUTPUT: Invalid context field $field; epoch unchanged."
+            }
+        }
         $MissionId = $preflight.mission_id
         $Wave = $preflight.wave_id
         $CurrentPhase = $preflight.phase

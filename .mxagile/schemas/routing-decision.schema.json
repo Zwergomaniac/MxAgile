@@ -78,7 +78,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "sha256"],
+        "required": ["path", "identity", "sha256"],
         "properties": {
           "path": { "type": "string", "minLength": 1 },
           "identity": { "type": "string" },

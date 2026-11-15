@@ -4,6 +4,7 @@ import importlib.util
 import unittest
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -13,9 +14,23 @@ spec.loader.exec_module(impact)
 
 
 class ImpactTests(unittest.TestCase):
+    def test_unmapped_path_blocks_fast_gate_without_starting_release(self):
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('run-impact-tests.py')),
+                                 '--paths', '__unmapped_reality_regression__', '--tier', 'fast'],
+                                cwd=impact.ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0, 'Unmapped path falsely passed the Development Gate')
+        self.assertIn('Development Gate: BLOCKED', result.stdout)
+        self.assertNotIn('Fast Gate: PASS', result.stdout)
+
+    def test_native_paths_do_not_become_unmapped_or_duplicate_selection(self):
+        posix = "scripts/project_compatibility.py"
+        native = str(Path("scripts") / "project_compatibility.py")
+        self.assertEqual(impact.select([native, posix]), impact.select([posix]))
+        self.assertEqual(impact.select([native])["unmapped"], [])
+
     def test_doctor_is_narrow(self):
         plan = impact.select(["scripts/project_compatibility.py"])
-        self.assertEqual(plan["suites"], ["test_control_plane_phase1d.py", "test_control_plane_phase2.py", "test_parity_gallery.py", "test_project_status.py"])
+        self.assertEqual(plan["suites"], ["test_control_plane_guard.py", "test_control_plane_phase1b.py", "test_control_plane_phase1d.py", "test_control_plane_phase2.py", "test_lifecycle_reality_contracts.py", "test_parity_gallery.py", "test_project_status.py"])
         self.assertEqual(plan["tier"], 1)
 
     def test_board_includes_consumers(self):
@@ -111,7 +126,7 @@ class ImpactTests(unittest.TestCase):
         plan = impact.select(paths)
         self.assertEqual(plan["tier"], 1)
         self.assertEqual(plan["unmapped"], [])
-        self.assertEqual(plan["suites"], ["test-agent-delegation.ps1"])
+        self.assertEqual(plan["suites"], ["test-agent-delegation.ps1", "test_reality_tooling.py"])
 
     def test_ui_and_artifact_lifecycle_policies_have_targeted_suites(self):
         expected = {

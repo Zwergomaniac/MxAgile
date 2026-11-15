@@ -63,7 +63,9 @@ class Phase1BFixture(GuardFixture):
             "capability_state": "supported", "requested_profile": "MID", "route": "DELEGATE", "reason": "runtime visual verification",
             "fallback_reason": None, "delegation_attempted": False, "spawn_outcome": "pending", "delegation_id": delegation_id,
             "result_reference": None, "main_consumed": False, "compaction_occurred": False, "result_reused": False,
-            "stale_result_rejected": False, "batch_restarted": False, "source_fingerprints": handoff["source_fingerprints"],
+            "stale_result_rejected": False, "batch_restarted": False,
+            "source_fingerprints": [{**item, "identity": next((source["identity"] for source in handoff["input_sources"]
+                                    if source["path"] == item["path"]), "")} for item in handoff["source_fingerprints"]],
         }
         self.write(".concord/routing-decisions/ROUTE-V1.json", json.dumps(route))
         self.write(f".concord/delegation-handoffs/{delegation_id}.json", json.dumps(handoff))
@@ -214,6 +216,12 @@ class RecoveryScopeTests(Phase1BFixture):
         allowed = self.hook('Bash', {'command': command})
         self.assertEqual(allowed['decision'], 'allow', allowed)
         self.assertEqual(allowed['controlled_recovery'], 'contract_reconciliation')
+        record_only = command.replace('--apply-safe', '--apply-safe --record-only')
+        self.assertEqual(self.hook('Bash', {'command': record_only})['decision'], 'allow')
+        contract_only = command.replace('--apply-safe', '--apply-safe --contract-only')
+        self.assertEqual(self.hook('Bash', {'command': contract_only})['decision'], 'allow')
+        self.assertEqual(self.hook('Bash', {'command': contract_only + ' --record-only'})['decision'], 'deny')
+        self.assertEqual(self.hook('Bash', {'command': record_only + ' --candidate-dir elsewhere'})['decision'], 'deny')
         self.assertEqual(self.hook('Write', {'file_path': 'requirements/REQ-002.yml'})['decision'], 'deny')
         for altered in (command + ' && mxcli exec changes.mdl', command + ' --candidate-dir elsewhere', command + ' > output.json'):
             self.assertEqual(self.hook('Bash', {'command': altered})['decision'], 'deny')
@@ -363,6 +371,24 @@ class AuxiliaryScopeTests(Phase1BFixture):
         self.assertTrue((self.root / compatibility.AUXILIARY_INTERRUPT).is_file())
         self.assertEqual(compatibility.apply_auxiliary_write(self.root, request, **authorization)['result'], 'APPLIED')
 
+    def test_auxiliary_delete_is_one_fingerprinted_file_not_a_wildcard(self):
+        tools, compatibility, request = self.request('docs/obsolete-note.md', mutation='delete')
+        target = self.write(request['target_path'], 'An explicitly retired support note.\n')
+        untouched = self.write('docs/keep-note.md', 'Preserve this support note.\n')
+        request.update(content='', before_fingerprint=compatibility.digest(target.read_bytes()))
+        plan = compatibility.auxiliary_write_plan(self.root, request)
+        authorization = {'plan_hash': plan['plan_hash'], 'human_reference': request['request_reference'],
+                         'human_confirmed': True, 'run_id': 'RUN-AUXILIARY-FIXTURE'}
+        for scope in ('docs/*.md', 'docs/', 'requirements/REQ-001.yml'):
+            with self.subTest(scope=scope), self.assertRaises(ValueError):
+                compatibility.auxiliary_write_plan(self.root, {**request, 'target_path': scope})
+        self.assertEqual(self.hook('Bash', {'command': self.command(tools, compatibility, request)})['decision'], 'allow')
+        result = compatibility.apply_auxiliary_write(self.root, request, **authorization)
+        self.assertEqual(result['result'], 'APPLIED')
+        self.assertFalse(target.exists())
+        self.assertTrue(untouched.is_file())
+        self.assertEqual(self.hook('Write', {'file_path': 'planning/tasks/TASK-001.yml'})['decision'], 'deny')
+
     def test_auxiliary_interrupt_requires_resync_without_completing_delivery(self):
         _, compatibility, request = self.request()
         compatibility.reconcile_contract(self.root, apply_safe=True)
@@ -464,12 +490,13 @@ class EnforcementTests(Phase1BFixture):
         self.assertIn("GUARD_UNAVAILABLE", result["reason"])
 
     def test_child_spawn_requires_a_validated_handoff(self):
-        allowed = self.hook("Agent", {"subagent_type": "Explore", "prompt": "look"})
-        self.assertEqual(allowed["decision"], "allow")
-        event = next(event for event in enforcement.run_events.read_events(self.root)["events"]
-                     if event["event_type"] == "child_started")
-        self.assertEqual(event["correlation"], {})
-        self.assertEqual(enforcement.run_events.validate_event(event), [])
+        for name in ("Explore", "Plan", "claude-code-guide", "statusline-setup"):
+            with self.subTest(name=name):
+                denied = self.hook("Agent", {"subagent_type": name, "prompt": "look"})
+                self.assertEqual(denied["decision"], "deny")
+                self.assertIn("CHILD_HANDOFF_MISSING", denied["reason"])
+        self.assertFalse(any(event["event_type"] == "child_started"
+                             for event in enforcement.run_events.read_events(self.root)["events"]))
         denied = self.hook("Agent", {"subagent_type": "mxagile-implementation-agent", "prompt": "build pages"})
         self.assertEqual(denied["decision"], "deny")
         self.assertIn("CHILD_HANDOFF_MISSING", denied["reason"])
@@ -607,6 +634,289 @@ class RealityRegressionTests(Phase1BFixture):
                 (self.root / ".mxagile/state/update-transaction.json").unlink(missing_ok=True)
                 self.write("docs/fixture/REQ-001.md", "Orders overview shows a filter.\n")
                 self.set_wave("ready")
+
+
+class ResourceOwnershipRealityTests(unittest.TestCase):
+    def test_another_run_cannot_stop_a_journalled_resource(self):
+        with tempfile.TemporaryDirectory(prefix="mxagile-owned-resource-") as directory:
+            root = Path(directory)
+            enforcement.record_owned_resource(root, "shell-fixture", "SESSION_OWNED_PROCESS", run_id="RUN-parent")
+            with mock.patch.dict(enforcement.os.environ, {"MXAGILE_RUN_ID": "RUN-other"}):
+                self.assertEqual(enforcement.classify_resource_ownership(root, {"task_id": "shell-fixture"}), "UNKNOWN")
+            with mock.patch.dict(enforcement.os.environ, {"MXAGILE_RUN_ID": "RUN-parent"}):
+                self.assertEqual(enforcement.classify_resource_ownership(root, {"task_id": "shell-fixture"}), "UNKNOWN")
+
+
+class PhasePreflightRealityTests(GuardFixture):
+    def test_scoped_proposed_decision_blocks_implementation_but_unrelated_does_not(self):
+        self.set_wave("ready", requirements={"assigned": ["REQ-010"]})
+        self.write_yaml("requirements/REQ-010.yml", {"ID": "REQ-010", "title": "Year context", "description": "Switch the viewing year.",
+                                                     "status": "accepted"})
+        self.write_yaml("specs/SPEC-006.yml", {"ID": "SPEC-006", "requirements": ["REQ-010"], "title": "Year context", "description": "Year navigation."})
+        self.write_yaml("planning/tasks/TASK-259.yml", {"ID": "TASK-259", "spec": "SPEC-006", "req": ["REQ-010"],
+                                                       "wave_id": "W01", "action": "Implement year navigation", "status": "pending"})
+        self.write_yaml("planning/decisions/DEC-058.yml", {
+            "ID": "DEC-058", "title": "Year context decision", "status": "PROPOSED", "decision_type": "ux_interaction",
+            "topic": "Context owner", "decision_text": "Select the owner before implementing.", "owner": "developer",
+            "affected_requirements": ["REQ-010"]})
+        result = self.evaluate({"gate_type": "transition", "target_phase": "implementing", "authorization": AUTHORIZED})
+        self.assertIn("OPEN_WAVE_DECISION_PROPOSED", self.codes(result))
+        self.set_wave("implementing")
+        result = self.evaluate({"gate_type": "delegation"})
+        self.assertIn("OPEN_WAVE_DECISION_PROPOSED", self.codes(result))
+        (self.root / "planning/tasks/TASK-259.yml").unlink()
+        self.set_wave("ready", requirements={"no_requirements_assigned": True})
+        result = self.evaluate({"gate_type": "transition", "target_phase": "implementing", "authorization": AUTHORIZED})
+        self.assertNotIn("OPEN_WAVE_DECISION_PROPOSED", self.codes(result))
+
+    def test_checkpoint_git_observability_is_not_reported_as_a_clean_tree(self):
+        self.set_wave("implementing")
+        import project_compatibility
+        read_git = enforcement.guard._git_value
+        def unavailable_status(root, *args):
+            return None if args == ("status", "--porcelain") else read_git(root, *args)
+        before = (self.root / "planning/lifecycle/process-state.yaml").read_bytes()
+        with mock.patch.object(enforcement.guard, "_git_value", side_effect=unavailable_status):
+            result = project_compatibility.delivery_preflight(self.root)
+        self.assertIsNone(result["pre_implementation_checkpoint"]["working_tree_clean"])
+        self.assertIn("PRE_IMPLEMENTATION_CHECKPOINT_NOT_OBSERVABLE", result["warning_codes"])
+        self.assertTrue(result["pre_implementation_checkpoint"]["recommended_before_major_wave"])
+        self.assertEqual((self.root / "planning/lifecycle/process-state.yaml").read_bytes(), before)
+
+    def test_declared_capability_is_not_executable_preflight_evidence(self):
+        self.set_wave("implementing")
+        self.write(".mxagile/capabilities.yaml", "capabilities:\n- id: playwright\n  available: true\n")
+        import project_compatibility
+        result = project_compatibility.delivery_preflight(self.root, require_capability="playwright")
+        self.assertEqual(result["required_capability"]["state"], "NOT_OBSERVABLE")
+        self.assertIn("REQUIRED_CAPABILITY_NOT_OBSERVABLE:playwright", result["blocker_codes"])
+
+    def test_security_gate_pass_needs_its_own_fingerprinted_evidence(self):
+        self.set_wave("verifying")
+        gates = {name: {"result": "passed"} for name in ("quality_gate", "ui_verification", "acceptance_gate", "security_gate")}
+        result = self.evaluate({"gate_type": "transition", "target_phase": "done", "gate_results": gates})
+        self.assertIn("SECURITY_GATE_EVIDENCE_MISSING", self.codes(result))
+        path = self.write("planning/evidence/security-review.txt", "Security scope independently reviewed.\n")
+        gates["security_gate"]["evidence_references"] = [{"path": "planning/evidence/security-review.txt",
+                                                         "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}]
+        result = self.evaluate({"gate_type": "transition", "target_phase": "done", "gate_results": gates})
+        self.assertNotIn("SECURITY_GATE_EVIDENCE_MISSING", self.codes(result))
+
+    def test_pending_wave_security_gate_cannot_be_omitted_from_done_request(self):
+        self.set_wave("verifying")
+        path = self.root / "planning/lifecycle/process-state.yaml"
+        import yaml
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        doc["waves"]["W01"]["gates"]["security_gate"] = {"result": "not_recorded"}
+        self.write_yaml("planning/lifecycle/process-state.yaml", doc)
+        result = self.evaluate({"gate_type": "transition", "target_phase": "done", "gate_results": {
+            name: {"result": "passed"} for name in ("quality_gate", "ui_verification", "acceptance_gate")}})
+        self.assertIn("SECURITY_GATE_NOT_PASSED", self.codes(result))
+
+
+class CanonicalWriteRealityTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="mxagile-candidate-")
+        self.root = Path(self.temporary.name)
+        sys.path.insert(0, str(GUARD_DIR.parents[1] / "scripts"))
+        import project_compatibility
+        self.compat = project_compatibility
+        self.relative = "planning/decisions/DEC-058.yml"
+        self.valid = json.dumps({"ID": "DEC-058", "title": "Year navigation decision",
+                                 "status": "PROPOSED", "decision_type": "ux_interaction",
+                                 "topic": "Year context", "decision_text": "Switch the viewing year only.",
+                                 "owner": "developer"}).encode()
+        self.target = self.root / self.relative
+        self.target.parent.mkdir(parents=True)
+        self.target.write_bytes(self.valid)
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def test_invalid_screen_and_duplicate_keys_are_rejected_without_mutation(self):
+        invalid = json.loads(self.valid)
+        invalid["affected_screens"] = ["SCR-CENTER-YEAR"]
+        for raw in (json.dumps(invalid).encode(), b"ID: DEC-058\nID: DEC-059\n"):
+            with self.subTest(raw=raw):
+                result = self.compat.prevalidate_canonical_write(self.root, self.relative, raw)
+                self.assertFalse(result["valid"])
+                self.assertEqual(self.target.read_bytes(), self.valid)
+        self.assertTrue(self.compat.prevalidate_canonical_write(self.root, self.relative, self.valid)["valid"])
+
+    def test_edit_is_projected_and_ambiguous_replacements_fail_closed(self):
+        path, candidate, error = self.compat.project_candidate_bytes(self.root, "Edit", {
+            "file_path": self.relative, "old_string": "PROPOSED", "new_string": "NOT_A_STATUS"})
+        self.assertIsNone(error)
+        self.assertFalse(self.compat.prevalidate_canonical_write(self.root, path, candidate)["valid"])
+        self.target.write_text("owner: developer\ntopic: developer\n", encoding="utf-8")
+        _, candidate, error = self.compat.project_candidate_bytes(self.root, "Edit", {
+            "file_path": self.relative, "old_string": "developer", "new_string": "human"})
+        self.assertIsNone(candidate)
+        self.assertEqual(error, "CANDIDATE_MUTATION_UNAPPLICABLE")
+
+    def test_configuration_and_checklist_fields_are_validated(self):
+        candidates = {
+            ".mxagile/config.yaml": b"agent_delegation:\n  enabled: 'false'\n",
+            "planning/checklists/W18a-implementation-checklist.yaml":
+                b"wave: W18a\ntasks:\n- id: TASK-259\n  status: finished\n",
+        }
+        for path, raw in candidates.items():
+            with self.subTest(path=path):
+                self.assertFalse(self.compat.prevalidate_canonical_write(self.root, path, raw)["valid"])
+
+    def test_malformed_task_does_not_crash_read_only_prerequisite_inspection(self):
+        task = self.root / 'planning/tasks/TASK-259.yml'
+        task.parent.mkdir(parents=True)
+        task.write_text('ID: TASK-259\nspec: SPEC-006\naction: Inspect\nwave_id: W18a\nreq: null\n', encoding='utf-8')
+        result = self.compat.wave_delivery_prerequisites(self.root, 'W18a')
+        self.assertEqual(result['requirement_ids'], [])
+
+    @unittest.skipUnless(sys.platform == "win32", "Case aliases apply to the Windows filesystem")
+    def test_case_aliased_canonical_target_cannot_bypass_prevalidation(self):
+        relative = "PLANNING/DECISIONS/DEC-058.yml"
+        projected = self.compat.project_candidate_bytes(self.root, "Write", {
+            "file_path": str(self.root / relative), "content": "invalid"})
+        self.assertIsNotNone(projected)
+        self.assertFalse(self.compat.prevalidate_canonical_write(self.root, relative, b"invalid")["valid"])
+        self.assertEqual(self.target.read_bytes(), self.valid)
+
+    def test_opaque_shell_mutation_of_a_canonical_target_is_not_authorized(self):
+        facts = enforcement.guard.ProjectFacts(root=self.root)
+        with mock.patch.object(enforcement.guard, 'load_project_facts', return_value=facts), \
+                mock.patch.object(enforcement.guard, 'delivery_authorization', return_value={'verdict': 'pass'}), \
+                mock.patch.object(enforcement, '_persist_event'):
+            for command in ('echo invalid > planning/decisions/DEC-058.yml',
+                            'python -c "open(\'planning/decisions/DEC-058.yml\',\'w\').write(\'invalid\')" pytest planning/decisions/DEC-058.yml'):
+                with self.subTest(command=command):
+                    result = enforcement.decide(self.root, {'tool_name': 'Bash', 'tool_input': {'command': command}})
+                    self.assertEqual(result['decision'], 'deny')
+                    self.assertIn('CANONICAL_WRITE_NOT_PROJECTABLE', result['reason'])
+        self.assertEqual(self.target.read_bytes(), self.valid)
+
+    def test_task_parent_spec_must_exist_and_validate_before_write(self):
+        req = self.root / "requirements/REQ-001.yml"
+        req.parent.mkdir(parents=True)
+        req.write_text(json.dumps({"ID": "REQ-001", "title": "Context", "description": "Viewing context.", "status": "accepted"}))
+        relative = "planning/tasks/TASK-999.yml"
+        candidate = json.dumps({"ID": "TASK-999", "spec": "SPEC-999", "req": ["REQ-001"], "wave_id": "W01",
+                                "action": "Implement context", "status": "pending"}).encode()
+        self.assertFalse(self.compat.prevalidate_canonical_write(self.root, relative, candidate)["valid"])
+        spec = self.root / "specs/SPEC-999.yml"
+        spec.parent.mkdir(parents=True)
+        spec.write_text(json.dumps({"ID": "SPEC-999", "title": "Context", "description": "Viewing context.", "requirements": ["REQ-001"]}))
+        self.assertTrue(self.compat.prevalidate_canonical_write(self.root, relative, candidate)["valid"])
+        spec.write_text(spec.read_text().replace('"SPEC-999"', '"SPEC-998"'))
+        self.assertFalse(self.compat.prevalidate_canonical_write(self.root, relative, candidate)["valid"])
+        self.assertEqual(self.target.read_bytes(), self.valid)
+        self.assertIsNone(self.compat.last_canonical_write_journal(self.root))
+
+    def test_verification_plan_parent_and_proof_point_must_resolve(self):
+        relative = "planning/verification-plans/VPL-001.yaml"
+        candidate = {"schema_version": 1, "ID": "VPL-001", "test_contract_id": "TC-001", "wave_id": "W01", "status": "draft",
+                     "layer_assignments": [{"proof_point_id": "PP-001", "layer_decisions": [{"layer": "MODEL", "included": True, "rationale": "Inspect context."}]}]}
+        self.assertFalse(self.compat.prevalidate_canonical_write(self.root, relative, json.dumps(candidate).encode())["valid"])
+        req = self.root / "requirements/REQ-001.yml"
+        req.parent.mkdir(parents=True)
+        req.write_text(json.dumps({"ID": "REQ-001", "title": "Context", "description": "Viewing context.", "status": "accepted"}))
+        parent = self.root / "planning/test-contracts/TC-001.yaml"
+        parent.parent.mkdir(parents=True)
+        parent.write_text(json.dumps({"schema_version": 1, "ID": "TC-001", "title": "Context", "status": "active", "requirement_ids": ["REQ-001"],
+                                      "proof_points": [{"id": "PP-001", "claim": "Context matches.", "role": "User", "data_state": "any", "required_layers": ["MODEL"]}]}))
+        self.assertTrue(self.compat.prevalidate_canonical_write(self.root, relative, json.dumps(candidate).encode())["valid"])
+        candidate["layer_assignments"][0]["proof_point_id"] = "PP-002"
+        self.assertFalse(self.compat.prevalidate_canonical_write(self.root, relative, json.dumps(candidate).encode())["valid"])
+
+    def test_missing_reference_is_rejected_even_when_inventory_is_empty(self):
+        candidate = json.loads(self.valid)
+        candidate["affected_screens"] = ["PAGE-NOT-PRESENT"]
+        result = self.compat.prevalidate_canonical_write(self.root, self.relative, json.dumps(candidate).encode())
+        self.assertFalse(result["valid"])
+
+    def test_authorized_invalid_result_can_be_rolled_back_but_not_later_changes(self):
+        invalid = b"ID: DEC-058\nstatus: INVALID\n"
+        self.compat.record_last_canonical_write(self.root, self.relative, "LIFECYCLE_WRITE", "RUN-fixture",
+                                              self.compat.digest(invalid))
+        self.target.write_bytes(invalid)
+        report = {"compatibility": "BLOCKED", "source_fingerprint": "fixture",
+                  "diagnostics": [{"blocking": True, "source_path": self.relative, "diagnostic_id": "DX-fixture"}]}
+        import build_project_status
+        with mock.patch.object(build_project_status, "build_status", return_value={"compatibility": report}):
+            plan = self.compat.last_canonical_write_repair_plan(self.root)
+            self.target.write_bytes(invalid + b"later: edit\n")
+            with self.assertRaises(self.compat.ResolutionFailure):
+                self.compat.last_canonical_write_repair_plan(self.root)
+        self.target.write_bytes(invalid)
+        with mock.patch.dict(self.compat.os.environ, {"MXAGILE_RUN_ID": "RUN-fixture"}), \
+                mock.patch.object(build_project_status, "build_status", side_effect=[
+                {"compatibility": report}, {"compatibility": {"compatibility": "COMPATIBLE", "diagnostics": []}}]):
+            result = self.compat.apply_last_canonical_write_repair(self.root, plan_hash=plan["plan_hash"], run_id="RUN-fixture")
+        self.assertEqual(result["result"], "APPLIED")
+        self.assertEqual(self.target.read_bytes(), self.valid)
+
+    def test_bounded_candidate_repair_preserves_protected_before_values(self):
+        invalid = b"ID: DEC-058\nstatus: INVALID\n"
+        self.compat.record_last_canonical_write(self.root, self.relative, "LIFECYCLE_WRITE", "RUN-parent", self.compat.digest(invalid))
+        self.target.write_bytes(invalid)
+        report = {"compatibility": "BLOCKED", "source_fingerprint": "fixture",
+                  "diagnostics": [{"blocking": True, "source_path": self.relative, "diagnostic_id": "DX-fixture"}]}
+        candidate = json.loads(self.valid)
+        candidate["status"] = "CONFIRMED"
+        self.assertTrue(self.compat.prevalidate_canonical_write(self.root, self.relative, json.dumps(candidate).encode())["valid"])
+        import build_project_status
+        with mock.patch.object(build_project_status, "build_status", return_value={"compatibility": report}):
+            with self.assertRaises(self.compat.ResolutionFailure):
+                self.compat.last_canonical_write_repair_plan(self.root, candidate_bytes=json.dumps(candidate).encode())
+            candidate["status"] = "PROPOSED"
+            candidate["title"] = "Corrected structural description"
+            self.assertEqual(self.compat.last_canonical_write_repair_plan(self.root, candidate_bytes=json.dumps(candidate).encode())["action"], "replace")
+            journal = self.compat.last_canonical_write_journal(self.root)
+            journal["before_content_b64"] = None
+            (self.root / self.compat.LAST_CANONICAL_WRITE).write_text(json.dumps(journal))
+            with self.assertRaises(self.compat.ResolutionFailure):
+                self.compat.last_canonical_write_repair_plan(self.root, candidate_bytes=json.dumps(candidate).encode())
+            self.assertEqual(self.compat.last_canonical_write_repair_plan(self.root, candidate_bytes=self.valid)["action"], "replace")
+        self.assertEqual(self.target.read_bytes(), invalid)
+
+    def test_bounded_repair_writer_and_hook_reject_another_run(self):
+        invalid = b"ID: DEC-058\nstatus: INVALID\n"
+        self.compat.record_last_canonical_write(self.root, self.relative, "LIFECYCLE_WRITE", "RUN-parent", self.compat.digest(invalid))
+        self.target.write_bytes(invalid)
+        plan = {"plan_hash": "approved", "journal_run_id": "RUN-parent", "target_path": self.relative,
+                "current_invalid_fingerprint": self.compat.digest(invalid), "action": "rollback"}
+        import build_project_status
+        with self.subTest(boundary="writer"), mock.patch.object(self.compat, "last_canonical_write_repair_plan", return_value=plan), \
+                mock.patch.object(self.compat, "atomic_replace") as replace, \
+                mock.patch.object(build_project_status, "build_status", return_value={"compatibility": {"compatibility": "COMPATIBLE", "diagnostics": []}}), \
+                mock.patch.object(self.compat, "_auxiliary_runtime", return_value=(None, mock.Mock())), \
+                mock.patch.dict(self.compat.os.environ, {"MXAGILE_RUN_ID": "RUN-other"}):
+            with self.assertRaises(self.compat.ResolutionFailure):
+                self.compat.apply_last_canonical_write_repair(self.root, plan_hash="approved", run_id="RUN-other")
+            replace.assert_not_called()
+        tools = self.root / ".mxagile/tools"
+        tools.mkdir(parents=True, exist_ok=True)
+        script = tools / "project_compatibility.py"
+        writer = tools / "Write-MxAgileEpochCheckpoint.ps1"
+        script.write_bytes(b"fixture")
+        writer.write_bytes(b"fixture")
+        facts = enforcement.guard.ProjectFacts(root=self.root, core_provenance={
+            "artifact_contract": "fixture", "recovery_tools": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in (script, writer)}})
+        command = f'python "{script}" repair-last-write --apply --project-root "{self.root}" --format json --plan-hash approved --run-id RUN-other'
+        with mock.patch.object(self.compat, "last_canonical_write_repair_plan", return_value=plan), \
+                mock.patch.object(self.compat, "contract_snapshot", return_value="fixture"), \
+                mock.patch.dict(enforcement.os.environ, {"MXAGILE_RUN_ID": "RUN-other"}):
+            self.assertIsNone(enforcement._controlled_recovery(facts, {"tool_name": "Bash", "tool_input": {"command": command}}))
+        self.assertEqual(self.target.read_bytes(), invalid)
+
+    def test_bounded_repair_requires_the_actual_authorized_result(self):
+        invalid = b"ID: DEC-058\nstatus: INVALID\n"
+        self.compat.record_last_canonical_write(self.root, self.relative, "LIFECYCLE_WRITE", "RUN-fixture")
+        self.target.write_bytes(invalid)
+        report = {"compatibility": "BLOCKED", "source_fingerprint": "fixture",
+                  "diagnostics": [{"blocking": True, "source_path": self.relative, "diagnostic_id": "DX-fixture"}]}
+        import build_project_status
+        with mock.patch.object(build_project_status, "build_status", return_value={"compatibility": report}):
+            with self.assertRaises(self.compat.ResolutionFailure):
+                self.compat.last_canonical_write_repair_plan(self.root)
 
 
 if __name__ == "__main__":

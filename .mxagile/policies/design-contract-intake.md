@@ -78,6 +78,44 @@ Map Mocketeer statuses to intake dispositions:
 | REJECTED | Do not intake; record as explicitly out-of-scope |
 | SUPERSEDED | Do not intake the superseded entry |
 
+## Requirement Lifecycle Reconciliation
+
+Mocketeer classifications are change dispositions, not a second Requirement state machine:
+
+| Source disposition | Canonical treatment after semantic mapping and required acceptance |
+|---|---|
+| UNCHANGED | Keep current status and valid unchanged-scope evidence |
+| MODIFIED | Preserve identity; reassess affected ACs and evidence before accepting |
+| SUPERSEDED | `superseded` with one canonical `superseded_by` successor |
+| OBSOLETE | `obsolete`/`retired`, no artificial successor; preserve history |
+| SPLIT | `split` with at least two distinct canonical `replacement_ids` |
+| MERGED | `merged` with the resulting canonical `merged_into` identity |
+| NEW | New canonical candidate in Refinement, not automatic acceptance |
+| AMBIGUOUS | Preserve competing history; unresolved current scope cannot be accepted |
+
+`duplicate` uses a canonical consolidation target; `invalid` retires without replacement.
+Canonical ACTIVE intent is `status: accepted`, not an invented `ACTIVE` schema value.
+A historical unresolved Requirement may remain readable as `ambiguous` without deleting it;
+current implementation may not rely on it as accepted authority. Validate successor existence,
+uniqueness, non-self-reference and lineage in cross-contract reconciliation, not by JSON Schema
+alone. Preserve split/merge source relationships and resolve every target through semantic
+source-to-canonical mapping; do not infer replacement from ID equality or timestamps.
+
+Obsolete intent never authorizes implementation deletion. Record a separate
+`implementation_impact.disposition`: `KEEP`, `REMOVE_CANDIDATE`, or `NEEDS_HUMAN`.
+A removal candidate is not deletion approval; inspect shared references, navigation, roles,
+security and accepted replacement scope before any authorized implementation change.
+
+## Assumption Authority
+
+DERIVED, RECOMMENDATION and ASSUMPTION_REQUIRES_APPROVAL remain inferred/proposed business
+intent until an authoritative source or confirmed human Decision settles them. Retain source,
+uncertainty, affected claims and decision need in the existing refinement/open-item records.
+`evidence: static` means source observation, not declared business approval. Implemented behavior,
+a browser PASS, HANDOFF_READY, or a PROPOSED Decision cannot promote an assumption to DECLARED
+acceptance criteria. A DECLARED graph edge proves an explicit reference, not stakeholder authority.
+Do not derive settled Test Contract claims from unconfirmed candidate business rules.
+
 ## Role Intake
 
 For each role in `roles[]`:
@@ -404,7 +442,8 @@ not the authoritative source. The canonical artifact files are always authoritat
 |---|---|
 | All `MAPPED` id_map entries resolve to real canonical artifacts | `canonical_id` file exists at expected path |
 | All `DIRECT` id_map entries have semantically confirmed identity | canonical artifact content confirms match |
-| No two `MAPPED`/`DIRECT` entries map to the same canonical ID | 1:1 canonical ID uniqueness |
+| Multiple source entries map to one canonical ID only for an explicitly reconciled merge/duplicate | Confirm equivalent intent, consolidation rationale and canonical successor traceability; otherwise collision |
+| A split maps all resulting source successors to distinct canonical targets | Every target exists and is semantically mapped; retain the historical canonical `replacement_ids` |
 | No `COLLISION` entry has `canonical_id` populated before Refinement allocation | allocation only during Refinement |
 | After Refinement: no `PENDING` entry remains for material confirmed elements | all confirmed material elements dispositioned |
 
@@ -542,7 +581,15 @@ design_contract_provenance:
 
 ### Reconciliation on Later Revision
 
-When a new mockup revision arrives:
+When a new mockup revision arrives, detecting a valid embedded contract with a new source
+identity/revision and HANDOFF_READY automatically initiates or offers reconciliation; the user
+need not say a special reconciliation keyword. Compare `mockup.id`, revision, predecessor and
+source fingerprint to the recorded source. A reused HTML path or matching revision file name
+alone is not proof that its updated content was reconciled. Missing/ambiguous lineage requires
+review, not silent target activation. Separate Handoff JSON is derived/internal only: it must
+be semantically reproducible from the embedded `#mocketeer-spec`, never a required manual PO
+transfer or a competing authority.
+
 1. Re-run intake with the updated `mockup.revision`.
 2. Compare `assessment.gaps` — OPEN → RESOLVED transitions may close story-spec open questions.
 3. New or reopened gaps → mark affected Requirements/Test Contracts IMPACTED per `policies/test-staleness.md`.

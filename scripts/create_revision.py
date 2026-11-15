@@ -1,12 +1,12 @@
 """
 MxAgile SPA Bundle Revision Creator
 
-Creates an accepted revision of a SPA mockup bundle. This is the ONLY authorized
-way to create a revision — agents and gates do not create revisions directly.
+Creates a schema-valid accepted, inactive SPA bundle snapshot. Activation and
+selective page binding remain separate reconciliation steps; latest is not active.
 
 Preconditions (enforced):
-  1. The target working bundle must exist.
-  2. A planning/decisions/DEC-NNN.md file must be provided as acceptance provenance.
+  1. The project-owned target working bundle must exist.
+  2. A schema-valid CONFIRMED planning/decisions/DEC-NNN.yml is required as acceptance provenance.
   3. The working bundle must actually differ from the last accepted revision (if any).
 
 Usage:
@@ -26,7 +26,7 @@ Examples:
 What this script does:
   1. Computes the current working bundle hash.
   2. Determines the next revision ID (REV-NNN sequential).
-  3. Verifies the DEC-NNN file exists in planning/decisions/.
+  3. Validates the canonical CONFIRMED decision and complete revision candidate before mutation.
   4. Copies the working bundle to _history/REV-NNN/.
   5. Creates _history/REV-NNN/revision.yaml with:
      - revision_id, mockup_name, created_at, bundle_hash
@@ -76,12 +76,41 @@ def _next_revision_id(existing):
     return f'REV-{num + 1:03d}'
 
 
+def _revision_manifest(revision_id, mockup_name, bundle_hash, decision_id, predecessor,
+                       reason, impact_scope, affected_screens, change_classification):
+    manifest = {
+        'revision_id': revision_id, 'mockup_name': mockup_name,
+        'revision': int(revision_id.split('-')[1]),
+        'created_at': datetime.date.today().isoformat(), 'entry_point': 'index.html',
+        'bundle_hash': bundle_hash, 'lifecycle_trigger': 'refinement_accepted',
+        'lifecycle_status': 'REFINED_TARGET' if predecessor else 'SOURCE',
+        'refinement_status': 'ACCEPTED', 'active_target': False,
+        'change_classification': change_classification, 'impact_scope': impact_scope,
+        'acceptance_decisions': [decision_id],
+    }
+    if predecessor:
+        manifest['predecessor_revision_id'] = predecessor
+        manifest['previous_revision'] = int(predecessor.split('-')[1])
+    if reason:
+        manifest['reason'] = reason
+    if affected_screens:
+        manifest['affected_screens'] = affected_screens
+    return manifest
+
+
 def create_revision(project_root, mockup_name, decision_id, reason=None,
                     impact_scope='unknown', affected_screens=None,
                     change_classification='unknown', dry_run=False):
     root = Path(project_root).resolve()
-
-    working_bundle = root / 'planning' / 'target-mockups' / mockup_name
+    from projection_io import safe_path
+    if not isinstance(mockup_name, str) or mockup_name in ('', '.', '..', '_history') or any(c in mockup_name for c in ('/', '\\')):
+        print('[ERROR] Mockup must name one project-owned bundle directory.')
+        return False
+    try:
+        working_bundle = safe_path(root, f'planning/target-mockups/{mockup_name}')
+    except ValueError:
+        print('[ERROR] Unsafe mockup bundle path.')
+        return False
     if not working_bundle.exists():
         print(f'[ERROR] Working bundle not found: {working_bundle}')
         return False
@@ -91,13 +120,21 @@ def create_revision(project_root, mockup_name, decision_id, reason=None,
     new_revision_id = _next_revision_id(existing_revisions)
     predecessor = existing_revisions[-1] if existing_revisions else None
 
-    # Verify the decision file exists
-    dec_md = root / 'planning' / 'decisions' / f'{decision_id}.md'
-    dec_yaml = root / 'planning' / 'decisions' / f'{decision_id}.yaml'
-    if not dec_md.exists() and not dec_yaml.exists():
-        print(f'[ERROR] Decision file not found: {dec_md} or {dec_yaml}')
-        print(f'  The decision must be recorded in planning/decisions/{decision_id}.md')
-        print(f'  before a revision can be created. This is the acceptance provenance.')
+    from project_compatibility import safe_file, load_yaml, schema_errors
+    if not re.fullmatch(r'DEC-[0-9]{3,}', str(decision_id)):
+        print('[ERROR] A canonical DEC-NNN acceptance reference is required.')
+        return False
+    decision_relative = f'planning/decisions/{decision_id}.yml'
+    decision_file = safe_file(root, decision_relative)
+    try:
+        decision = load_yaml(decision_file.read_bytes().decode('utf-8-sig')) if decision_file else None
+        confirmed = (isinstance(decision, dict) and decision.get('ID') == decision_id
+                     and decision.get('status') == 'CONFIRMED' and not schema_errors(decision_relative, decision))
+    except (OSError, UnicodeError, yaml.YAMLError):
+        confirmed = False
+    if not confirmed:
+        print(f'[ERROR] Canonical schema-valid CONFIRMED decision required: {decision_relative}')
+        print('  A legacy filename or PROPOSED decision is not acceptance; resolve its authority first.')
         return False
 
     # Compute working bundle hash (excludes _history/ and revision.yaml)
@@ -127,6 +164,13 @@ def create_revision(project_root, mockup_name, decision_id, reason=None,
                 print(f'[WARN] Could not read last revision manifest: {e}')
 
     new_revision_dir = history_dir / new_revision_id
+    revision_manifest = _revision_manifest(new_revision_id, mockup_name, bundle_hash, decision_id,
+                                           predecessor, reason, impact_scope, affected_screens, change_classification)
+    from project_compatibility import schema_validator, SCHEMA_ROOT
+    errors = list(schema_validator(SCHEMA_ROOT / 'revision.schema.json').iter_errors(revision_manifest))
+    if errors:
+        print('[ERROR] Invalid revision candidate: ' + '; '.join(error.message for error in errors))
+        return False
 
     print(f'[INFO] New revision: {new_revision_id}')
     print(f'[INFO] Revision directory: {new_revision_dir}')
@@ -159,25 +203,7 @@ def create_revision(project_root, mockup_name, decision_id, reason=None,
 
     print(f'[INFO] Copied {copied} files to {new_revision_dir}')
 
-    # Write revision.yaml
-    revision_manifest = {
-        'revision_id': new_revision_id,
-        'mockup_name': mockup_name,
-        'created_at': datetime.date.today().isoformat(),
-        'entry_point': 'index.html',
-        'bundle_hash': bundle_hash,
-        'lifecycle_trigger': 'refinement_accepted',
-        'change_classification': change_classification,
-        'impact_scope': impact_scope,
-        'acceptance_decisions': [decision_id],
-    }
-
-    if predecessor:
-        revision_manifest['predecessor_revision_id'] = predecessor
-    if reason:
-        revision_manifest['reason'] = reason
-    if affected_screens:
-        revision_manifest['affected_screens'] = affected_screens
+    # Persist only the prevalidated candidate; creation does not activate or rebind pages.
 
     revision_yaml_path = new_revision_dir / 'revision.yaml'
     with open(revision_yaml_path, 'w', encoding='utf-8') as f:
@@ -188,9 +214,10 @@ def create_revision(project_root, mockup_name, decision_id, reason=None,
     print(f'[OK] Revision {new_revision_id} created successfully.')
     print()
     print(f'Next steps:')
-    print(f'  1. Update UI inventory YAMLs for affected screens:')
-    print(f'     target_revision: {new_revision_id}')
-    print(f'     bundle_hash: {bundle_hash}')
+    print('  1. Reconcile activation and affected-page scope explicitly; creation is not activation.')
+    print(f'     Candidate target_revision: {new_revision_id}')
+    print(f'     Candidate bundle_hash: {bundle_hash}')
+    print('     Retain unaffected evidence only with an explicit unchanged-scope proof.')
     print(f'  2. Run: python scripts/build_artifact_index.py <project_root>')
     print(f'  3. Commit: git add planning/target-mockups/{mockup_name}/_history/{new_revision_id}/')
 
@@ -199,24 +226,9 @@ def create_revision(project_root, mockup_name, decision_id, reason=None,
 
 def _print_revision_yaml(revision_id, mockup_name, bundle_hash, decision_id,
                          predecessor, reason, impact_scope, affected_screens, change_classification):
-    lines = [
-        f'revision_id: {revision_id}',
-        f'mockup_name: {mockup_name}',
-        f'created_at: {datetime.date.today().isoformat()}',
-        f'entry_point: index.html',
-        f'bundle_hash: {bundle_hash}',
-        f'lifecycle_trigger: refinement_accepted',
-        f'change_classification: {change_classification}',
-        f'impact_scope: {impact_scope}',
-        f'acceptance_decisions: [{decision_id}]',
-    ]
-    if predecessor:
-        lines.insert(4, f'predecessor_revision_id: {predecessor}')
-    if reason:
-        lines.append(f'reason: "{reason}"')
-    if affected_screens:
-        lines.append(f'affected_screens: {affected_screens}')
-    for line in lines:
+    manifest = _revision_manifest(revision_id, mockup_name, bundle_hash, decision_id, predecessor,
+                                  reason, impact_scope, affected_screens, change_classification)
+    for line in yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True).splitlines():
         print(f'  {line}')
 
 

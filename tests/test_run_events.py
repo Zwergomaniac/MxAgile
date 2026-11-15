@@ -98,6 +98,25 @@ class RunEventTests(unittest.TestCase):
         self.emit("child_accepted", child, parent_run_id=parent, payload={"acceptance_status": "ACCEPTED"})
         self.assertEqual(run_events.active_runs(run_events.read_events(self.root)["events"]), [])
 
+    def test_resync_history_does_not_close_an_orphaned_child(self):
+        self.emit("child_started", parent_run_id="RUN-parent000001")
+        self.emit("lifecycle_resync_completed")
+        runs = run_events.active_runs(run_events.read_events(self.root)["events"])
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["status"], "RESULT_UNKNOWN")
+        self.assertEqual(runs[0]["parent_run_id"], "RUN-parent000001")
+
+    def test_resume_after_terminal_and_clock_skew_uses_per_run_sequence(self):
+        self.emit("run_started")
+        self.emit("run_completed")
+        self.emit("run_resumed", occurred_at=dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1))
+        runs = run_events.active_runs(run_events.read_events(self.root)["events"])
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["status"], "RESULT_UNKNOWN")
+        self.emit("run_interrupted", occurred_at=dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2))
+        runs = run_events.active_runs(run_events.read_events(self.root)["events"])
+        self.assertEqual(runs[0]["status"], "INTERRUPTED")
+
     def test_resume_reconciliation_reads_canonical_state_and_does_not_change_it(self):
         sys.path.insert(0, str(ROOT / "tests"))
         from test_control_plane_phase1b import MISSION, Phase1BFixture

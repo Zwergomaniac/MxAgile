@@ -24,11 +24,11 @@ Every revision (SPA bundle) and every named mockup target (single-file) carries 
 
 **Transition rules (atomic):**
 1. At project start: first revision gets `lifecycle_status: SOURCE` and `active_target: true`.
-2. When a refinement is accepted: new revision gets `lifecycle_status: REFINED_TARGET` and `active_target: true`. The previously active revision transitions to `lifecycle_status: SUPERSEDED_TARGET` and `active_target: false`. Both changes happen atomically (enforced by `create_revision.py`).
+2. When a refinement is accepted: new revision gets `lifecycle_status: REFINED_TARGET` and `active_target: true`. The previously active revision transitions to `lifecycle_status: SUPERSEDED_TARGET` and `active_target: false`. Both changes must happen atomically. This is the required cross-document transition contract, not a claim that file creation alone enforces it.
 3. The original `SOURCE` revision is never re-labeled; it remains `SOURCE` and `active_target: false` once superseded.
 4. A `REJECTED` revision is never stored in `_history/`. It never receives a `lifecycle_status`.
 
-**Active Target Invariant:** At any point in time, exactly ONE revision per mockup bundle may have `active_target: true`. Violating this invariant is a SCHEMA ERROR, not a recoverable state.
+**Active Target Invariant:** At any point in time, exactly ONE revision per mockup bundle may have `active_target: true`. Violating this invariant is a cross-contract lifecycle error. JSON Schema validates one manifest only and cannot prove uniqueness across revisions; Doctor/reconciliation must check the set. Do not infer correctness from a writer success.
 
 ## Refinement Status Model
 
@@ -41,6 +41,35 @@ A proposed refinement goes through the following `refinement_status` states:
 | `REJECTED` | Developer explicitly rejected this revision. The prior active target remains active. Rejected proposals are NOT stored in `_history/`. |
 
 An agent MAY propose a refinement. An agent MUST NOT claim a revision is ACCEPTED without an explicit developer confirmation backed by a `planning/decisions/DEC-NNN.yml` entry.
+
+## Readiness and Acceptance Boundaries
+
+Track independently: upstream CONTRACT_READY, upstream HANDOFF_READY, runtime verification,
+project revision acceptance, and project ACTIVE_TARGET. No dimension implies another.
+A new handoff-ready embedded contract triggers intake/delta/impact reconciliation without a
+special user command; it does not set ACTIVE_TARGET. Project acceptance requires the existing
+Decision contract. Schema-valid active-target flags cannot prove human confirmation, semantic
+preservation, implementation acceptance, or complete delivery.
+
+Reconciliation selects affected page bindings. Upstream `mockup.id` / `mockup.revision` are
+independent of the project bundle `mockup_name` and its local `REV-NNN` snapshot counter.
+An archived embedded contract establishes its source identity through the fingerprinted entry
+point; do not equate source IDs with directory names or source revision 38 with snapshot REV-038.
+A Page may carry both a source `mockup_id` and a different canonical `mockup_name`; this is not
+an identity conflict. A same source path, one bound page, or a global
+active revision number cannot prove that all affected pages are bound. Preserve unchanged-scope
+semantic evidence with documented equivalence; changed-scope evidence becomes STALE. Uncertain
+shared impacts remain unassessed. Delivery preflight publishes `mocketeer_reconciliation.page_bindings`
+per active bundle/revision, including unbound affected Pages, ambiguous/missing mappings and stale
+scope. This is a read-only warning before implementation, not an automatic rebind or Wave PASS.
+Retention is eligibility only: prior evidence must still be valid under its own fingerprint and
+acceptance contract. See `policies/impact-resolution.md` and `policies/ui-parity.md`.
+
+Implementation exists, runtime partial PASS, acceptance complete, and Wave DONE are independent
+claims. Before closure, account for every in-scope AC/proof point, required role/state, open
+Decision, security gate, task and functional gap. Missing/unavailable evidence is not PASS;
+only the canonical lifecycle gate may close delivery. Plan text, commits and a model-error-free
+result alone do not close a Decision, security gate, task or Wave.
 
 ## Platform Boundary Scope Rule
 
@@ -105,14 +134,15 @@ When refinement produces a materially different accepted design (single-file):
 - Record the old target in `planning/target-mockups/_history/` with a date suffix
 - Update the UI inventory `target_mockup` field to the new path
 - The source mockup remains UNCHANGED
-- Record the change in `planning/decisions/DEC-NNN.md` with: what changed, why, who accepted it
+- Record the change in canonical `planning/decisions/DEC-NNN.yml` with: what changed, why, who accepted it. Approval requires `status: CONFIRMED`, not a legacy filename.
 
 When refinement produces a materially different accepted design (SPA bundle):
 - Edit the working bundle in `planning/target-mockups/<mockup-name>/`
 - Get explicit developer acceptance (see `policies/spa-mockup-bundle.md` Acceptance Lifecycle)
-- Record the Decision in `planning/decisions/DEC-NNN.md`
-- Run `scripts/create_revision.py` to archive the working bundle as REV-NNN
-- Update the UI inventory `target_revision` and `bundle_hash` fields
+- Record a schema-valid CONFIRMED Decision in `planning/decisions/DEC-NNN.yml`
+- Run `scripts/create_revision.py` to archive a schema-valid accepted, inactive REV-NNN snapshot
+- Reconcile activation separately; creation does not imply latest = active
+- Bind only affected Pages via explicit `target_revision` and matching namespace/fingerprint; unchanged Pages retain evidence only with a documented unchanged-scope proof
 - The source bundle remains UNCHANGED
 
 Future browser verification MUST use the active target, not the original source, to avoid
@@ -179,8 +209,9 @@ Autonomous refinement process:
 1. Propose the refined target to the developer
 2. Show the diff between source mockup and proposed target
 3. Wait for developer acceptance
-4. On acceptance: create/update the target file (single-file) or run `create_revision.py`
-   (SPA bundle), update the inventory, record the decision in `planning/decisions/DEC-NNN.md`
+4. On acceptance: record a schema-valid CONFIRMED decision in `planning/decisions/DEC-NNN.yml`;
+   then create/update the target file (single-file) or run `create_revision.py` (SPA bundle).
+   Reconcile activation and selectively update affected inventory bindings; do not rebind every Page.
 5. On rejection: revert to source mockup as target; plan an implementation correction
 
 An agent MUST NOT silently adopt an implementation shortcut as the new target.
@@ -197,8 +228,10 @@ When source and target mockup conflict without explicit acceptance:
 - Target mockup version (single-file) tracks the date of the last accepted change
 - Target revision (SPA bundle) tracks the accepted REV-NNN
 - History files and revision directories are NEVER deleted — they are the audit trail of design decisions
-- When the source mockup is updated (new version from customer): archive the old source, update `source_mockup` reference, reset `target_mockup`/`target_revision` to the new source
-- Do NOT automatically rebase the target against a new source — check for conflicts first
+- When a new source version arrives: preserve the old source and record the new source identity;
+  initiate delta/impact reconciliation before changing accepted target references.
+- Do NOT automatically reset or rebase `target_mockup`/`target_revision` against a new source.
+  Check conflicts and obtain the required target-acceptance Decision first.
 
 ## Gate-to-Ready: Working Target Check (SPA Bundles)
 
@@ -212,5 +245,7 @@ If `development.ui_driven = true` and the project uses SPA bundle mockups:
    b. Reverting the working bundle to match the last accepted revision.
 
 Gate-to-ready MUST NOT convert an unaccepted working bundle into an accepted revision.
-Only `create_revision.py` creates revisions, and only after explicit developer acceptance
-backed by a `planning/decisions/DEC-NNN.md` entry.
+Canonical SPA snapshots are created by `create_revision.py` only after explicit developer acceptance
+backed by a schema-valid CONFIRMED `planning/decisions/DEC-NNN.yml`. Legacy ledgers remain a separate
+read/reconciliation shape. Snapshot creation is not activation and does not prove atomic multi-document
+activation, complete Page binding or retained runtime evidence.

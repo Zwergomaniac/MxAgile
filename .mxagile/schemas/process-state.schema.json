@@ -34,6 +34,9 @@
             "gate_to_refinement": { "$ref": "#/definitions/gate_result" },
             "gate_to_ready": { "$ref": "#/definitions/gate_result" },
             "testability_gate": { "$ref": "#/definitions/gate_result" },
+            "quality_gate": { "$ref": "#/definitions/gate_result" },
+            "ui_verification": { "$ref": "#/definitions/gate_result" },
+            "security_gate": { "$ref": "#/definitions/gate_result" },
             "acceptance_gate": { "$ref": "#/definitions/acceptance_gate_result" }
           }
         },

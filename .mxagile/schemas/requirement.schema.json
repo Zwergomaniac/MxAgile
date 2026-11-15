@@ -6,6 +6,24 @@
   "type": "object",
   "required": ["ID", "title", "description"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "split" } }, "required": ["status"] },
+      "then": { "required": ["replacement_ids"] }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["merged", "duplicate"] } }, "required": ["status"] },
+      "then": { "anyOf": [{ "required": ["merged_into"] }, { "required": ["superseded_by"] }] }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["obsolete", "retired", "invalid"] } }, "required": ["status"] },
+      "then": { "not": { "anyOf": [{ "required": ["superseded_by"] }, { "required": ["replacement_ids"] }, { "required": ["merged_into"] }] } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "accepted" } }, "required": ["status"] },
+      "then": { "properties": { "open_items": { "maxItems": 0 } } }
+    }
+  ],
   "properties": {
     "ID": {
       "type": "string",
@@ -22,14 +40,60 @@
     },
     "status": {
       "type": "string",
-      "enum": ["draft", "accepted", "deferred", "superseded"],
+      "enum": ["draft", "accepted", "deferred", "superseded", "obsolete", "retired", "split", "merged", "duplicate", "invalid", "ambiguous"],
       "default": "draft",
-      "description": "draft: authored but not reviewed. accepted: approved for implementation. deferred: postponed. superseded: replaced by another requirement."
+      "description": "draft: authored but not reviewed. accepted: active and approved for implementation. deferred: postponed. superseded: replaced by one successor requirement (superseded_by). obsolete/retired: retired without replacement (no artificial successor required; historical traceability preserved). split: replaced by multiple successor requirements (replacement_ids). merged/duplicate: consolidated into another canonical requirement (merged_into or superseded_by). invalid: withdrawn as invalid. ambiguous: unresolved conflicting requirement authority."
     },
     "superseded_by": {
       "type": "string",
       "pattern": "^REQ-[0-9]{3,}$",
       "description": "Canonical successor Requirement. Required when status is superseded; never infer from title or text similarity."
+    },
+    "replacement_ids": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^REQ-[0-9]{3,}$"
+      },
+      "description": "Canonical successor Requirements when status is split (requires at least two distinct canonical REQ-NNN targets)."
+    },
+    "merged_into": {
+      "type": "string",
+      "pattern": "^REQ-[0-9]{3,}$",
+      "description": "Resulting canonical Requirement identity when status is merged or duplicate."
+    },
+    "retirement_reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Rationale when status is obsolete, retired, or invalid without a replacement successor."
+    },
+    "mocketeer_lifecycle": {
+      "type": "string",
+      "enum": ["UNCHANGED", "MODIFIED", "SUPERSEDED", "OBSOLETE", "SPLIT", "MERGED", "NEW", "AMBIGUOUS"],
+      "description": "Optional harmonized Mocketeer reconciliation classification (D3); maps into the canonical Requirement lifecycle without creating a second state machine."
+    },
+    "implementation_impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["disposition"],
+      "description": "Separate implementation impact disposition for obsolete, retired, or superseded requirements (D2). An obsolete requirement never automatically authorizes deleting Pages, Flows, Entities, Security, or HTML assets.",
+      "properties": {
+        "disposition": {
+          "type": "string",
+          "enum": ["KEEP", "REMOVE_CANDIDATE", "NEEDS_HUMAN"]
+        },
+        "affected_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "decision_ref": {
+          "type": ["string", "null"],
+          "pattern": "^(DEC-[0-9]{3,})?$"
+        },
+        "note": { "type": "string" }
+      }
     },
     "source": {
       "type": "string",

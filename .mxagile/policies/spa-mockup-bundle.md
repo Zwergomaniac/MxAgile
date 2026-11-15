@@ -83,14 +83,15 @@ Developer proposes UI change
   -> Agent proposes target bundle edit
   -> Developer reviews diff
   -> Developer accepts
-  -> Decision recorded in planning/decisions/DEC-NNN.md
-  -> create_revision.py archives working bundle as REV-NNN
+  -> Schema-valid CONFIRMED Decision recorded in planning/decisions/DEC-NNN.yml
+  -> create_revision.py archives working bundle as accepted, inactive REV-NNN
+  -> Explicit activation and affected-Page reconciliation (no blanket rebind)
   -> revision.yaml created with bundle_hash, acceptance_decisions: [DEC-NNN], lifecycle_trigger: refinement_accepted
   -> UI inventory updated: target_revision: REV-NNN, bundle_hash: sha256:...
   -> Gate-to-ready passes revision check
 ```
 
-Only the `create_revision.py` script creates revisions. Agents and gates reference revisions; they do NOT create them.
+The `create_revision.py` script creates canonical accepted SPA snapshots, validates the canonical CONFIRMED decision and complete manifest before mutation, and emits `active_target: false`. Agents and gates must not fabricate acceptance or infer activation from snapshot creation. The script does not rewrite Page bindings or historical evidence.
 
 ## Bundle Hash Algorithm
 
