@@ -362,6 +362,31 @@ to current canonical files. Unsupported direct query types return an explicit er
 Revision and page-binding diagnostics belong to the compatibility/reconciliation evaluator;
 its observational result does not itself mutate lifecycle, bindings or evidence.
 
+### Page Identity before Revision Binding
+
+Prove identity **before** propagation: upstream Mocketeer Screen ID, stable CAP/MxAgile
+`page_id`, current fully-qualified Mendix `page_name`, and replacement/backup relationship.
+Names, an ACTIVE flag, a shared path or an edited `target_revision` do not prove identity.
+
+The Page's optional `revision_binding` preserves `mocketeer_screen_id`, `page_id`,
+`page_name`, upstream `mockup_id`, `backup_pages`, `previous_revision`, `current_revision`,
+`delta_impact`, `existing_evidence` and fingerprinted `identity_evidence` (`path`, `sha256`).
+Legacy inventories may remain readable without this record; they cannot manufacture BOUND.
+The JSON identity observation contains `provenance: OBSERVED`, `view_state: FRESH`,
+`page_identity` with the five identity fields, and nonempty `source_fingerprints`
+(`path`, `sha256`) for the inspected mapping/model/source inputs. Capture it from actual
+source-screen and model inspection, not by copying the proposed inventory values. Fingerprint
+an immutable bounded inspection source **and** current model/source inputs where available;
+without current model visibility, retain NOT_OBSERVABLE rather than inventing a hash.
+
+The read-only reconciliation validates identity evidence and current input hashes before
+reporting BOUND. Missing evidence, changed inputs, contradictory active/backup identities,
+or duplicate mappings remain `PAGE_IDENTITY_UNRESOLVED`/`AMBIGUOUS_PAGE_MAPPING`, even after
+one revision field is changed. Record the previous binding rather than guessing it;
+first binding may explicitly use null. Existing evidence is a reference, not a new PASS.
+Only affected Pages require reconciliation. Explicitly unchanged Pages retain their older
+binding and valid evidence when identity/input evidence is still current.
+
 ### Active Target Invariant during Propagation
 
 Propagation MUST update all affected page YAMLs to reference the new active revision:

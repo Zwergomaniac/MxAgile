@@ -86,7 +86,10 @@ class RealityToolingTests(unittest.TestCase):
         evidence = {'provider': 'studio_pro_mcp', 'host': 'UNKNOWN', 'run_id': 'RUN-fixture',
                     'observed_at': '2026-11-14T12:00:00Z', 'operation': 'browser.navigate',
                     'declared_available': True, 'tools_observed': True, 'operation_discovered': False,
-                    'execution_status': 'NOT_OBSERVED', 'execution_reference': 'observations/browser.json'}
+                    'execution_status': 'NOT_OBSERVED', 'execution_reference': 'observations/browser.json',
+                    'current_run_id': 'RUN-fixture', 'session_generation': 'generation-1',
+                    'current_session_generation': 'generation-1', 'view_state': 'FRESH',
+                    'bound_target': 'runtime-fixture', 'required_target': 'runtime-fixture'}
         evidence.update(overrides)
         return self.resolve('-BrowserEvidenceFile', evidence)['browser']
 
@@ -105,6 +108,83 @@ class RealityToolingTests(unittest.TestCase):
         self.assertEqual(self.browser(tools_observed=False)['state'], 'DECLARED_AVAILABLE')
         self.assertEqual(self.browser(declared_available=False)['state'], 'UNAVAILABLE')
         self.assertEqual(self.browser(operation_discovered=True, execution_status='FAILED')['state'], 'PARTIAL')
+
+    def test_browser_historical_or_reconnected_execution_cannot_authorize_routing(self):
+        for changes in ({'current_run_id': 'RUN-new'}, {'view_state': 'STALE'},
+                        {'current_session_generation': 'generation-2'},
+                        {'required_target': 'other-runtime'}, {'session_generation': None},
+                        {'tools_observed': False}, {'operation_discovered': False}):
+            with self.subTest(changes=changes):
+                result = self.browser(**dict({'operation_discovered': True, 'execution_status': 'PASSED'}, **changes))
+                self.assertFalse(result['route_allowed'])
+        self.assertEqual(self.browser(operation_discovered=True, execution_status='PASSED')['last_verified'],
+                         '2026-11-14T12:00:00Z')
+
+    def test_mcp_enablement_reads_declared_config_without_claiming_execution(self):
+        core = self.root / '.mxagile'
+        core.mkdir()
+        for name in ('capabilities.yaml', 'version.yaml', 'config.yaml'):
+            shutil.copyfile(ROOT / '.mxagile' / name, core / name)
+        config = self.root / '.vscode' / 'mcp.json'
+        config.parent.mkdir()
+        for enabled in (True, False):
+            config.write_text(json.dumps({'servers': {'mendix-studio-pro': {'type': 'http',
+                'url': 'http://localhost:7782/mcp', 'enabled': enabled}}}), encoding='utf-8')
+            result = subprocess.run(['pwsh', '-NoProfile', '-File', str(RESOLVER), '-ProjectRoot', str(self.root),
+                '-Capability', 'studio_pro_mcp', '-Format', 'json'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            capability = json.loads(result.stdout)['capabilities'][0]
+            self.assertEqual(capability['state']['enabled'], enabled)
+            self.assertFalse(capability['state']['active'])
+            self.assertIsNone(capability['integration']['executable'])
+
+    def test_operation_selection_is_capability_and_instance_scoped(self):
+        base = dict(provider='studio_pro_mcp', host='UNKNOWN', run_id='RUN-fixture',
+                    current_run_id='RUN-fixture', observed_at='2026-11-15T12:00:00Z',
+                    operation='browser.snapshot', declared_available=True, tools_observed=True,
+                    operation_discovered=True, execution_status='PASSED', execution_reference='observations/probe.json',
+                    session_generation='one', current_session_generation='one', view_state='FRESH',
+                    bound_target='runtime-fixture', required_target='runtime-fixture', limitations=[])
+        envelope = dict(operation='browser.snapshot', preferred_providers=['studio_pro_mcp', 'local_node_playwright'],
+                        preference_reason='Same Studio Pro/runtime binding; project runner is the configured fallback.',
+                        current_run_id='RUN-fixture', current_session_generation='one', required_target='runtime-fixture',
+                        providers=[dict(base, provider='concord_mcp', operation_discovered=False),
+                                   base, dict(base, provider='local_node_playwright')])
+        selected = self.resolve('-OperationEvidenceFile', envelope)['provider_selection']
+        self.assertEqual(selected['selected_provider'], 'studio_pro_mcp')
+        self.assertEqual(selected['fallback_providers'], ['local_node_playwright'])
+        envelope['preferred_providers'] = ['studio_pro_mcp', 'studio_pro_mcp', 'local_node_playwright']
+        selected = self.resolve('-OperationEvidenceFile', envelope)['provider_selection']
+        self.assertEqual(selected['fallback_providers'], ['local_node_playwright'], 'Fallback must not retry the selected provider')
+        envelope['providers'][1]['current_session_generation'] = 'two'
+        self.assertEqual(self.resolve('-OperationEvidenceFile', envelope)['provider_selection']['selected_provider'],
+                         'local_node_playwright')
+        envelope['providers'][2]['bound_target'] = 'wrong-runtime'
+        self.assertIsNone(self.resolve('-OperationEvidenceFile', envelope)['provider_selection']['selected_provider'])
+
+    def test_empty_reference_results_require_complete_fresh_dynamic_coverage(self):
+        evidence = dict(provider='concord_mcp', operation='references.scan', host='UNKNOWN',
+                        run_id='RUN-fixture', current_run_id='RUN-fixture', observed_at='2026-11-15T12:00:00Z',
+                        session_generation='one', current_session_generation='one', view_state='FRESH',
+                        bound_target='model-fixture', required_target='model-fixture',
+                        scan_status='COMPLETE', reference_count=0, index_state='FRESH',
+                        dynamic_reference_possible=False, coverage_complete=True,
+                        evidence_reference='observations/reference-scan.json')
+        result = self.resolve('-ReferenceEvidenceFile', evidence)['reference_safety']
+        self.assertEqual(result['state'], 'COMPLETE_SCAN_NO_REFERENCES')
+        self.assertTrue(result['reference_clearance'])
+        self.assertFalse(result['mutation_authorized'])
+        for changes, state in (({'scan_status': 'TIMEOUT'}, 'PARTIAL_SCAN'),
+                               ({'index_state': 'STALE'}, 'STALE_INDEX'),
+                               ({'dynamic_reference_possible': True}, 'DYNAMIC_REFERENCE_POSSIBLE'),
+                               ({'coverage_complete': False}, 'PARTIAL_SCAN'),
+                               ({'current_session_generation': 'two'}, 'UNKNOWN'),
+                               ({'scan_status': 'NOT_OBSERVABLE'}, 'NOT_OBSERVABLE')):
+            with self.subTest(changes=changes):
+                result = self.resolve('-ReferenceEvidenceFile', dict(evidence, **changes))['reference_safety']
+                self.assertEqual(result['state'], state)
+                self.assertFalse(result['reference_clearance'])
+                self.assertFalse(result['mutation_authorized'])
 
     def test_browser_execution_claim_needs_a_source_reference(self):
         path = self.root / 'browser.json'

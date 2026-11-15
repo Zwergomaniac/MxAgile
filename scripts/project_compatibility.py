@@ -573,12 +573,14 @@ def _active_revision_diagnostics(root: Path, parsed_documents: dict, add: Any) -
             normalized(page.get('target_revision')) in identities
             and (not namespace or not (page.get('mockup_name') or page.get('mockup_id'))
                  or namespace == (normalized(page.get('mockup_name')) or normalized(page.get('mockup_id'))))
+            and page_identity_binding(root, page, {'mockup_id': namespace,
+                'source_mockup_id': normalized(value.get('mockup_id')) or namespace})['state'] == 'PROVEN'
             for page in pages
         )
         if not bound:
             add('ACTIVE_REVISION_UNBOUND', relative, 'references',
                 f'Revision {revision_id} is marked active_target but no Page in planning/ui-inventory binds it '
-                '(explicit target_revision required; shared artifact paths do not bind revisions). The Board and Doctor cannot show where it applies.',
+                '(explicit target_revision and current Page identity evidence required; shared paths or a cosmetic binding do not prove identity). The Board and Doctor cannot show where it applies.',
                 repairability='DECISION_REQUIRED', severity='WARNING', authority='ACTIVE_TARGET')
 
 
@@ -2092,8 +2094,24 @@ def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase:
         reasons.append('ACTIVE_WAVE_CONFLICT')
     if phase and phase != canonical_phase:
         reasons.append('CANONICAL_PHASE_CONFLICT')
+    resume_reasons = []
+    try:
+        interruption = auxiliary_interruption(root)
+        if interruption:
+            epoch_file = safe_file(root, '.concord/context-epoch.yaml')
+            epoch = load_yaml(epoch_file.read_text(encoding='utf-8-sig')) if epoch_file else {}
+            timestamp = (epoch.get('repository') or {}).get('checkpoint_time') if isinstance(epoch, dict) else None
+            checkpoint = datetime.datetime.fromisoformat(str(timestamp).replace('Z', '+00:00')) if timestamp else None
+            interrupted = datetime.datetime.fromisoformat(interruption['interrupted_at'])
+            if checkpoint is None or checkpoint.tzinfo is None or checkpoint < interrupted:
+                resume_reasons.append('AUXILIARY_INTERRUPTION_REQUIRES_RESYNC')
+    except (ResolutionFailure, ValueError, TypeError, OSError, yaml.YAMLError):
+        reasons.append('INVALID_AUXILIARY_INTERRUPT_OR_EPOCH')
     return {'stage': 'RESYNC_PREFLIGHT', 'read_only': True, 'state': 'RECONCILIATION_REQUIRED' if reasons else 'READY_FOR_RESYNC',
-            'reason_codes': reasons, 'mission_id': canonical_mission, 'wave_id': canonical_wave, 'phase': canonical_phase}
+            'reason_codes': reasons + resume_reasons, 'mission_id': canonical_mission, 'wave_id': canonical_wave, 'phase': canonical_phase,
+            'delivery_resume_allowed': False, 'resume_reason_codes': resume_reasons,
+            'primary_recovery': 'reconcile' if reasons else 'resync',
+            'next_action': 'reconcile' if reasons else 'write_epoch_checkpoint_then_rerun_delivery_preflight'}
 
 
 LAST_CANONICAL_WRITE = '.mxagile/state/runs/last-canonical-write.json'
@@ -2304,6 +2322,45 @@ def prevalidate_canonical_write(root: Path, relative: str, candidate_bytes: byte
             fail_diag('ID_MISMATCH', f'Routing decision_id ({document.get("decision_id")!r}) does not match filename ({stem!r}).', 'decision_id')
 
     # 3. Cross-contract reference & invariant validation against existing project artifacts
+    if artifact_type == 'page' and isinstance(document.get('revision_binding'), dict) and not diagnostics:
+        binding = document['revision_binding']
+        if (binding['page_id'] != document.get('page_id') or binding['page_name'] != document.get('page_name')
+                or binding['current_revision'] != document.get('target_revision')):
+            fail_diag('PAGE_IDENTITY_CONFLICT', 'Revision binding must match the Page identity, implementation and current revision.', 'revision_binding')
+        previous_path = safe_file(root, normalized)
+        if previous_path:
+            try:
+                previous_doc = load_yaml(previous_path.read_text(encoding='utf-8-sig'))
+                previous_revision = previous_doc.get('target_revision') if isinstance(previous_doc, dict) else None
+                if previous_revision != document.get('target_revision') and binding['previous_revision'] != previous_revision:
+                    fail_diag('PAGE_BINDING_PREVIOUS_REVISION_CONFLICT', 'Rebinding must preserve the actual previous revision.', 'revision_binding')
+            except (OSError, UnicodeError, yaml.YAMLError):
+                fail_diag('PAGE_BINDING_PREVIOUS_REVISION_UNKNOWN', 'Previous binding cannot be observed.', 'revision_binding')
+    if artifact_type == 'finding' and not diagnostics:
+        claim = document.get('claim_provenance') or {}
+        authority = claim.get('authority_ref')
+        if claim.get('reported_as') in ('OBSERVED_DEFECT', 'DECLARED_RULE'):
+            authority_path = safe_file(root, authority) if isinstance(authority, str) else None
+            try:
+                authority_doc = load_yaml(authority_path.read_text(encoding='utf-8-sig')) if authority_path else None
+                authority_valid = (isinstance(authority_doc, dict) and authority_doc.get('status') in ('CONFIRMED', 'accepted')
+                                   and canonical_write_contract(authority)[0] in ('requirement', 'decision')
+                                   and authority_doc.get('ID') == PurePosixPath(authority).stem
+                                   and not schema_errors(authority, authority_doc))
+            except (OSError, UnicodeError, yaml.YAMLError, TypeError):
+                authority_valid = False
+            if not authority_valid:
+                fail_diag('CLAIM_AUTHORITY_NOT_CONFIRMED', 'A defect/rule claim requires a valid canonical accepted Requirement or CONFIRMED Decision path; inference is not authority.', 'claim_provenance')
+        previous_path = safe_file(root, normalized)
+        if previous_path:
+            try:
+                previous_doc = load_yaml(previous_path.read_text(encoding='utf-8-sig'))
+                previous_claim = previous_doc.get('claim_provenance') or {} if isinstance(previous_doc, dict) else {}
+            except (OSError, UnicodeError, yaml.YAMLError):
+                previous_claim = {}
+            if previous_claim.get('state') in ('INFERRED', 'PROPOSED') and claim.get('state') not in ('INFERRED', 'PROPOSED'):
+                if claim.get('reported_as') not in ('OBSERVED_DEFECT', 'DECLARED_RULE'):
+                    fail_diag('CLAIM_PROMOTION_REQUIRES_AUTHORITY', 'Do not erase an inferred/proposed origin through a cosmetic state edit.', 'claim_provenance')
     if artifact_type in {'revision', 'revision-ledger'} and not diagnostics:
         if document.get('refinement_status') == 'ACCEPTED' or document.get('active_target') is True:
             acceptance = document.get('acceptance_decisions')
@@ -2966,6 +3023,68 @@ def evaluate_mocketeer_reconciliation(root: Path) -> dict[str, Any]:
     }
 
 
+def page_identity_binding(root: Path, page: dict, target: dict) -> dict:
+    """Validate bounded recorded identity and its current inputs, not a live Mendix attestation."""
+    result = {'state': 'NOT_OBSERVABLE', 'identity_evidence': None}
+    binding = page.get('revision_binding')
+    if not isinstance(binding, dict):
+        return result
+    if jsonschema is None:
+        return result
+    binding_schema = schema_validator(SCHEMA_ROOT / 'page.schema.json').schema['properties']['revision_binding']
+    if not jsonschema.Draft7Validator(binding_schema).is_valid(binding):
+        return {**result, 'state': 'PAGE_IDENTITY_CONFLICT'}
+    evidence = binding.get('identity_evidence')
+    if not isinstance(evidence, dict):
+        return result
+    path = safe_file(root, evidence.get('path')) if isinstance(evidence.get('path'), str) else None
+    if path is None:
+        return result
+    result['identity_evidence'] = evidence['path']
+    try:
+        if path.stat().st_size > 262144:
+            return result
+        raw = path.read_bytes()
+    except OSError:
+        return result
+    if digest(raw) != evidence.get('sha256'):
+        return {**result, 'state': 'STALE_IDENTITY_EVIDENCE'}
+    try:
+        observed = json.loads(raw)
+    except (ValueError, UnicodeError):
+        return result
+    if not isinstance(observed, dict) or observed.get('provenance') != 'OBSERVED' or observed.get('view_state') != 'FRESH':
+        return result
+    inputs = observed.get('source_fingerprints')
+    identity = observed.get('page_identity')
+    if not isinstance(inputs, list) or not inputs or not isinstance(identity, dict):
+        return result
+    for item in inputs:
+        source = safe_file(root, item.get('path')) if isinstance(item, dict) and isinstance(item.get('path'), str) else None
+        if source is None:
+            return {**result, 'state': 'STALE_IDENTITY_EVIDENCE'}
+        source_hash = hashlib.sha256()
+        try:
+            with source.open('rb') as handle:
+                for chunk in iter(lambda: handle.read(65536), b''):
+                    source_hash.update(chunk)
+        except OSError:
+            return result
+        if 'sha256:' + source_hash.hexdigest() != item.get('sha256'):
+            return {**result, 'state': 'STALE_IDENTITY_EVIDENCE'}
+    fields = ('mocketeer_screen_id', 'page_id', 'page_name', 'mockup_id', 'backup_pages')
+    if (any(field not in binding or identity.get(field) != binding[field] for field in fields)
+            or any(not isinstance(binding.get(field), str) or not binding[field].strip() for field in fields[:-1])
+            or binding['page_id'] != page.get('page_id') or binding['page_name'] != page.get('page_name')
+            or binding['mockup_id'] != target.get('source_mockup_id', target['mockup_id'])
+            or not isinstance(binding['backup_pages'], list) or binding['page_name'] in binding['backup_pages']
+            or binding.get('current_revision') != page.get('target_revision')
+            or binding.get('delta_impact') not in ('IMPACTED', 'UNCHANGED', 'UNKNOWN')
+            or 'previous_revision' not in binding or not isinstance(binding.get('existing_evidence'), list)):
+        return {**result, 'state': 'PAGE_IDENTITY_CONFLICT'}
+    return {**result, 'state': 'PROVEN', 'binding': binding}
+
+
 def reconcile_page_revision_bindings(root: Path, revision_id: str | None = None, *, mockup_name: str | None = None,
                                      _evaluation: dict[str, Any] | None = None) -> dict[str, Any]:
     """Evaluate accepted-target bindings and reuse eligibility without rewriting artifacts or declaring evidence PASS."""
@@ -2977,7 +3096,7 @@ def reconcile_page_revision_bindings(root: Path, revision_id: str | None = None,
                   and (mockup_name is None or _canonical_path_key(r['mockup_id']) == _canonical_path_key(mockup_name))]
     result = {'revision_id': revision_id, 'state': 'NO_ACTIVE_REVISION', 'bound_pages': [],
               'impacted_pages': [], 'unchanged_pages': [], 'missing_pages': [], 'ambiguous_pages': [],
-              'unrelated_pages': [], 'revision_diagnostics': evaluation['revision_diagnostics'],
+              'unrelated_pages': [], 'identity_unresolved_pages': [], 'revision_diagnostics': evaluation['revision_diagnostics'],
               'selective_binding_rule': 'only_impacted_pages_require_re_binding_and_stale_propagation',
               'retention_requires_existing_valid_evidence': True, 'evidence_retention_is_pass': False}
     if len(candidates) > 1:
@@ -3069,11 +3188,27 @@ def reconcile_page_revision_bindings(root: Path, revision_id: str | None = None,
     if broad_scope:
         affected.update(pages)
     result['missing_pages'] = sorted(affected - pages.keys())
+    implementation_names: dict[str, list[str]] = {}
+    screen_identities: dict[str, list[str]] = {}
+    for pid, matches in pages.items():
+        for page in matches:
+            name = page.get('page_name')
+            binding = page.get('revision_binding') or {}
+            screen = binding.get('mocketeer_screen_id') if isinstance(binding, dict) else None
+            if isinstance(name, str) and name.strip():
+                implementation_names.setdefault(name, []).append(pid)
+            if isinstance(screen, str) and screen.strip():
+                screen_identities.setdefault(screen, []).append(pid)
+    duplicate_identities = {pid for index in (implementation_names, screen_identities)
+                            for ids in index.values() if len(ids) > 1 for pid in ids}
     for pid, matches in sorted(pages.items()):
-        if len(matches) != 1:
+        if len(matches) != 1 or pid in duplicate_identities:
             result['ambiguous_pages'].append(pid)
             continue
-        is_bound = matches[0].get('target_revision') == target['revision_id']
+        identity = page_identity_binding(root, matches[0], target)
+        is_bound = matches[0].get('target_revision') == target['revision_id'] and identity['state'] == 'PROVEN'
+        if pid in affected and identity['state'] != 'PROVEN':
+            result['identity_unresolved_pages'].append({'page_id': pid, **identity})
         if is_bound:
             result['bound_pages'].append(pid)
         if pid in affected:
@@ -3081,13 +3216,15 @@ def reconcile_page_revision_bindings(root: Path, revision_id: str | None = None,
                                             'evidence_disposition': 'STALE_REVERIFY_REQUIRED'})
         else:
             result['unchanged_pages'].append({'page_id': pid, 'bound_to_active': is_bound,
-                'evidence_disposition': 'RETAIN_VALID_EVIDENCE' if pid in unchanged_proven else 'UNCHANGED_SCOPE_UNVERIFIED'})
+                'evidence_disposition': 'RETAIN_VALID_EVIDENCE' if pid in unchanged_proven and identity['state'] == 'PROVEN' else 'UNCHANGED_SCOPE_UNVERIFIED'})
     if scope_invalid or scope == 'unknown':
         result['state'] = 'IMPACT_SCOPE_UNASSESSED'
     elif result['ambiguous_pages']:
         result['state'] = 'AMBIGUOUS_PAGE_MAPPING'
     elif result['missing_pages'] or not result['impacted_pages']:
         result['state'] = 'MISSING_PAGE_MAPPING'
+    elif result['identity_unresolved_pages']:
+        result['state'] = 'PAGE_IDENTITY_UNRESOLVED'
     elif all(page['bound_to_active'] for page in result['impacted_pages']):
         result['state'] = 'BOUND'
     elif any(page['bound_to_active'] for page in result['impacted_pages']):

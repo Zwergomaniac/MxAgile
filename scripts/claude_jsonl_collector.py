@@ -341,6 +341,15 @@ def _transcript_report(
         if requested_model
         else not_observable("No requested model field was present in the transcript metadata.")
     )
+    record["model"]["spawn_request_model"] = (
+        observation(OBSERVED, handoff.get("requested_model"), "parent Agent tool input.model",
+                    "Model field omitted; host default/inheritance is NOT_OBSERVABLE." if handoff.get("requested_model") is None else None)
+        if handoff else not_observable("No matching parent Agent request was recorded.")
+    )
+    for field, metadata_key in (("requested_profile", "requested_profile"), ("resolved_profile", "resolved_profile"),
+                                ("provider", "provider"), ("resolved_model", "resolved_model")):
+        if isinstance(metadata.get(metadata_key), str) and metadata[metadata_key].strip():
+            record["model"][field] = observation(DECLARED, metadata[metadata_key], "explicit child metadata." + metadata_key)
     actual_models = sorted(model_usage)
     record["model"]["actual_model"] = (
         observation(OBSERVED, actual_models, "Claude message.model on unique requestId records")

@@ -287,6 +287,19 @@ readable and do not change Page identity. Requirements, Decisions, Tasks, Test
 Contracts, Evidence and Parity references use `page_id`, not `page_name`. The Page
 artifact participates in traceability as the upstream source of requirements.
 
+`revision_binding` preserves the upstream screen, stable Page, Mendix implementation,
+backup/replacement relationship, previous/current revision, delta impact, existing Evidence
+references and fingerprinted identity observation. A single `target_revision` field is not
+identity proof. Missing/conflicting/stale identity remains PAGE_IDENTITY_UNRESOLVED; only
+impacted Pages require rebinding, and unchanged Evidence remains conditional on valid inputs.
+Details: [impact-resolution](../.mxagile/policies/impact-resolution.md).
+
+Canonical Findings may carry `claim_provenance` (`DECLARED`, `OBSERVED`, `INFERRED`,
+`PROPOSED`) with sources, canonical authority path and report classification. Hypotheses/
+proposals cannot be labeled observed defects or declared rules; canonical prevalidation checks
+accepted/CONFIRMED authority before promotion. Legacy omission is unclassified, not OBSERVED.
+Details: [parity-finding-reconciliation](../.mxagile/policies/parity-finding-reconciliation.md).
+
 **Artifact index consumption:**
 - `page_id` is the Page node ID; the filename stem is not a fallback identity
 - Pages create `DERIVED_FROM` edges when requirements reference them via `derivedFrom`

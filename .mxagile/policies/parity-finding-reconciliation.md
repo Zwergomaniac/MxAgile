@@ -44,6 +44,30 @@ is forbidden without the contract resolution step.
 
 ---
 
+## Claim Provenance (durable taxonomy)
+
+New or materially revised canonical Findings preserve `claim_provenance`:
+`state`, `source_refs`, `authority_ref` (canonical path or null), and `reported_as`.
+Legacy records without it are unclassified, not silently OBSERVED.
+
+- **DECLARED**: explicitly stated by a source/authority; not necessarily runtime-observed.
+- **OBSERVED**: directly demonstrated by cited current inspection/runtime evidence.
+- **INFERRED**: analytical hypothesis; keep its origin visible, not a declared business rule.
+- **PROPOSED**: suggested change; not an accepted Requirement or Decision.
+
+`OBSERVED_DEFECT`/`DECLARED_RULE` requires OBSERVED or sufficiently canonically supported
+DECLARED evidence and a valid accepted Requirement/CONFIRMED Decision path. The schema
+rejects INFERRED/PROPOSED labeled as defect/rule; canonical prevalidation checks authority
+before persistence. Canonical authority validity is necessary, not proof that the prose
+supports the claim: perform the semantic source check in section 2 as well.
+Authority confirmation is a separate traceable event; never erase inference/proposal origin
+or implement it by changing a classification field.
+
+Regression pattern: a mockup shows a button and the backend has no ordering check.
+Both are OBSERVED facts. “The prior year must be closed first” remains INFERRED/HYPOTHESIS
+or PROPOSED/PROPOSAL until authority explicitly confirms that business rule. Button presence
+plus a missing backend condition is not an observed ordering defect and authorizes no fix.
+
 ## 2. Requirement ID Authority
 
 Before an agent may claim that an observation violates REQ-NNN, DEC-NNN, ADR-NNN, AC-NNN,

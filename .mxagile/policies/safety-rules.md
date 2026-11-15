@@ -146,6 +146,42 @@ Der bestehende Interrupt-/Resume-/Re-Sync-Vertrag bleibt unveraendert.
   aendert, Bestaetigung einholen.
 - MODEL writes: SP-MCP direkt zuerst. Concord's Write-Ladder ist nur FALLBACK.
 
+## Reference Safety vor destruktiven Modelloperationen
+
+`NO_REFERENCES_FOUND` ist **nicht** `SAFE_TO_DELETE`. Ein leerer Graph aus dem
+Artifact-/Impact-Index erfasst kanonische Deklarationen, nicht notwendig alle
+Mendix-, JavaScript-, Konfigurations- und dynamischen Namensreferenzen.
+
+Vor Loeschung oder destruktivem Replacement den konkreten Target, Provider,
+Scan-Scope, aktuelle Modell-/Index-Fingerprints, Run/Generation, vollstaendige
+Abdeckung und verbleibende dynamische Mechanismen dokumentieren:
+
+- `COMPLETE_SCAN_NO_REFERENCES`: vollstaendig, aktuell, keine Referenzen;
+  dynamische Referenzen ausgeschlossen beziehungsweise vollstaendig untersucht.
+- `PARTIAL_SCAN`: Segment fehlt, Scan abgebrochen oder TIMEOUT; Sicherheit UNKNOWN.
+- `STALE_INDEX`: Index nicht an aktuelle Inputs gebunden; Sicherheit UNKNOWN.
+- `DYNAMIC_REFERENCE_POSSIBLE`: indirekte JS-Namen, Config oder andere ungeklaerte
+  Mechanismen; Sicherheit UNKNOWN, auch bei leerem statischen Graph.
+- `NOT_OBSERVABLE`: Provider/Scope technisch nicht beobachtbar.
+- `UNKNOWN`: fehlende/inkonsistente Evidence; kein negativer Referenzbeweis.
+
+Der read-only Resolver `Get-MxAgileCapabilities.ps1 -Format json
+-ReferenceEvidenceFile <bounded-observation.json>` bewertet `scan_status`,
+`reference_count`, `index_state`, `coverage_complete`, `dynamic_reference_possible`
+und `evidence_reference` plus dieselben Run/Generation/Target-Felder wie operation
+Evidence. `reference_clearance` ist nur eine notwendige Vorbedingung;
+`mutation_authorized` bleibt false. Explizite aktuelle Nutzerautoritaet, Scope,
+Replacement-/Backup-Disposition und Write-Preflight bleiben unabhaengig erforderlich.
+Eine alte oder unvollstaendige Clearance niemals als Write-Authority verwenden.
+
+Laengere Scans vorzugsweise in bounded Segmente aufteilen oder mit einem vom
+Provider angebotenen Cursor fortsetzen. Segmentliste, abgeschlossene/fehlende
+Scopes, Cursor und gemeinsame Input-Fingerprints erhalten. Keine Vollstaendigkeit
+bei fehlenden Segmenten, Scope-Loch oder Modellwechsel zwischen Segmenten.
+Unterstuetzt Concord keine Fortsetzung, ist dies eine TOOL_LIMITATION: UNKNOWN
+beibehalten und einen belegten alternativen Scan verwenden oder stoppen. Kein
+automatischer wiederholter Full Scan, kein projektspezifischer Flowname.
+
 ## Credentials und Geheimnisse
 
 - Lokale Werte wie Passwoerter, Tokens und PATs niemals ausgeben, in MDL schreiben

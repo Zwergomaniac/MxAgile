@@ -287,6 +287,25 @@ is `NOT_OBSERVABLE`, never inferred from the parent model, task title, plugin na
 or model catalog. A supported model-selection declaration does not prove request
 acceptance or actual child identity.
 
+### Bounded Model Evidence / Telemetry
+
+The opt-in harness-neutral telemetry record separates `requested_profile`,
+`resolved_profile`, `requested_model`, `provider`, `spawn_request_model`,
+`resolved_model` and `actual_model`. Each field carries state/source/reason;
+unavailable values remain null/NOT_OBSERVABLE, never inferred from parent model,
+profile name or adapter default. Explicit child metadata is DECLARED, not host
+execution attestation. Actual message.model evidence is OBSERVED only for that
+child's recorded requests. A mapping resolution may be DECLARED while its
+execution remains NOT_OBSERVABLE; keep those facts distinct.
+
+The Claude collector records parent Agent input.model independently of child
+metadata and message.model. An observed omission is `spawn_request_model.value: null`
+with an omission reason, not a claim of Opus/Sonnet or inheritance. If an Opus
+parent launches a Plan child for MID without model input and no child model
+attestation exists, actual_model/resolved_model remain NOT_OBSERVABLE. No collector
+is automatically injected into startup and no harness/model-selection matrix is
+claimed by these additional fields.
+
 Session completion should report spawned mission IDs, requested profiles, resolved
 model identifiers only when the harness proves them, result references, reused results,
 and delegation fallbacks. Never include full subagent transcripts. The board may later

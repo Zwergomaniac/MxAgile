@@ -121,6 +121,23 @@ available in every environment; record availability.
 
 Collect ALL available signals before asserting any root cause.
 
+For Studio Pro/Concord starts, initial MCP state alone is insufficient diagnosis.
+Use exposed Build/Run logs and the current project's `m2ee_log.txt` when available
+(the path is resolved from the actual project/runtime, not assumed globally).
+Filter around the current startup attempt and inspect a bounded tail/error/cause
+window; do not load a complete log or unrelated history into parent context.
+
+Return structured diagnostic evidence: `provider`, project/runtime identity,
+`attempt_id`, `observed_at`, readiness (`PROGRESS`, `READY`, `BLOCKED`, `TIMEOUT`,
+`UNKNOWN`), last pipeline stage, exit state, log source/path, bounded line/time
+range, redacted error category/cause, evidence reference, truncation and visibility
+(`OBSERVED`, `PARTIAL`, `NOT_OBSERVABLE`). Preserve build progress separately from
+startup failure. Missing logs remain NOT_OBSERVABLE; timeout alone is not a cause.
+Redact credentials/connection strings before storage or handoff. A log from a prior
+attempt or another backend is historical, not a diagnosis of this runtime.
+This contract does not add or claim a Concord log API; discover the actual handler
+or permitted read-only log route before use.
+
 ---
 
 ## Failing Stage Classification

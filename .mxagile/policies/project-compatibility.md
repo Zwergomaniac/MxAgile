@@ -538,6 +538,16 @@ checkpoint exists. Current migration, Doctor and Lifecycle prerequisites still c
 that re-sync; Auxiliary cannot clear historical blocking decisions. Existing canonical
 re-sync clears only the interruption barrier, not unrelated Delivery blocks.
 
+`resync-preflight` is recovery readiness, **never** normal-write readiness. It
+returns `delivery_resume_allowed: false`, concrete `reason_codes` and
+`resume_reason_codes`, `primary_recovery` and `next_action`. When the interruption
+is current, include `AUXILIARY_INTERRUPTION_REQUIRES_RESYNC` even if the recovery
+state is `READY_FOR_RESYNC`; the primary recovery is `resync` and the next action
+is a canonical checkpoint followed by a fresh Delivery preflight. Unrelated
+reconciliation blockers take precedence. This adds observability only; it does
+not change Dry Run, plan hash, human confirmation, APPLIED or diagnostic-only
+Evidence semantics.
+
 ## Bounded agent repair
 
 Input is the structured diagnosis plus only its affected canonical artifacts and

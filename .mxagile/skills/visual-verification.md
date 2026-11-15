@@ -27,6 +27,28 @@ a paired capture. Record the capture-group identity and cleanliness in the evide
 
 ---
 
+## Snapshot Reference Lifetime and Disclosure Controls
+
+Snapshot element refs belong to one provider, browser page/tab and **snapshot generation**,
+not to a durable selector. Record the capture/snapshot ID (or a caller generation when the
+provider exposes none) and exact page/runtime identity with refs. After navigation, reload,
+user/role switch, replacement or a materially changed DOM, discard old refs and request a
+fresh snapshot before acting. A changed ref prefix is evidence of a new snapshot, never a
+reason to rewrite the old prefix or guess a replacement ref. A stable locator must also be
+revalidated against current page state; it is not an automatic fallback to bypass identity.
+
+For a stale/not-found ref response, report `STALE_SNAPSHOT_REF` with old/current generations
+when available; read one new snapshot and resolve the intended element again. When the
+provider supplies no generation identity, record NOT_OBSERVABLE and use the conservative
+fresh-snapshot boundary. This caller contract does not claim upstream stale-ref detection.
+
+For outside-of-viewport/hidden targets, inspect the current accessibility/DOM snapshot for
+an associated parent disclosure, menu or toggle. Open that control normally, capture fresh
+state, then select the now-visible option; scroll only when it is actually scrollable.
+Do not force-click hidden options or repeat timed-out clicks. A closed Demo User Switcher
+is an ordinary UI_INTERACTION_REQUIREMENT, not automatically a tool defect or a special
+MxAgile integration. Its exact selectors and available users remain PROJECT_SPECIFIC.
+
 ## Mendix Scrolling Behavior
 
 Mendix/Atlas applications do NOT scroll the browser document. Application content is hosted in

@@ -40,6 +40,20 @@ class FixtureTests(unittest.TestCase):
 
 
 class OwnedSchemaTests(unittest.TestCase):
+    def test_button_and_absent_backend_check_do_not_authorize_an_inferred_order_rule(self):
+        check = validator('finding.schema.json')
+        base = dict(ID='FIND-P09', title='Possible ordering rule', gap_type='INTERACTION_GAP',
+                    severity='MATERIAL', lifecycle_status='DECISION_REQUIRED',
+                    observation='Button visible; backend has no ordering check.',
+                    source_artifacts=[{'source_type': 'active_target', 'canonical_path': 'mockup.html'}])
+        claim = dict(state='INFERRED', source_refs=['mockup.html', 'model-inspect.json'],
+                     authority_ref=None, reported_as='HYPOTHESIS')
+        self.assertTrue(check.is_valid(dict(base, claim_provenance=claim)))
+        for state in ('INFERRED', 'PROPOSED'):
+            self.assertFalse(check.is_valid(dict(base, claim_provenance=dict(claim, state=state, reported_as='OBSERVED_DEFECT'))))
+            self.assertFalse(check.is_valid(dict(base, claim_provenance=dict(claim, state=state, reported_as='DECLARED_RULE', authority_ref='DEC-001'))))
+        self.assertFalse(check.is_valid(dict(base, claim_provenance=dict(claim, state='OBSERVED', reported_as='OBSERVED_DEFECT'))))
+
     def test_requirement_retirement_and_traceability(self):
         check = validator("requirement.schema.json")
         base = {"ID": "REQ-001", "title": "Historical intent", "description": "Preserved history"}
@@ -187,8 +201,21 @@ class MainOwnedReconciliationTests(FixtureTests):
         return path
 
     def page(self, name, **extra):
-        self.write(f"planning/ui-inventory/{name}.yaml", {
-            "page_id": name, "mockup_name": "demo", "target_revision": "REV-001", **extra})
+        page = {"page_id": name, "page_name": 'Demo.' + name.replace('-', '_'),
+                "mockup_name": "demo", "target_revision": "REV-001", **extra}
+        model = self.root / f'planning/evidence/{name}-model.json'
+        model.parent.mkdir(parents=True, exist_ok=True)
+        model.write_text(json.dumps({'page_name': page['page_name']}), encoding='utf-8')
+        identity = {key: page[key] for key in ('page_id', 'page_name')}
+        identity.update(mocketeer_screen_id=name, mockup_id=page.get('mockup_id', page['mockup_name']), backup_pages=[])
+        observed = self.root / f'planning/evidence/{name}-identity.json'
+        observed.write_text(json.dumps({'provenance': 'OBSERVED', 'view_state': 'FRESH', 'page_identity': identity,
+            'source_fingerprints': [{'path': model.relative_to(self.root).as_posix(),
+                                     'sha256': project_compatibility.digest(model.read_bytes())}]}), encoding='utf-8')
+        page['revision_binding'] = {**identity, 'current_revision': page['target_revision'], 'previous_revision': 'REV-001',
+            'delta_impact': 'IMPACTED', 'existing_evidence': [], 'identity_evidence': {
+                'path': observed.relative_to(self.root).as_posix(), 'sha256': project_compatibility.digest(observed.read_bytes())}}
+        self.write(f"planning/ui-inventory/{name}.yaml", page)
 
     def test_source_identity_is_not_the_bundle_namespace(self):
         source = self.source(mockup="source-demo")
@@ -264,6 +291,73 @@ class MainOwnedReconciliationTests(FixtureTests):
         found = []
         project_compatibility._active_revision_diagnostics(self.root, parsed, lambda *args, **kwargs: found.append(args[0]))
         self.assertIn("ACTIVE_REVISION_UNBOUND", found)
+
+    def test_single_revision_field_cannot_hide_missing_or_conflicting_page_identity(self):
+        self.revision()
+        self.page('PAGE-EDIT', target_revision='REV-002')
+        path = self.root / 'planning/ui-inventory/PAGE-EDIT.yaml'
+        page = yaml.safe_load(path.read_text())
+        page.pop('revision_binding', None)
+        self.write(path.relative_to(self.root).as_posix(), page)
+        self.assertNotEqual(project_compatibility.reconcile_page_revision_bindings(self.root)['state'], 'BOUND')
+        found = []
+        parsed = {'planning/ui-inventory/PAGE-EDIT.yaml': {'state': 'available', 'value': page}}
+        project_compatibility._active_revision_diagnostics(self.root, parsed, lambda *args, **kwargs: found.append(args[0]))
+        self.assertIn('ACTIVE_REVISION_UNBOUND', found)
+        self.page('PAGE-EDIT', target_revision='REV-002')
+        page = yaml.safe_load(path.read_text())
+        page['page_name'] = 'Demo.Backup'
+        self.write(path.relative_to(self.root).as_posix(), page)
+        self.assertNotEqual(project_compatibility.reconcile_page_revision_bindings(self.root)['state'], 'BOUND')
+        self.page('PAGE-EDIT', target_revision='REV-002')
+        observation = self.root / 'planning/evidence/PAGE-EDIT-identity.json'
+        observation.write_text('{}', encoding='utf-8')
+        self.assertNotEqual(project_compatibility.reconcile_page_revision_bindings(self.root)['state'], 'BOUND')
+
+    def test_identity_proof_is_invalidated_by_model_input_and_active_backup_conflict(self):
+        self.revision()
+        self.page('PAGE-EDIT', target_revision='REV-002')
+        self.assertEqual(project_compatibility.reconcile_page_revision_bindings(self.root)['state'], 'BOUND')
+        (self.root / 'planning/evidence/PAGE-EDIT-model.json').write_text('{}', encoding='utf-8')
+        result = project_compatibility.reconcile_page_revision_bindings(self.root)
+        self.assertEqual(result['identity_unresolved_pages'][0]['state'], 'STALE_IDENTITY_EVIDENCE')
+        self.page('PAGE-EDIT', target_revision='REV-002')
+        path = self.root / 'planning/ui-inventory/PAGE-EDIT.yaml'
+        page = yaml.safe_load(path.read_text())
+        page['revision_binding']['backup_pages'] = [page['page_name']]
+        observation = self.root / 'planning/evidence/PAGE-EDIT-identity.json'
+        record = json.loads(observation.read_text())
+        record['page_identity']['backup_pages'] = [page['page_name']]
+        observation.write_text(json.dumps(record), encoding='utf-8')
+        page['revision_binding']['identity_evidence']['sha256'] = project_compatibility.digest(observation.read_bytes())
+        self.write(path.relative_to(self.root).as_posix(), page)
+        self.assertNotEqual(project_compatibility.reconcile_page_revision_bindings(self.root)['state'], 'BOUND')
+
+    def test_two_logical_pages_cannot_claim_the_same_mendix_implementation(self):
+        self.revision(affected_screens=['PAGE-EDIT', 'PAGE-LIST'])
+        self.page('PAGE-EDIT', target_revision='REV-002', page_name='Demo.Current')
+        self.page('PAGE-LIST', target_revision='REV-002', page_name='Demo.Current')
+        result = project_compatibility.reconcile_page_revision_bindings(self.root)
+        self.assertEqual(result['state'], 'AMBIGUOUS_PAGE_MAPPING')
+        self.assertEqual(set(result['ambiguous_pages']), {'PAGE-EDIT', 'PAGE-LIST'})
+
+    def test_unconfirmed_canonical_authority_cannot_promote_an_ordering_hypothesis(self):
+        self.decision('PROPOSED')
+        doc = dict(ID='FIND-P09', title='Possible ordering rule', gap_type='INTERACTION_GAP',
+                   severity='MATERIAL', lifecycle_status='DECISION_REQUIRED', observation='Button visible; no check.',
+                   source_artifacts=[{'source_type': 'active_target', 'canonical_path': 'mockup.html'}],
+                   claim_provenance=dict(state='DECLARED', source_refs=['model-inspect.json'],
+                       authority_ref='planning/decisions/DEC-001.yml', reported_as='OBSERVED_DEFECT'))
+        path = 'planning/findings/FIND-P09.yml'
+        result = project_compatibility.prevalidate_canonical_write(self.root, path, yaml.safe_dump(doc).encode())
+        self.assertFalse(result['valid'])
+        self.assertTrue(any(d['category'] == 'CLAIM_AUTHORITY_NOT_CONFIRMED' for d in result['diagnostics']))
+        self.assertFalse((self.root / path).exists())
+        self.write('planning/decisions/DEC-001.yml', {
+            'ID': 'DEC-001', 'title': 'Confirm ordering rule', 'status': 'CONFIRMED',
+            'decision_type': 'business', 'topic': 'Year ordering',
+            'decision_text': 'The prior year must be closed first.', 'owner': 'ProductOwner'})
+        self.assertTrue(project_compatibility.prevalidate_canonical_write(self.root, path, yaml.safe_dump(doc).encode())['valid'])
 
     def test_source_path_alone_does_not_bind_impacted_page_to_new_revision(self):
         self.revision()

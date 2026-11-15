@@ -15,7 +15,7 @@ Each capability has six orthogonal state dimensions:
 | `SUPPORTED` | The installed Framework version knows how to use this capability |
 | `AVAILABLE` | Required environment/dependencies detected and compatible |
 | `ENABLED` | Project configuration allows use |
-| `ACTIVE` | Capability is actually in use right now |
+| `ACTIVE` | Legacy config/dependency eligibility; not proof of current operation execution |
 | `DEGRADED` | Operating partially or via fallback (e.g., dependency version mismatch) |
 | `UNAVAILABLE` | Required dependency absent or incompatible |
 
@@ -97,7 +97,17 @@ Schema: `.mxagile/schemas/capabilities.schema.json`
 The `studio_pro_mcp` and `concord_mcp` entries describe toolchain availability, not
 operation-specific read/write support. Mendix operation routing is resolved from current-session
 tool evidence in `.mxagile/policies/capability-discovery.md`; a configured or healthy tool is not
-automatically capable of every model operation.
+automatically capable of every model operation. MCP enablement is read from the declared MCP
+configuration location, never a similarly named Framework YAML key. Static configuration does
+not set MCP ACTIVE. Separate operation evidence reports DECLARED, DISCOVERED,
+CURRENTLY_AVAILABLE, EXECUTABLE, LAST_VERIFIED, PROVIDER and OPERATION. Reconnects invalidate
+the old generation; a host “available again” notice requires rediscovery and a bounded probe.
+
+The read-only `-OperationEvidenceFile` mode selects among currently executable, target-bound
+providers for one capability with explicit preference rationale and verified fallback. Browser
+and reference safety evidence use the same current-run/generation/instance freshness boundary.
+See [capability-discovery](../.mxagile/policies/capability-discovery.md) and
+[reference safety](../.mxagile/policies/safety-rules.md); no delivery-planning subsystem is added.
 
 ## Registered Capabilities (MxAgile 1.5)
 

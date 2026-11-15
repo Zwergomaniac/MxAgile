@@ -165,7 +165,11 @@ param(
 
     [string]$ArtifactInvariantEvidenceFile = '',
 
-    [string]$BrowserEvidenceFile = ''
+    [string]$BrowserEvidenceFile = '',
+
+    [string]$OperationEvidenceFile = '',
+
+    [string]$ReferenceEvidenceFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -289,6 +293,24 @@ function Resolve-ArtifactInvariant {
     return $result
 }
 
+function Test-CurrentOperationEvidence {
+    param($Evidence)
+    $required = @('run_id', 'current_run_id', 'session_generation', 'current_session_generation',
+                  'view_state', 'bound_target', 'required_target', 'observed_at')
+    if (-not (Test-ObservationFields $Evidence $required)) { return $false }
+    foreach ($field in @($required | Where-Object { $_ -ne 'observed_at' })) {
+        if ($Evidence.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($Evidence.$field) -or $Evidence.$field -eq 'UNKNOWN') { return $false }
+    }
+    $timestamp = [DateTimeOffset]::MinValue
+    if ($Evidence.observed_at -is [datetime] -or $Evidence.observed_at -is [DateTimeOffset]) {
+        $timestamp = [DateTimeOffset]$Evidence.observed_at
+    } elseif (-not [DateTimeOffset]::TryParse([string]$Evidence.observed_at, [ref]$timestamp)) { return $false }
+    if ($timestamp -gt [DateTimeOffset]::UtcNow) { return $false }
+    return $Evidence.view_state -ceq 'FRESH' -and $Evidence.run_id -ceq $Evidence.current_run_id -and
+        $Evidence.session_generation -ceq $Evidence.current_session_generation -and
+        $Evidence.bound_target -ceq $Evidence.required_target
+}
+
 function Resolve-BrowserObservation {
     param($Evidence)
     $required = @('provider', 'host', 'run_id', 'observed_at', 'operation', 'declared_available', 'tools_observed', 'operation_discovered', 'execution_status')
@@ -305,8 +327,10 @@ function Resolve-BrowserObservation {
          [string]::IsNullOrWhiteSpace([string]$Evidence.execution_reference))) {
         throw 'Observed browser execution requires a source execution_reference.'
     }
+    $current = Test-CurrentOperationEvidence $Evidence
+    $executable = $current -and $Evidence.tools_observed -and $Evidence.operation_discovered -and $Evidence.execution_status -eq 'PASSED'
     $state = 'UNKNOWN'
-    if ($Evidence.execution_status -eq 'PASSED') { $state = 'EXECUTABLE_AVAILABLE' }
+    if ($executable) { $state = 'EXECUTABLE_AVAILABLE' }
     elseif ($Evidence.execution_status -in @('FAILED', 'TIMEOUT')) { $state = 'PARTIAL' }
     elseif ($Evidence.tools_observed -and $Evidence.operation_discovered) { $state = 'DISCOVERED_AVAILABLE' }
     elseif ($Evidence.tools_observed) { $state = if ($Evidence.declared_available) { 'PARTIAL' } else { 'UNAVAILABLE' } }
@@ -316,7 +340,12 @@ function Resolve-BrowserObservation {
         observed_at = $Evidence.observed_at; operation = $Evidence.operation
         declared_available = $Evidence.declared_available
         discovered_available = if ($Evidence.tools_observed) { $Evidence.operation_discovered } else { $null }
-        executable_available = $Evidence.execution_status -eq 'PASSED'
+        currently_available = if ($current -and $Evidence.tools_observed) { $Evidence.operation_discovered } else { $null }
+        executable_available = $executable
+        last_verified = if ($Evidence.execution_status -eq 'PASSED') { $Evidence.observed_at } else { $null }
+        freshness = if ($current) { 'FRESH' } else { 'UNKNOWN_OR_INVALIDATED' }
+        rediscovery_required = -not $current
+        binding_verified = $current
         execution_status = $Evidence.execution_status
         execution_reference = if (Test-ObservationFields $Evidence @('execution_reference')) { $Evidence.execution_reference } else { $null }
         state = $state
@@ -324,7 +353,69 @@ function Resolve-BrowserObservation {
     }
 }
 
-if ($ArtifactInvariantEvidenceFile -or $BrowserEvidenceFile) {
+function Resolve-ProviderSelection {
+    param($Evidence)
+    if (-not (Test-ObservationFields $Evidence @('operation', 'providers', 'preferred_providers', 'preference_reason',
+                                                'current_run_id', 'current_session_generation', 'required_target')) -or
+        $Evidence.providers -isnot [array] -or -not (Test-ObservedStringArray $Evidence.preferred_providers) -or
+        [string]::IsNullOrWhiteSpace([string]$Evidence.operation) -or
+        [string]::IsNullOrWhiteSpace([string]$Evidence.preference_reason)) { throw 'Provider selection requires operation, current target/run/generation, providers and explicit preference rationale.' }
+    $assessments = @()
+    $seen = @()
+    foreach ($provider in $Evidence.providers) {
+        if ($provider.provider -cin $seen) { throw 'Provider evidence must be unique for this operation.' }
+        $seen += $provider.provider
+        $assessment = Resolve-BrowserObservation $provider
+        $matches = $provider.operation -ceq $Evidence.operation
+        $sameContext = (Test-ObservationFields $provider @('current_run_id', 'current_session_generation', 'required_target')) -and
+            $provider.current_run_id -ceq $Evidence.current_run_id -and
+            $provider.current_session_generation -ceq $Evidence.current_session_generation -and
+            $provider.required_target -ceq $Evidence.required_target
+        $assessment['route_allowed'] = $assessment.route_allowed -and $matches -and $sameContext
+        if (Test-ObservationFields $provider @('limitations')) {
+            if (-not (Test-ObservedStringArray $provider.limitations)) { throw 'Provider limitations must be a string array.' }
+            $assessment['limitations'] = @($provider.limitations)
+        } else { $assessment['limitations'] = @('NOT_OBSERVABLE') }
+        $assessment['selection_reason'] = if (-not $matches) { 'CAPABILITY_MISMATCH' } elseif (-not $assessment.route_allowed) { 'NOT_CURRENTLY_EXECUTABLE_OR_BOUND' } else { 'CURRENT_EXECUTION_AND_TARGET_BINDING_VERIFIED' }
+        $assessments += $assessment
+    }
+    $eligible = @($Evidence.preferred_providers | Where-Object { $name = $_; @($assessments | Where-Object { $_.provider -ceq $name -and $_.route_allowed }).Count -eq 1 } | Select-Object -Unique)
+    return [ordered]@{
+        operation = $Evidence.operation; providers = $assessments; preference_reason = $Evidence.preference_reason
+        selected_provider = if ($eligible.Count) { $eligible[0] } else { $null }
+        fallback_providers = @($eligible | Select-Object -Skip 1)
+        reason = if ($eligible.Count) { 'First eligible provider in the explicitly recorded task preference; no package-presence inference.' } else { 'NEEDS_ALTERNATIVE_TOOL: no preferred provider has current executable and target-bound evidence.' }
+    }
+}
+
+function Resolve-ReferenceSafety {
+    param($Evidence)
+    $required = @('provider', 'operation', 'scan_status', 'reference_count', 'index_state',
+                  'dynamic_reference_possible', 'coverage_complete', 'evidence_reference')
+    if (-not (Test-ObservationFields $Evidence $required)) { throw 'Reference safety requires scoped scan and coverage evidence.' }
+    if ($Evidence.reference_count -isnot [long] -and $Evidence.reference_count -isnot [int]) { throw 'reference_count must be an integer.' }
+    if ($Evidence.reference_count -lt 0 -or $Evidence.coverage_complete -isnot [bool] -or
+        $Evidence.dynamic_reference_possible -isnot [bool]) { throw 'Invalid reference coverage types.' }
+    if ($Evidence.scan_status -cnotin @('COMPLETE', 'PARTIAL', 'TIMEOUT', 'NOT_OBSERVABLE', 'UNKNOWN') -or
+        $Evidence.index_state -cnotin @('FRESH', 'STALE', 'NOT_USED', 'UNKNOWN')) { throw 'Invalid reference scan status.' }
+    $state = 'UNKNOWN'
+    if ($Evidence.scan_status -ceq 'NOT_OBSERVABLE') { $state = 'NOT_OBSERVABLE' }
+    elseif ($Evidence.index_state -ceq 'STALE') { $state = 'STALE_INDEX' }
+    elseif ($Evidence.scan_status -cin @('PARTIAL', 'TIMEOUT') -or -not $Evidence.coverage_complete) { $state = 'PARTIAL_SCAN' }
+    elseif ($Evidence.dynamic_reference_possible) { $state = 'DYNAMIC_REFERENCE_POSSIBLE' }
+    elseif ((Test-CurrentOperationEvidence $Evidence) -and $Evidence.scan_status -ceq 'COMPLETE' -and
+            $Evidence.index_state -cin @('FRESH', 'NOT_USED') -and
+            -not [string]::IsNullOrWhiteSpace([string]$Evidence.evidence_reference)) {
+        $state = if ($Evidence.reference_count -eq 0) { 'COMPLETE_SCAN_NO_REFERENCES' } else { 'REFERENCES_FOUND' }
+    }
+    return [ordered]@{ state = $state; provider = $Evidence.provider; operation = $Evidence.operation
+        evidence_reference = $Evidence.evidence_reference
+        reference_clearance = $state -ceq 'COMPLETE_SCAN_NO_REFERENCES'
+        mutation_authorized = $false
+        reason = 'Reference clearance is necessary, never sufficient: destructive writes still require explicit scope, authority and current preflight.' }
+}
+
+if ($ArtifactInvariantEvidenceFile -or $BrowserEvidenceFile -or $OperationEvidenceFile -or $ReferenceEvidenceFile) {
     if ($Format -ne 'json' -or $UpdateDiscoveryState -or $CheckUpgrades -or $Capability -or $ResolveBuilderKit -or $ResolveOperatingMode) {
         throw 'Scoped observation assessment requires -Format json and cannot update or mix registry discovery.'
     }
@@ -335,6 +426,8 @@ if ($ArtifactInvariantEvidenceFile -or $BrowserEvidenceFile) {
         $assessment.artifact_invariants = @($inputEvidence.checks | ForEach-Object { Resolve-ArtifactInvariant $_ })
     }
     if ($BrowserEvidenceFile) { $assessment.browser = Resolve-BrowserObservation (Read-BoundedObservation $BrowserEvidenceFile) }
+    if ($OperationEvidenceFile) { $assessment.provider_selection = Resolve-ProviderSelection (Read-BoundedObservation $OperationEvidenceFile) }
+    if ($ReferenceEvidenceFile) { $assessment.reference_safety = Resolve-ReferenceSafety (Read-BoundedObservation $ReferenceEvidenceFile) }
     $assessment | ConvertTo-Json -Depth 10
     exit 0
 }
@@ -1370,6 +1463,13 @@ function Resolve-Capability {
 
     # Check config
     $configEnabled = Get-ProjectConfigBool -KeyPath $Cap.config_key -Default ($Cap.default_state -eq 'on')
+    if ($Cap.id -in @('studio_pro_mcp', 'concord_mcp')) {
+        $declaration = Get-DeclaredMcpConfiguration -CapabilityId $Cap.id
+        $configEnabled = $declaration.configured -eq $true
+        $resolved.integration = [ordered]@{ usable = $false; declaration = $declaration
+            currently_available = $null; executable = $null; last_verified = $null
+            reason = 'Static MCP configuration is DECLARED only; query scoped operation evidence for current executability.' }
+    }
     $resolved.enabled = $configEnabled
 
     # Context Mode: harness-specific integration evidence replaces the bare executable check.
@@ -1471,11 +1571,12 @@ function Get-DeclaredMcpConfiguration {
             if (-not $property) { $value = $null; break }
             $value = $property.Value
         }
+        $disabled = $null -ne $value -and $value.PSObject.Properties['enabled'] -and $value.enabled -eq $false
         return [ordered]@{
             state = 'OBSERVED'
-            configured = ($null -ne $value)
+            configured = ($null -ne $value -and -not $disabled)
             source = $cap.config_location
-            reason = if ($null -ne $value) { 'Registry config key is present in project MCP configuration.' } else { 'Registry config key is absent from project MCP configuration.' }
+            reason = if ($disabled) { 'Project MCP entry is explicitly disabled.' } elseif ($null -ne $value) { 'Registry config key is present in project MCP configuration; declaration only.' } else { 'Registry config key is absent from project MCP configuration.' }
         }
     } catch {
         return [ordered]@{ state = 'UNKNOWN'; configured = $null; source = $cap.config_location; reason = 'Project MCP configuration could not be parsed.' }

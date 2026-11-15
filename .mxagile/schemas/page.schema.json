@@ -44,6 +44,30 @@
             "pattern": "^REV-[0-9]{3,}$",
             "description": "Optional: the accepted revision ID of the target mockup bundle. Set when a SPA bundle revision was accepted. Links to planning/target-mockups/<mockup-name>/_history/<target_revision>/revision.yaml. Absent for single-file legacy targets or when no revision has been accepted yet."
         },
+        "revision_binding": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mocketeer_screen_id", "page_id", "page_name", "mockup_id", "backup_pages", "previous_revision", "current_revision", "delta_impact", "existing_evidence", "identity_evidence"],
+            "description": "Traceable binding after page identity proof; a target_revision field alone never proves active/backup identity. Evidence is retained only while its input fingerprints remain valid.",
+            "properties": {
+                "mocketeer_screen_id": {"type": "string", "minLength": 1},
+                "page_id": {"type": "string", "pattern": "^PAGE-[A-Z0-9_-]+$"},
+                "page_name": {"type": "string", "minLength": 1},
+                "mockup_id": {"type": "string", "minLength": 1},
+                "backup_pages": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+                "previous_revision": {"type": ["string", "null"], "pattern": "^REV-[0-9]{3,}$"},
+                "current_revision": {"type": "string", "pattern": "^REV-[0-9]{3,}$"},
+                "delta_impact": {"type": "string", "enum": ["IMPACTED", "UNCHANGED", "UNKNOWN"]},
+                "existing_evidence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                "identity_evidence": {
+                    "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+                    }
+                }
+            }
+        },
         "bundle_hash": {
             "type": ["string", "null"],
             "pattern": "^sha256:[a-f0-9]{64}$",

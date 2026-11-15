@@ -66,6 +66,22 @@ class CanonicalTelemetryModelTests(unittest.TestCase):
             self.assertNotIn("context_architecture_telemetry", content, str(path))
             self.assertNotIn("claude_jsonl_collector", content, str(path))
 
+    def test_unattested_plan_child_does_not_inherit_parent_or_adapter_model_claims(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='mxagile-model-evidence-') as temp_dir:
+            project = Path(temp_dir)
+            child = project / 'session-1' / 'subagents' / 'agent-plan.jsonl'
+            child.parent.mkdir(parents=True)
+            child.write_text(json.dumps({'type': 'assistant', 'message': {'role': 'assistant', 'content': []}}), encoding='utf-8')
+            child.with_name('agent-plan.meta.json').write_text(json.dumps({'agentType': 'Plan', 'requested_profile': 'MID'}), encoding='utf-8')
+            record = claude_collector._transcript_report(child, project, None, 'NOT_OBSERVABLE',
+                parent_model_at_spawn='claude-opus-fixture', handoff={'requested_model': None})
+            self.assertEqual(record['model']['requested_profile']['value'], 'MID')
+            self.assertEqual(record['model']['spawn_request_model']['state'], OBSERVED)
+            self.assertIsNone(record['model']['spawn_request_model']['value'])
+            for field in ('resolved_profile', 'resolved_model', 'actual_model', 'provider'):
+                self.assertEqual(record['model'][field]['state'], NOT_OBSERVABLE)
+            self.assertEqual(record['model']['parent_model_at_spawn']['value'], 'claude-opus-fixture')
+
     def test_claude_jsonl_maps_runtime_evidence_into_shared_fields(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mxagile-c0-") as temp_dir:
             project = Path(temp_dir) / "project"

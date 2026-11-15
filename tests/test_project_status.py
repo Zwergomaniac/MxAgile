@@ -2346,9 +2346,9 @@ class LifecycleClarityTests(unittest.TestCase):
         self.assertEqual((item["severity"], item["blocking"], item["repairability"]), ("WARNING", False, "DECISION_REQUIRED"))
         self.assertIn("REV-037", item["message"])
 
-    def test_only_explicit_revision_binding_clears_the_diagnostic(self) -> None:
+    def test_only_identity_proven_revision_binding_clears_the_diagnostic(self) -> None:
         write_file(self.root, "planning/revisions/REV-037.yaml",
-                   "revision_id: REV-037\nrevision: 37\nactive_target: true\nartifact_path: input-resources/ui-ux/rev37.html\n")
+                   "revision_id: REV-037\nrevision: 37\nactive_target: true\nmockup_name: demo\nartifact_path: input-resources/ui-ux/rev37.html\n")
         for index, page_fields in enumerate((
             "source_mockup: input-resources/ui-ux/other.html\ntarget_mockup: input-resources/ui-ux/rev37.html",
             "source_mockup: input-resources/ui-ux/rev37.html",
@@ -2359,11 +2359,21 @@ class LifecycleClarityTests(unittest.TestCase):
                 write_file(self.root, f"planning/ui-inventory/PAGE-BIND-{index}.yaml",
                            f"page_id: PAGE-BIND-{index}\n{page_fields}\n")
                 found = self.diagnostics("ACTIVE_REVISION_UNBOUND")
-                if "target_revision: REV-037" in page_fields:
-                    self.assertEqual(found, [])
-                else:
-                    self.assertEqual(len(found), 1, "A shared source/target path falsely bound the revision")
+                self.assertEqual(len(found), 1, "A shared path or cosmetic revision field falsely proved Page identity")
                 path.unlink()
+        identity = {'mocketeer_screen_id': 'screen-bind', 'page_id': 'PAGE-BIND',
+                    'page_name': 'Demo.Current', 'mockup_id': 'demo', 'backup_pages': []}
+        model = write_file(self.root, 'planning/evidence/bind-model.json', json.dumps({'page_name': 'Demo.Current'}))
+        observed = write_file(self.root, 'planning/evidence/bind-identity.json', json.dumps({
+            'provenance': 'OBSERVED', 'view_state': 'FRESH', 'page_identity': identity,
+            'source_fingerprints': [{'path': 'planning/evidence/bind-model.json',
+                                     'sha256': project_compatibility.digest(model.read_bytes())}]}))
+        binding = dict(identity, previous_revision=None, current_revision='REV-037', delta_impact='IMPACTED',
+                       existing_evidence=[], identity_evidence={'path': 'planning/evidence/bind-identity.json',
+                                                                'sha256': project_compatibility.digest(observed.read_bytes())})
+        write_file(self.root, 'planning/ui-inventory/PAGE-BIND.yaml', json.dumps(dict(
+            page_id='PAGE-BIND', page_name='Demo.Current', mockup_name='demo', target_revision='REV-037', revision_binding=binding)))
+        self.assertEqual(self.diagnostics('ACTIVE_REVISION_UNBOUND'), [])
 
     def test_standalone_interaction_artifact_does_not_bind_a_revision(self) -> None:
         write_file(self.root, "planning/revisions/REV-037.yaml",

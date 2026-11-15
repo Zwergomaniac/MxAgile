@@ -21,6 +21,22 @@
     "origin": { "type": "string", "enum": ["PROJECT", "FRAMEWORK_FOLLOWUP"], "default": "PROJECT" },
     "observation": { "type": "string", "minLength": 1 },
     "interpretation": { "type": "string" },
+    "claim_provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "source_refs", "authority_ref", "reported_as"],
+      "properties": {
+        "state": {"type": "string", "enum": ["DECLARED", "OBSERVED", "INFERRED", "PROPOSED"]},
+        "source_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "authority_ref": {"type": ["string", "null"], "minLength": 1},
+        "reported_as": {"type": "string", "enum": ["OBSERVED_DEFECT", "DECLARED_RULE", "OBSERVATION", "HYPOTHESIS", "PROPOSAL"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"state": {"enum": ["INFERRED", "PROPOSED"]}}},
+         "then": {"properties": {"reported_as": {"enum": ["HYPOTHESIS", "PROPOSAL"]}}}},
+        {"if": {"properties": {"reported_as": {"enum": ["OBSERVED_DEFECT", "DECLARED_RULE"]}}},
+         "then": {"properties": {"state": {"enum": ["DECLARED", "OBSERVED"]}, "authority_ref": {"type": "string", "minLength": 1}}}}
+      ]
+    },
     "wave_id": { "type": "string", "pattern": "^W[A-Za-z0-9_-]+$" },
     "workpackage_id": { "type": "string", "minLength": 1 },
     "requirement_ids": { "type": "array", "items": { "type": "string", "pattern": "^REQ-[0-9]{3,}$" } },
