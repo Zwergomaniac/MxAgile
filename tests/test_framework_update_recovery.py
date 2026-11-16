@@ -29,6 +29,32 @@ class UpdateRecoveryTests(Phase1BFixture):
         self.selectors = f'--project-root "{self.root}" --source {self.source} --ref experiment/control-plane-sak-principles'
         self.commit = 'c' * 40
 
+    def installed_control_plane_runtime(self):
+        import shutil
+        runtime = self.tools / 'control-plane'
+        runtime.mkdir(exist_ok=True)
+        shutil.move(self.tools / 'run_events.py', runtime / 'run_events.py')
+        shutil.copyfile(GUARD_DIR / 'guard.py', runtime / 'guard.py')
+        shutil.copyfile(GUARD_DIR.parents[1] / 'scripts/run-event.schema.json', runtime / 'run-event.schema.json')
+        self.core['recovery_tools'] = {p.relative_to(self.tools).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                                       for p in self.tools.rglob('*.py')}
+        writer = self.tools / 'Write-MxAgileEpochCheckpoint.ps1'
+        self.core['recovery_tools'][writer.name] = hashlib.sha256(writer.read_bytes()).hexdigest()
+        (self.root / '.mxagile/state/core-provenance.json').write_text(json.dumps(self.core))
+
+    def test_installed_synchronization_imports_runtime_without_pythonpath(self):
+        self.installed_control_plane_runtime()
+        self.installed_restart()
+        before = (self.root / recovery.STATE).read_bytes()
+        env = {key: value for key, value in os.environ.items() if key != 'PYTHONPATH'}
+        completed = subprocess.run([sys.executable, '-B', str(self.tools / 'framework_update_recovery.py'),
+                                    'synchronize-update', '--project-root', str(self.root)],
+                                   cwd=self.root, env=env, capture_output=True, text=True, timeout=60)
+        self.assertFalse((self.tools / 'run_events.py').exists())
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertEqual(json.loads(completed.stdout)['result'], 'RESTART_REQUIRED')
+        self.assertEqual((self.root / recovery.STATE).read_bytes(), before)
+
     def test_blocked_discovery_and_only_bound_update_recovery(self):
         check = self.hook('Bash', {'command': self.base + ' check ' + self.selectors})
         self.assertEqual(check['decision'], 'allow', check)
@@ -204,6 +230,7 @@ class UpdateRecoveryTests(Phase1BFixture):
             recovery.require_restarted(self.root)
 
     def test_resync_only_followup_supersedes_pending_restart_and_keeps_history(self):
+        self.installed_control_plane_runtime()
         old, path = self.installed_restart()
         self.core.update(commit='d' * 40, installed_at='2026-11-16T16:00:00+00:00')
         (self.root / '.mxagile/state/core-provenance.json').write_text(json.dumps(self.core))
@@ -220,6 +247,7 @@ class UpdateRecoveryTests(Phase1BFixture):
         self.assertEqual(self.hook('Bash', {'command': command})['decision'], 'allow')
         synchronized = subprocess.run([sys.executable, '-B', str(self.tools / 'framework_update_recovery.py'),
                                        'synchronize-update', '--project-root', str(self.root)],
+                                      cwd=self.root, env={key: value for key, value in os.environ.items() if key != 'PYTHONPATH'},
                                       capture_output=True, text=True, timeout=60)
         self.assertEqual(synchronized.returncode, 0, synchronized.stdout + synchronized.stderr)
         self.assertEqual(json.loads(synchronized.stdout)['update_id'], receipt['update_attempt_id'])
@@ -288,6 +316,22 @@ class UpdateRecoveryTests(Phase1BFixture):
         with self.assertRaisesRegex(ValueError, 'UPDATE_RECOVERY_PARTIAL'):
             recovery.synchronize_update(self.root)
         self.assertEqual(path.read_bytes(), before)
+
+    def test_legacy_resync_handoff_without_update_identity_is_not_recovery_authority(self):
+        self.core.update(commit=self.commit, installed_at='2020-01-01T00:00:00+00:00')
+        (self.root / '.mxagile/state/core-provenance.json').write_text(json.dumps(self.core))
+        receipt = {'restart_required': False, 'resync_required': True, 'installed_at': self.core['installed_at'],
+                   'framework': {'update_successful': True, 'commit': self.commit}}
+        self.write('.mxagile/state/last-update-result.json', json.dumps(receipt))
+        self.assertIsNone(recovery.state(self.root))
+        self.assertEqual(recovery.restart_status(self.root)['result'], 'NO_PENDING_RESTART')
+        old, path = self.installed_restart()
+        self.assertEqual(recovery.state(self.root)['update_id'], old['update_id'])
+        self.assertTrue(recovery.state(self.root)['restart_required'])
+        receipt['restart_required'] = True
+        self.write('.mxagile/state/last-update-result.json', json.dumps(receipt))
+        with self.assertRaisesRegex(ValueError, 'UPDATE_RECOVERY_STATE_INVALID'):
+            recovery.state(self.root)
 
     def test_invalid_restart_receipt_is_a_structured_blocker(self):
         self.installed_restart()
@@ -547,8 +591,9 @@ class DisposableSelfUpdateTests(Phase1BFixture):
             self.write_yaml('requirements/REQ-001.yml', {'ID': 'REQ-001', 'title': 'Old', 'description': 'Old behavior', 'status': 'superseded'})
             self.write_yaml('requirements/REQ-068.yml', {'ID': 'REQ-068', 'title': 'Current', 'description': 'Current behavior', 'status': 'accepted'})
             env = {**os.environ, 'MXCLI_TEST_BINARY': str(binary), 'PYTHONDONTWRITEBYTECODE': '1', 'GIT_OPTIONAL_LOCKS': '0'}
+            env.pop('PYTHONPATH', None)
             def run(args, expected=0):
-                result = subprocess.run(args, env=env, capture_output=True, text=True, timeout=1800)
+                result = subprocess.run(args, cwd=self.root, env=env, capture_output=True, text=True, timeout=1800)
                 self.assertEqual(result.returncode, expected, result.stdout[-5000:] + result.stderr[-5000:])
                 return result.stdout or result.stderr
             run(['pwsh', '-NoProfile', '-File', str(old_dist / 'scripts/install-core.ps1'), '-ProjectRoot', str(self.root), '-IsUpdate:$true',
@@ -566,7 +611,8 @@ class DisposableSelfUpdateTests(Phase1BFixture):
             core_path.write_text(json.dumps(branded))
             def hook(tool, arguments):
                 payload = json.dumps({'tool_name': tool, 'tool_input': arguments, 'cwd': str(self.root)})
-                result = subprocess.run([sys.executable, '-B', str(tools / 'control-plane/enforcement.py')], input=payload, env=env, capture_output=True, text=True, timeout=240)
+                result = subprocess.run([sys.executable, '-B', str(tools / 'control-plane/enforcement.py')], cwd=self.root,
+                                        input=payload, env=env, capture_output=True, text=True, timeout=240)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 return json.loads(result.stdout)['hookSpecificOutput']['permissionDecision']
             def blocked():
@@ -660,6 +706,9 @@ class DisposableSelfUpdateTests(Phase1BFixture):
             self.assertEqual(acknowledged['update_id'], pending['update_id'])
             for relative in acknowledged['contract_reads']:
                 self.assertTrue((self.root / relative).read_bytes(), relative)
+            self.assertNotIn('PYTHONPATH', env)
+            self.assertFalse((tools / 'run_events.py').exists())
+            self.assertTrue((tools / 'control-plane/run_events.py').is_file())
             recovery_args = [sys.executable, '-B', str(installed), 'recover-session', '--project-root', str(self.root), '--contracts-reloaded']
             recovery_command = installed_command + f' recover-session --project-root "{self.root}" --contracts-reloaded'
             self.assertEqual(hook('Bash', {'command': recovery_command}), 'allow')

@@ -187,6 +187,9 @@ python -B $tool recover-session --project-root $root --contracts-reloaded
 This records contract-read evidence as DECLARED, executes fresh Doctor and invokes the
 existing preserve-evidence Epoch/Re-Sync path when canonical preflight permits it. Otherwise
 it reports concrete migration, Human decision or lifecycle blockers without another restart.
+The installed recovery helper uses the existing `project_compatibility._auxiliary_runtime()`
+for `control-plane` imports, including `run_events`. No User-supplied PYTHONPATH, Hook bypass
+or manual recovery-state edit is part of this runtime contract.
 The ignored `.mxagile/state/runs/framework-update-recovery.json` records six stages:
 `restart_required`, `restart_observed`, `restart_acknowledged`, `contracts_reloaded`,
 `doctor_completed`, `resync_completed`. Its operational flag becomes false at acknowledgement;
@@ -201,7 +204,9 @@ The bounded `synchronize-update --project-root $root` reconciles the operational
 `recover-session` also does this automatically. The previous snapshot remains auditably
 SUPERSEDED in the same store's `history`, never falsely marked as successfully recovered.
 Repeating reconciliation is idempotent; an open/partial transaction cannot supersede prior
-recovery. Resync-only updates record `restart_requirement: NOT_REQUIRED`, not fake restart
+recovery. Legacy informational Re-Sync handoffs without an Update ID are not operational
+recovery authority and cannot supersede an existing record. A restart-required receipt
+without a valid Update ID remains a blocker. Resync-only updates record `restart_requirement: NOT_REQUIRED`, not fake restart
 consent. Contract reads, Doctor and canonical Re-Sync remain required for current READY.
 
 `READY` is recovery completion, not Delivery authority. Acknowledgment does **not** clear

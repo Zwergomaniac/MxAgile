@@ -57,6 +57,8 @@ def receipt_restart(root):
             or receipt.get('installed_at') != core.get('installed_at')):
         return None  # A historical handoff does not describe a new update to the installed Core.
     update_id = receipt.get('update_attempt_id')
+    if update_id is None and not receipt['restart_required']:
+        return None  # Legacy informational Re-Sync handoffs have no operational update identity.
     if not re.fullmatch(r'UPDATE-[0-9a-f]{32}', update_id or ''):
         fail('UPDATE_RECOVERY_STATE_INVALID')
     value = {'schema_version': 1, 'project_root': str(root), 'update_id': update_id, 'update_attempt_id': update_id,
@@ -358,7 +360,7 @@ def verify_recovery_tools(root, core):
 def synchronize_update(root):
     if safe_path(root, '.mxagile/state/update-transaction.json').exists():
         fail('UPDATE_RECOVERY_PARTIAL')
-    import run_events as events
+    _, events = compatibility._auxiliary_runtime()
     with events._FileLock(safe_path(root, '.mxagile/state/runs/framework-update-recovery.lock')):
         value = state(root)
         if not value:
