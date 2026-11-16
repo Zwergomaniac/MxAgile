@@ -123,6 +123,39 @@ Full technical specification: `.mxagile/integrations/rtk.yaml`
 
 Context Mode uses the **Elastic License v2 (ELv2)**. ELv2 is source-available but **not OSI open source**. It restricts redistribution in commercial products. MxAgile does NOT vendor or redistribute Context Mode. You must install it separately. Always review the current license before commercial use.
 
+### External dependency and live-test readiness
+
+Installation, installed version, executable runtime, current-session tool discovery,
+contract compatibility and available updates are separate facts. The registry's historical
+`>=1.0.33` minimum and assessed `1.0.169` version are not a current-host/API guarantee.
+The resolver already separates installed/configured from loaded/healthy/task-usable;
+missing required operations such as `ctx_execute` mean degraded task capability, not
+permission to route to an absent tool. Keep normal MxAgile fallback available.
+
+Audit on 2026-11-16: the public upstream latest-release metadata reports
+[v2.2.0](https://github.com/mksglu/context-mode/releases/tag/v2.2.0), published 2026-11-14.
+An installed `1.0.169` reported by a Consumer has an update available, but age alone is
+not a hard block. Package/cache presence is not executability; npm PATH version metadata
+may differ from the host's enabled plugin version. Current MxAgile discovery does not yet
+provide a complete cross-channel installed-version/update-availability record, and a generic
+unreadable dependency version is not affirmative compatibility evidence.
+
+Before Context-Mode-specific OpenCode or compaction Reality tests, use a pinned current
+baseline (currently 2.2.0) or explicitly verified compatible alternative. Record the actual
+host-loaded version/channel, discover each task-required tool and its schema, perform one
+bounded same-session `ctx_doctor` probe, then verify the required operation actually works.
+For compaction, separately attest the session hooks and context continuity through a real
+compaction. A version check, tool declaration, healthy Doctor or old adapter assessment
+alone does not pass these live tests. Missing/unexecutable/incompatible task capabilities
+are `CAPABILITY_DEGRADED` / `integration.usable: false`; unavailable test evidence remains
+`NOT_VERIFIABLE_FOR_CM_TEST`, not a framework-wide block or a claimed live PASS.
+
+Check updates only from an already observed Doctor/update hint, local cache, or an explicitly
+requested bounded release-metadata query. Do not add online checks to ordinary startup.
+No automatic external upgrade is authorized. `/ctx-upgrade` and native plugin upgrade
+commands are external host/channel operations and require explicit user approval; use the
+current upstream host-specific contract rather than assuming npm updates a Claude plugin.
+
 ### What Context Mode Does
 
 Context Mode externalizes bulky content to a local SQLite+FTS5 knowledge base. The agent can retrieve relevant content on demand via `ctx_search`. This prevents large exploratory results, historical analyses, and debugging findings from consuming active context window.

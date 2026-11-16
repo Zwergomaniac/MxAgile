@@ -124,6 +124,51 @@ handoff. Never dispatch a write-capable child to recover from an invalid or unkn
 Do not delegate YAML quoting, schema checks, regex/provenance mapping, Git index
 checks, framework updates, lifecycle re-sync, or final planning decisions.
 
+## Autonomous Read-only Diagnostic Delegation
+
+An explicit request for a subagent to perform bounded analysis without file/model changes
+is `READ_ONLY_DIAGNOSTIC`, not a write-capable Delivery child. Resolve the concrete input
+paths within this project. Clear read-only intent needs no Human authorization and no
+"create a handoff or analyze yourself?" question. Ambiguous mutation/authority scope is
+`DIAGNOSTIC_SCOPE_NEEDS_HUMAN`; never silently assume read-only or replace an explicitly
+requested safe subagent with main-agent analysis.
+
+Use the installed canonical producer, supplying the observed main profile and explicit
+read-only/input scope. MID is the ordinary bounded-analysis demand; genuine conflicts may
+require a different profile under the existing model-ceiling policy.
+
+```powershell
+python -B <absolute-project-root>/.mxagile/tools/control-plane/child_contract.py diagnostic-handoff --project-root <absolute-project-root> --task "Compare the two bound revisions; no files changed" --source-paths <revision-037-path> <revision-038-path> --read-only --main-profile MID
+```
+
+The producer resolves the profile through the existing capability helper, persists and
+schema-validates only `.concord/delegation-handoffs/DELEGATION-....json`, and returns the
+native `subagent_type`, explicit `model`, and `MXAGILE_HANDOFF` marker. The integrity-bound
+producer grammar is permitted by the hook without Mission/Wave/write authorization;
+extra shell commands, arbitrary targets and missing read-only scope are not permitted.
+Invoke the actual discovered native Agent tool with those returned fields. A prepared
+handoff or hook ALLOW is not execution evidence; reconcile real dispatch separately.
+
+The handoff has no Mission/Wave (null, never fabricated), empty write scope, false
+`mutation_allowed`, and `delivery_authority`, `lifecycle_authority`, `publication_authority`
+all `none`. It binds input fingerprints and permits only Read/Grep/Glob, returning findings
+in the conversation. It cannot write results, promote evidence, accept a gate or spawn
+another child. Input changes invalidate the handoff.
+
+For Claude, the generated `mxagile-diagnostic-agent` definition has only Read/Grep/Glob.
+The hook verifies that exact named-agent tool restriction, no-authority envelope, input
+fingerprints, model ceiling and explicit model request instead of requiring the unavailable
+stdin `attest_diagnostic_child` callback. This is deterministic native-contract validation,
+not an attestation that Claude loaded the file or executed the requested model. When a
+host has no persistent Main Run ID, the diagnostic Run ID is correlation only, never
+Delivery authority. Other hosts/custom agents still need actual tool-constraint evidence;
+no unconstrained generic child is authorized by a prompt saying "read-only".
+
+A diagnostic child with the native host agent identity is denied all non-read operations
+by the hook; Claude's native tools list independently withholds mutation tools. Delivery
+children retain the existing Mission/Wave/Delivery Context and authority gates. No automatic
+HIGH escalation or MID-to-Sonnet live PASS follows from this path.
+
 ## Harness Contract
 
 The generic adapter contract is `.mxagile/schemas/harness-adapter.schema.json`;

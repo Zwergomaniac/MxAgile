@@ -20,6 +20,7 @@ from jsonschema import Draft7Validator
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import enforcement  # noqa: E402
 import guard  # noqa: E402
+sys.path.insert(0, str(guard.SCRIPTS_DIR))
 
 VERDICT_SCHEMA = json.loads(Path(__file__).with_name("control-plane-verdict.schema.json").read_text(encoding="utf-8"))
 RUNTIME_VISUAL = "runtime_visual_verification"
@@ -54,6 +55,98 @@ def route_intent(text: str) -> dict[str, Any]:
             "write_classes": ["EVIDENCE_WRITE"],
         }
     return {"capability": "static_analysis", "requires_runtime_evidence": False, "required_inputs": [], "required_tools": [], "write_classes": []}
+
+
+def prepare_diagnostic_handoff(root: Path, *, task: str, source_paths: list[str], read_only: bool,
+                               parent_run_id: str, requested_profile: str, resolution: dict[str, Any]) -> str:
+    """Persist only a bounded diagnostic handoff, never a mission or delivery authorization."""
+    from projection_io import safe_path, atomic_replace
+    import re
+    root = root.resolve()
+    if read_only is not True or not task.strip() or not source_paths or len(source_paths) > 128:
+        raise ValueError('DIAGNOSTIC_SCOPE_NEEDS_HUMAN')
+    if not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', parent_run_id or ''):
+        raise ValueError('DIAGNOSTIC_PARENT_RUN_INVALID')
+    fingerprints = []
+    for relative in source_paths:
+        path = guard._safe_project_file(root, relative)
+        if path is None or not path.is_file():
+            raise ValueError('DIAGNOSTIC_INPUT_UNAVAILABLE')
+        fingerprints.append({'path': path.relative_to(root).as_posix(), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+    paths = [item['path'] for item in fingerprints]
+    delegation_id = 'DELEGATION-' + enforcement.new_run_id().removeprefix('RUN-')
+    context = {key: [] for key in ('write_scope', 'required_skills', 'loaded_skills', 'required_capabilities',
+                                   'available_capabilities', 'evidence_destinations', 'output_artifacts')}
+    context.update(wave_id=None, work_package_id=delegation_id, project_root=str(root), branch=None, worktree=None,
+                   base_head=None, operating_mode='UNKNOWN', authorization='read_only', forbidden_scope=['ALL_WRITES'],
+                   required_artifacts=paths, verification_expectations=['bounded diagnostic findings only'],
+                   commit_expectation='no_commit', resync_conditions=['input fingerprint changed'],
+                   required_evidence_sources=['bound input files'], requested_model_profile=requested_profile,
+                   resolved_model=resolution.get('resolved_model'), effective_model=None, effective_model_status='not_observable')
+    handoff = {'schema_version': '1.4', 'mission_id': None, 'delivery_context': context,
+               'delegation_id': delegation_id, 'task': task, 'agent_type': 'mxagile-diagnostic-agent',
+               'delegation_class': 'READ_ONLY_DIAGNOSTIC', 'mutation_allowed': False,
+               'delivery_authority': 'none', 'lifecycle_authority': 'none', 'publication_authority': 'none',
+               'scope': {'summary': task, 'paths': paths}, 'authority_references': [], 'artifact_paths': paths,
+               'source_fingerprints': fingerprints, 'allowed_tools': ['Read', 'Grep', 'Glob'],
+               'forbidden_mutations': ['ALL_WRITES', 'ACCEPTANCE', 'DELIVERY_AUTHORIZATION', 'LIFECYCLE', 'PUBLICATION'],
+               'expected_result_schema': 'delegation-result/1.1', 'model_profile': requested_profile, 'model_resolution': resolution,
+               'run_id': enforcement.new_run_id(), 'parent_run_id': parent_run_id, 'capability': 'read_only_diagnostic',
+               'route_decision_reference': 'read_only_diagnostic', 'write_classes': [], 'evidence_destination': None,
+               'required_tools': ['Read'], 'input_sources': [{'kind': 'other', 'identity': item['path'], **item} for item in fingerprints],
+               'output_contract': 'diagnostic-findings/1', 'authorization_reference': None}
+    schema = json.loads(safe_path(root, '.mxagile/schemas/delegation-handoff.schema.json').read_bytes())
+    if list(Draft7Validator(schema).iter_errors(handoff)):
+        raise ValueError('DIAGNOSTIC_HANDOFF_INVALID')
+    relative = enforcement.HANDOFF_DIR + delegation_id + '.json'
+    atomic_replace(safe_path(root, relative), (json.dumps(handoff, indent=2) + '\n').encode())
+    return relative
+
+
+def diagnostic_cli():
+    import argparse
+    from projection_io import safe_path
+    parser = argparse.ArgumentParser(allow_abbrev=False)
+    parser.add_argument('command', choices=['diagnostic-handoff'])
+    parser.add_argument('--project-root', type=Path, required=True)
+    parser.add_argument('--task', required=True)
+    parser.add_argument('--source-paths', nargs='+', required=True)
+    parser.add_argument('--read-only', action='store_true')
+    parser.add_argument('--main-profile', choices=['LIGHT', 'MID', 'HIGH'], required=True)
+    parser.add_argument('--profile', choices=['LIGHT', 'MID', 'HIGH'], default='MID')
+    args = parser.parse_args()
+    if not args.project_root.is_absolute():
+        parser.error('Absolute project root required')
+    root = args.project_root.resolve()
+    try:
+        if not args.read_only:
+            raise ValueError('DIAGNOSTIC_SCOPE_NEEDS_HUMAN')
+        resolver = safe_path(root, '.mxagile/tools/Get-MxAgileCapabilities.ps1')
+        result = subprocess.run(['pwsh', '-NoProfile', '-File', str(resolver), '-ProjectRoot', str(root),
+                                 '-Capability', 'subagent_spawn', '-Format', 'json', '-MainProfile', args.main_profile,
+                                 '-ModelProfile', args.profile], capture_output=True, text=True, timeout=120)
+        if result.returncode:
+            raise ValueError('DIAGNOSTIC_MODEL_RESOLUTION_UNAVAILABLE')
+        integration = json.loads(result.stdout)['capabilities'][0]['integration']
+        if integration.get('route_allowed') is not True:
+            raise ValueError('DIAGNOSTIC_MODEL_ROUTE_NOT_ALLOWED')
+        resolution = {key: integration[key] for key in ('model_selection', 'profile_resolution', 'resolved_model',
+                       'requested_reasoning_effort', 'fallback_used', 'fallback_reason', 'escalation')}
+        resolution['resolution'] = integration['model_resolution']
+        reference = prepare_diagnostic_handoff(root, task=args.task, source_paths=args.source_paths, read_only=True,
+            parent_run_id=os.environ.get('MXAGILE_RUN_ID') or enforcement.new_run_id(),
+            requested_profile=integration['escalation']['resolved_child_profile'], resolution=resolution)
+        handoff = json.loads(safe_path(root, reference).read_bytes())
+        if not enforcement._native_diagnostic_constraints(root, handoff, {'tool_input': {'model': integration['resolved_model']}}):
+            raise ValueError('DIAGNOSTIC_NATIVE_CONSTRAINTS_UNAVAILABLE')
+        print(json.dumps({'result': 'DIAGNOSTIC_HANDOFF_READY', 'handoff_reference': reference,
+                          'subagent_type': 'mxagile-diagnostic-agent', 'model': integration['resolved_model'],
+                          'prompt_marker': 'MXAGILE_HANDOFF:' + reference, 'actual_model': None,
+                          'actual_model_status': 'NOT_OBSERVABLE', 'delivery_authorized': False}))
+        return 0
+    except (ValueError, KeyError) as exc:
+        print(json.dumps({'result': 'BLOCKED', 'reason': str(exc)}))
+        return 3
 
 
 def _sha(root: Path, relative: str) -> str:
@@ -435,4 +528,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(diagnostic_cli() if sys.argv[1:2] == ['diagnostic-handoff'] else main())

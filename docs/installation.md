@@ -156,20 +156,47 @@ whole-project rollback guarantee. Previous provenance and migration history are 
 A successful dedicated update reports `INSTALLED_RESTART_REQUIRED` and a stale Context.
 The canonical handoff also sets `restart_required: true` and
 `session_contract.state: SESSION_RESTART_REQUIRED`. Disk updates and host registration do
-not prove that a running session has reloaded its authority. Restart the host session;
-only then may the actual User-confirmed restart be acknowledged in a **different Run**:
+not prove that a running session has reloaded its authority. Stop the old host session and
+restart it once. The new session's startup route discovers the pending update automatically:
 
 ```powershell
-python -B $tool acknowledge-restart --project-root $root --update-id UPDATE-EXACT-ID-FROM-APPLY --human-reference USER-ACTUAL-RESTART --run-id RUN-NEW-SESSION --human-confirmed
+python -B $tool restart-status --project-root $root
 ```
 
-This is an explicit Human evidence contract, not cryptographic host attestation. An agent
-must not invent a restart confirmation. The ignored runtime record in
-`.mxagile/state/runs/framework-update-recovery.json` blocks Human Resolve and canonical
-Epoch re-sync until acknowledgment validates current installed tool/contract provenance.
-Acknowledgment does **not** clear migration, Doctor or lifecycle blockers. Continue with
-the new Guard, bound Human Resolution, migration completion, fresh Doctor, lifecycle
-reconciliation and canonical Context re-sync. Neither update nor acknowledgment promotes
+Only in the genuinely new session, ask one simple consent: "Diese neue Session erfuellt den
+Restart. Recovery fortsetzen?" On genuine agreement, the agent invokes:
+
+```powershell
+python -B $tool acknowledge-restart --project-root $root --human-confirmed
+```
+
+The persistent receipt supplies the Update ID; a new Run/audit ID can be generated without
+User knowledge of framework selectors. An observed new `MXAGILE_RUN_ID` is reused; a known
+old Run is rejected even if another UUID is supplied. Explicit identity selectors remain
+supported for existing callers, but are not required from the User. Neither a helper process
+nor a random Run ID proves a host restart. Human consent is explicit evidence, not
+cryptographic host attestation; an agent must never invent it.
+
+Read every returned `contract_reads` path and the active recovery agents/skills explicitly,
+then continue:
+
+```powershell
+python -B $tool recover-session --project-root $root --contracts-reloaded
+```
+
+This records contract-read evidence as DECLARED, executes fresh Doctor and invokes the
+existing preserve-evidence Epoch/Re-Sync path when canonical preflight permits it. Otherwise
+it reports concrete migration, Human decision or lifecycle blockers without another restart.
+The ignored `.mxagile/state/runs/framework-update-recovery.json` records six stages:
+`restart_required`, `restart_observed`, `restart_acknowledged`, `contracts_reloaded`,
+`doctor_completed`, `resync_completed`. Its operational flag becomes false at acknowledgement;
+the progress flag records the historical first stage. Acknowledgement and completed recovery
+are idempotent. Subsequent sessions resume missing stages or normal Re-Sync without another
+confirmation. Historical installer restart flags do not override that receipt for the same
+update; a later real update gets its own new identity and restart boundary.
+`RESTART_RECOVERY_LOOP` means inspect/reconcile a Framework finding, not repeatedly restart.
+`READY` is recovery completion, not Delivery authority. Acknowledgment does **not** clear
+migration, Doctor or lifecycle blockers; required bound Human Resolution remains mandatory. Neither update nor acknowledgment promotes
 a Mission/Wave or authorizes Requirements, Product code, Mendix model, Navigation, Security,
 normal writing children or publication. The read-only reload exception above does not
 replace this dedicated restart barrier. See the

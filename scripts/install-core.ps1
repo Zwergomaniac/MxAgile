@@ -321,7 +321,7 @@ function Invoke-PostUpdateCompatibility {
     Write-Host 'Agent completion MUST report framework success AND project compatibility; read .mxagile/state/last-update-result.json.'
     Write-Host "SESSION_CONTRACT: $($result.session_contract.state) (installed projections do not reload this running session)."
     if ($restartRequired) {
-        Write-Host 'Restart the host session, start a new Run, then acknowledge-restart with the installed framework_update_recovery.py before contract re-sync. No automatic contract reload is claimed.'
+        Write-Host 'Stop this old host session and restart it once. The new session runs installed framework_update_recovery.py restart-status, asks one simple restart confirmation, then automatically acknowledges and continues contract reads, Doctor and re-sync. No copied Update/Run IDs or automatic host reload are required or claimed.'
     } else {
         Write-Host 'Before answering, explicitly re-read .mxagile/policies/update-contract.md and follow its same-session contract re-sync, including active instructions/skills.'
         Write-Host 'Report CONTRACTS_RE_SYNCED only after successful re-reads; otherwise UPDATE_INSTALLED_RESTART_REQUIRED and Project compatibility NOT_VERIFIED.'

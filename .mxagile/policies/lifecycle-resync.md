@@ -44,6 +44,26 @@ Lifecycle-Information zerstoeren.
 
 ---
 
+## Pending framework restart at session startup
+
+Before ordinary Lifecycle Re-Sync, query the installed `framework_update_recovery.py
+restart-status --project-root <absolute-root>` once, read-only. The persistent update/restart
+receipt supplies the Update ID; the helper may generate a new Run ID for a genuinely new
+host session. Never infer a host restart from a new helper process or random Run ID.
+Stop the old session. In the real new session, one simple genuine User confirmation permits
+`acknowledge-restart --project-root <absolute-root> --human-confirmed`; no copied IDs or
+manual framework commands from the User are required.
+
+An already acknowledged Update ID never asks for another restart/confirmation. Read the
+returned contract paths and active agent/skills explicitly from disk, then run the installed
+`recover-session --project-root <absolute-root> --contracts-reloaded`. Fresh Doctor and the
+existing preserve-evidence writer continue automatically only when canonical preflight is
+ready. Otherwise report the actual migration, Human decision, Doctor or lifecycle-scope
+blocker. READY is operational recovery completion, not a lifecycle transition or Delivery
+permission. `RESTART_RECOVERY_LOOP` is a Framework finding: inspect/reconcile, not restart
+again. Historical installer handoffs are not a new update after acknowledgement; see
+`project-compatibility.md` and `update-contract.md` for receipt precedence and evidence.
+
 ## Contract-aware Epoch recovery
 
 Bei aktuellen Core-Installationen prueft der installierte Epoch Writer vor jedem Write:

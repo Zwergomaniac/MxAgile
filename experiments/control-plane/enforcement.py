@@ -420,6 +420,49 @@ def _blocking(verdict: dict[str, Any]) -> tuple[str, str | None]:
     return ", ".join(codes) or verdict["verdict"], recovery
 
 
+def _native_diagnostic_constraints(root, handoff, payload):
+    """Claude's selected named-agent definition restricts tools without a nonexistent host callback."""
+    if not (os.environ.get('CLAUDECODE') or os.environ.get('MXAGILE_HARNESS') == 'claude_code'):
+        return False
+    if handoff.get('agent_type') != 'mxagile-diagnostic-agent' or handoff.get('delegation_class') != 'READ_ONLY_DIAGNOSTIC':
+        return False
+    if (handoff.get('mutation_allowed') is not False or handoff.get('mission_id') is not None
+            or (handoff.get('delivery_context') or {}).get('wave_id') is not None
+            or handoff.get('authority_references') or handoff.get('authorization_reference') is not None
+            or any(handoff.get(key) != 'none' for key in ('delivery_authority', 'lifecycle_authority', 'publication_authority'))):
+        return False
+    path = guard._safe_project_file(root, '.claude/agents/mxagile-diagnostic-agent.md')
+    if path is None or not path.is_file():
+        return False
+    match = re.match(r'\A---\r?\n([\s\S]*?)\r?\n---\r?\n', path.read_text(encoding='utf-8'))
+    if not match:
+        return False
+    definition = guard.yaml.safe_load(match.group(1))
+    model = handoff.get('model_resolution', {}).get('resolved_model')
+    if any(payload.get('tool_input', {}).get(key) is not None for key in ('tools', 'allowed_tools', 'permission_mode', 'isolation')):
+        return False
+    if (not isinstance(definition, dict) or set(definition) != {'model', 'tools', 'description'}
+            or set(definition.get('tools', [])) != {'Read', 'Glob', 'Grep'}
+            or payload.get('tool_input', {}).get('model') != model):
+        return False
+    adapter = guard._safe_project_file(root, '.mxagile/adapters/claude/agent-delegation.yaml')
+    if adapter is None or not adapter.is_file():
+        return False
+    mapping = guard.yaml.safe_load(adapter.read_text(encoding='utf-8')).get('delegation', {}).get('profiles', {})
+    e = handoff.get('model_resolution', {}).get('escalation') or {}
+    if definition.get('model') != mapping.get('MID') or model != mapping.get(e.get('resolved_child_profile')):
+        return False
+    ranks = {'LIGHT': 0, 'MID': 1, 'HIGH': 2}
+    if (e.get('main_profile') not in ranks or e.get('resolved_child_profile') not in ranks
+            or handoff.get('model_profile') != e.get('resolved_child_profile') or e.get('decision') not in {'allowed', 'limited'}):
+        return False
+    if ranks[e['resolved_child_profile']] > ranks[e['main_profile']]:
+        return False  # This autonomous diagnostic path never grants escalation authority.
+    paths = set(handoff['scope']['paths'])
+    return (paths == {item['path'] for item in handoff['source_fingerprints']}
+            == {item['path'] for item in handoff['input_sources']} == set(handoff['artifact_paths']))
+
+
 def _spawn_decision(facts: guard.ProjectFacts, payload: dict[str, Any], run_id: str, evidence: HostBoundaryEvidence | None = None) -> dict[str, Any]:
     tool_input = payload.get("tool_input") or {}
     agent_type = str(tool_input.get("subagent_type") or "")
@@ -437,13 +480,17 @@ def _spawn_decision(facts: guard.ProjectFacts, payload: dict[str, Any], run_id: 
     if handoff.get("agent_type") != agent_type:
         return {"decision": "deny", "reason": "CHILD_AGENT_TYPE_MISMATCH", "recovery": "inspect"}
     if handoff.get('capability') == 'read_only_diagnostic':
+        from framework_update_recovery import require_restarted
+        require_restarted(facts.root)
         schema = json.loads((facts.root / '.mxagile' / 'schemas' / 'delegation-handoff.schema.json').read_text(encoding='utf-8'))
         context = handoff.get('delivery_context') or {}
         tools = handoff.get('allowed_tools') or []
         valid = (
             not list(guard.Draft7Validator(schema).iter_errors(handoff))
             and handoff.get('schema_version') == '1.4'
-            and handoff.get('parent_run_id') == run_id
+            and (handoff.get('parent_run_id') == run_id or
+                 (not os.environ.get('MXAGILE_RUN_ID') and re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', handoff.get('parent_run_id') or '')
+                  and _native_diagnostic_constraints(facts.root, handoff, payload)))
             and bool(handoff.get('scope', {}).get('paths'))
             and all(guard._safe_project_file(facts.root, path) is not None for path in handoff['scope']['paths'])
             and Path(context.get('project_root') or '').resolve() == facts.root.resolve()
@@ -459,9 +506,11 @@ def _spawn_decision(facts: guard.ProjectFacts, payload: dict[str, Any], run_id: 
         )
         if not valid:
             return {'decision': 'deny', 'reason': 'DIAGNOSTIC_HANDOFF_INVALID', 'recovery': 'inspect'}
-        if not evidence or not evidence.attest_diagnostic_child or not evidence.attest_diagnostic_child(handoff, payload):
+        host_attested = bool(evidence and evidence.attest_diagnostic_child and evidence.attest_diagnostic_child(handoff, payload))
+        if not host_attested and not _native_diagnostic_constraints(facts.root, handoff, payload):
             return {'decision': 'deny', 'reason': 'DIAGNOSTIC_TOOL_CONSTRAINT_NOT_OBSERVABLE', 'recovery': 'inspect'}
-        return {'decision': 'allow', 'reason': 'READ_ONLY_DIAGNOSTIC_HOST_CONFIRMED', 'handoff': handoff, 'handoff_reference': canonical}
+        return {'decision': 'allow', 'reason': 'READ_ONLY_DIAGNOSTIC_HOST_CONFIRMED' if host_attested else 'READ_ONLY_DIAGNOSTIC_NATIVE_CONSTRAINTS',
+                'handoff': handoff, 'handoff_reference': canonical}
     request = {
         "request_id": handoff.get("run_id") or run_id,
         "run_id": handoff.get("run_id") or run_id,
@@ -552,9 +601,37 @@ def _controlled_recovery(facts: guard.ProjectFacts, payload: dict[str, Any]) -> 
     if program in {'python', 'python3', 'py'}:
         if args[:1] == ['-B']:
             args = args[1:]
-        if len(args) < 2 or not Path(args[0]).is_absolute() or Path(args[0]).resolve() != tools / 'project_compatibility.py':
+        diagnostic = len(args) >= 2 and Path(args[0]).is_absolute() and Path(args[0]).resolve() == tools / 'control-plane/child_contract.py' and args[1] == 'diagnostic-handoff'
+        if diagnostic:
+            selectors = args[2:]
+            if selectors.count('--read-only') != 1:
+                return None
+            selectors = [item for item in selectors if item != '--read-only']
+            pairs = {}
+            while selectors:
+                key = selectors.pop(0)
+                if key in pairs or key not in {'--project-root', '--task', '--source-paths', '--main-profile', '--profile'} or not selectors:
+                    return None
+                if key == '--source-paths':
+                    values = []
+                    while selectors and not selectors[0].startswith('--'):
+                        values.append(selectors.pop(0))
+                    pairs[key] = values
+                else:
+                    pairs[key] = selectors.pop(0)
+            if (not {'--project-root', '--task', '--source-paths', '--main-profile'} <= set(pairs)
+                    or not pairs['--task'].strip() or pairs['--main-profile'] not in {'LIGHT', 'MID', 'HIGH'}
+                    or pairs.get('--profile', 'MID') not in {'LIGHT', 'MID', 'HIGH'}
+                    or not pairs['--source-paths'] or len(pairs['--source-paths']) > 128
+                    or any((path := guard._safe_project_file(facts.root, relative)) is None or not path.is_file() for relative in pairs['--source-paths'])):
+                return None
+            from framework_update_recovery import require_restarted
+            require_restarted(facts.root)
+            root_arg = pairs['--project-root']
+            action = 'diagnostic_handoff'
+        elif len(args) < 2 or not Path(args[0]).is_absolute() or Path(args[0]).resolve() != tools / 'project_compatibility.py':
             return None
-        if args[1] == 'repair-last-write':
+        elif args[1] == 'repair-last-write':
             selectors = args[2:]
             if selectors.count('--apply') != 1:
                 return None
@@ -716,7 +793,9 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
     except Exception:  # an unclassifiable call is treated as critical
         op_class, detail = IMPLEMENTATION_WRITE, "unclassifiable"
     result: dict[str, Any] = {"operation_class": op_class, "detail": detail}
-    if op_class == PUBLICATION:
+    if payload.get('agent_type') == 'mxagile-diagnostic-agent' and op_class != READ:
+        result.update({'decision': 'deny', 'reason': 'DIAGNOSTIC_CHILD_MUTATION_FORBIDDEN', 'recovery': 'inspect'})
+    elif op_class == PUBLICATION:
         # Remote publication is never authorized by delivery state; the developer decides in the host.
         result.update({"decision": "ask", "reason": "PUBLICATION_REQUIRES_DEVELOPER_APPROVAL", "recovery": "human_resolution"})
     elif str(payload.get("tool_name") or "") == "TaskStop":
@@ -772,7 +851,8 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
                                 'AUXILIARY_AUTHORITY_UNAVAILABLE', 'INVALID_AUXILIARY_INTERRUPT',
                                 'UPDATE_SOURCE_NOT_AUTHORIZED', 'UPDATE_REF_REQUIRED', 'STALE_UPDATE_TARGET',
                                 'STALE_UPDATE_PLAN', 'UPDATE_RESUME_REQUIRED', 'UPDATE_RESUME_NOT_AVAILABLE',
-                                'FRAMEWORK_SESSION_RESTART_REQUIRED', 'UPDATE_RECOVERY_STATE_INVALID',
+                                'FRAMEWORK_SESSION_RESTART_REQUIRED', 'FRAMEWORK_OLD_SESSION_STALE', 'UPDATE_RECOVERY_STATE_INVALID', 'RESTART_RECOVERY_LOOP',
+                                'CONTRACT_RELOAD_REQUIRED', 'DOCTOR_UNAVAILABLE', 'RESYNC_NOT_COMPLETED',
                                 'UPDATE_PROJECTION_PREFLIGHT_BLOCKED', 'UPDATE_CANONICAL_PAYLOAD_REQUIRED',
                                 'BOUNDED_REPAIR_UNAVAILABLE', 'BOUNDED_REPAIR_NO_JOURNAL', 'BOUNDED_REPAIR_SCOPE_MISMATCH',
                                 'BOUNDED_REPAIR_NOT_BLOCKED', 'BOUNDED_REPAIR_MULTIPLE_TARGETS', 'BOUNDED_REPAIR_CANDIDATE_INVALID',
@@ -781,6 +861,8 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
             recovery_action = 'human_resolution' if code in resolution_codes else 'inspect'
             if code == 'FRAMEWORK_SESSION_RESTART_REQUIRED':
                 recovery_action = 'restart'
+            elif code == 'RESTART_RECOVERY_LOOP':
+                recovery_action = 'inspect'
             elif code and (code.startswith('UPDATE_') or code.startswith('STALE_UPDATE_')):
                 recovery_action = 'inspect'
             result.update({'decision': 'deny', 'reason': code if code in resolution_codes else f'GUARD_UNAVAILABLE: {type(exc).__name__}',

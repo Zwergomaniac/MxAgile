@@ -188,6 +188,7 @@ $agentDescriptions = @{
 }
 
 $agentTools = @{
+    'diagnostic-agent'     = @('Read', 'Grep', 'Glob')
     'discovery-agent'      = @('Read', 'Grep', 'Glob', 'Bash', 'Write')
     'refinement-agent'     = @('Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write')
     'ui-agent'             = @('Read', 'Grep', 'Glob', 'Bash', 'Write')

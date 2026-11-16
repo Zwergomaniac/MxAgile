@@ -1724,7 +1724,7 @@ def prepare_human_resolution(root: Path, *, diagnostic_id: str, migration_id: st
     from build_project_status import build_status
     from projection_io import safe_path
     root = root.resolve()
-    if os.path.lexists(root / '.mxagile/state/runs/framework-update-recovery.json'):
+    if any(os.path.lexists(root / path) for path in ('.mxagile/state/runs/framework-update-recovery.json', '.mxagile/state/last-update-result.json')):
         from framework_update_recovery import require_restarted
         try:
             require_restarted(root)
@@ -2049,7 +2049,7 @@ def resync_preflight(root: Path, mission_id: str = '', wave_id: str = '', phase:
     _, _, state = _migration_state(root)
     record = state.get('contract_migration') or {}
     reasons = []
-    if os.path.lexists(root / '.mxagile/state/runs/framework-update-recovery.json'):
+    if any(os.path.lexists(root / path) for path in ('.mxagile/state/runs/framework-update-recovery.json', '.mxagile/state/last-update-result.json')):
         from framework_update_recovery import require_restarted
         try:
             require_restarted(root)
@@ -2630,7 +2630,7 @@ def last_canonical_write_repair_plan(
     from build_project_status import build_status
     from projection_io import safe_path
     root = root.resolve()
-    if os.path.lexists(root / '.mxagile/state/runs/framework-update-recovery.json'):
+    if any(os.path.lexists(root / path) for path in ('.mxagile/state/runs/framework-update-recovery.json', '.mxagile/state/last-update-result.json')):
         from framework_update_recovery import require_restarted
         try:
             require_restarted(root)

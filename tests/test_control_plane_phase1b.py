@@ -411,6 +411,90 @@ class AuxiliaryScopeTests(Phase1BFixture):
 
 
 class DiagnosticChildTests(Phase1BFixture):
+    def test_canonical_read_only_producer_reaches_real_hook_without_human_or_host_callback(self):
+        self.write('requirements/REQ-001.yml', 'ID: REQ-001\ntitle: bounded diagnostic input\n')
+        self.write('.mxagile/adapters/claude/agent-delegation.yaml', 'delegation:\n  profiles:\n    MID: sonnet\n    HIGH: opus\n    LIGHT: haiku\n')
+        self.write('.claude/agents/mxagile-diagnostic-agent.md', '---\nmodel: sonnet\ndescription: diagnostic\ntools:\n  - Read\n  - Glob\n  - Grep\n---\nRead only.\n')
+        reference = child_contract.prepare_diagnostic_handoff(self.root, task='Analyze REV-037 versus REV-038. No files changed.',
+            source_paths=['requirements/REQ-001.yml'], read_only=True, parent_run_id='RUN-aabbccddee11',
+            requested_profile='MID', resolution={'model_selection': 'supported', 'profile_resolution': 'static_mapping',
+                'resolution': 'static_mapping', 'resolved_model': 'sonnet', 'requested_reasoning_effort': None,
+                'fallback_used': False, 'fallback_reason': None, 'escalation': {
+                    'main_profile': 'MID', 'main_model': None, 'requested_child_profile': 'MID', 'resolved_child_profile': 'MID',
+                    'requested_child_model': None, 'spawn_request_model': None, 'actual_model': None,
+                    'actual_model_status': 'NOT_OBSERVABLE', 'actual_model_source': None,
+                    'escalation_policy': 'never', 'escalation_authority': 'main_profile_ceiling',
+                    'authority_reference': None, 'decision': 'allowed', 'reason': 'bounded analysis'}})
+        handoff = json.loads((self.root / reference).read_bytes())
+        self.assertEqual(handoff['delegation_class'], 'READ_ONLY_DIAGNOSTIC')
+        self.assertIsNone(handoff['mission_id'])
+        self.assertIsNone(handoff['delivery_context']['wave_id'])
+        self.assertFalse(handoff['mutation_allowed'])
+        for authority in ('delivery_authority', 'lifecycle_authority', 'publication_authority'):
+            self.assertEqual(handoff[authority], 'none')
+        payload = {'tool_name': 'Agent', 'tool_input': {'subagent_type': 'mxagile-diagnostic-agent',
+                   'prompt': f'MXAGILE_HANDOFF:{reference}', 'model': 'sonnet'}}
+        with mock.patch.dict(enforcement.os.environ, {'MXAGILE_RUN_ID': 'RUN-aabbccddee11', 'CLAUDECODE': '1'}):
+            allowed = enforcement.decide(self.root, payload)
+        self.assertEqual(allowed['decision'], 'allow', allowed)
+        self.assertEqual(allowed['handoff']['model_profile'], 'MID')
+        with mock.patch.dict(enforcement.os.environ, {'MXAGILE_RUN_ID': 'RUN-aabbccddee11', 'CLAUDECODE': '1'}):
+            for override in ({'model': 'opus'}, {'tools': ['Write']}, {'isolation': 'worktree'}):
+                attempt = {**payload, 'tool_input': {**payload['tool_input'], **override}}
+                self.assertEqual(enforcement.decide(self.root, attempt)['decision'], 'deny')
+            agent_file = self.root / '.claude/agents/mxagile-diagnostic-agent.md'
+            original = agent_file.read_bytes()
+            agent_file.write_bytes(original.replace(b'  - Grep', b'  - Write'))
+            self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'deny')
+            agent_file.write_bytes(original)
+            self.write('requirements/REQ-001.yml', 'ID: REQ-001\ntitle: changed after handoff\n')
+            self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'deny')
+        for tool, arguments in (('Write', {'file_path': 'requirements/REQ-002.yml', 'content': 'bad'}),
+                                ('Bash', {'command': 'mxcli exec mutation.mdl'}), ('Bash', {'command': 'git push'})):
+            denied = enforcement.decide(self.root, {'agent_type': 'mxagile-diagnostic-agent', 'tool_name': tool, 'tool_input': arguments})
+            self.assertEqual(denied['decision'], 'deny', denied)
+        with self.assertRaisesRegex(ValueError, 'DIAGNOSTIC_SCOPE_NEEDS_HUMAN'):
+            child_contract.prepare_diagnostic_handoff(self.root, task='Analyze and adjust if needed.', source_paths=['requirements/REQ-001.yml'],
+                read_only=None, parent_run_id='RUN-aabbccddee11', requested_profile='MID', resolution=handoff['model_resolution'])
+
+    def test_installed_diagnostic_cli_is_allowed_and_emits_native_sonnet_request(self):
+        tools, compatibility = RecoveryScopeTests.recovery_tools(self)
+        shutil.copytree(GUARD_DIR, tools / 'control-plane', ignore=shutil.ignore_patterns('__pycache__'))
+        for name in ('run_events.py', 'run-event.schema.json'):
+            source = GUARD_DIR.parents[1] / 'scripts' / name
+            shutil.copyfile(source, tools / 'control-plane' / name)
+        canonical = GUARD_DIR.parents[1] / '.mxagile'
+        for name in ('capabilities.yaml', 'version.yaml', 'config.yaml'):
+            shutil.copyfile(canonical / name, self.root / '.mxagile' / name)
+        shutil.copytree(canonical / 'adapters', self.root / '.mxagile/adapters')
+        shutil.copyfile(GUARD_DIR.parents[1] / 'scripts/Get-MxAgileCapabilities.ps1', tools / 'Get-MxAgileCapabilities.ps1')
+        self.write('requirements/REQ-001.yml', 'ID: REQ-001\ntitle: bounded diagnostic input\n')
+        self.write('.claude/agents/mxagile-diagnostic-agent.md', '---\nmodel: sonnet\ndescription: diagnostic\ntools:\n  - Read\n  - Glob\n  - Grep\n---\nRead only.\n')
+        core_path = self.root / '.mxagile/state/core-provenance.json'
+        core = json.loads(core_path.read_bytes())
+        core['artifact_contract'] = compatibility.contract_snapshot(self.root)
+        core['recovery_tools'] = {p.relative_to(tools).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in tools.rglob('*.py')}
+        core['recovery_tools']['Write-MxAgileEpochCheckpoint.ps1'] = hashlib.sha256((tools / 'Write-MxAgileEpochCheckpoint.ps1').read_bytes()).hexdigest()
+        core_path.write_text(json.dumps(core))
+        script = tools / 'control-plane/child_contract.py'
+        arguments = [sys.executable, '-B', str(script), 'diagnostic-handoff', '--project-root', str(self.root),
+                     '--task', 'Compare REV-037 and REV-038; no file changes.', '--source-paths', 'requirements/REQ-001.yml',
+                     '--read-only', '--main-profile', 'MID']
+        command = subprocess.list2cmdline(arguments)
+        with mock.patch.dict(enforcement.os.environ, {'CLAUDECODE': '1', 'MXAGILE_RUN_ID': 'RUN-aabbccddee11'}):
+            allowed = self.hook('Bash', {'command': command})
+            self.assertEqual(allowed['decision'], 'allow', allowed)
+            completed = subprocess.run(arguments, capture_output=True, text=True, timeout=120)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            request = json.loads(completed.stdout)
+            self.assertEqual(request['model'], 'sonnet')
+            self.assertEqual(request['actual_model_status'], 'NOT_OBSERVABLE')
+            payload = {'tool_name': 'Agent', 'tool_input': {'subagent_type': request['subagent_type'],
+                       'model': request['model'], 'prompt': request['prompt_marker']}}
+            self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'allow')
+            self.assertEqual(self.hook('Bash', {'command': command + ' && git push'})['decision'], 'deny')
+            self.assertEqual(self.hook('Bash', {'command': command.replace('--read-only', '')})['decision'], 'deny')
+
     def test_diagnostic_handoff_cannot_be_relabelled_as_visual_acceptance(self):
         handoff = self.visual_handoff()
         handoff['capability'] = 'read_only_diagnostic'

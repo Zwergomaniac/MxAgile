@@ -315,12 +315,28 @@ read-only re-sync exception below. The ignored existing run store records the bo
 identity before Core mutation. The canonical handoff sets `restart_required: true` and
 `session_contract.state: SESSION_RESTART_REQUIRED`; partial updates remain resumable and
 blocked. Updated files/host registration do not prove that a running host reloaded code.
-After an actual host-session restart, the installed helper's `acknowledge-restart` requires
-an actual Human confirmation, exact update identity, different Run and matching current
-tool/contract provenance. It clears only that operational barrier. Migration, fresh Doctor,
-Lifecycle reconciliation and canonical Context re-sync remain mandatory; ordinary Delivery
-stays blocked until their existing gates pass. No automatic reload or host attestation is
-claimed, and a fabricated confirmation is not permissible.
+At fresh-session startup, the installed helper's read-only `restart-status` discovers the
+persistent Update identity and pending recovery stages automatically. After an actual host
+restart, ask one simple genuine confirmation ("Diese neue Session erfuellt den Restart.
+Recovery fortsetzen?") and call `acknowledge-restart --project-root <absolute-root>
+--human-confirmed`. Do not ask the User to copy an Update ID, invent a Run ID or operate the
+framework CLI. The helper generates Run/audit IDs and verifies current tool/contract
+provenance; a new Run or Python process alone is not restart evidence. It clears only the
+operational barrier, exactly once per Update ID. Legacy explicit selectors remain valid.
+
+Then explicitly read the returned contract paths and active recovery agent/skills. Invoke
+`recover-session --project-root <absolute-root> --contracts-reloaded` to run fresh Doctor and
+the existing preserve-evidence Epoch/Lifecycle Re-Sync. Missing Migration/Human decisions,
+Doctor availability or canonical scope produce concrete reconciliation blockers, not another
+restart. Contract-read confirmation is recorded as DECLARED; no automatic host reload or
+cryptographic host attestation is claimed. Ordinary Delivery still needs its existing gates.
+
+The operational receipt's six `restart_progress` stages supersede historical installer
+restart flags after acknowledgement. Later fresh sessions continue remaining stages without
+new confirmation; a later real update has a new Update ID and a new restart boundary.
+`RESTART_RECOVERY_LOOP` identifies an acknowledged Update ID being made restart-required
+again; record it as a Framework finding and inspect/reconcile rather than prescribe only
+another restart. A fabricated confirmation is never permissible.
 
 ### Same-session contract re-sync before completion
 

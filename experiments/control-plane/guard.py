@@ -326,12 +326,13 @@ def _parse_time(value: Any) -> datetime | None:
 def _lifecycle_integrity(facts: ProjectFacts) -> tuple[list[dict[str, str]], list[str]]:
     """Migration, update, re-sync and Doctor gates shared by every operation."""
     findings: list[dict[str, str]] = []
-    if os.path.lexists(facts.root / '.mxagile/state/runs/framework-update-recovery.json'):
+    if any(os.path.lexists(facts.root / path) for path in ('.mxagile/state/runs/framework-update-recovery.json', '.mxagile/state/last-update-result.json')):
         from framework_update_recovery import require_restarted
         try:
             require_restarted(facts.root)
         except ValueError as exc:
-            findings.append(_finding(str(exc), 'Framework recovery requires an explicitly confirmed new host session before Delivery recovery.', 'unavailable', '.mxagile/state/runs/framework-update-recovery.json', 'restart'))
+            code = str(exc)
+            findings.append(_finding(code, 'Framework recovery requires a confirmed new host session; an acknowledged-update loop requires framework inspection, not another restart.', 'unavailable', '.mxagile/state/runs/framework-update-recovery.json', 'inspect' if code != 'FRAMEWORK_SESSION_RESTART_REQUIRED' else 'restart'))
     migration = facts.migration_state
     migration_status = migration.get("status", "none") if migration else "none"
     canonicalization = migration.get("artifact_canonicalization", "none") if migration else "none"
@@ -558,7 +559,7 @@ def _recovery_plan(facts: ProjectFacts, findings: list[dict[str, str]]) -> dict[
     by_code = {f['code']: f for f in findings}
     primary = None
     blocker = None
-    for code in ('PROJECTION_RECOVERY_REQUIRED', 'UPDATE_NOT_READY', 'FRAMEWORK_SESSION_RESTART_REQUIRED', 'MIGRATION_IN_PROGRESS', 'MIGRATION_PARTIAL', 'CONTRACT_IDENTITY_NOT_OBSERVABLE', 'CONTRACT_MIGRATION_REQUIRED', 'HUMAN_RESOLUTION_RECOVERY_REQUIRED', 'CONTRACT_MIGRATION_NEEDS_HUMAN', 'CONTRACT_MIGRATION_PENDING', 'DOCTOR_BLOCKED', 'UPDATE_IDENTITY_NOT_OBSERVABLE'):
+    for code in ('RESTART_RECOVERY_LOOP', 'PROJECTION_RECOVERY_REQUIRED', 'UPDATE_NOT_READY', 'FRAMEWORK_SESSION_RESTART_REQUIRED', 'MIGRATION_IN_PROGRESS', 'MIGRATION_PARTIAL', 'CONTRACT_IDENTITY_NOT_OBSERVABLE', 'CONTRACT_MIGRATION_REQUIRED', 'HUMAN_RESOLUTION_RECOVERY_REQUIRED', 'CONTRACT_MIGRATION_NEEDS_HUMAN', 'CONTRACT_MIGRATION_PENDING', 'DOCTOR_BLOCKED', 'UPDATE_IDENTITY_NOT_OBSERVABLE'):
         if code in by_code:
             blocker = code
             primary = by_code[code].get('recovery') or 'inspect'

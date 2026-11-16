@@ -474,15 +474,32 @@ consumer Requirements, migration history, Company Layer state or foreign project
 New Guard, Human Resolve and canonical re-sync independently enforce
 `FRAMEWORK_SESSION_RESTART_REQUIRED`. Updating files/registration is not evidence that an
 in-process host has reloaded them. Stop the old agent session and actually restart the host
-session; no automatic Runtime Reload is assumed. Then an explicit Human confirmation of
-that actual restart uses `acknowledge-restart --project-root <root> --update-id <UPDATE-...>
---human-reference <USER-...> --run-id <new RUN-...> --human-confirmed`. The installed Core,
-tool hashes, contract and update identity must still match and no partial transaction may
-remain. The confirmation is the existing explicit Human/caller evidence convention, not
-cryptographic host attestation; agents may not invent it or use another run ID as proof.
-Acknowledgement clears only the restart barrier, not Migration/Doctor/Lifecycle/Context.
-Continue: new Guard → current provenance/migration → Human Resolve → Migration COMPLETE
-→ fresh Doctor → Lifecycle reconciliation → canonical Context re-sync → reevaluate Guard.
+session; no automatic Runtime Reload is assumed. A fresh session first calls the installed
+`restart-status --project-root <absolute-root>` read-only. It discovers the persistent Update
+ID and pending stages; no User-supplied framework IDs are needed. Ask only a simple genuine
+confirmation of the actual host restart, then invoke `acknowledge-restart --project-root
+<absolute-root> --human-confirmed`. The helper generates new Run/audit IDs and preserves the
+persistent Update ID; legacy explicit selectors remain supported. A random Run ID or a new
+Python process is not restart evidence. The installed Core, tool hashes, contract and update
+identity must match and no partial transaction may remain. Human confirmation follows the
+existing evidence convention, not cryptographic host attestation; never invent it.
+
+Acknowledgement is idempotent and clears only the operational restart barrier. It overrides
+historical restart flags in the installer handoff for that same update. Explicitly read the
+returned contract paths and active recovery agents/skills, then call `recover-session
+--project-root <absolute-root> --contracts-reloaded`. Contract-read evidence is DECLARED,
+not a claim that Python reloaded host instructions. The helper executes fresh Doctor and
+the existing preserve-evidence Epoch/Lifecycle Re-Sync, or reports remaining Migration/Human
+Resolve/Doctor/canonical-scope blockers without another restart request. READY means recovery
+completed, never a Wave transition or Delivery/Gate authorization.
+
+The persistent `restart_progress` records restart_required, restart_observed,
+restart_acknowledged, contracts_reloaded, doctor_completed and resync_completed. The first
+flag is historical; operational `restart_required` becomes false at acknowledgement. A
+second fresh session continues unfinished stages or normal Re-Sync without re-acknowledging.
+A new verified update transaction gets a new Update ID and requires its own real restart.
+An acknowledged ID becoming restart-required again is `RESTART_RECOVERY_LOOP`, a Framework
+finding with inspection/reconciliation recovery, not another restart-only instruction.
 
 ## Bounded Auxiliary User interruption
 
