@@ -177,6 +177,13 @@ param(
 
     [string[]]$AvailableChildModels = @(),
 
+    [ValidatePattern('^[A-Za-z0-9_-]*$')]
+    [string]$AgentType = '',
+
+    [switch]$AgentTypesObserved,
+
+    [string[]]$AgentTypes = @(),
+
     [ValidateSet('unknown', 'healthy', 'failed', 'timeout')]
     [string]$ContextModeHealth = 'unknown',
 
@@ -1660,6 +1667,40 @@ function Resolve-Capability {
         $harnessResolution = Resolve-HarnessId -Requested $Harness
         $delegation = Resolve-DelegationIntegration -ProjectRoot_ $ProjectRoot -HarnessResolution $harnessResolution `
             -Profile $ModelProfile -Enabled $configEnabled
+        if ($AgentType) {
+            $definitionPresent = $false
+            $definitionNameValid = $false
+            if ($harnessResolution.id -eq 'claude_code') {
+                $agentPath = Join-Path $ProjectRoot ".claude/agents/$AgentType.md"
+                $definitionPresent = Test-Path -LiteralPath $agentPath -PathType Leaf
+                if ($definitionPresent) {
+                    $agentText = Get-Content -LiteralPath $agentPath -Raw -Encoding UTF8
+                    if ($agentText -match '\A---\r?\n([\s\S]*?)\r?\n---') {
+                        $header = $Matches[1]
+                        $names = @([regex]::Matches($header, '(?m)^name:\s*["'']?([A-Za-z0-9_-]+)["'']?\s*$'))
+                        $definitionNameValid = $names.Count -eq 1 -and $names[0].Groups[1].Value -ceq $AgentType
+                    }
+                }
+            }
+            $registered = if ($AgentTypesObserved) { $AgentType -cin $AgentTypes } else { $null }
+            $registrationStatus = if (-not $definitionPresent) { 'AGENT_DEFINITION_MISSING' }
+                elseif (-not $definitionNameValid) { 'AGENT_DEFINITION_INVALID' }
+                elseif (-not $AgentTypesObserved) { 'HOST_REGISTRATION_NOT_OBSERVABLE' }
+                elseif (-not $registered) { 'AGENT_NOT_REGISTERED' }
+                else { 'HOST_AGENT_DISCOVERED' }
+            $delegation['agent_availability'] = [ordered]@{
+                agent_type = $AgentType
+                generated_definition_present = $definitionPresent
+                definition_name_valid = $definitionNameValid
+                host_inventory_observed = [bool]$AgentTypesObserved
+                inventory_source = if ($AgentTypesObserved) { 'caller_observed_current_host_inventory' } else { 'NOT_OBSERVABLE' }
+                host_registered = $registered
+                execution_status = 'NOT_OBSERVABLE'
+                status = $registrationStatus
+                spawn_ready = $definitionPresent -and $definitionNameValid -and $registered -eq $true -and $delegation.route_allowed
+                reload_required = 'NOT_OBSERVABLE'
+            }
+        }
         $resolved.integration = $delegation
         switch ($delegation.status) {
             'supported' { $resolved.available = $true; $resolved.unavailable = $false }
@@ -1668,6 +1709,11 @@ function Resolve-Capability {
         }
         $resolved.active = $false
         $resolved.state_reason = $delegation.reason
+        if ($AgentType) {
+            $resolved.available = [bool]$delegation.agent_availability.spawn_ready
+            $resolved.unavailable = $delegation.agent_availability.status -in @('AGENT_DEFINITION_MISSING', 'AGENT_DEFINITION_INVALID', 'AGENT_NOT_REGISTERED')
+            $resolved.state_reason = $delegation.agent_availability.status
+        }
     }
 
     # Active = available AND enabled AND not unavailable (and, for integrations, verified usable)

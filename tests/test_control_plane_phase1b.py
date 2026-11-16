@@ -414,7 +414,7 @@ class DiagnosticChildTests(Phase1BFixture):
     def test_canonical_read_only_producer_reaches_real_hook_without_human_or_host_callback(self):
         self.write('requirements/REQ-001.yml', 'ID: REQ-001\ntitle: bounded diagnostic input\n')
         self.write('.mxagile/adapters/claude/agent-delegation.yaml', 'delegation:\n  profiles:\n    MID: sonnet\n    HIGH: opus\n    LIGHT: haiku\n')
-        self.write('.claude/agents/mxagile-diagnostic-agent.md', '---\nmodel: sonnet\ndescription: diagnostic\ntools:\n  - Read\n  - Glob\n  - Grep\n---\nRead only.\n')
+        self.write('.claude/agents/mxagile-diagnostic-agent.md', '---\nname: mxagile-diagnostic-agent\nmodel: sonnet\ndescription: diagnostic\ntools:\n  - Read\n  - Glob\n  - Grep\n---\nRead only.\n')
         reference = child_contract.prepare_diagnostic_handoff(self.root, task='Analyze REV-037 versus REV-038. No files changed.',
             source_paths=['requirements/REQ-001.yml'], read_only=True, parent_run_id='RUN-aabbccddee11',
             requested_profile='MID', resolution={'model_selection': 'supported', 'profile_resolution': 'static_mapping',
@@ -446,6 +446,9 @@ class DiagnosticChildTests(Phase1BFixture):
             original = agent_file.read_bytes()
             agent_file.write_bytes(original.replace(b'  - Grep', b'  - Write'))
             self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'deny')
+            for replacement in (b'', b'name: Explore'):
+                agent_file.write_bytes(original.replace(b'name: mxagile-diagnostic-agent', replacement))
+                self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'deny')
             agent_file.write_bytes(original)
             self.write('requirements/REQ-001.yml', 'ID: REQ-001\ntitle: changed after handoff\n')
             self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'deny')
@@ -456,6 +459,23 @@ class DiagnosticChildTests(Phase1BFixture):
         with self.assertRaisesRegex(ValueError, 'DIAGNOSTIC_SCOPE_NEEDS_HUMAN'):
             child_contract.prepare_diagnostic_handoff(self.root, task='Analyze and adjust if needed.', source_paths=['requirements/REQ-001.yml'],
                 read_only=None, parent_run_id='RUN-aabbccddee11', requested_profile='MID', resolution=handoff['model_resolution'])
+
+    def test_claude_projection_has_required_host_registration_name(self):
+        target = self.root / 'projection-fixture'
+        target.mkdir()
+        repo = GUARD_DIR.parents[1]
+        result = subprocess.run(['pwsh', '-NoProfile', '-File', str(repo / 'scripts/generate-mxagile-platform-skills.ps1'),
+                                 '-ProjectRoot', str(target), '-SourceRoot', str(repo / '.mxagile')],
+                                capture_output=True, text=True, timeout=180)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path in (target / '.claude/agents').glob('*.md'):
+            definition = enforcement.guard.yaml.safe_load(path.read_text().split('---', 2)[1])
+            self.assertEqual(definition.get('name'), path.stem, path.name)
+        diagnostic = target / '.claude/agents/mxagile-diagnostic-agent.md'
+        self.assertTrue(diagnostic.is_file())
+        definition = enforcement.guard.yaml.safe_load(diagnostic.read_text().split('---', 2)[1])
+        self.assertEqual(set(definition['tools']), {'Read', 'Grep', 'Glob'})
+        self.assertEqual(definition['model'], 'sonnet')
 
     def test_installed_diagnostic_cli_is_allowed_and_emits_native_sonnet_request(self):
         tools, compatibility = RecoveryScopeTests.recovery_tools(self)
@@ -469,7 +489,7 @@ class DiagnosticChildTests(Phase1BFixture):
         shutil.copytree(canonical / 'adapters', self.root / '.mxagile/adapters')
         shutil.copyfile(GUARD_DIR.parents[1] / 'scripts/Get-MxAgileCapabilities.ps1', tools / 'Get-MxAgileCapabilities.ps1')
         self.write('requirements/REQ-001.yml', 'ID: REQ-001\ntitle: bounded diagnostic input\n')
-        self.write('.claude/agents/mxagile-diagnostic-agent.md', '---\nmodel: sonnet\ndescription: diagnostic\ntools:\n  - Read\n  - Glob\n  - Grep\n---\nRead only.\n')
+        self.write('.claude/agents/mxagile-diagnostic-agent.md', '---\nname: mxagile-diagnostic-agent\nmodel: sonnet\ndescription: diagnostic\ntools:\n  - Read\n  - Glob\n  - Grep\n---\nRead only.\n')
         core_path = self.root / '.mxagile/state/core-provenance.json'
         core = json.loads(core_path.read_bytes())
         core['artifact_contract'] = compatibility.contract_snapshot(self.root)
@@ -489,6 +509,23 @@ class DiagnosticChildTests(Phase1BFixture):
             request = json.loads(completed.stdout)
             self.assertEqual(request['model'], 'sonnet')
             self.assertEqual(request['actual_model_status'], 'NOT_OBSERVABLE')
+            self.assertEqual(request['agent_availability']['status'], 'HOST_REGISTRATION_NOT_OBSERVABLE')
+            self.assertFalse(request['spawn_ready'])
+            resolver_args = ['pwsh', '-NoProfile', '-File', str(tools / 'Get-MxAgileCapabilities.ps1'),
+                             '-ProjectRoot', str(self.root), '-Capability', 'subagent_spawn', '-Format', 'json',
+                             '-Harness', 'claude_code', '-MainProfile', 'MID', '-ModelProfile', 'MID',
+                             '-AgentType', 'mxagile-diagnostic-agent', '-AgentTypesObserved']
+            for names, status, ready in ((['Explore'], 'AGENT_NOT_REGISTERED', False),
+                                         (['mxagile-diagnostic-agent'], 'HOST_AGENT_DISCOVERED', True)):
+                observed = subprocess.run(resolver_args + ['-AgentTypes', *names], capture_output=True, text=True, timeout=120)
+                self.assertEqual(observed.returncode, 0, observed.stdout + observed.stderr)
+                capability = json.loads(observed.stdout)['capabilities'][0]
+                availability = capability['integration']['agent_availability']
+                self.assertEqual(capability['state']['available'], ready)
+                self.assertEqual(availability['status'], status)
+                self.assertEqual(availability['spawn_ready'], ready)
+                self.assertEqual(availability['execution_status'], 'NOT_OBSERVABLE')
+                self.assertEqual(availability['reload_required'], 'NOT_OBSERVABLE')
             payload = {'tool_name': 'Agent', 'tool_input': {'subagent_type': request['subagent_type'],
                        'model': request['model'], 'prompt': request['prompt_marker']}}
             self.assertEqual(enforcement.decide(self.root, payload)['decision'], 'allow')

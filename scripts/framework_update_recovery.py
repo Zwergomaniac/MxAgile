@@ -30,8 +30,9 @@ def new_identity(prefix):
 
 
 def restart_progress(value):
-    acknowledged = not value['restart_required']
-    return value.get('restart_progress', dict(zip(RESTART_STAGES, (True, acknowledged, acknowledged, False, False, False))))
+    required = value.get('restart_requirement') != 'NOT_REQUIRED'
+    acknowledged = required and not value['restart_required']
+    return value.get('restart_progress', dict(zip(RESTART_STAGES, (required, acknowledged, acknowledged, False, False, False))))
 
 
 def receipt_restart(root):
@@ -44,7 +45,9 @@ def receipt_restart(root):
     framework, transaction = receipt.get('framework', {}), receipt.get('update_transaction', {})
     if not isinstance(framework, dict) or not isinstance(transaction, dict):
         fail('UPDATE_RECOVERY_STATE_INVALID')
-    if receipt.get('restart_required') is not True:
+    if safe_path(root, '.mxagile/state/update-transaction.json').exists():
+        return None  # A still-open transaction cannot supersede any prior recovery.
+    if type(receipt.get('restart_required')) is not bool:
         return None
     core = json.loads(safe_path(root, '.mxagile/state/core-provenance.json').read_bytes())
     if not isinstance(core, dict):
@@ -56,10 +59,12 @@ def receipt_restart(root):
     update_id = receipt.get('update_attempt_id')
     if not re.fullmatch(r'UPDATE-[0-9a-f]{32}', update_id or ''):
         fail('UPDATE_RECOVERY_STATE_INVALID')
-    return {'schema_version': 1, 'project_root': str(root), 'update_id': update_id, 'update_attempt_id': update_id,
-            'commit': core['commit'], 'started_at': core['installed_at'],
-            'run_id': transaction.get('run_id'),
-            'restart_required': True, 'state': 'INSTALLED', 'origin': 'update_receipt'}
+    value = {'schema_version': 1, 'project_root': str(root), 'update_id': update_id, 'update_attempt_id': update_id,
+             'commit': core['commit'], 'started_at': core['installed_at'], 'run_id': transaction.get('run_id'),
+             'restart_required': receipt['restart_required'], 'state': 'INSTALLED', 'origin': 'update_receipt'}
+    if not receipt['restart_required']:
+        value['restart_requirement'] = 'NOT_REQUIRED'
+    return value
 
 
 def fail(code):
@@ -191,30 +196,50 @@ def state(root):
     path = safe_path(root, STATE)
     try:
         value = json.loads(path.read_bytes()) if path.exists() else None
-        if value is not None and not isinstance(value, dict):
+        if value is not None and (not isinstance(value, dict) or not isinstance(value.get('history', []), list)):
             fail('UPDATE_RECOVERY_STATE_INVALID')
         receipt = receipt_restart(root)
         later_install = bool(receipt and value and value.get('restart_acknowledged_at')
                              and receipt['update_attempt_id'] != (value.get('update_attempt_id') or value.get('update_id'))
                              and datetime.fromisoformat(receipt['started_at']) > datetime.fromisoformat(value['restart_acknowledged_at']))
         if receipt and (not value or value.get('commit') != receipt['commit'] or later_install or
-                        (value.get('update_attempt_id') and value['update_attempt_id'] != receipt['update_attempt_id'])):
+                        (value.get('update_attempt_id') and value['update_attempt_id'] != receipt['update_attempt_id']) or
+                        (value['restart_required'] and value.get('update_attempt_id') is None
+                         and value['update_id'] != receipt['update_id'])):
+            if value:
+                history = list(value.get('history', []))
+                historical = {key: item for key, item in value.items() if key != 'history'}
+                history.append({'disposition': 'SUPERSEDED', 'superseded_by': receipt['update_id'],
+                                'superseded_at': receipt['started_at'], 'record': historical})
+                receipt['history'] = history
             value = receipt
         if value is None:
             return None
+        not_required = value.get('restart_requirement') == 'NOT_REQUIRED'
+        if not_required and (not receipt or receipt['restart_required'] or value['update_id'] != receipt['update_id']
+                             or value['commit'] != receipt['commit'] or value.get('origin') != 'update_receipt'):
+            fail('UPDATE_RECOVERY_STATE_INVALID')
         progress = value.get('restart_progress')
         if progress is not None:
             if not isinstance(progress, dict) or set(progress) != set(RESTART_STAGES) or any(type(flag) is not bool for flag in progress.values()):
                 fail('UPDATE_RECOVERY_STATE_INVALID')
             if progress['restart_acknowledged'] and value.get('restart_required') is True:
                 fail('RESTART_RECOVERY_LOOP')
-            if not progress['restart_required'] or any(progress[RESTART_STAGES[i]] and not progress[RESTART_STAGES[i - 1]] for i in range(1, len(RESTART_STAGES))):
+            if not_required:
+                if any(progress[stage] for stage in RESTART_STAGES[:3]):
+                    fail('UPDATE_RECOVERY_STATE_INVALID')
+                first = 4
+            else:
+                if not progress['restart_required']:
+                    fail('UPDATE_RECOVERY_STATE_INVALID')
+                first = 1
+            if any(progress[RESTART_STAGES[i]] and not progress[RESTART_STAGES[i - 1]] for i in range(first, len(RESTART_STAGES))):
                 fail('UPDATE_RECOVERY_STATE_INVALID')
         if (value['schema_version'] != 1 or value['project_root'] != str(root) or not re.fullmatch(r'UPDATE-[0-9a-f]{32}', value['update_id'])
                 or not isinstance(value['restart_required'], bool) or value['state'] not in {'PENDING', 'PARTIAL', 'INSTALLED'}
                 or not re.fullmatch(r'[0-9a-f]{40}', value['commit']) or datetime.fromisoformat(value['started_at']).tzinfo is None):
             fail('UPDATE_RECOVERY_STATE_INVALID')
-        if not value['restart_required'] and (
+        if not value['restart_required'] and not not_required and (
                 value['state'] != 'INSTALLED' or not re.fullmatch(r'USER-[A-Za-z0-9-]{4,120}', value['restart_reference'])
                 or not re.fullmatch(r'RUN-[A-Za-z0-9-]{4,80}', value['restart_run_id']) or value['restart_run_id'] == value['run_id']
                 or datetime.fromisoformat(value['restart_acknowledged_at']).tzinfo is None):
@@ -232,7 +257,8 @@ def restart_status(root):
         return {'result': 'NO_PENDING_RESTART', 'read_only': True, 'restart_required': False, 'next_action': 'normal_lifecycle_resync'}
     progress = restart_progress(value)
     pending = value['restart_required']
-    action = ('resume_update' if value['state'] != 'INSTALLED' else 'confirm_actual_host_restart') if pending else (
+    partial = safe_path(root, '.mxagile/state/update-transaction.json').exists()
+    action = ('resume_update' if partial or value['state'] != 'INSTALLED' else 'confirm_actual_host_restart') if pending or partial else (
         'normal_lifecycle_resync' if progress['resync_completed'] else 'read_contracts_then_recover_session')
     contracts = list(CONTRACT_READS)
     contracts += [name for name in ('CLAUDE.md', 'AGENTS.md', '.github/copilot-instructions.md') if safe_path(root, name).is_file()]
@@ -246,7 +272,7 @@ def require_restarted(root):
     value = state(root)
     if value and value['restart_required']:
         fail('FRAMEWORK_SESSION_RESTART_REQUIRED')
-    if value and os.environ.get('MXAGILE_RUN_ID') and os.environ['MXAGILE_RUN_ID'] == value.get('run_id'):
+    if value and value.get('restart_requirement') != 'NOT_REQUIRED' and os.environ.get('MXAGILE_RUN_ID') and os.environ['MXAGILE_RUN_ID'] == value.get('run_id'):
         fail('FRAMEWORK_OLD_SESSION_STALE')
 
 
@@ -303,14 +329,21 @@ def apply(root, source, ref, commit, plan_hash, human_reference, human_confirmed
 
 
 def prepare_restart(root, update_id, human_reference, human_confirmed, run_id):
-    authorization(human_confirmed, human_reference, run_id)
     value = state(root)
+    not_required = value and value.get('restart_requirement') == 'NOT_REQUIRED'
+    if not not_required:
+        authorization(human_confirmed, human_reference, run_id)
     core = json.loads(safe_path(root, '.mxagile/state/core-provenance.json').read_bytes())
     if (not value or value['update_id'] != update_id or value['state'] != 'INSTALLED' or value['commit'] != core.get('commit')
             or safe_path(root, '.mxagile/state/update-transaction.json').exists()):
         fail('UPDATE_RECOVERY_STATE_INVALID')
-    if run_id == value['run_id'] or (os.environ.get('MXAGILE_RUN_ID') and os.environ['MXAGILE_RUN_ID'] == value['run_id']):
+    if not not_required and (run_id == value['run_id'] or (os.environ.get('MXAGILE_RUN_ID') and os.environ['MXAGILE_RUN_ID'] == value['run_id'])):
         fail('FRAMEWORK_SESSION_RESTART_REQUIRED' if value['restart_required'] else 'FRAMEWORK_OLD_SESSION_STALE')
+    verify_recovery_tools(root, core)
+    return value
+
+
+def verify_recovery_tools(root, core):
     tools = safe_path(root, '.mxagile/tools')
     actual = {}
     for path in tools.rglob('*.py'):
@@ -320,7 +353,26 @@ def prepare_restart(root, update_id, human_reference, human_confirmed, run_id):
     actual[writer.name] = hashlib.sha256(writer.read_bytes()).hexdigest()
     if actual != core.get('recovery_tools') or compatibility.contract_snapshot(root) != core.get('artifact_contract'):
         fail('UPDATE_RECOVERY_STATE_INVALID')
-    return value
+
+
+def synchronize_update(root):
+    if safe_path(root, '.mxagile/state/update-transaction.json').exists():
+        fail('UPDATE_RECOVERY_PARTIAL')
+    import run_events as events
+    with events._FileLock(safe_path(root, '.mxagile/state/runs/framework-update-recovery.lock')):
+        value = state(root)
+        if not value:
+            return restart_status(root)
+        # This reconciles receipt identity only; it never attests restart or re-sync completion.
+        core = json.loads(safe_path(root, '.mxagile/state/core-provenance.json').read_bytes())
+        if value['commit'] != core.get('commit') or value['state'] != 'INSTALLED':
+            fail('UPDATE_RECOVERY_STATE_INVALID')
+        verify_recovery_tools(root, core)
+        path = safe_path(root, STATE)
+        persisted = json.loads(path.read_bytes()) if path.is_file() else None
+        if persisted != value:
+            atomic_replace(path, (json.dumps(value, sort_keys=True, indent=2) + '\n').encode())
+    return restart_status(root)
 
 
 def acknowledge_restart(root, update_id=None, human_reference=None, human_confirmed=False, run_id=None):
@@ -328,7 +380,8 @@ def acknowledge_restart(root, update_id=None, human_reference=None, human_confir
     if not prior or (update_id and update_id != prior['update_id']):
         fail('UPDATE_RECOVERY_STATE_INVALID')
     if not prior['restart_required']:
-        return {'result': 'ALREADY_ACKNOWLEDGED', 'update_id': prior['update_id'], 'delivery_authorized': False}
+        result = 'RESTART_NOT_REQUIRED' if prior.get('restart_requirement') == 'NOT_REQUIRED' else 'ALREADY_ACKNOWLEDGED'
+        return {'result': result, 'update_id': prior['update_id'], 'delivery_authorized': False}
     update_id = update_id or prior['update_id']
     human_reference = human_reference or new_identity('USER')
     run_id = run_id or os.environ.get('MXAGILE_RUN_ID') or new_identity('RUN')
@@ -358,8 +411,10 @@ def recover_session(root, contracts_reloaded=False):
     value = state(root)
     if not value:
         return restart_status(root)
+    synchronize_update(root)
+    value = state(root)
     require_restarted(root)
-    prepare_restart(root, value['update_id'], value['restart_reference'], True, value['restart_run_id'])
+    prepare_restart(root, value['update_id'], value.get('restart_reference'), True, value.get('restart_run_id'))
     if restart_progress(value)['resync_completed']:
         return restart_status(root)
     if not contracts_reloaded:
@@ -369,7 +424,7 @@ def recover_session(root, contracts_reloaded=False):
     with events._FileLock(safe_path(root, '.mxagile/state/runs/framework-update-recovery.lock')):
         value = state(root)
         require_restarted(root)
-        prepare_restart(root, value['update_id'], value['restart_reference'], True, value['restart_run_id'])
+        prepare_restart(root, value['update_id'], value.get('restart_reference'), True, value.get('restart_run_id'))
         contracts = {}
         for relative in restart_status(root)['contract_reads']:
             path = safe_path(root, relative)
@@ -444,13 +499,24 @@ def controlled_call(root, args):
         if set(pairs) != {'--project-root'} or confirmed or reloaded:
             return None
         return 'update_discovery'
+    if operation == 'synchronize-update':
+        if set(pairs) != {'--project-root'} or confirmed or reloaded:
+            return None
+        if safe_path(root, '.mxagile/state/update-transaction.json').exists():
+            fail('UPDATE_RECOVERY_PARTIAL')
+        value = state(root)
+        core = json.loads(safe_path(root, '.mxagile/state/core-provenance.json').read_bytes())
+        if not value or value['state'] != 'INSTALLED' or value['commit'] != core.get('commit'):
+            fail('UPDATE_RECOVERY_STATE_INVALID')
+        verify_recovery_tools(root, core)
+        return 'update_restart_acknowledgement'
     if operation == 'recover-session':
         if set(pairs) != {'--project-root'} or confirmed or not reloaded:
             return None
         value = state(root)
         if not value or value['restart_required']:
             fail('FRAMEWORK_SESSION_RESTART_REQUIRED')
-        prepare_restart(root, value['update_id'], value['restart_reference'], True, value['restart_run_id'])
+        prepare_restart(root, value['update_id'], value.get('restart_reference'), True, value.get('restart_run_id'))
         return 'update_restart_acknowledgement'
     if reloaded:
         return None
@@ -493,7 +559,7 @@ def controlled_call(root, args):
 
 def main():
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('command', choices=['check', 'preflight', 'apply', 'resume', 'restart-status', 'acknowledge-restart', 'recover-session'])
+    parser.add_argument('command', choices=['check', 'preflight', 'apply', 'resume', 'restart-status', 'acknowledge-restart', 'recover-session', 'synchronize-update'])
     parser.add_argument('--project-root', type=Path, required=True)
     for flag in ('source', 'ref', 'commit', 'plan-hash', 'human-reference', 'run-id', 'update-id'):
         parser.add_argument('--' + flag)
@@ -503,7 +569,7 @@ def main():
     root = args.project_root.resolve()
     if not args.project_root.is_absolute():
         parser.error('Absolute project root required.')
-    if args.command in ('restart-status', 'acknowledge-restart', 'recover-session'):
+    if args.command in ('restart-status', 'acknowledge-restart', 'recover-session', 'synchronize-update'):
         if any((args.source, args.ref, args.commit, args.plan_hash)):
             parser.error('Session recovery cannot update a source.')
         if args.command != 'acknowledge-restart' and any((args.update_id, args.human_reference, args.run_id, args.human_confirmed)):
@@ -523,6 +589,8 @@ def main():
             result = preflight(root, args.source, args.ref, args.commit)
         elif args.command == 'restart-status':
             result = restart_status(root)
+        elif args.command == 'synchronize-update':
+            result = synchronize_update(root)
         elif args.command == 'acknowledge-restart':
             result = acknowledge_restart(root, args.update_id, args.human_reference, args.human_confirmed, args.run_id)
         elif args.command == 'recover-session':

@@ -54,6 +54,13 @@ Stop the old session. In the real new session, one simple genuine User confirmat
 `acknowledge-restart --project-root <absolute-root> --human-confirmed`; no copied IDs or
 manual framework commands from the User are required.
 
+If a successful follow-up update supersedes an older recovery, status uses the current
+receipt even when restart_required is false. Persist its bounded reconciliation with
+`synchronize-update --project-root <absolute-root>` or let `recover-session` do so
+before continuing. The older record remains SUPERSEDED history in the same store, not
+current authority. Never supersede during a partial/open update transaction. A resync-only
+update needs no invented restart acknowledgement; see `project-compatibility.md`.
+
 An already acknowledged Update ID never asks for another restart/confirmation. Read the
 returned contract paths and active agent/skills explicitly from disk, then run the installed
 `recover-session --project-root <absolute-root> --contracts-reloaded`. Fresh Doctor and the

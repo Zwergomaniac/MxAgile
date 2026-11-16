@@ -1,4 +1,5 @@
 ---
+name: mxagile-maintainer
 model: sonnet
 description: "MxAgile-Maintainer: migriert Legacy-DFC und pflegt installierte MxAgile-Kompatibilitaet; erzeugt niemals DFC-Ausgaben"
 tools:

@@ -1,4 +1,5 @@
 ---
+name: mxagile-mocketeer-agent
 model: sonnet
 description: "MxMocketeer Bridge Agent: Design Contract intake, revision acceptance, Transformation Spec execution for targeted mockup edits"
 tools:

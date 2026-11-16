@@ -344,11 +344,10 @@ Stay in this project root only; no parent directories, siblings or `project-temp
 Read `.mxagile/policies/safety-rules.md` and `.mxagile/policies/tool-instruction-conflict.md`
 before commands. Git index guard precedes drift/mutations, never blocks contract reads.
 
-0. **Pending restart recovery** — query installed `.mxagile/tools/framework_update_recovery.py`
-    `restart-status --project-root <root>` once; follow `.mxagile/policies/lifecycle-resync.md` recovery
-    before step 1. Real host-restart consent, automatic IDs, explicit re-reads, then
-    `recover-session`; report blockers. The operational restart receipt supersedes
-    historical same-update flags. RESTART_RECOVERY_LOOP: inspect, not restart again.
+0. **Pending restart recovery** — installed `.mxagile/tools/framework_update_recovery.py`
+    `restart-status --project-root <root>` once; follow `.mxagile/policies/lifecycle-resync.md`
+    before step 1, then `recover-session`. The operational restart receipt supersedes old flags.
+    RESTART_RECOVERY_LOOP: inspect, not restart again.
 1. **Lifecycle Re-Sync FIRST** — check `.mxagile/` and `.concord/scratch/process-state.yaml`;
     read `.mxagile/policies/lifecycle-resync.md` before Brain. Git history is not lifecycle state;
     do not run `git log` to infer delivery position.
@@ -366,12 +365,13 @@ before commands. Git index guard precedes drift/mutations, never blocks contract
     persist the routing decision before analysis. If required, MUST invoke that live harness tool
     with a bounded handoff, using the current session's discovered tool interface.
     No invented signatures; a declaration is not a spawn.
-7. **Optional capabilities on demand** — `.mxagile/policies/capability-discovery.md`, never at startup.
-    Installed is not usable/healthy; query only that capability. Unavailable never blocks normal work.
+7. **Optional capabilities, on demand only** — `.mxagile/policies/capability-discovery.md`, never at startup.
+    Installed does not mean usable; never assume health; query only that capability. Unavailable never blocks normal work.
 
 8. **Install/update** — `.mxagile/policies/update-contract.md`, without another question. Read
     `.mxagile/state/last-update-result.json` historically; step 0 governs restart. Report framework/
     compatibility separately. CONTRACTS_RE_SYNCED needs re-reads; else pending stage/NOT_VERIFIED.
+    UPDATE_INSTALLED_RESTART_REQUIRED only for pending restart, never acknowledged history.
     Say `korrekt aktualisiert` only when permitted.
 9. **Finding-linked work** — canonical Findings/Project Status; FINDINGS.md is narrative, not authority.
 

@@ -1,4 +1,5 @@
 ---
+name: mxagile-discovery-agent
 model: sonnet
 description: "Discovery-Agent: analysiert Quellen, erstellt Story-Spezifikationen (read-only am Mendix-Modell)"
 tools:

@@ -441,7 +441,8 @@ def _native_diagnostic_constraints(root, handoff, payload):
     model = handoff.get('model_resolution', {}).get('resolved_model')
     if any(payload.get('tool_input', {}).get(key) is not None for key in ('tools', 'allowed_tools', 'permission_mode', 'isolation')):
         return False
-    if (not isinstance(definition, dict) or set(definition) != {'model', 'tools', 'description'}
+    if (not isinstance(definition, dict) or set(definition) != {'name', 'model', 'tools', 'description'}
+            or definition.get('name') != handoff['agent_type']
             or set(definition.get('tools', [])) != {'Read', 'Glob', 'Grep'}
             or payload.get('tool_input', {}).get('model') != model):
         return False

@@ -195,6 +195,15 @@ are idempotent. Subsequent sessions resume missing stages or normal Re-Sync with
 confirmation. Historical installer restart flags do not override that receipt for the same
 update; a later real update gets its own new identity and restart boundary.
 `RESTART_RECOVERY_LOOP` means inspect/reconcile a Framework finding, not repeatedly restart.
+A later successful receipt is current authority even when it requires only Re-Sync
+(`restart_required: false`). `restart-status` must not report an older update as pending.
+The bounded `synchronize-update --project-root $root` reconciles the operational store;
+`recover-session` also does this automatically. The previous snapshot remains auditably
+SUPERSEDED in the same store's `history`, never falsely marked as successfully recovered.
+Repeating reconciliation is idempotent; an open/partial transaction cannot supersede prior
+recovery. Resync-only updates record `restart_requirement: NOT_REQUIRED`, not fake restart
+consent. Contract reads, Doctor and canonical Re-Sync remain required for current READY.
+
 `READY` is recovery completion, not Delivery authority. Acknowledgment does **not** clear
 migration, Doctor or lifecycle blockers; required bound Human Resolution remains mandatory. Neither update nor acknowledgment promotes
 a Mission/Wave or authorizes Requirements, Product code, Mendix model, Navigation, Security,

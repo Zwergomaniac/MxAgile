@@ -501,6 +501,23 @@ A new verified update transaction gets a new Update ID and requires its own real
 An acknowledged ID becoming restart-required again is `RESTART_RECOVERY_LOOP`, a Framework
 finding with inspection/reconciliation recovery, not another restart-only instruction.
 
+**Successful follow-up update supersession:** the current successful installer receipt is
+matched by Update ID, Core commit and installed_at, including `restart_required: false`.
+An older open record must not remain current authority when a newer verified update only
+needs Re-Sync. `restart-status` derives that current identity read-only. The installed bounded
+`synchronize-update --project-root <absolute-root>` persists the effective record and embeds
+the older snapshot in `history` with disposition SUPERSEDED, superseded_by and superseded_at.
+`recover-session` performs this reconciliation automatically before validating current tools
+and proceeding; no manual IDs or Human approval for history reconciliation are required.
+There is one operational store, not a parallel update authority. Repeating reconciliation of
+the same receipt/commit is a no-op. A still-open/partial update transaction cannot supersede
+or complete prior recovery. History does not claim that the older recovery succeeded.
+
+A resync-only update has `restart_requirement: NOT_REQUIRED`; its restart-observed and
+restart-acknowledged stages remain false, not fabricated consent. It still needs explicit
+contract reads, fresh Doctor and canonical Re-Sync; recovery readiness is never inferred
+from successful installation, migration completion or shell availability alone.
+
 ## Bounded Auxiliary User interruption
 
 BLOCKED Delivery is not a globally blocked agent. The existing adapter distinguishes

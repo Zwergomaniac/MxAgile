@@ -1,4 +1,5 @@
 ---
+name: mxagile-ui-agent
 model: sonnet
 description: "UI-Agent: Mockup-Analyse (Discovery) und Soll-Ist-Vergleich (Verifying) per Playwright"
 tools:

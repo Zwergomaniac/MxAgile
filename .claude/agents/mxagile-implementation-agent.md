@@ -1,4 +1,5 @@
 ---
+name: mxagile-implementation-agent
 model: sonnet
 description: "Implementation-Agent: arbeitet implementation-checklist.yaml ab, fuehrt MDL aus"
 tools:

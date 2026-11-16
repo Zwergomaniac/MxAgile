@@ -1,4 +1,5 @@
 ---
+name: mxagile-migration-agent
 model: sonnet
 description: "DFC-AI -> MxAgile Migration Agent: inventories legacy DFC artifacts, preserves project knowledge, establishes MxAgile brownfield baseline"
 tools:

@@ -227,7 +227,7 @@ function Generate-ClaudeAgents {
         $tools = if ($agentTools.ContainsKey($name)) { $agentTools[$name] } else { @('Read', 'Grep', 'Glob', 'Bash') }
         $toolsYaml = ($tools | ForEach-Object { "  - $_" }) -join "`n"
 
-        $frontmatter = "---`nmodel: sonnet`ndescription: `"$desc`"`ntools:`n$toolsYaml`n---"
+        $frontmatter = "---`nname: mxagile-$name`nmodel: sonnet`ndescription: `"$desc`"`ntools:`n$toolsYaml`n---"
         $outPath = Join-Path $ProjectRoot ".claude/agents/mxagile-$name.md"
         Write-Generated -OutputPath $outPath -Content "$frontmatter`n`n$generatedHeader`n`n$body" -SourceFile $f.FullName
     }

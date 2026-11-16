@@ -156,6 +156,40 @@ in the conversation. It cannot write results, promote evidence, accept a gate or
 another child. Input changes invalidate the handoff.
 
 For Claude, the generated `mxagile-diagnostic-agent` definition has only Read/Grep/Glob.
+Its frontmatter MUST include `name: mxagile-diagnostic-agent`: Claude identifies agents by
+that required field, not the filename. The canonical generator owns this metadata.
+
+**Host registration is separate from projection.** Before a named spawn, inspect the live
+session's exposed Agent tool inventory (or the host's agent inventory UI/API). Never infer
+registration from `.claude/agents/`, a fresh conversation, standalone CLI installation or an
+adapter's generic named-agent support. Query `Get-MxAgileCapabilities.ps1 -Capability
+subagent_spawn -AgentType mxagile-diagnostic-agent` and, only when actually observed, pass
+`-AgentTypesObserved -AgentTypes <observed-type>`. The returned `agent_availability` separates
+file presence/name validity, current host inventory/registration, spawn readiness and
+execution. Caller-supplied inventory evidence is not cryptographic host attestation.
+`HOST_AGENT_DISCOVERED` does not attest execution or actual_model. A prepared diagnostic
+handoff without inventory evidence has `spawn_ready: false`, not a live-spawn success.
+`AGENT_NOT_REGISTERED` or `HOST_REGISTRATION_NOT_OBSERVABLE` must not trigger an automatic
+Explore/Plan substitution or silent Main takeover of an explicit safe Subagent request.
+
+The documented Claude project path is `.claude/agents/`; `name` and `description` are
+required. The VS Code extension bundles its own CLI, so standalone CLI version/discovery
+is not evidence about the extension process. Current official docs describe watching
+existing project/user agent directories; new directories, additional-directory scopes and
+sessions disabling slash commands have documented restart exceptions. Older bundled
+versions may differ. First check metadata, effective project root and the extension's own
+version/inventory/error evidence. A new conversation alone is not a proven extension reload.
+Do not prescribe another restart when one was already performed without identifying the
+remaining cause. `HOST_RELOAD_REQUIRED` needs explicit host/version/scope evidence; request
+one genuine reload only for that observed definition/host boundary and recheck inventory.
+If still missing after that reload, report capability degradation/host limitation rather
+than loop. If the host explicitly does not support named children, report `HOST_LIMITATION`;
+no unconstrained generic fallback is authorized by this diagnostic contract.
+
+Sources: https://code.claude.com/docs/en/sub-agents (required frontmatter, project scope,
+watcher exceptions); https://code.claude.com/docs/en/vs-code (bundled CLI/version).
+The unchanged REV-037/REV-038 prompt must be rerun in the real host after registration;
+MID→Sonnet remains NOT_OBSERVABLE until the actual child/model evidence is available.
 The hook verifies that exact named-agent tool restriction, no-authority envelope, input
 fingerprints, model ceiling and explicit model request instead of requiring the unavailable
 stdin `attest_diagnostic_child` callback. This is deterministic native-contract validation,

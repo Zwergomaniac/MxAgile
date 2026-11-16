@@ -203,6 +203,92 @@ class UpdateRecoveryTests(Phase1BFixture):
         with self.assertRaisesRegex(ValueError, 'FRAMEWORK_SESSION_RESTART_REQUIRED'):
             recovery.require_restarted(self.root)
 
+    def test_resync_only_followup_supersedes_pending_restart_and_keeps_history(self):
+        old, path = self.installed_restart()
+        self.core.update(commit='d' * 40, installed_at='2026-11-16T16:00:00+00:00')
+        (self.root / '.mxagile/state/core-provenance.json').write_text(json.dumps(self.core))
+        receipt = {'restart_required': False, 'resync_required': True, 'installed_at': self.core['installed_at'],
+                   'framework': {'update_successful': True, 'commit': self.core['commit']},
+                   'update_attempt_id': 'UPDATE-' + 'b' * 32}
+        self.write('.mxagile/state/last-update-result.json', json.dumps(receipt))
+        before = path.read_bytes()
+        current = recovery.restart_status(self.root)
+        self.assertEqual(current['update_id'], receipt['update_attempt_id'])
+        self.assertFalse(current['restart_required'])
+        self.assertEqual(path.read_bytes(), before)  # Discovery stays read-only.
+        command = self.base + f' synchronize-update --project-root "{self.root}"'
+        self.assertEqual(self.hook('Bash', {'command': command})['decision'], 'allow')
+        synchronized = subprocess.run([sys.executable, '-B', str(self.tools / 'framework_update_recovery.py'),
+                                       'synchronize-update', '--project-root', str(self.root)],
+                                      capture_output=True, text=True, timeout=60)
+        self.assertEqual(synchronized.returncode, 0, synchronized.stdout + synchronized.stderr)
+        self.assertEqual(json.loads(synchronized.stdout)['update_id'], receipt['update_attempt_id'])
+        self.assertEqual(recovery.acknowledge_restart(self.root)['result'], 'RESTART_NOT_REQUIRED')
+        record = json.loads(path.read_bytes())
+        self.assertEqual(record['commit'], self.core['commit'])
+        self.assertEqual(record['history'][0]['record']['update_id'], old['update_id'])
+        self.assertEqual(record['history'][0]['record']['commit'], old['commit'])
+        self.assertEqual(record['history'][0]['disposition'], 'SUPERSEDED')
+        self.assertFalse(record['history'][0]['record'].get('restart_progress', {}).get('resync_completed', False))
+        before = path.read_bytes()
+        recovery.synchronize_update(self.root)
+        self.assertEqual(path.read_bytes(), before)
+        for relative in recovery.CONTRACT_READS:
+            if not (self.root / relative).is_file():
+                self.write(relative, 'Recovery contract\n')
+        doctor = subprocess.CompletedProcess([], 0, json.dumps({
+            'stage': 'PROJECT_COMPATIBILITY_CHECKED', 'read_only': True, 'compatibility': 'COMPATIBLE'}), '')
+        def invoke(args, **kwargs):
+            if 'doctor' in args:
+                return doctor
+            self.write('.concord/context-epoch.yaml', 'current_update: B\n')
+            return subprocess.CompletedProcess(args, 0, '', '')
+        with mock.patch.object(recovery.subprocess, 'run', side_effect=invoke), mock.patch.object(
+                recovery.compatibility, 'resync_preflight', return_value={'state': 'READY_FOR_RESYNC', 'reason_codes': []}):
+            ready = recovery.recover_session(self.root, contracts_reloaded=True)
+        self.assertEqual(ready['result'], 'READY')
+        self.assertEqual(recovery.restart_status(self.root)['update_id'], receipt['update_attempt_id'])
+        self.assertEqual(recovery.restart_status(self.root)['result'], 'READY')
+        self.assertEqual(len(json.loads(path.read_bytes())['history']), 1)
+
+    def test_followup_same_commit_recovery_is_idempotent_without_fabricated_restart(self):
+        old, path = self.installed_restart()
+        recovery.acknowledge_restart(self.root, human_confirmed=True)
+        self.core['installed_at'] = '2099-01-01T00:00:00+00:00'
+        (self.root / '.mxagile/state/core-provenance.json').write_text(json.dumps(self.core))
+        self.write('.mxagile/state/last-update-result.json', json.dumps({
+            'restart_required': False, 'resync_required': True, 'installed_at': self.core['installed_at'],
+            'framework': {'update_successful': True, 'commit': old['commit']},
+            'update_attempt_id': 'UPDATE-' + 'b' * 32}))
+        with self.assertRaisesRegex(ValueError, 'CONTRACT_RELOAD_REQUIRED'):
+            recovery.recover_session(self.root)
+        record = json.loads(path.read_bytes())
+        self.assertEqual(record['update_id'], 'UPDATE-' + 'b' * 32)
+        self.assertEqual(record['commit'], old['commit'])
+        self.assertEqual(record['restart_requirement'], 'NOT_REQUIRED')
+        self.assertNotIn('restart_observation', record)
+        self.assertNotIn('restart_reference', record)
+        self.assertFalse(any(recovery.restart_progress(record)[stage] for stage in recovery.RESTART_STAGES[:3]))
+        before = path.read_bytes()
+        recovery.synchronize_update(self.root)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(len(record['history']), 1)
+
+    def test_partial_followup_does_not_supersede_pending_restart(self):
+        old, path = self.installed_restart()
+        self.write('.mxagile/state/update-transaction.json', json.dumps({'state': 'PARTIAL_UPDATE'}))
+        self.core.update(commit='d' * 40, installed_at='2026-11-16T16:00:00+00:00')
+        (self.root / '.mxagile/state/core-provenance.json').write_text(json.dumps(self.core))
+        self.write('.mxagile/state/last-update-result.json', json.dumps({
+            'restart_required': False, 'resync_required': True, 'installed_at': self.core['installed_at'],
+            'framework': {'update_successful': True, 'commit': self.core['commit']},
+            'update_attempt_id': 'UPDATE-' + 'b' * 32}))
+        before = path.read_bytes()
+        self.assertEqual(recovery.state(self.root)['update_id'], old['update_id'])
+        with self.assertRaisesRegex(ValueError, 'UPDATE_RECOVERY_PARTIAL'):
+            recovery.synchronize_update(self.root)
+        self.assertEqual(path.read_bytes(), before)
+
     def test_invalid_restart_receipt_is_a_structured_blocker(self):
         self.installed_restart()
         for receipt in ([], {'restart_required': True, 'framework': []},

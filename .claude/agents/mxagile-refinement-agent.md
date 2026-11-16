@@ -1,4 +1,5 @@
 ---
+name: mxagile-refinement-agent
 model: sonnet
 description: "Refinement-Agent: klaert offene Punkte, aktualisiert Planungsartefakte"
 tools:

@@ -42,6 +42,23 @@ Human-readable output:
 scripts/Get-MxAgileCapabilities.ps1
 ```
 
+## Named Child Availability
+
+For a specific Claude child, query `subagent_spawn` with `-AgentType <name>`. The
+`integration.agent_availability` distinguishes generated_definition_present,
+definition_name_valid, host_inventory_observed, host_registered, spawn_ready and execution_status.
+Only pass `-AgentTypesObserved -AgentTypes <observed-name>` from actual current host inventory,
+never by scanning files. With no observed inventory, registration/execution remain NOT_OBSERVABLE
+and that named capability is not available for spawn. Generic adapter support is not registration.
+Observed absence is AGENT_NOT_REGISTERED; invalid required frontmatter is AGENT_DEFINITION_INVALID.
+Even observed registration is not proof of execution or actual_model.
+
+Read-only diagnostic work must not silently fall back to unconstrained Explore/Plan or Main
+execution when the User explicitly requested a child. Follow `agent-delegation.md` for bounded
+registration diagnosis. Do not infer HOST_RELOAD_REQUIRED or prescribe repeated reloads from
+file existence/absence alone. The standalone CLI and VS Code extension have separate runtime
+versions; only live extension evidence describes the extension's inventory.
+
 ## Capability State Model
 
 | State | Meaning |

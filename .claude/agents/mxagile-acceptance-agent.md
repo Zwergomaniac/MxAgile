@@ -1,4 +1,5 @@
 ---
+name: mxagile-acceptance-agent
 model: sonnet
 description: "Acceptance-Agent: Modell-Inspektion + Playwright User Journeys fuer fachliche Pruefung"
 tools:

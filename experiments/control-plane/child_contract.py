@@ -124,7 +124,8 @@ def diagnostic_cli():
         resolver = safe_path(root, '.mxagile/tools/Get-MxAgileCapabilities.ps1')
         result = subprocess.run(['pwsh', '-NoProfile', '-File', str(resolver), '-ProjectRoot', str(root),
                                  '-Capability', 'subagent_spawn', '-Format', 'json', '-MainProfile', args.main_profile,
-                                 '-ModelProfile', args.profile], capture_output=True, text=True, timeout=120)
+                                 '-ModelProfile', args.profile, '-AgentType', 'mxagile-diagnostic-agent'],
+                                capture_output=True, text=True, timeout=120)
         if result.returncode:
             raise ValueError('DIAGNOSTIC_MODEL_RESOLUTION_UNAVAILABLE')
         integration = json.loads(result.stdout)['capabilities'][0]['integration']
@@ -142,7 +143,10 @@ def diagnostic_cli():
         print(json.dumps({'result': 'DIAGNOSTIC_HANDOFF_READY', 'handoff_reference': reference,
                           'subagent_type': 'mxagile-diagnostic-agent', 'model': integration['resolved_model'],
                           'prompt_marker': 'MXAGILE_HANDOFF:' + reference, 'actual_model': None,
-                          'actual_model_status': 'NOT_OBSERVABLE', 'delivery_authorized': False}))
+                          'actual_model_status': 'NOT_OBSERVABLE',
+                          'agent_availability': integration.get('agent_availability'),
+                          'spawn_ready': (integration.get('agent_availability') or {}).get('spawn_ready', False),
+                          'delivery_authorized': False}))
         return 0
     except (ValueError, KeyError) as exc:
         print(json.dumps({'result': 'BLOCKED', 'reason': str(exc)}))
