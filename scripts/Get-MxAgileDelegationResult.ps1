@@ -56,8 +56,8 @@ if (-not $checkpoint.Valid -or $checkpoint.MissionId -ne $result.mission_id) {
 }
 $artifactMatch = [regex]::Match($checkpoint.RawYaml, '(?ms)^artifacts:[ \t]*(?:\r?\n)?(.*?)(?=^[^ \t#][^:\r\n]*:|\z)')
 $expectedReference = ".concord/delegated-results/$DelegationId.json"
-$hasArtifactId = $artifactMatch.Success -and $artifactMatch.Groups[1].Value -match "(?m)^[ \t]*-[ \t]+id:[ \t]*`"?$([regex]::Escape($DelegationId))`"?[ \t]*$"
-$hasArtifactPath = $artifactMatch.Success -and $artifactMatch.Groups[1].Value -match "(?m)^[ \t]+path_or_reference:[ \t]*`"?$([regex]::Escape($expectedReference))`"?[ \t]*$"
+$hasArtifactId = $artifactMatch.Success -and $artifactMatch.Groups[1].Value -match "(?m)^[ \t]*-[ \t]+id:[ \t]*`"?$([regex]::Escape($DelegationId))`"?[ \t]*\r?$"
+$hasArtifactPath = $artifactMatch.Success -and $artifactMatch.Groups[1].Value -match "(?m)^[ \t]+path_or_reference:[ \t]*`"?$([regex]::Escape($expectedReference))`"?[ \t]*\r?$"
 if (-not ($hasArtifactId -and $hasArtifactPath)) {
     [ordered]@{
         state = 'NOT_REFERENCED'

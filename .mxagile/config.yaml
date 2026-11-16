@@ -53,6 +53,8 @@ graphify:
 agent_delegation:
   # A supported current-harness adapter is still required for every route.
   enabled: true
+  # Child profiles cannot exceed the user's main profile without this authority.
+  model_escalation: never
 
 context_lifecycle:
   # Master switch. When false all sub-features are inactive.

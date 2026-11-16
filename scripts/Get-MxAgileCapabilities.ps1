@@ -44,6 +44,35 @@
     OPENCODE_SESSION_ID/OPENCODE_BASE_URL. Contradictory evidence is ambiguous.
     A caller-supplied harness requires matching current-session evidence; otherwise it is ambiguous.
 
+.PARAMETER ModelProfile
+    Requested child reasoning profile. Automatic requests are bounded by MainProfile.
+
+.PARAMETER MainProfile
+    User-selected main reasoning profile, resolved by this host, never guessed from a model ID.
+
+.PARAMETER MainModel
+    Known main model identifier; dynamic effort requests must bind to this same supported model.
+
+.PARAMETER ModelEscalation
+    never, ask or autonomous. Defaults to agent_delegation.model_escalation, or never.
+    A caller override must reflect an active user instruction, not self-granted permission.
+
+.PARAMETER UserModelAuthority
+    Task-scoped user approval/instruction reference for ask or an explicit model request.
+
+.PARAMETER EscalationReason
+    Substantive, auditable task-specific justification for autonomous upward escalation.
+
+.PARAMETER RequestedChildModel
+    Exact host model identifier explicitly requested by the user, not a universal model rank.
+
+.PARAMETER ExplicitUserModelRequest
+    The user explicitly requested RequestedChildModel for this task. Requires UserModelAuthority.
+
+.PARAMETER AvailableChildModels
+    Current observed host-supported child model IDs, including an empty catalog.
+    Omission means availability unknown; the resolver does not discover or attest this list.
+
 .PARAMETER ContextModeHealth
     Health evidence observed by the agent in the current session (one bounded,
     cached ctx_doctor/ctx_stats call): unknown (default), healthy, failed, timeout.
@@ -130,6 +159,24 @@ param(
     [ValidateSet('', 'LIGHT', 'MID', 'HIGH')]
     [string]$ModelProfile = '',
 
+    [ValidateSet('', 'LIGHT', 'MID', 'HIGH')]
+    [string]$MainProfile = '',
+
+    [string]$MainModel = '',
+
+    [ValidateSet('', 'never', 'ask', 'autonomous')]
+    [string]$ModelEscalation = '',
+
+    [string]$UserModelAuthority = '',
+
+    [string]$EscalationReason = '',
+
+    [string]$RequestedChildModel = '',
+
+    [switch]$ExplicitUserModelRequest,
+
+    [string[]]$AvailableChildModels = @(),
+
     [ValidateSet('unknown', 'healthy', 'failed', 'timeout')]
     [string]$ContextModeHealth = 'unknown',
 
@@ -174,6 +221,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$childModelCatalogObserved = $PSBoundParameters.ContainsKey('AvailableChildModels')
+$ModelProfile = $ModelProfile.ToUpperInvariant()
+$MainProfile = $MainProfile.ToUpperInvariant()
 
 # ---------------------------------------------------------------------------
 # Resolve project root
@@ -754,6 +804,109 @@ function Resolve-HarnessId {
 }
 
 function Resolve-DelegationIntegration {
+    param([string]$ProjectRoot_, $HarnessResolution, [string]$Profile, [bool]$Enabled)
+
+    $policy = $ModelEscalation
+    if (-not $policy) { $policy = Get-ConfigValue -Lines $configLines -KeyPath 'agent_delegation.model_escalation' }
+    if (-not $policy) { $policy = 'never' }
+    $policy = ([string]$policy).ToLowerInvariant()
+    if ($policy -notin @('never', 'ask', 'autonomous')) { throw 'Invalid agent_delegation.model_escalation; expected never, ask or autonomous.' }
+    $ranks = @{ LIGHT = 0; MID = 1; HIGH = 2 }
+    $selectedProfile = $Profile
+    $decision = 'allowed'
+    $authority = 'main_profile_ceiling'
+    $authorityReference = $null
+    $reason = 'Requested child profile does not exceed the chosen main profile.'
+    $explicit = $ExplicitUserModelRequest -and $RequestedChildModel.Trim() -and $UserModelAuthority.Trim()
+    if ($explicit) {
+        $authority = 'explicit_user_model'
+        $authorityReference = $UserModelAuthority
+        $reason = 'Explicit task-scoped user model instruction overrides the escalation policy.'
+    } elseif ($RequestedChildModel -or $ExplicitUserModelRequest) {
+        $decision = 'blocked'; $reason = 'EXPLICIT_USER_MODEL_AUTHORITY_REQUIRED: a model parameter alone is not user authorization.'
+    } elseif (-not $MainProfile) {
+        $decision = 'blocked'; $reason = 'MAIN_PROFILE_UNKNOWN: do not infer the main profile from a model name.'
+    } elseif (-not $Profile) {
+        $decision = 'blocked'; $reason = 'CHILD_PROFILE_UNKNOWN: resolve the requested child profile before dispatch.'
+    } elseif ($ranks[$Profile] -gt $ranks[$MainProfile]) {
+        switch ($policy) {
+            'never' { $selectedProfile = $MainProfile; $decision = 'limited'; $reason = 'MAIN_PROFILE_CEILING: child request limited before host model resolution.' }
+            'ask' {
+                if ($UserModelAuthority.Trim()) {
+                    $authority = 'user_approval'; $authorityReference = $UserModelAuthority
+                    $reason = 'Task-scoped user approval permits the higher child profile.'
+                } else { $decision = 'needs_user_approval'; $reason = 'USER_MODEL_APPROVAL_REQUIRED: ask before spawning the higher profile.' }
+            }
+            'autonomous' {
+                if ($EscalationReason.Trim()) {
+                    $authority = 'autonomous_policy'
+                    $authorityReference = if ($ModelEscalation) { 'caller:model_escalation' } else { '.mxagile/config.yaml#agent_delegation.model_escalation' }
+                    $reason = $EscalationReason
+                } else { $decision = 'blocked'; $reason = 'ESCALATION_JUSTIFICATION_REQUIRED: autonomous escalation must be audited.' }
+            }
+        }
+    }
+
+    $result = Get-DelegationIntegration -ProjectRoot_ $ProjectRoot_ -HarnessResolution $HarnessResolution -Profile $selectedProfile -Enabled $Enabled
+    $resolvedProfile = $null
+    if ($decision -in @('allowed', 'limited')) {
+        if (-not $result.route_allowed) {
+            $decision = 'blocked'; $reason = "HOST_DELEGATION_UNAVAILABLE: $($result.reason)"
+        } elseif ($explicit) {
+            if ($result.model_selection -ne 'supported') {
+                $decision = 'blocked'; $reason = 'HOST_MODEL_SELECTION_UNAVAILABLE: the requested model cannot be selected.'
+            } elseif (-not $childModelCatalogObserved) {
+                $decision = 'blocked'; $reason = 'MODEL_AVAILABILITY_UNKNOWN: discover current host-supported model identifiers first.'
+            } elseif ($AvailableChildModels -cnotcontains $RequestedChildModel) {
+                $decision = 'blocked'; $reason = 'MODEL_UNAVAILABLE: the explicit model is not supported in the supplied current host catalog; no silent replacement.'
+            } else {
+                if ($result.model_resolution -eq 'static_mapping' -and $result.resolved_model -ceq $RequestedChildModel) { $resolvedProfile = $selectedProfile }
+                $result.resolved_model = $RequestedChildModel
+                $result.requested_reasoning_effort = $null
+                $result.model_resolution = 'explicit_model_request'
+                $result.fallback_used = $false; $result.fallback_reason = $null
+            }
+        } elseif ($result.model_resolution -eq 'static_mapping') {
+            if ($childModelCatalogObserved -and $AvailableChildModels -cnotcontains $result.resolved_model) {
+                $decision = 'blocked'; $reason = 'MODEL_UNAVAILABLE: mapped child model is unavailable; continue with the main agent.'
+            } else { $resolvedProfile = $selectedProfile }
+        } elseif ($result.model_resolution -eq 'dynamic_capability_request' -and $MainModel -and $childModelCatalogObserved -and $AvailableChildModels -ccontains $MainModel) {
+            $result.resolved_model = $MainModel
+            $resolvedProfile = $selectedProfile
+        } else {
+            $decision = 'blocked'; $reason = "MODEL_PROFILE_UNRESOLVED: $($result.fallback_reason) No verified profile mapping or same-main-model request binding; do not spawn an arbitrary default model."
+        }
+    }
+    if ($decision -in @('blocked', 'needs_user_approval')) {
+        $result.route_allowed = $false
+        $result.resolved_model = $null; $result.requested_reasoning_effort = $null
+        $result.model_resolution = 'fallback_available_model'
+        $result.fallback_used = $true; $result.fallback_reason = $reason
+        $result.fallback = 'main_agent'
+        $authority = if ($explicit) { $authority } else { 'none' }
+    }
+    $result.requested_profile = if ($Profile) { $Profile } else { $null }
+    $result.reason += " Model policy: $reason"
+    $result['escalation'] = [ordered]@{
+        main_profile = if ($MainProfile) { $MainProfile } else { $null }
+        main_model = if ($MainModel) { $MainModel } else { $null }
+        requested_child_profile = if ($Profile) { $Profile } else { $null }
+        resolved_child_profile = $resolvedProfile
+        requested_child_model = if ($RequestedChildModel) { $RequestedChildModel } else { $null }
+        spawn_request_model = $null
+        actual_model = $null
+        actual_model_status = 'NOT_OBSERVABLE'
+        actual_model_source = $null
+        escalation_policy = $policy
+        escalation_authority = $authority
+        authority_reference = $authorityReference
+        decision = $decision
+        reason = $reason
+    }
+    return $result
+}
+
+function Get-DelegationIntegration {
     param([string]$ProjectRoot_, $HarnessResolution, [string]$Profile, [bool]$Enabled)
 
     $result = [ordered]@{
@@ -1344,7 +1497,7 @@ function Resolve-BuilderKit {
     $delegation = $null
     if (-not $harness.ambiguous -and $harness.id -ne 'unknown') {
         $delegation = Resolve-DelegationIntegration -ProjectRoot_ $ProjectRoot_ -HarnessResolution $harness `
-            -Profile '' -Enabled (Get-ProjectConfigBool -KeyPath 'agent_delegation.enabled' -Default $true)
+            -Profile $ModelProfile -Enabled (Get-ProjectConfigBool -KeyPath 'agent_delegation.enabled' -Default $true)
     }
 
     $delegable = $null
@@ -1387,6 +1540,7 @@ function Resolve-BuilderKit {
         agent_observed = $AgentObserved
         delegation_status = if ($delegation) { $delegation.status } else { 'unknown' }
         delegation_reason = $delegableReason
+        delegation_integration = $delegation
         note = 'Kit capability is independent from ui.implementation.html_first; no automatic installation or native fallback is performed.'
     }
 }

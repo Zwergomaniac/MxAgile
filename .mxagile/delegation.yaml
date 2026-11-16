@@ -12,6 +12,10 @@ model_profiles:
     use_for: "Use when reasoning must reconcile materially competing interpretations, reconstruct ambiguous history, resolve contract conflicts, or perform difficult root-cause/planning analysis."
     escalation_guard: "Do not select only because the task, source set, or context window is large, or because a model is more expensive."
 
+# Default child ceiling; project configuration may select never, ask or autonomous.
+# Mission defaults/overrides below are demand, not authority to exceed the main profile.
+model_escalation: never
+
 # Defaults describe mission shape, not provider/model identity.
 agent_defaults:
   discovery: MID

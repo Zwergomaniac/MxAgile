@@ -350,6 +350,14 @@ def _transcript_report(
                                 ("provider", "provider"), ("resolved_model", "resolved_model")):
         if isinstance(metadata.get(metadata_key), str) and metadata[metadata_key].strip():
             record["model"][field] = observation(DECLARED, metadata[metadata_key], "explicit child metadata." + metadata_key)
+    for field, legacy in (("requested_child_profile", "requested_profile"), ("resolved_child_profile", "resolved_profile"),
+                          ("requested_child_model", "requested_model")):
+        record["model"][field] = record["model"][legacy]
+    for field in ("main_profile", "main_model", "requested_child_profile", "resolved_child_profile",
+                  "requested_child_model", "escalation_policy", "escalation_authority",
+                  "escalation_reason", "escalation_authority_reference"):
+        if isinstance(metadata.get(field), str) and metadata[field].strip():
+            record["model"][field] = observation(DECLARED, metadata[field], "explicit child metadata." + field)
     actual_models = sorted(model_usage)
     record["model"]["actual_model"] = (
         observation(OBSERVED, actual_models, "Claude message.model on unique requestId records")
@@ -368,6 +376,11 @@ def _transcript_report(
         if parent_model_at_spawn
         else not_observable("Parent model at spawn was not available.")
     )
+
+    if parent_model_at_spawn:
+        record["model"]["main_model"] = record["model"]["parent_model_at_spawn"]
+    elif is_main and len(actual_models) == 1:
+        record["model"]["main_model"] = observation(OBSERVED, actual_models[0], "main Claude message.model on unique requestId records")
 
     tooling = _direct_tool_calls(events, project_root)
     record["loads"]["instruction_or_projection_paths"] = (

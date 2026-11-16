@@ -264,6 +264,54 @@ try {
     $savedResult = Get-Content (Join-Path $root $saved.result_reference) -Raw | ConvertFrom-Json
     Assert-True 'Result persists requested-profile resolution and actual fallback evidence' `
         ($savedResult.model_resolution.model_selection -eq 'supported' -and $savedResult.model_resolution.resolved_model -eq 'sonnet' -and -not $savedResult.model_resolution.fallback_used) 'Model resolution evidence missing'
+    $policyInput = Copy-RoutingDecision $input
+    $policyInput.delegation_id = 'DELEGATION-POLICY'
+    $policyInput.model_profile = 'HIGH'
+    $policyInput.model_resolution = Copy-RoutingDecision $input.model_resolution
+    $policyInput.model_resolution.resolved_model = 'opus'
+    $policyInput.model_resolution['escalation'] = [ordered]@{
+        main_profile = 'MID'; main_model = 'host-mid-model'
+        requested_child_profile = 'HIGH'; resolved_child_profile = 'HIGH'; requested_child_model = $null
+        spawn_request_model = 'opus'; actual_model = $null; actual_model_status = 'NOT_OBSERVABLE'; actual_model_source = $null
+        escalation_policy = 'autonomous'; escalation_authority = 'autonomous_policy'
+        authority_reference = 'project:agent_delegation.model_escalation'; decision = 'allowed'
+        reason = 'Competing accepted contracts require reconciliation.'
+    }
+    $policyInputPath = Join-Path $root 'model-policy-result.json'
+    Write-JsonFile $policyInputPath $policyInput
+    & $Save -ProjectRoot $root -InputFile $policyInputPath | Out-Null
+    $fixtureEpoch = Get-Content $checkpointPath -Raw
+    [System.IO.File]::WriteAllText($checkpointPath, ($fixtureEpoch -replace "`r?`n", "`r`n"))
+    $policyRead = (& $Get -ProjectRoot $root -DelegationId 'DELEGATION-POLICY' | ConvertFrom-Json)
+    if ($policyRead.state -ne 'CURRENT') { throw "Policy fixture result is not current: $($policyRead.state)" }
+    $policyResult = $policyRead.result
+    Assert-True 'Child escalation authority and NOT_OBSERVABLE actual model survive save/read' `
+        ($policyResult.model_resolution.escalation.escalation_authority -eq 'autonomous_policy' -and $policyResult.model_resolution.escalation.authority_reference -and $policyResult.model_resolution.escalation.reason -match 'Competing accepted contracts' -and $null -eq $policyResult.model_resolution.escalation.actual_model)
+    $policyResult | ConvertTo-Json -Depth 20 | python -c "import json,sys; from jsonschema import Draft7Validator; Draft7Validator(json.load(open(sys.argv[1], encoding='utf-8'))).validate(json.load(sys.stdin))" (Join-Path $RepoRoot '.mxagile/schemas/delegation-result.schema.json')
+    Assert-True 'Persisted child escalation evidence conforms to the actual result schema' ($LASTEXITCODE -eq 0)
+    foreach ($mutation in @('unauthorized_high', 'pending_approval', 'missing_authority', 'guessed_actual_model')) {
+        $bad = $policyInput | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        switch ($mutation) {
+            'unauthorized_high' { $bad.model_resolution.escalation.escalation_policy = 'never'; $bad.model_resolution.escalation.escalation_authority = 'main_profile_ceiling' }
+            'pending_approval' { $bad.model_resolution.escalation.decision = 'needs_user_approval' }
+            'missing_authority' { $bad.model_resolution.escalation.authority_reference = $null }
+            'guessed_actual_model' { $bad.model_resolution.escalation.actual_model = 'opus' }
+        }
+        Write-JsonFile $policyInputPath $bad
+        $rejected = $false
+        try { & $Save -ProjectRoot $root -InputFile $policyInputPath | Out-Null } catch { $rejected = $true }
+        Assert-True "Result writer rejects $mutation before persistence" $rejected
+    }
+    $parentPolicyPath = Join-Path $root '.concord/delegation-handoffs/DELEGATION-POLICY.json'
+    Write-JsonFile $parentPolicyPath @{ model_resolution = $policyInput.model_resolution }
+    $rewrittenAuthority = $policyInput | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+    $rewrittenAuthority.model_resolution.escalation.main_profile = 'HIGH'
+    Write-JsonFile $policyInputPath $rewrittenAuthority
+    $rejectedRewrite = $false
+    try { & $Save -ProjectRoot $root -InputFile $policyInputPath | Out-Null } catch { $rejectedRewrite = $_.Exception.Message -match 'contradicts parent model authority' }
+    Assert-True 'A child cannot rewrite parent main-profile/escalation authority' $rejectedRewrite
+    Remove-Item -LiteralPath $parentPolicyPath -Force
+
     $checkpoint = Get-Content (Join-Path $root '.concord/context-epoch.yaml') -Raw
     Assert-True 'Checkpoint links the compact result' ($checkpoint -match 'DELEGATION-001' -and $checkpoint -match 'delegated-results') 'Checkpoint reference missing'
     Assert-True 'Checkpoint retains routing-decision and result evidence' ($checkpoint -match 'ROUTE-SEMANTIC-001' -and $checkpoint -match 'DELEGATION-001') 'Routing/result link missing'

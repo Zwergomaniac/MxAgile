@@ -34,18 +34,46 @@ if ([string]::IsNullOrWhiteSpace([string]$input.agent_type)) { throw 'agent_type
 if ($input.model_profile -notin @('LIGHT', 'MID', 'HIGH', $null)) { throw 'Invalid model_profile.' }
 $resolution = $input.model_resolution
 $resolutionProperties = @($resolution.PSObject.Properties.Name)
-$allowedResolutionProperties = @('model_selection', 'profile_resolution', 'resolution', 'resolved_model', 'requested_reasoning_effort', 'fallback_used', 'fallback_reason')
+$requiredResolutionProperties = @('model_selection', 'profile_resolution', 'resolution', 'resolved_model', 'requested_reasoning_effort', 'fallback_used', 'fallback_reason')
+$allowedResolutionProperties = $requiredResolutionProperties + @('escalation')
 if (@($resolutionProperties | Where-Object { $_ -notin $allowedResolutionProperties }).Count -gt 0) { throw 'model_resolution contains unexpected properties.' }
-if (@($allowedResolutionProperties | Where-Object { $_ -notin $resolutionProperties }).Count -gt 0) { throw 'model_resolution is incomplete.' }
+if (@($requiredResolutionProperties | Where-Object { $_ -notin $resolutionProperties }).Count -gt 0) { throw 'model_resolution is incomplete.' }
 if ($resolution.model_selection -notin @('supported', 'unsupported', 'unknown')) { throw 'Invalid model_selection status.' }
 if ($resolution.profile_resolution -notin @('static_mapping', 'dynamic_capability', 'unknown', 'unsupported')) { throw 'Invalid profile_resolution status.' }
-if ($resolution.resolution -notin @('static_mapping', 'dynamic_capability_request', 'fallback_available_model', 'not_requested')) { throw 'Invalid model resolution outcome.' }
+if ($resolution.resolution -notin @('static_mapping', 'dynamic_capability_request', 'explicit_model_request', 'fallback_available_model', 'not_requested')) { throw 'Invalid model resolution outcome.' }
 if ($resolution.resolved_model -isnot [string] -and $null -ne $resolution.resolved_model) { throw 'resolved_model must be a string or null.' }
 if ($resolution.requested_reasoning_effort -isnot [string] -and $null -ne $resolution.requested_reasoning_effort) { throw 'requested_reasoning_effort must be a string or null.' }
 if ($resolution.fallback_used -isnot [bool]) { throw 'fallback_used must be a boolean.' }
 if ($resolution.fallback_used -and [string]::IsNullOrWhiteSpace([string]$resolution.fallback_reason)) { throw 'A fallback requires a reason.' }
 if (-not $resolution.fallback_used -and $null -ne $resolution.fallback_reason) { throw 'A non-fallback resolution must not report a fallback reason.' }
-if ($resolution.resolution -eq 'static_mapping' -and [string]::IsNullOrWhiteSpace([string]$resolution.resolved_model)) { throw 'Static mapping requires a resolved model.' }
+if ($resolution.resolution -in @('static_mapping', 'explicit_model_request') -and [string]::IsNullOrWhiteSpace([string]$resolution.resolved_model)) { throw 'Model selection requires a resolved model.' }
+if ($resolutionProperties -contains 'escalation') {
+    $e = $resolution.escalation
+    $fields = @('main_profile', 'main_model', 'requested_child_profile', 'resolved_child_profile', 'requested_child_model', 'spawn_request_model', 'actual_model', 'actual_model_status', 'actual_model_source', 'escalation_policy', 'escalation_authority', 'authority_reference', 'decision', 'reason')
+    if ($null -eq $e -or @($e.PSObject.Properties.Name).Count -ne $fields.Count -or @($fields | Where-Object { $_ -notin $e.PSObject.Properties.Name }).Count) { throw 'Escalation evidence must contain exactly the complete model/authority envelope.' }
+    foreach ($field in @('main_profile', 'requested_child_profile', 'resolved_child_profile')) {
+        if ($e.$field -notin @('LIGHT', 'MID', 'HIGH', $null)) { throw "Invalid escalation profile: $field" }
+    }
+    foreach ($field in @('main_model', 'requested_child_model', 'spawn_request_model', 'actual_model', 'actual_model_source', 'authority_reference', 'reason')) {
+        if ($null -ne $e.$field -and $e.$field -isnot [string]) { throw "Escalation evidence $field must be a string or null." }
+    }
+    if ($e.escalation_policy -notin @('never', 'ask', 'autonomous')) { throw 'Invalid escalation policy.' }
+    if ($e.escalation_authority -notin @('none', 'main_profile_ceiling', 'user_approval', 'explicit_user_model', 'autonomous_policy')) { throw 'Invalid escalation authority.' }
+    if ($e.decision -notin @('allowed', 'limited') -or [string]::IsNullOrWhiteSpace($e.reason)) { throw 'A completed child cannot have blocked/pending or unaudited model authority.' }
+    if ($e.actual_model_status -notin @('OBSERVED', 'NOT_OBSERVABLE')) { throw 'Invalid actual model observation status.' }
+    if ($e.actual_model_status -eq 'NOT_OBSERVABLE' -and ($null -ne $e.actual_model -or $null -ne $e.actual_model_source)) { throw 'NOT_OBSERVABLE actual model must remain null, not guessed.' }
+    if ($e.actual_model_status -eq 'OBSERVED' -and ([string]::IsNullOrWhiteSpace($e.actual_model) -or [string]::IsNullOrWhiteSpace($e.actual_model_source))) { throw 'Observed actual model requires child execution evidence.' }
+    $authority = $e.escalation_authority
+    if ($authority -in @('user_approval', 'explicit_user_model', 'autonomous_policy') -and [string]::IsNullOrWhiteSpace($e.authority_reference)) { throw 'Escalation authority requires a source reference.' }
+    if ($authority -eq 'user_approval' -and $e.escalation_policy -ne 'ask') { throw 'User approval must bind an ask policy; explicit model instructions use explicit_user_model.' }
+    if ($authority -eq 'autonomous_policy' -and $e.escalation_policy -ne 'autonomous') { throw 'Autonomous authority requires an autonomous policy.' }
+    if ($authority -eq 'explicit_user_model' -and [string]::IsNullOrWhiteSpace($e.requested_child_model)) { throw 'Explicit user authority requires its requested model.' }
+    $ranks = @{ LIGHT = 0; MID = 1; HIGH = 2 }
+    if ($authority -eq 'none') { throw 'Completed child requires model-selection authority.' }
+    if ($authority -ne 'explicit_user_model' -and ($null -eq $e.main_profile -or $null -eq $e.resolved_child_profile)) { throw 'Automatic child ceiling requires known main and resolved profiles.' }
+    if ($null -ne $e.resolved_child_profile -and $input.model_profile -ne $e.resolved_child_profile) { throw 'Result profile contradicts resolved child profile.' }
+    if ($null -ne $e.main_profile -and $null -ne $e.resolved_child_profile -and $ranks[$e.resolved_child_profile] -gt $ranks[$e.main_profile] -and $authority -notin @('user_approval', 'explicit_user_model', 'autonomous_policy')) { throw 'Child profile exceeds the main ceiling without escalation authority.' }
+}
 if ($null -eq $input.scope -or [string]::IsNullOrWhiteSpace($input.scope.summary) -or $null -eq $input.scope.paths) {
     throw 'scope must contain a non-empty summary and paths array.'
 }
@@ -110,6 +138,15 @@ $result = [ordered]@{
 # A child spawned through the control plane has a canonical handoff; its result is never accepted unchecked.
 $handoffRelative = ".concord/delegation-handoffs/$($input.delegation_id).json"
 if (Test-Path -LiteralPath (Join-Path $ProjectRoot $handoffRelative) -PathType Leaf) {
+    if ($resolutionProperties -contains 'escalation') {
+        $parentHandoff = Get-Content -LiteralPath (Join-Path $ProjectRoot $handoffRelative) -Raw -Encoding UTF8 | ConvertFrom-Json
+        $parentResolution = $parentHandoff.PSObject.Properties['model_resolution']
+        $parentEscalation = if ($parentResolution -and $parentResolution.Value) { $parentResolution.Value.PSObject.Properties['escalation'] } else { $null }
+        if (-not $parentEscalation) { throw 'Parent model authority is NOT_OBSERVABLE; a child cannot manufacture escalation evidence.' }
+        foreach ($field in @('main_profile', 'main_model', 'requested_child_profile', 'resolved_child_profile', 'requested_child_model', 'escalation_policy', 'escalation_authority', 'authority_reference', 'decision', 'reason')) {
+            if ($resolution.escalation.$field -cne $parentEscalation.Value.$field) { throw "Child result contradicts parent model authority: $field" }
+        }
+    }
     $acceptor = @(
         (Join-Path $PSScriptRoot 'control-plane/child_contract.py'),
         (Join-Path (Split-Path -Parent $PSScriptRoot) 'experiments/control-plane/child_contract.py')

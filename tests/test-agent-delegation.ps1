@@ -15,7 +15,7 @@ function Assert-True {
 }
 
 function Invoke-DelegationCapability {
-    param([string]$Harness = '', [string]$Profile = '', [string]$SessionHarness = '')
+    param([string]$Harness = '', [string]$Profile = '', [string]$SessionHarness = '', [hashtable]$ModelPolicy = @{})
     $saved = @{}
     foreach ($name in @('MXAGILE_HARNESS', 'CLAUDECODE', 'OPENCODE_SESSION_ID', 'OPENCODE_BASE_URL')) {
         $saved[$name] = [Environment]::GetEnvironmentVariable($name)
@@ -23,9 +23,10 @@ function Invoke-DelegationCapability {
     }
     if ($SessionHarness) { [Environment]::SetEnvironmentVariable('MXAGILE_HARNESS', $SessionHarness) }
     try {
-        $args = @{ ProjectRoot = $tempRoot; Capability = 'subagent_spawn'; Format = 'json' }
+        $args = @{ ProjectRoot = $tempRoot; Capability = 'subagent_spawn'; Format = 'json'; MainProfile = 'HIGH' }
         if ($Harness) { $args.Harness = $Harness }
         if ($Profile) { $args.ModelProfile = $Profile }
+        foreach ($key in $ModelPolicy.Keys) { $args[$key] = $ModelPolicy[$key] }
         $output = & $Resolver @args 2>&1
         if ($LASTEXITCODE -ne 0) { throw "Resolver failed: $output" }
         return ($output | ConvertFrom-Json).capabilities[0]
@@ -41,7 +42,19 @@ try {
     Copy-Item (Join-Path $RepoRoot '.mxagile/config.yaml') (Join-Path $tempRoot '.mxagile/config.yaml')
     Copy-Item (Join-Path $RepoRoot '.mxagile/adapters') (Join-Path $tempRoot '.mxagile/adapters') -Recurse
 
-    $claude = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'MID'
+    # This is a contract fixture, not Claude VS Code execution or semantic-classification evidence.
+    $coreDelegation = Get-Content (Join-Path $RepoRoot '.mxagile/delegation.yaml') -Raw
+    $naturalDiscoveryProfile = [regex]::Match($coreDelegation, '(?m)^  discovery: (LIGHT|MID|HIGH)\r?$').Groups[1].Value
+    $claude = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile $naturalDiscoveryProfile -ModelPolicy @{ MainProfile = 'MID' }
+    Assert-True 'Bounded discovery demand retains MID through the ceiling and Claude adapter (contract only)' `
+        ($naturalDiscoveryProfile -eq 'MID' -and $claude.integration.requested_profile -eq 'MID' -and $claude.integration.escalation.requested_child_profile -eq 'MID' -and $claude.integration.escalation.resolved_child_profile -eq 'MID' -and $claude.integration.resolved_model -eq 'sonnet' -and $claude.integration.route_allowed)
+    $nativeDiscoveryAgent = Get-Content (Join-Path $RepoRoot '.claude/agents/mxagile-discovery-agent.md') -Raw
+    $nativeFrontmatter = [regex]::Match($nativeDiscoveryAgent, '\A---\r?\n(?<body>[\s\S]*?)\r?\n---\r?\n').Groups['body'].Value
+    $nativeRequestModel = [regex]::Match($nativeFrontmatter, '(?m)^model: ([^\r\n]+)\r?$').Groups[1].Value
+    Assert-True 'Native Claude named-agent declaration explicitly requests resolved Sonnet (not live host proof)' `
+        ($nativeRequestModel -ceq $claude.integration.resolved_model -and $nativeRequestModel -ceq 'sonnet')
+    Assert-True 'Declared native handoff cannot attest an actual spawn or child model' `
+        ($null -eq $claude.integration.escalation.spawn_request_model -and $null -eq $claude.integration.escalation.actual_model -and $claude.integration.escalation.actual_model_status -eq 'NOT_OBSERVABLE')
     Assert-True 'R1 supported Claude adapter is available but not spuriously active' `
         ($claude.state.available -and -not $claude.state.active -and $claude.integration.status -eq 'supported') $claude.state.reason
     Assert-True 'Claude adapter resolves MID only in its harness layer' `
@@ -54,8 +67,11 @@ try {
     (Get-Content $copilotAdapter -Raw).Replace('model_selection: supported', 'model_selection: unsupported') |
         Set-Content -LiteralPath $copilotAdapter -Encoding UTF8
     $noModelSelection = Invoke-DelegationCapability -SessionHarness 'vscode_copilot' -Profile 'HIGH'
-    Assert-True 'R14 no model-selection support falls back to the available agent model' `
-        ($noModelSelection.state.available -and $noModelSelection.integration.resolved_model -eq $null -and $noModelSelection.integration.model_resolution -eq 'fallback_available_model' -and $noModelSelection.integration.fallback_used -and $noModelSelection.integration.fallback_reason -match 'does not support') 'Model selection blocked delegation'
+    Assert-True 'R14 no model-selection support retains capability availability but uses main-agent fallback' `
+        ($noModelSelection.state.available -and -not $noModelSelection.integration.route_allowed -and $noModelSelection.integration.resolved_model -eq $null -and $noModelSelection.integration.model_resolution -eq 'fallback_available_model' -and $noModelSelection.integration.fallback_used -and $noModelSelection.integration.fallback_reason -match 'does not support') 'Unsafe child model fallback'
+    $unsupportedExplicit = Invoke-DelegationCapability -SessionHarness 'vscode_copilot' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; RequestedChildModel = 'host-model'; ExplicitUserModelRequest = $true; UserModelAuthority = 'user:request-model'; AvailableChildModels = @('host-model') }
+    Assert-True 'User model instruction cannot override a host model-selection limitation' `
+        (-not $unsupportedExplicit.integration.route_allowed -and $unsupportedExplicit.integration.escalation.reason -match 'HOST_MODEL_SELECTION_UNAVAILABLE')
     (Get-Content $copilotAdapter -Raw).Replace('model_selection: unsupported', 'model_selection: supported') |
         Set-Content -LiteralPath $copilotAdapter -Encoding UTF8
 
@@ -70,9 +86,9 @@ try {
     $codex = Invoke-DelegationCapability -SessionHarness 'codex'
     Assert-True 'Codex delegation is resolved from its own assessed adapter' `
         ($codex.integration.status -eq 'supported' -and $codex.state.available) 'Codex contract missing'
-    $codexProfile = Invoke-DelegationCapability -SessionHarness 'codex' -Profile 'MID'
-    Assert-True 'Codex requests a capability-dependent reasoning effort without claiming a resolved model' `
-        ($codexProfile.integration.profile_resolution -eq 'dynamic_capability' -and $codexProfile.integration.requested_reasoning_effort -eq 'medium' -and $null -eq $codexProfile.integration.resolved_model -and -not $codexProfile.integration.fallback_used) 'Dynamic reasoning request missing or overclaimed'
+    $codexProfile = Invoke-DelegationCapability -SessionHarness 'codex' -Profile 'MID' -ModelPolicy @{ MainModel = 'host-selected-main'; AvailableChildModels = @('host-selected-main') }
+    Assert-True 'Codex binds its effort request to the selected main model without claiming actual child execution' `
+        ($codexProfile.integration.route_allowed -and $codexProfile.integration.profile_resolution -eq 'dynamic_capability' -and $codexProfile.integration.requested_reasoning_effort -eq 'medium' -and $codexProfile.integration.resolved_model -eq 'host-selected-main' -and $null -eq $codexProfile.integration.escalation.actual_model -and -not $codexProfile.integration.fallback_used) 'Dynamic reasoning request missing or overclaimed'
 
     $noAttestation = Invoke-DelegationCapability
     Assert-True 'R3 missing harness attestation remains unknown' ($noAttestation.integration.status -eq 'unknown') 'Support was guessed'
@@ -81,6 +97,60 @@ try {
     $concord = Invoke-DelegationCapability -SessionHarness 'concord'
     Assert-True 'Concord delegation remains unknown without a verified live harness contract' `
         ($concord.integration.status -eq 'unknown' -and $concord.integration.named_agents -eq 'unknown' -and $concord.integration.generic_fork -eq 'unknown') 'Concord support was inferred'
+
+    foreach ($pair in @(@('HIGH', 'MID'), @('HIGH', 'HIGH'), @('MID', 'MID'))) {
+        $allowed = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile $pair[1] -ModelPolicy @{ MainProfile = $pair[0] }
+        Assert-True "Main $($pair[0]) permits child $($pair[1]) without escalation" `
+            ($allowed.integration.route_allowed -and $allowed.integration.escalation.decision -eq 'allowed' -and $allowed.integration.escalation.resolved_child_profile -eq $pair[1])
+    }
+    $limited = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; MainModel = 'chosen-main-model' }
+    Assert-True 'Default never caps HIGH child at MID before host resolution' `
+        ($limited.integration.route_allowed -and $limited.integration.resolved_model -eq 'sonnet' -and $limited.integration.escalation.resolved_child_profile -eq 'MID' -and $limited.integration.escalation.requested_child_profile -eq 'HIGH' -and $limited.integration.escalation.decision -eq 'limited' -and $limited.integration.escalation.escalation_policy -eq 'never')
+    Assert-True 'Model evidence preserves the main choice without inventing execution' `
+        ($limited.integration.escalation.main_model -eq 'chosen-main-model' -and $null -eq $limited.integration.escalation.spawn_request_model -and $null -eq $limited.integration.escalation.actual_model -and $limited.integration.escalation.actual_model_status -eq 'NOT_OBSERVABLE')
+    $ask = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; ModelEscalation = 'ask' }
+    Assert-True 'Ask blocks dispatch until task-scoped user approval exists' `
+        (-not $ask.integration.route_allowed -and $ask.integration.escalation.decision -eq 'needs_user_approval' -and $null -eq $ask.integration.resolved_model)
+    $approved = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; ModelEscalation = 'ask'; UserModelAuthority = 'user:approved-this-work-package' }
+    Assert-True 'Ask approval authorizes HIGH and records its source' `
+        ($approved.integration.route_allowed -and $approved.integration.resolved_model -eq 'opus' -and $approved.integration.escalation.escalation_authority -eq 'user_approval' -and $approved.integration.escalation.authority_reference -eq 'user:approved-this-work-package')
+    $autonomous = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; ModelEscalation = 'autonomous'; EscalationReason = 'Conflicting accepted contracts require reconciliation.' }
+    Assert-True 'Autonomous escalation requires and preserves a substantive audit reason' `
+        ($autonomous.integration.route_allowed -and $autonomous.integration.escalation.resolved_child_profile -eq 'HIGH' -and $autonomous.integration.escalation.escalation_authority -eq 'autonomous_policy' -and $autonomous.integration.escalation.reason -match 'Conflicting accepted contracts' -and $autonomous.integration.escalation.authority_reference)
+    $unjustified = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; ModelEscalation = 'autonomous' }
+    Assert-True 'Autonomous is not an unaudited HIGH permission' (-not $unjustified.integration.route_allowed)
+    $explicit = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; RequestedChildModel = 'opus'; ExplicitUserModelRequest = $true; UserModelAuthority = 'user:spawn-opus'; AvailableChildModels = @('sonnet', 'opus') }
+    Assert-True 'Explicit supported user model overrides never' `
+        ($explicit.integration.route_allowed -and $explicit.integration.resolved_model -eq 'opus' -and $explicit.integration.escalation.escalation_policy -eq 'never' -and $explicit.integration.escalation.escalation_authority -eq 'explicit_user_model')
+    $unavailable = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; RequestedChildModel = 'opus'; ExplicitUserModelRequest = $true; UserModelAuthority = 'user:spawn-opus'; AvailableChildModels = @('sonnet') }
+    Assert-True 'Unavailable explicit model blocks, with no silent replacement' `
+        (-not $unavailable.integration.route_allowed -and $unavailable.integration.fallback_used -and $null -eq $unavailable.integration.resolved_model -and $unavailable.integration.escalation.reason -match 'MODEL_UNAVAILABLE')
+    $unobserved = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; RequestedChildModel = 'opus'; ExplicitUserModelRequest = $true; UserModelAuthority = 'user:spawn-opus' }
+    Assert-True 'Explicit model requires current host catalog evidence' (-not $unobserved.integration.route_allowed -and $unobserved.integration.escalation.reason -match 'MODEL_AVAILABILITY_UNKNOWN')
+    $unknownMain = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = '' }
+    Assert-True 'Unknown main profile cannot authorize automatic HIGH' (-not $unknownMain.integration.route_allowed -and $unknownMain.integration.escalation.reason -match 'MAIN_PROFILE_UNKNOWN')
+    $unknownMapping = Invoke-DelegationCapability -SessionHarness 'vscode_copilot' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID' }
+    Assert-True 'Unknown mapping does not silently spawn a potentially more expensive default' `
+        (-not $unknownMapping.integration.route_allowed -and $unknownMapping.integration.fallback_used -and $null -eq $unknownMapping.integration.escalation.resolved_child_profile)
+    $exactHostModel = Invoke-DelegationCapability -SessionHarness 'vscode_copilot' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; RequestedChildModel = 'host-specific-model'; ExplicitUserModelRequest = $true; UserModelAuthority = 'user:request-specific-model'; AvailableChildModels = @('host-specific-model') }
+    Assert-True 'Explicit host model works without inventing a universal profile ranking' `
+        ($exactHostModel.integration.route_allowed -and $exactHostModel.integration.resolved_model -eq 'host-specific-model' -and $null -eq $exactHostModel.integration.escalation.resolved_child_profile -and $exactHostModel.integration.model_resolution -eq 'explicit_model_request')
+    $emptyCatalog = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'MID' -ModelPolicy @{ MainProfile = 'HIGH'; AvailableChildModels = @() }
+    Assert-True 'Empty observed catalog means unavailable, not unknown or default child selection' `
+        (-not $emptyCatalog.integration.route_allowed -and $emptyCatalog.integration.escalation.reason -match 'MODEL_UNAVAILABLE')
+    $untrustedOverride = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID'; RequestedChildModel = 'opus'; AvailableChildModels = @('opus') }
+    Assert-True 'A model parameter alone is not an explicit user instruction' (-not $untrustedOverride.integration.route_allowed)
+    $configPolicyPath = Join-Path $tempRoot '.mxagile/config.yaml'
+    $beforePolicy = Get-Content $configPolicyPath -Raw
+    [System.IO.File]::WriteAllText($configPolicyPath, $beforePolicy.Replace('model_escalation: never', 'model_escalation: ask'))
+    $configuredAsk = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID' }
+    Assert-True 'Project escalation preference is applied, with never as the missing-key default' `
+        ($configuredAsk.integration.escalation.escalation_policy -eq 'ask' -and -not $configuredAsk.integration.route_allowed)
+    [System.IO.File]::WriteAllText($configPolicyPath, ($beforePolicy -replace '(?m)^  model_escalation: never\r?\n', ''))
+    $legacyDefault = Invoke-DelegationCapability -SessionHarness 'claude_code' -Profile 'HIGH' -ModelPolicy @{ MainProfile = 'MID' }
+    Assert-True 'Missing escalation config on an existing installation still defaults to never' `
+        ($legacyDefault.integration.escalation.escalation_policy -eq 'never' -and $legacyDefault.integration.escalation.resolved_child_profile -eq 'MID')
+    [System.IO.File]::WriteAllText($configPolicyPath, $beforePolicy)
 
     $genericAdapter = Join-Path $tempRoot '.mxagile/adapters/generic/agent-delegation.yaml'
     $genericOriginal = Get-Content $genericAdapter -Raw

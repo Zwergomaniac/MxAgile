@@ -389,7 +389,15 @@ description: Fixture Builder Kit agent
     $observedOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness vscode_copilot -ResolveBuilderKit `
         -BuilderAgentObserved -BuilderAgentObservedName 'mendix-page-designer-html-mode' 2>&1
     $observedResult = $observedOutput | ConvertFrom-Json
-    Assert-True 'Q3. observed exact agent plus supported adapter is delegable' ($observedResult.builder_kit.agent_delegable -eq $true) $observedResult.builder_kit.delegation_reason
+    Assert-True 'Q3. observed exact agent cannot bypass unknown main-model authority' `
+        ($observedResult.builder_kit.agent_delegable -eq $false -and $observedResult.builder_kit.delegation_reason -match 'MAIN_PROFILE_UNKNOWN') $observedResult.builder_kit.delegation_reason
+    $authorizedOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness vscode_copilot -ResolveBuilderKit `
+        -BuilderAgentObserved -BuilderAgentObservedName 'mendix-page-designer-html-mode' `
+        -MainProfile MID -ModelProfile MID -ExplicitUserModelRequest -RequestedChildModel 'fixture-model' `
+        -UserModelAuthority 'user:builder-model' -AvailableChildModels @('fixture-model') 2>&1
+    $authorizedResult = $authorizedOutput | ConvertFrom-Json
+    Assert-True 'Q3b. explicit host-supported model authority enables the observed Builder agent and preserves evidence' `
+        ($authorizedResult.builder_kit.agent_delegable -eq $true -and $authorizedResult.builder_kit.delegation_integration.requested_profile -eq 'MID' -and $authorizedResult.builder_kit.delegation_integration.escalation.escalation_authority -eq 'explicit_user_model') $authorizedResult.builder_kit.delegation_reason
 
     $env:MXAGILE_HARNESS = ''
     $unknownHarnessOutput = & $Resolver -Format json -ProjectRoot $tmpBuilder -Harness auto -ResolveBuilderKit `

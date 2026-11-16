@@ -10,8 +10,7 @@ spawned.
 Classify each bounded work package independently:
 
 ```powershell
-& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -Capability subagent_spawn -Format json -ModelProfile MID
-```
+& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -Capability subagent_spawn -Format json -ModelProfile MID -MainProfile <observed-main-profile>```
 
 Use the adapter's `integration.status` and `state` fields and inspect the current
 session's actual tool namespace. `supported` is necessary, but does not prove that a
@@ -262,11 +261,84 @@ accept a capability-dependent effort request, but the selected model and accepte
 effort remain runtime facts. No current adapter reports model selection as explicitly
 unsupported; if one does, its empty mapping is correct and fallback is mandatory.
 
-If the profile cannot be resolved, continue with the harness's available/default
-agent model and report `fallback_used: true` with a reason. Do not claim a resolved
-model unless the adapter mapping or harness runtime proves it. Escalate from MID to
-HIGH for genuine ambiguity or conflicting active references; size alone is not an
-escalation reason. Deterministic work has no model profile.
+If the profile cannot be resolved safely within the main-model ceiling, continue
+with the main agent and report `fallback_used: true` with a reason. An arbitrary
+host/default child may be more expensive and is not a safe implicit fallback. Do not
+claim a resolved model unless the adapter mapping or harness runtime proves it.
+Genuine ambiguity or conflicting active references may justify a HIGH demand, but
+never bypass the child-escalation authority below; size alone is not justification.
+Deterministic work has no model profile.
+
+### Child-Model Escalation Authority
+
+The user's deliberately selected main profile is the ceiling for automatic children.
+Apply this check **before** host model resolution and dispatch, including named-agent
+HIGH defaults and mission overrides. Profile order is LIGHT < MID < HIGH; this is not
+an ordering of universal model names or context windows. For the currently verified
+Claude adapter, HIGH resolves to Opus and MID to Sonnet. Other hosts require their
+own verified mapping/capability resolution; never infer rank from an ID or catalog.
+
+Core default: `model_escalation: never` in `.mxagile/delegation.yaml`. Project/user
+preference: `agent_delegation.model_escalation` in `.mxagile/config.yaml`; a missing
+key also means never. A per-mission `-ModelEscalation` override must reflect an actual
+active user instruction, not an agent's self-selected permission. Invalid values fail
+closed. Lifecycle, delegation scope and host capability constraints remain independent.
+
+| Policy | Child above main | Required action / authority |
+| --- | --- | --- |
+| never (default) | Not automatic | Limit the request to the main profile before mapping, or remain with the main agent. |
+| ask | Only after approval | Ask the user for this work package; persist the concrete approval reference before dispatch. Pending/unanswered approval is not permission. |
+| autonomous | Permitted when justified | Record the enabled policy source and substantive task-specific justification before dispatch; source size/price alone is insufficient. |
+
+Thus HIGH main permits MID/HIGH children; MID main permits MID, but a HIGH demand
+is limited to MID under never, awaits approval under ask, or needs an auditable
+justification under autonomous. LIGHT follows the same ceiling rule. A current
+explicit user instruction such as "Start an Opus subagent for this task" overrides
+never/ask, **only** for the specified task/model and only when the host supports it.
+A model parameter, child claim, profile default, or catalog entry alone is not user
+permission. Do not generalize one approval into future work-package authority.
+
+Resolve with the existing capability helper, passing the known main profile/model:
+
+```powershell
+& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -Capability subagent_spawn -Format json -ModelProfile HIGH -MainProfile MID -MainModel <user-selected-main-model>
+```
+
+`integration.route_allowed` must be true before dispatch; capability `available`
+alone is insufficient. `integration.escalation.decision` is allowed, limited,
+needs_user_approval or blocked. `requested_profile` retains the original demand;
+use the permitted `resolved_child_profile` and resolved host model/effort in the
+actual spawn, not the old HIGH agent default. Reassess if the host substitutes a
+different model. The helper assesses supplied declarations/current host observations;
+it does not discover a live model catalog, execute a spawn, or attest actual identity.
+
+For ask, supply `-UserModelAuthority <task-scoped-approval-reference>`. For autonomous,
+provide `-EscalationReason <substantive-reason>` and retain the policy source. For an
+explicit model instruction, also supply `-ExplicitUserModelRequest`,
+`-RequestedChildModel <exact-host-model-id>` and `-AvailableChildModels <current-host-ids>`.
+The catalog input is current discovered evidence, not a list invented by the agent;
+its absence is MODEL_AVAILABILITY_UNKNOWN, an absent requested ID is MODEL_UNAVAILABLE.
+An unsupported model-selection host cannot fulfill an explicit request. Do not silently
+replace the requested model; remain with the main agent or seek approval for a specific
+supported alternative. Dynamic effort resolution must bind to the known main model
+supported for child selection; unknown mapping/inheritance defaults cannot authorize
+an automatic child. A static adapter mapping is declared eligibility, not a live probe.
+
+Persist `model_resolution.escalation` in each new handoff/result. It carries
+`main_profile`, `main_model`, `requested_child_profile`, `resolved_child_profile`,
+`requested_child_model`, `spawn_request_model`, `actual_model`, `escalation_policy`,
+`escalation_authority`, plus `authority_reference`, `decision`, `reason`,
+`actual_model_status` and `actual_model_source`. Known request/mapping fields are
+DECLARED until independently observed. The pre-spawn resolver leaves spawn_request_model
+and actual_model null: update the former only from the actual host call, the latter
+only from child execution attestation with its source. Missing actual identity is
+null/NOT_OBSERVABLE, never guessed from the parent, requested profile or mapping.
+The parent's authority is immutable in the child handoff/result; a child cannot grant
+itself escalation. Legacy envelopes without this optional schema extension remain
+readable but are NOT_OBSERVABLE for escalation and do not authorize a new dispatch.
+The result writer rejects pending/blocked authority, unaudited escalation and guessed
+actual identity. No model-routing engine, universal price matrix or live host guarantee
+is introduced.
 
 Each actual delegation handoff and persisted result records model-selection status,
 profile-resolution status, resolution method, resolved model when known, requested
@@ -289,7 +361,12 @@ acceptance or actual child identity.
 
 ### Bounded Model Evidence / Telemetry
 
-The opt-in harness-neutral telemetry record separates `requested_profile`,
+The opt-in harness-neutral telemetry record also carries `main_profile`, `main_model`,
+`requested_child_profile`, `resolved_child_profile`, `requested_child_model`,
+`escalation_policy`, `escalation_authority`, `escalation_reason` and
+`escalation_authority_reference`; explicit metadata remains DECLARED. Observed parent
+message.model proves the main model at spawn, not user-selected profile or child identity.
+The original fields remain compatible. The record separates `requested_profile`,
 `resolved_profile`, `requested_model`, `provider`, `spawn_request_model`,
 `resolved_model` and `actual_model`. Each field carries state/source/reason;
 unavailable values remain null/NOT_OBSERVABLE, never inferred from parent model,

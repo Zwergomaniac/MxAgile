@@ -82,6 +82,56 @@ class CanonicalTelemetryModelTests(unittest.TestCase):
                 self.assertEqual(record['model'][field]['state'], NOT_OBSERVABLE)
             self.assertEqual(record['model']['parent_model_at_spawn']['value'], 'claude-opus-fixture')
 
+    def test_child_escalation_metadata_is_audited_without_model_attestation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='mxagile-child-policy-') as temp_dir:
+            project = Path(temp_dir)
+            child = project / 'session-1' / 'subagents' / 'agent-child.jsonl'
+            child.parent.mkdir(parents=True)
+            child.write_text(json.dumps({'type': 'assistant', 'message': {'role': 'assistant', 'content': []}}), encoding='utf-8')
+            metadata = {'main_profile': 'MID', 'requested_child_profile': 'HIGH', 'resolved_child_profile': 'HIGH',
+                        'requested_child_model': 'host-high-model', 'escalation_policy': 'autonomous',
+                        'escalation_authority': 'autonomous_policy', 'escalation_reason': 'Conflicting accepted contracts.',
+                        'escalation_authority_reference': 'project:model_escalation', 'actual_model': 'unattested-claim'}
+            child.with_suffix('.meta.json').write_text(json.dumps(metadata), encoding='utf-8')
+            record = claude_collector._transcript_report(child, project, None, 'NOT_OBSERVABLE',
+                parent_model_at_spawn='host-main-model', handoff={'requested_model': 'host-high-model'})
+            for field in metadata.keys() - {'actual_model'}:
+                self.assertEqual(record['model'][field]['value'], metadata[field])
+                self.assertEqual(record['model'][field]['state'], DECLARED)
+            self.assertEqual(record['model']['main_model']['value'], 'host-main-model')
+            self.assertEqual(record['model']['main_model']['state'], OBSERVED)
+            self.assertEqual(record['model']['spawn_request_model']['value'], 'host-high-model')
+            self.assertEqual(record['model']['actual_model']['state'], NOT_OBSERVABLE)
+            self.assertIsNone(record['model']['actual_model']['value'])
+
+    def test_spawn_model_comes_from_agent_call_not_mid_metadata_or_named_agent_default(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='mxagile-spawn-boundary-') as temp_dir:
+            project = Path(temp_dir)
+            child = project / 'session-1' / 'subagents' / 'agent-discovery.jsonl'
+            child.parent.mkdir(parents=True)
+            child.write_text(json.dumps({'type': 'assistant', 'message': {'role': 'assistant', 'content': []}}), encoding='utf-8')
+            child.with_suffix('.meta.json').write_text(json.dumps({
+                'requested_profile': 'MID', 'resolved_profile': 'MID', 'resolved_model': 'sonnet',
+                'model': 'sonnet', 'actual_model': 'sonnet',
+            }), encoding='utf-8')
+            for requested in ('sonnet', None, 'opus'):
+                with self.subTest(requested=requested):
+                    inputs = {'subagent_type': 'mxagile-discovery-agent', 'prompt': 'Analyze one bounded requirement batch.'}
+                    if requested is not None:
+                        inputs['model'] = requested
+                    # Synthetic host-call fixtures prove collector behavior, not live execution.
+                    events = [{'type': 'assistant', 'message': {'role': 'assistant', 'model': 'parent-model',
+                               'content': [{'type': 'tool_use', 'id': 'call-1', 'name': 'Agent', 'input': inputs}]}}]
+                    handoff = claude_collector._direct_tool_calls(events, project)['agent_calls'][0]
+                    report = claude_collector._transcript_report(child, project, None, 'NOT_OBSERVABLE', handoff=handoff)
+                    self.assertEqual(report['model']['requested_profile']['value'], 'MID')
+                    self.assertEqual(report['model']['resolved_profile']['value'], 'MID')
+                    self.assertEqual(report['model']['resolved_model']['state'], DECLARED)
+                    self.assertEqual(report['model']['spawn_request_model']['value'], requested)
+                    self.assertEqual(report['model']['spawn_request_model']['state'], OBSERVED)
+                    self.assertEqual(report['model']['actual_model']['state'], NOT_OBSERVABLE)
+                    self.assertIsNone(report['model']['actual_model']['value'])
+
     def test_claude_jsonl_maps_runtime_evidence_into_shared_fields(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mxagile-c0-") as temp_dir:
             project = Path(temp_dir) / "project"

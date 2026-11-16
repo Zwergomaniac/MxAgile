@@ -26,6 +26,7 @@
     "schema_version": { "type": "string", "enum": ["1.0", "1.1"] },
     "mission_id": { "type": "string", "minLength": 1 },
     "delegation_id": { "type": "string", "pattern": "^DELEGATION-[A-Za-z0-9._-]+$" },
+    "agent_type": { "type": "string", "minLength": 1 },
     "completed_at": { "type": "string", "format": "date-time" },
     "scope": {
       "type": "object",
@@ -79,11 +80,35 @@
       "properties": {
         "model_selection": { "type": "string", "enum": ["supported", "unsupported", "unknown"] },
         "profile_resolution": { "type": "string", "enum": ["static_mapping", "dynamic_capability", "unknown", "unsupported"] },
-        "resolution": { "type": "string", "enum": ["static_mapping", "dynamic_capability_request", "fallback_available_model", "not_requested"] },
+        "resolution": { "type": "string", "enum": ["static_mapping", "dynamic_capability_request", "explicit_model_request", "fallback_available_model", "not_requested"] },
         "resolved_model": { "type": ["string", "null"] },
         "requested_reasoning_effort": { "type": ["string", "null"] },
         "fallback_used": { "type": "boolean" },
-        "fallback_reason": { "type": ["string", "null"] }
+        "fallback_reason": { "type": ["string", "null"] },
+        "escalation": {
+          "type": "object", "additionalProperties": false,
+          "required": ["main_profile", "main_model", "requested_child_profile", "resolved_child_profile", "requested_child_model", "spawn_request_model", "actual_model", "actual_model_status", "actual_model_source", "escalation_policy", "escalation_authority", "authority_reference", "decision", "reason"],
+          "properties": {
+            "main_profile": { "enum": ["LIGHT", "MID", "HIGH", null] },
+            "main_model": { "type": ["string", "null"] },
+            "requested_child_profile": { "enum": ["LIGHT", "MID", "HIGH", null] },
+            "resolved_child_profile": { "enum": ["LIGHT", "MID", "HIGH", null] },
+            "requested_child_model": { "type": ["string", "null"] },
+            "spawn_request_model": { "type": ["string", "null"] },
+            "actual_model": { "type": ["string", "null"] },
+            "actual_model_status": { "enum": ["OBSERVED", "NOT_OBSERVABLE"] },
+            "actual_model_source": { "type": ["string", "null"] },
+            "escalation_policy": { "enum": ["never", "ask", "autonomous"] },
+            "escalation_authority": { "enum": ["none", "main_profile_ceiling", "user_approval", "explicit_user_model", "autonomous_policy"] },
+            "authority_reference": { "type": ["string", "null"] },
+            "decision": { "enum": ["allowed", "limited", "needs_user_approval", "blocked"] },
+            "reason": { "type": "string", "minLength": 1 }
+          },
+          "allOf": [
+            { "if": { "properties": { "actual_model_status": { "const": "NOT_OBSERVABLE" } } }, "then": { "properties": { "actual_model": { "type": "null" }, "actual_model_source": { "type": "null" } } } },
+            { "if": { "properties": { "actual_model_status": { "const": "OBSERVED" } } }, "then": { "properties": { "actual_model": { "type": "string", "minLength": 1 }, "actual_model_source": { "type": "string", "minLength": 1 } } } }
+          ]
+        }
       }
     }
   },

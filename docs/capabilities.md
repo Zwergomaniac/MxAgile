@@ -149,15 +149,56 @@ See `docs/context-optimization.md` for installation and configuration.
 Resolve this capability only when semantic delegation is a candidate:
 
 ```powershell
-& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -Capability subagent_spawn -Format json -ModelProfile MID
+& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -Capability subagent_spawn -Format json -ModelProfile MID -MainProfile <observed-main-profile>
 ```
 
-Only an attested harness adapter with `integration.status: supported` allows a
-route. `unsupported`, `unknown`, missing adapter, or disabled project configuration
-falls back without blocking. `ACTIVE` remains false until an actual mission runs.
-The harness owns model-profile resolution; Core stores only `LIGHT`, `MID`, or
-`HIGH`. See `.mxagile/policies/agent-delegation.md` for handoff, anti-amplification,
-authority, result persistence, and resume rules.
+An attested supported adapter is necessary, not sufficient: check
+`integration.route_allowed` and `integration.escalation` before dispatch.
+`unsupported`, `unknown`, missing adapter, disabled configuration or unsafe model
+resolution continues with the main agent, never an arbitrary child default.
+`ACTIVE` remains false until an actual mission runs. The harness owns model-profile
+resolution; Core stores only `LIGHT`, `MID`, or `HIGH`, not a universal model ranking.
+
+The user-selected main profile is the automatic child ceiling. Configure
+`agent_delegation.model_escalation` as `never` (default, missing-key compatible),
+`ask` (task-specific user approval before upward dispatch), or `autonomous`
+(task-specific justification and policy-source audit). HIGH main allows MID/HIGH;
+MID main + HIGH demand is limited to MID under never. An explicit task-scoped user
+model request overrides this ceiling only if current host capabilities support it.
+No silent fallback substitutes an unavailable explicit model.
+
+The existing resolver accepts `-MainProfile`, `-MainModel`, `-ModelEscalation`,
+`-UserModelAuthority`, `-EscalationReason`, `-RequestedChildModel`,
+`-ExplicitUserModelRequest`, and `-AvailableChildModels`. Catalog omission is
+unknown, an empty observed catalog means no supported child model. Dynamic effort
+requests require a same-main-model binding. A declared mapping/request is not
+execution evidence: persist `integration.escalation` as `model_resolution.escalation`
+in the existing handoff/result schemas. Record actual spawn parameters separately;
+`actual_model` remains null/NOT_OBSERVABLE without child execution attestation.
+Legacy results remain readable but do not grant new escalation authority.
+Builder Kit named-agent routes obey the same ceiling and expose the assessment as
+`builder_kit.delegation_integration`; exact agent observation alone is not model authority.
+See `.mxagile/policies/agent-delegation.md` for the exact evidence fields, handoff,
+anti-amplification, authority, result persistence, and resume rules.
+
+### Claude VS Code live-host verification boundary
+
+For an ordinary bounded semantic task, verify the complete chain in a real Claude
+VS Code session: task classification requests MID, ceiling resolution retains MID,
+the Claude provider adapter resolves `sonnet`, and the actual native Agent request
+explicitly carries `model: sonnet` (or the host attests loading the selected named-agent
+definition with that explicit model). Capture the child execution's model separately.
+A generated `.claude/agents/` definition, a declared `claude_code` fixture, a synthetic
+Agent transcript, or an installed Claude CLI does not prove Claude VS Code dispatch,
+natural task classification, or effective Sonnet execution.
+
+Contract tests cover the bounded discovery default through adapter resolution and the
+native named-agent declaration. Collector tests distinguish an explicit Sonnet request
+from an omitted model or an Opus request, even when metadata declares MID/Sonnet.
+Their PASS is contract/collector evidence only, never a live MID-to-Sonnet PASS.
+Without the real host request and child attestation, report `READY_FOR_LIVE_HOST_TEST`;
+`actual_model` stays null with status `NOT_OBSERVABLE`. Do not fill
+`spawn_request_model` from the adapter or frontmatter alone.
 
 ## Safe Agentic Activation
 
