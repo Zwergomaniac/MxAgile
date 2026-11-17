@@ -87,8 +87,17 @@ Canonical ctx_* tool names observed in this session. Supply the complete current
 Context Mode tool inventory when ContextModeToolsObserved is set.
 
 .PARAMETER ContextModeRequiredTools
-Context Mode operations required for the current task. Usability is not established
-unless these operations are present in ContextModeTools.
+Context Mode operations required for the current task. Usability requires current
+discovery and successful same-operation probes, not ctx_doctor alone.
+
+.PARAMETER ContextModeExecutableTools
+Canonical ctx_* operations successfully probed in this session and generation.
+Inspect each actual tool schema before a bounded non-mutating probe. Never infer
+this list from ctx_doctor, installation, another operation or historical evidence.
+
+.PARAMETER ContextModeCheckUpdates
+Explicitly check public release metadata when the dependency's 24-hour cache is due.
+SessionStart and Doctor remain cache-only. This never installs or updates a plugin.
 
 .PARAMETER ContextModeHooksRequired
 The current task requires automatic routing hooks, not only direct ctx_* operations.
@@ -187,11 +196,15 @@ param(
     [ValidateSet('unknown', 'healthy', 'failed', 'timeout')]
     [string]$ContextModeHealth = 'unknown',
 
+    [switch]$ContextModeCheckUpdates,
+
     [switch]$ContextModeToolsObserved,
 
     [string[]]$ContextModeTools = @(),
 
     [string[]]$ContextModeRequiredTools = @(),
+
+    [string[]]$ContextModeExecutableTools = @(),
 
     [switch]$ContextModeHooksRequired,
 
@@ -1640,13 +1653,46 @@ function Resolve-Capability {
             -Health $ContextModeHealth -ToolsObserved $ContextModeToolsObserved.IsPresent `
             -SessionTools $ContextModeTools -RequiredTools $ContextModeRequiredTools -HooksRequired $ContextModeHooksRequired.IsPresent `
             -Enabled $configEnabled -AdapterBase $mxagileDir
+        $healthScript = Join-Path $PSScriptRoot 'dependency_health.py'
+        $python = Get-Command python -ErrorAction SilentlyContinue
+        if ($python -and (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
+            $healthArgs = @('-B', $healthScript, '--project-root', $ProjectRoot, '--home-dir', $HomeDir)
+            if ($ContextModeCheckUpdates) { $healthArgs += '--check-updates' }
+            if ($ContextModeToolsObserved -and $int.harness -ne 'unknown' -and -not $int.harness_conflict) {
+                $healthArgs += @('--tools-observed', '--probe-status', $int.health)
+                foreach ($tool in $int.loaded_tools) { $healthArgs += @('--tool', $tool) }
+                foreach ($tool in $ContextModeExecutableTools) { $healthArgs += @('--executed-tool', $tool) }
+            }
+            foreach ($tool in $ContextModeRequiredTools) { $healthArgs += @('--required-tool', $tool) }
+            $healthText = & $python.Source @healthArgs 2>$null
+            $dependency = Read-JsonLenient ($healthText -join "`n")
+        } else { $dependency = $null }
+        if (-not $dependency) {
+            $discoverable = @{}
+            foreach ($tool in $ContextModeRequiredTools) { $discoverable[$tool] = if ($ContextModeToolsObserved) { $tool -in $int.loaded_tools } else { $null } }
+            $missingExecution = @($ContextModeRequiredTools | Where-Object { $_ -notin $ContextModeExecutableTools -or $_ -notin $int.loaded_tools })
+            $executable = if ($int.health_source -eq 'agent_observed_session_probe' -and $int.health -ne 'healthy') { $false }
+                elseif ($ContextModeToolsObserved -and @($ContextModeRequiredTools).Count -gt 0 -and $missingExecution.Count -eq 0) { $true } else { $null }
+            $dependency = [pscustomobject]@{ id = 'context_mode'; installed = $int.runtime_present; installed_version = $null;
+                executable = $executable; required_capabilities = @($ContextModeRequiredTools); capabilities_discoverable = $discoverable;
+                compatible = $null; latest_known_version = $null; update_available = $null; last_update_check = $null;
+                update_check_status = 'UNKNOWN'; update_check_due = $true;
+                health_status = if (@($ContextModeRequiredTools).Count -gt 0 -and (-not $int.usable -or $executable -ne $true)) { 'CAPABILITY_DEGRADED' } else { 'UNKNOWN' };
+                route_allowed = ($int.usable -and $executable -eq $true); automatic_action = 'none'; blocking = $false }
+        }
+        $int.dependency_health = $dependency
+        if ($int.usable -and -not $dependency.route_allowed) {
+            $int.usable = $false
+            $int.status = 'dependency_health_degraded'
+            $int.reason = "Required Context Mode route is not executable/compatible: $($dependency.health_status)."
+        }
         $resolved.integration = $int
         $versionDegraded = $resolved.degraded
         switch ($int.status) {
             { $_ -in @('not_installed', 'harness_unsupported') } {
                 $resolved.available = $false; $resolved.unavailable = $true; $resolved.degraded = $false
             }
-            { $_ -in @('misconfigured', 'configured_runtime_missing', 'configured_load_unknown', 'configured_not_loaded', 'loaded_health_unknown', 'loaded_unhealthy', 'loaded_hooks_missing', 'loaded_unconfigured', 'task_tools_missing', 'task_fit_unknown', 'harness_ambiguous') } {
+            { $_ -in @('misconfigured', 'configured_runtime_missing', 'configured_load_unknown', 'configured_not_loaded', 'loaded_health_unknown', 'loaded_unhealthy', 'loaded_hooks_missing', 'loaded_unconfigured', 'task_tools_missing', 'task_fit_unknown', 'harness_ambiguous', 'dependency_health_degraded') } {
                 $resolved.available = $int.runtime_present; $resolved.unavailable = (-not $int.runtime_present)
                 $resolved.degraded = ($configEnabled -and $int.runtime_present)
             }
@@ -2154,6 +2200,11 @@ foreach ($key in $targetResolved.Keys) {
         $loadLabel = if ($null -eq $i.loaded) { 'unknown' } elseif ($i.loaded) { 'loaded' } else { 'not_loaded' }
         $hooksLabel = if ($null -eq $i.components.hooks_loaded) { 'unknown' } elseif ($i.components.hooks_loaded) { 'loaded' } else { 'missing' }
         Write-Host "    Harness: $($i.harness) | mode=$($i.integration_mode) | configured=$($i.configured) | loaded=$loadLabel | hooks=$hooksLabel | health=$($i.health) | usable=$($i.usable) [$($i.status)]" -ForegroundColor DarkGray
+        if ($r.id -eq 'context_mode_integration') {
+            $d = $i.dependency_health
+            Write-Host "    Dependency health: $($d.health_status) | installed=$($d.installed) | version=$($d.installed_version) | executable=$($d.executable) | compatible=$($d.compatible)" -ForegroundColor DarkGray
+            Write-Host "    Update: latest_known=$($d.latest_known_version) | available=$($d.update_available) | checked=$($d.last_update_check) | evidence=$($d.update_check_status); automatic action=none" -ForegroundColor DarkGray
+        }
         if ($i.required_tools.Count -gt 0) { Write-Host "    Required tools: $($i.required_tools -join ', ') | missing: $($i.missing_required_tools -join ', ')" -ForegroundColor DarkGray }
         foreach ($f in $i.findings) { Write-Host "    Finding: $f" -ForegroundColor Yellow }
         foreach ($g in $i.guidance) { Write-Host "    Setup:   $g" -ForegroundColor DarkGray }

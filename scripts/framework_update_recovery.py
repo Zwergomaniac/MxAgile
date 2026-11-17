@@ -270,6 +270,59 @@ def restart_status(root):
             'delivery_authorized': False}
 
 
+def session_start(root, payload):
+    """Surface read-only recovery evidence before the first user message, never acknowledge it."""
+    try:
+        if not isinstance(payload, dict) or payload.get('hook_event_name') != 'SessionStart':
+            fail('SESSION_START_PAYLOAD_INVALID')
+        cwd = Path(payload.get('cwd') or root).resolve()
+        if not cwd.is_relative_to(root):
+            fail('SESSION_START_PROJECT_MISMATCH')
+        restart = restart_status(root)
+        pending = safe_path(root, '.mxagile/state/update-transaction.json').exists()
+        first = 'resume_update' if pending else restart['next_action']
+        if first == 'normal_lifecycle_resync':
+            first = 'lifecycle_resync'
+    except (compatibility.ResolutionFailure, OSError, ValueError, TypeError) as exc:
+        restart = {'result': 'BLOCKED', 'code': getattr(exc, 'code', 'SESSION_START_STATE_NOT_OBSERVABLE')}
+        pending, first = True, 'inspect_blocker'
+    try:
+        from dependency_health import context_mode
+        dependency = context_mode(root, check_updates=False)
+    except (ImportError, OSError, ValueError, TypeError, AttributeError, compatibility.yaml.YAMLError):
+        dependency = {'id': 'context_mode', 'installed': None, 'installed_version': None, 'executable': None,
+                      'required_capabilities': [], 'capabilities_discoverable': {}, 'compatible': None,
+                      'latest_known_version': None, 'update_available': None, 'last_update_check': None,
+                      'update_check_status': 'UNKNOWN', 'update_check_due': True, 'blocking': False,
+                      'severity': 'INFO', 'recovery_hint': 'Dependency metadata is not observable.',
+                      'health_status': 'UNKNOWN', 'route_allowed': False, 'automatic_action': 'none'}
+    result = {'restart': restart, 'pending_update': pending,
+              'recovery_pending': restart['result'] not in ('NO_PENDING_RESTART', 'READY'),
+              'first_action': first, 'human_confirmation_required': first == 'confirm_actual_host_restart',
+              'host_restart_attested': False, 'delivery_authorized': False,
+              'context_freshness': {'status': 'NOT_VERIFIED',
+                  'epoch_present': (root / '.concord/context-epoch.yaml').is_file()},
+              'dependency_health': dependency}
+    context = (
+        'MxAgile SessionStart: Framework recovery FIRST, then Context/Lifecycle freshness, '
+        'Operating Mode discovery, finally normal Mission/Wave/Delivery. This applies even to greetings.\n'
+        'Do not offer an old Wave or start Delivery before recovery and freshness checks complete. '
+        'Follow the installed lifecycle-resync policy and first_action below; do not wait for the User to mention an update.\n'
+        'Only a genuine new host restart plus simple Human confirmation permits acknowledge-restart --human-confirmed. '
+        'Never ask for copied Update/Run IDs. An acknowledged update proceeds to explicit contract reads, '
+        'recover-session --contracts-reloaded, Doctor and Re-Sync without another restart confirmation. '
+        'SessionStart/compact alone does not attest a host restart. Invalid state means inspect the blocker, not another restart loop.\n'
+        'Never ask a generic operating-mode choice. After recovery/freshness, reuse current C2 '
+        'Get-MxAgileCapabilities.ps1 -ResolveOperatingMode. Probe actual MCP identity/health only when relevant; '
+        'ask only for unresolved ambiguity at the actual model-mutation boundary after recheck.\n'
+        'Dependency health is cached metadata only; no startup network or plugin update was performed. '
+        'Never route to ctx_execute before exact current-host discovery and executable health evidence. '
+        'UPDATE_AVAILABLE alone never blocks Delivery. After recovery, a due release check may use '
+        'dependency_health.py --project-root <root> --check-updates (24-hour cache).\nState:\n'
+        + json.dumps(result, sort_keys=True))
+    return {'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}
+
+
 def require_restarted(root):
     value = state(root)
     if value and value['restart_required']:
@@ -561,7 +614,7 @@ def controlled_call(root, args):
 
 def main():
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('command', choices=['check', 'preflight', 'apply', 'resume', 'restart-status', 'acknowledge-restart', 'recover-session', 'synchronize-update'])
+    parser.add_argument('command', choices=['check', 'preflight', 'apply', 'resume', 'restart-status', 'acknowledge-restart', 'recover-session', 'synchronize-update', 'session-start'])
     parser.add_argument('--project-root', type=Path, required=True)
     for flag in ('source', 'ref', 'commit', 'plan-hash', 'human-reference', 'run-id', 'update-id'):
         parser.add_argument('--' + flag)
@@ -571,7 +624,7 @@ def main():
     root = args.project_root.resolve()
     if not args.project_root.is_absolute():
         parser.error('Absolute project root required.')
-    if args.command in ('restart-status', 'acknowledge-restart', 'recover-session', 'synchronize-update'):
+    if args.command in ('restart-status', 'acknowledge-restart', 'recover-session', 'synchronize-update', 'session-start'):
         if any((args.source, args.ref, args.commit, args.plan_hash)):
             parser.error('Session recovery cannot update a source.')
         if args.command != 'acknowledge-restart' and any((args.update_id, args.human_reference, args.run_id, args.human_confirmed)):
@@ -582,6 +635,14 @@ def main():
         parser.error('Contract read confirmation requires recover-session.')
     if args.command in ('check', 'preflight') and any((args.plan_hash, args.human_reference, args.run_id, args.human_confirmed)):
         parser.error('Discovery is read-only.')
+    if args.command == 'session-start':
+        try:
+            raw = sys.stdin.read(65537)
+            payload = json.loads(raw) if len(raw) <= 65536 else None
+        except ValueError:
+            payload = None
+        print(json.dumps(session_start(root, payload), sort_keys=True))
+        return 0
     try:
         if args.command == 'check':
             if args.commit:

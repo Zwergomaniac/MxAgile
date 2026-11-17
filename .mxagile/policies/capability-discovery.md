@@ -179,6 +179,60 @@ host remains UNKNOWN unless attested. Neither provider identity nor report date
 proves the host, exact execution time or current availability. Evidence-only resolver
 modes are read-only, bounded to 256 KiB, and never alter discovery state.
 
+## Lightweight Dependency Health at SessionStart
+
+This is a narrow exception to optional-capability discovery on demand: SessionStart and Doctor
+read Context Mode installation metadata and cached release information, not the full environment
+or network. Framework recovery still has priority. The canonical producer is installed
+`dependency_health.py`; `Get-MxAgileCapabilities.ps1` exposes it as
+`context_mode_integration.integration.dependency_health`. It uses the existing canonical
+`capabilities.yaml` external-dependency record, not a second dependency catalog.
+
+The small generic assessment contract records:
+`installed`, `installed_version`, `executable`, `required_capabilities`,
+`capabilities_discoverable`, `compatible`, `latest_known_version`, `update_available`,
+`last_update_check`, `health_status`, plus `update_check_status`, `route_allowed`, `blocking`,
+`severity`, `recovery_hint` and `automatic_action`. Null means not observed; never infer
+executability from a PATH shim, package, enabled plugin or cached health. Live tool/probe
+observations are passed for this invocation only and never persisted as cross-session truth.
+A same-session successful `ctx_doctor` probe supplies adapter runtime evidence, NOT proof that
+`ctx_execute` or another operation executes. Inspect each required tool's actual schema and use
+one bounded non-mutating same-operation probe; pass successful operations via
+`-ContextModeExecutableTools` / `--executed-tool`. These observations follow the existing
+current-session/generation/target evidence contract; reconnect invalidates them. A missing
+operation probe remains `executable: null`, `CAPABILITY_DEGRADED`, and cannot authorize routing.
+A failed/timeout runtime probe is not executable. Installed version comes from package/plugin metadata; conflicting versions remain
+unknown. A verified operation can remain usable with unknown version, but compatibility is
+not called PASS; a known incompatible required version contract always blocks that route.
+
+Release metadata is cached per project/dependency in
+`.mxagile/state/runs/dependency-update-cache.json`. Standard TTL: 24 hours, including failed
+attempts. An exclusive lock and persisted attempt lease prevent duplicate concurrent checks.
+SessionStart/Doctor never query the network or write this cache. After recovery/freshness,
+a due check may use `python -B <absolute-root>/.mxagile/tools/dependency_health.py
+--project-root <absolute-root> --check-updates`; the Core-bound hook authorizes only this
+metadata/cache scope, not Delivery. HTTP release metadata has a 1.5-second socket timeout;
+it is deferred out of the startup hook. No code, project inputs or credentials are sent.
+`-ContextModeCheckUpdates` is the resolver's explicit equivalent. Unreachable release metadata
+retains latest-known information as STALE, or UNKNOWN without prior data; `update_available`
+is null, never a false "up to date". No package-manager/install/update command is executed.
+
+| Observation | Health / consequence |
+| --- | --- |
+| Not installed and not required | INFO, no blocker |
+| Current, executable, compatible and fresh release evidence | HEALTHY |
+| Update available but executable and compatible | WARNING / UPDATE_AVAILABLE; no Delivery block |
+| Required tool missing, not discoverable, failed or execution unknown | CAPABILITY_DEGRADED; `route_allowed: false`, unrelated permitted work continues |
+| Known incompatible version of a required contract | INCOMPATIBLE with explicit approval/re-probe recovery; no automatic update |
+
+For the observed 1.0.169 → 2.2.0 case, age alone is not incompatibility (the declared Context
+Mode baseline is >=1.0.33). Update availability is transparent but never authorizes or forces
+an upgrade. If a hook demands `ctx_execute`, establish exact current-host loading and bounded
+executable health FIRST. A recommended but unavailable alternative is not a valid recovery.
+Do not retry denied commands, change executors to evade a hook, or claim historical cache as
+current tool inventory. Later true dependencies such as mxcli may reuse the assessment/cache
+contract with their own bounded detectors; this is not a dependency manager.
+
 ## Context Mode Integration Evidence
 
 `context_mode_integration` carries an `integration` object (harness, mode, configured, loaded,
@@ -204,7 +258,8 @@ task, use this order once:
   `-ContextModeHealth healthy|failed|timeout`. Never reuse health from an earlier session.
 - Pass the operation(s) required by this task via `-ContextModeRequiredTools`; `integration.usable`
   requires supported + installed + configured + loaded + healthy + MxAgile enabled + every required
-  operation present. A healthy adapter without task-operation evidence is not usable for that task.
+  operation present and successfully probed via `-ContextModeExecutableTools`. A healthy
+  `ctx_doctor` without same-operation execution evidence is not usable for that task.
 - Pass `-ContextModeHooksRequired` only when this task needs automatic routing interception. A task
   that explicitly uses loaded `ctx_*` operations may use MCP-only mode without hooks; if routing
   hooks are required, MCP-only is not sufficient and the adapter's plugin path is user-global.

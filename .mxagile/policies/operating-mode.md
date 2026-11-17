@@ -1,7 +1,7 @@
 # Policy: Operating-Mode Detection
 
-Defines how MxAgile agents MUST determine the operating mode at session start and before
-model mutations. Replaces ad-hoc user questions with deterministic process detection.
+Defines how MxAgile agents MUST determine the operating mode after framework recovery and
+Context/Lifecycle freshness at session start, and again before model mutations. Replaces ad-hoc user questions with deterministic process detection.
 
 ---
 
@@ -245,7 +245,7 @@ On fresh session / resume:
 
 | Consumer | Where operating-mode applies |
 |---|---|
-| `orchestrator.md` § Startup Re-Sync | First operating-mode check after project root is established |
+| `orchestrator.md` § Startup Re-Sync | First operating-mode check after project root, framework recovery and context freshness are established |
 | `orchestrator.md` § Implementing | Recheck before the first model mutation through the selected route |
 | `policies/implementation-control.md` | Tool availability by mode |
 | `policies/consistency-check.md` | CE0066: already calls detector before opening SP |

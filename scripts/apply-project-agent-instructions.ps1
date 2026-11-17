@@ -340,46 +340,45 @@ $MxAgileStartupBlock = @'
 
 **This is a MxAgile-managed Mendix project.**
 
-Stay in this project root only; no parent directories, siblings or `project-templates/`.
+Project root only; no parent directories, siblings or `project-templates/`.
 Read `.mxagile/policies/safety-rules.md` and `.mxagile/policies/tool-instruction-conflict.md`
 before commands. Git index guard precedes drift/mutations, never blocks contract reads.
 
-0. **Pending restart recovery** — installed `.mxagile/tools/framework_update_recovery.py`
-    `restart-status --project-root <root>` once; follow `.mxagile/policies/lifecycle-resync.md`
-    before step 1, then `recover-session`. The operational restart receipt supersedes old flags.
+0. **Every SessionStart, even "hi": recovery FIRST** — installed `framework_update_recovery.py`
+    `restart-status --project-root <root>` once unless supplied by this SessionStart hook.
+    Use `.mxagile/policies/lifecycle-resync.md`: only necessary Human confirmation, then
+    acknowledge, contract reads, `recover-session`. No old Wave offer/Delivery before completion.
     RESTART_RECOVERY_LOOP: inspect, not restart again.
 1. **Lifecycle Re-Sync FIRST** — check `.mxagile/` and `.concord/scratch/process-state.yaml`;
     read `.mxagile/policies/lifecycle-resync.md` before Brain. Git history is not lifecycle state;
     do not run `git log` to infer delivery position.
     Pending `update-transaction.json` states `UPDATE_IN_PROGRESS`/`PARTIAL_UPDATE` block writes/delegation; follow recovery.
     Before implementation planning, delegation, or model write, validate Delivery Context. Tool availability/LIVE-SP is not authorization.
-2. **Tool authority before commands** — Before any CLI/MCP/tool command or external/tool-provided skill,
-    follow the above conflict policy and current C2; never redetect health.
-    Never choose by PATH or skill load order or fall back after
-    LIVE-SP-CURRENT MCP failure. Use observed tools; ask only at an unresolved mutation boundary.
-3. **External changes after Re-Sync** — use `.mxagile/policies/external-change-reconciliation.md`
-    if installed. BASELINE_REQUIRED: no auto history scans/baseline adoption.
+2. **Operating Mode/tool authority after recovery/freshness** — Before any CLI/MCP/tool command or external/tool-provided skill,
+    use current C2 `-ResolveOperatingMode` / `tool_authority.user_interaction`;
+    do not show a CLOSED-AUTONOM / LIVE-SP / Other choice.
+    Never choose by PATH or skill load order or fall back after LIVE-SP-CURRENT MCP failure.
+    Ask only at unresolved mutation boundary after recheck.
+3. **External changes** — `.mxagile/policies/external-change-reconciliation.md`;
+    BASELINE_REQUIRED: no auto history/baseline adoption.
 4. **Project Brain after Re-Sync** — supplementary; empty Brain means project artifacts, not Git.
-5. **Orientation** — `.mxagile/policies/user-orientation.md`; never block the substantive request.
+5. **Orientation** — `.mxagile/policies/user-orientation.md`; after recovery, never blocks requests.
 6. **Mandatory bounded-semantic routing gate** — read `.mxagile/policies/agent-delegation.md`;
     persist the routing decision before analysis. If required, MUST invoke that live harness tool
     with a bounded handoff, using the current session's discovered tool interface.
-    No invented signatures; a declaration is not a spawn.
-7. **Optional capabilities, on demand only** — `.mxagile/policies/capability-discovery.md`, never at startup.
-    Installed does not mean usable; never assume health; query only that capability. Unavailable never blocks normal work.
+    No invented signatures or declaration-only spawns.
+7. **Dependency health** — `.mxagile/policies/capability-discovery.md`: Context Mode startup check
+    is cache-only; external checks after recovery (24h TTL). Never route to `ctx_execute`
+    without current discovery/executable evidence. Update available is not a Delivery blocker;
+    no automatic plugin update. Optional capabilities: on demand only, not startup.
+8. **Install/update** — `.mxagile/policies/update-contract.md`. `last-update-result.json` historical;
+    step 0 governs restart. Doctor without another question.
+    CONTRACTS_RE_SYNCED requires re-reads, else NOT_VERIFIED.
+    UPDATE_INSTALLED_RESTART_REQUIRED never for acknowledged history; `korrekt aktualisiert` only when permitted.
+9. **Findings** — canonical Findings/Project Status, never FINDINGS.md.
 
-8. **Install/update** — `.mxagile/policies/update-contract.md`, without another question. Read
-    `.mxagile/state/last-update-result.json` historically; step 0 governs restart. Report framework/
-    compatibility separately. CONTRACTS_RE_SYNCED needs re-reads; else pending stage/NOT_VERIFIED.
-    UPDATE_INSTALLED_RESTART_REQUIRED only for pending restart, never acknowledged history.
-    Say `korrekt aktualisiert` only when permitted.
-9. **Finding-linked work** — canonical Findings/Project Status; FINDINGS.md is narrative, not authority.
-
-10. **DevBoard** — "DevBoard starten" means the read-only MxAgile project board, not the Mendix app or `mxcli serve`.
-    Run `python -B .mxagile/tools/serve_project_board.py --port 0` (`py -3` if needed); keep it
-    running and report its URL.
-
-Full startup and interruption procedure: `.mxagile/policies/lifecycle-resync.md`.
+10. **DevBoard** — "DevBoard starten": read-only MxAgile project board, not the Mendix app or `mxcli serve`.
+    `python -B .mxagile/tools/serve_project_board.py --port 0` (or `py -3`); keep running, report URL.
 '@
 
 # ---------------------------------------------------------------------
@@ -420,18 +419,7 @@ Apply-ManagedBlock `
 # mxcli init does not create this file; MxAgile owns the managed block.
 # Existing user content (domain conventions, coding rules) is preserved outside the block.
 if (Test-Path -LiteralPath $SkillsSourceDir -PathType Container) {
-    $skillsAgentsBlock = @'
-## MxAgile Startup — Lifecycle Re-Sync First
-
-**This is a MxAgile-managed Mendix project.**
-
-    1. Re-Sync FIRST: read `.mxagile/policies/lifecycle-resync.md` and reconstruct canonical project state.
-    2. Empty Brain does NOT require Git history; continue from project artifacts.
-    3. Stay in this project root; do not traverse parents or sibling directories.
-    4. New project or orientation → `.mxagile/policies/user-orientation.md`; never block the request.
-
-Policy: `.mxagile/policies/lifecycle-resync.md`
-
+    $skillsAgentsBlock = $MxAgileStartupBlock + "`n`n" + @'
 ---
 
 ## MxAgile Project Knowledge Index

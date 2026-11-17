@@ -8,9 +8,110 @@ import sys
 from pathlib import Path
 from unittest import mock
 import unittest
+import tempfile
+import shutil
 
 from test_control_plane_phase1b import Phase1BFixture, RecoveryScopeTests, enforcement, GUARD_DIR
 import framework_update_recovery as recovery
+
+
+class SessionStartRecoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture = tempfile.TemporaryDirectory(prefix='mxagile-startup-installed-')
+        self.root = Path(self.fixture.name)
+        tools = self.root / '.mxagile/tools'
+        tools.mkdir(parents=True)
+        self.command = tools / 'framework_update_recovery.py'
+        repo = GUARD_DIR.parents[1]
+        for name in ('framework_update_recovery.py', 'project_compatibility.py', 'projection_io.py', 'dependency_health.py'):
+            shutil.copyfile(repo / 'scripts' / name, tools / name)
+        shutil.copyfile(repo / '.mxagile/capabilities.yaml', self.root / '.mxagile/capabilities.yaml')
+        self.core = {'commit': 'c' * 40, 'installed_at': '2026-11-17T08:00:00+00:00'}
+        self.write('.mxagile/state/core-provenance.json', self.core)
+        self.receipt = {'framework': {'commit': self.core['commit'], 'update_successful': True},
+                        'installed_at': self.core['installed_at'], 'update_attempt_id': 'UPDATE-' + 'a' * 32,
+                        'restart_required': True, 'update_transaction': {'run_id': 'RUN-OLD-SESSION'}}
+
+    def tearDown(self):
+        self.fixture.cleanup()
+
+    def write(self, relative, value):
+        target = self.root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(value))
+
+    def start(self, source='startup', cwd=None):
+        before = {path.relative_to(self.root): path.read_bytes() for path in self.root.rglob('*') if path.is_file()}
+        env = {key: value for key, value in os.environ.items() if key != 'PYTHONPATH'}
+        env.update(USERPROFILE=str(self.root / 'home'), HOME=str(self.root / 'home'))
+        completed = subprocess.run([sys.executable, '-B', str(self.command), 'session-start',
+            '--project-root', str(self.root)], input=json.dumps({'hook_event_name': 'SessionStart',
+            'session_id': 'new-host-session', 'source': source, 'cwd': str(cwd or self.root)}),
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=15)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        output = json.loads(completed.stdout)['hookSpecificOutput']
+        self.assertEqual(output['hookEventName'], 'SessionStart')
+        context = output['additionalContext']
+        self.assertLess(context.index('Framework recovery'), context.index('Operating Mode'))
+        self.assertIn('Do not offer an old Wave', context)
+        self.assertIn('Never ask a generic operating-mode choice', context)
+        self.assertEqual(before, {path.relative_to(self.root): path.read_bytes() for path in self.root.rglob('*') if path.is_file()})
+        return json.loads(context.split('State:\n', 1)[1])
+
+    def test_greeting_start_discovers_installed_restart_before_mode_or_wave(self):
+        self.write('.mxagile/state/last-update-result.json', self.receipt)
+        result = self.start()
+        self.assertEqual(result['restart']['result'], 'RESTART_REQUIRED')
+        self.assertEqual(result['first_action'], 'confirm_actual_host_restart')
+        self.assertTrue(result['human_confirmation_required'])
+        self.assertFalse(result['delivery_authorized'])
+        self.assertEqual(result['context_freshness']['status'], 'NOT_VERIFIED')
+        self.assertFalse(result['dependency_health']['route_allowed'])
+
+    def test_acknowledged_update_resumes_without_repeated_restart_confirmation(self):
+        self.write('.mxagile/state/last-update-result.json', self.receipt)
+        value = recovery.receipt_restart(self.root)
+        value.update(restart_required=False, restart_reference='USER-CONFIRMED', restart_run_id='RUN-NEW-SESSION',
+                     restart_acknowledged_at='2026-11-17T08:01:00+00:00',
+                     restart_progress=dict(zip(recovery.RESTART_STAGES, (True, True, True, False, False, False))))
+        self.write(recovery.STATE, value)
+        result = self.start('resume')
+        self.assertEqual(result['first_action'], 'read_contracts_then_recover_session')
+        self.assertFalse(result['human_confirmation_required'])
+        value['restart_progress'] = dict.fromkeys(recovery.RESTART_STAGES, True)
+        self.write(recovery.STATE, value)
+        self.assertEqual(self.start()['first_action'], 'lifecycle_resync')
+
+    def test_partial_update_and_invalid_state_hold_delivery_without_mode_prompt(self):
+        self.write('.mxagile/state/update-transaction.json', {'state': 'PARTIAL_UPDATE'})
+        result = self.start()
+        self.assertTrue(result['pending_update'])
+        self.assertEqual(result['first_action'], 'resume_update')
+        self.assertFalse(result['human_confirmation_required'])
+        self.write(recovery.STATE, {'invalid': True})
+        result = self.start()
+        self.assertEqual(result['first_action'], 'inspect_blocker')
+        self.assertEqual(result['restart']['code'], 'UPDATE_RECOVERY_STATE_INVALID')
+        self.assertFalse(result['delivery_authorized'])
+
+    def test_bound_read_only_mode_discovery_needs_no_delivery_mission_or_mode_question(self):
+        script = self.root / '.mxagile/tools/Get-MxAgileCapabilities.ps1'
+        command = f'pwsh -NoProfile -File "{script}" -ProjectRoot "{self.root}" -ResolveOperatingMode -Format json'
+        result = enforcement.decide(self.root, {'tool_name': 'Bash', 'tool_input': {'command': command}})
+        self.assertEqual(result['decision'], 'allow', result)
+        self.assertEqual(result['operation_class'], enforcement.READ)
+        for attempted in (command + ' -UpdateDiscoveryState', command + ' ; git push',
+                          command.replace(str(script), str(self.root / 'other.ps1'))):
+            result = enforcement.decide(self.root, {'tool_name': 'Bash', 'tool_input': {'command': attempted}})
+            self.assertIn(result['decision'], ('deny', 'ask'), result)
+            self.assertNotEqual(result['operation_class'], enforcement.READ, result)
+
+    def test_compaction_does_not_attest_a_host_restart_and_wrong_root_is_rejected(self):
+        self.write('.mxagile/state/last-update-result.json', self.receipt)
+        result = self.start('compact')
+        self.assertFalse(result['host_restart_attested'])
+        result = self.start(cwd=self.root.parent)
+        self.assertEqual(result['restart']['code'], 'SESSION_START_PROJECT_MISMATCH')
 
 
 class UpdateRecoveryTests(Phase1BFixture):
@@ -41,6 +142,19 @@ class UpdateRecoveryTests(Phase1BFixture):
         writer = self.tools / 'Write-MxAgileEpochCheckpoint.ps1'
         self.core['recovery_tools'][writer.name] = hashlib.sha256(writer.read_bytes()).hexdigest()
         (self.root / '.mxagile/state/core-provenance.json').write_text(json.dumps(self.core))
+
+    def test_dependency_health_is_bound_core_cache_work_not_delivery_authority(self):
+        command = f'python -B "{self.tools / "dependency_health.py"}" --project-root "{self.root}" --check-updates'
+        result = self.hook('Bash', {'command': command})
+        self.assertEqual(result['decision'], 'allow', result)
+        self.assertEqual(result['controlled_recovery'], 'dependency_health')
+        for attempt in (command + ' --install', command + ' && git push',
+                        command.replace(str(self.root), str(self.root.parent), 1)):
+            self.assertEqual(self.hook('Bash', {'command': attempt})['decision'], 'deny')
+        self.installed_restart()
+        self.assertEqual(self.hook('Bash', {'command': command})['decision'], 'deny')
+        (self.tools / 'dependency_health.py').write_text('# changed helper\n')
+        self.assertEqual(self.hook('Bash', {'command': command.replace(' --check-updates', '')})['decision'], 'deny')
 
     def test_installed_synchronization_imports_runtime_without_pythonpath(self):
         self.installed_control_plane_runtime()
@@ -573,10 +687,12 @@ class DisposableSelfUpdateTests(Phase1BFixture):
                 with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
                     tar.extractall(destination, filter='data')
             for relative in ('.mxagile/policies/project-compatibility.md', '.mxagile/policies/lifecycle-resync.md',
+                             '.mxagile/orchestrator.md', '.mxagile/policies/capability-discovery.md', '.mxagile/policies/operating-mode.md',
                              '.mxagile/policies/update-contract.md', '.mxagile/policies/agent-delegation.md',
                              '.mxagile/agents/diagnostic-agent.md', '.mxagile/schemas/delegation-handoff.schema.json',
                              '.mxagile/schemas/finding.schema.json', '.mxagile/schemas/project-timeline.schema.json',
                              'scripts/wave_ids.py', 'scripts/framework_update_recovery.py', 'scripts/install-core.ps1',
+                             'scripts/dependency_health.py', 'scripts/Register-MxAgileControlPlaneHook.ps1',
                              'scripts/update-transaction.ps1', 'scripts/setup-agent-system.ps1', 'scripts/project_compatibility.py',
                              'scripts/apply-project-agent-instructions.ps1', 'scripts/generate-mxagile-platform-skills.ps1',
                              'experiments/control-plane/child_contract.py', 'experiments/control-plane/guard.py',
@@ -654,6 +770,21 @@ class DisposableSelfUpdateTests(Phase1BFixture):
             update = json.loads(run([sys.executable, '-B', str(bootstrap), 'apply', *source_args, '--commit', commit,
                                     '--plan-hash', proposal['plan']['plan_hash'], '--human-reference', 'USER-LEGACY-BOOTSTRAP', '--run-id', 'RUN-LEGACY-OLDSESSION', '--human-confirmed']))
             self.assertEqual(update['result'], 'INSTALLED_RESTART_REQUIRED')
+            settings = json.loads((self.root / '.claude/settings.json').read_bytes())
+            startup_commands = [entry['command'] for group in settings['hooks']['SessionStart'] for entry in group['hooks']]
+            self.assertTrue(any('framework_update_recovery.py' in command and 'session-start' in command for command in startup_commands))
+            before_startup = snapshot()
+            startup = subprocess.run([sys.executable, '-B', str(tools / 'framework_update_recovery.py'), 'session-start',
+                '--project-root', str(self.root)], input=json.dumps({'hook_event_name': 'SessionStart', 'cwd': str(self.root), 'source': 'startup'}),
+                cwd=self.root, env=env, capture_output=True, text=True, timeout=15)
+            self.assertEqual(startup.returncode, 0, startup.stdout + startup.stderr)
+            self.assertEqual(snapshot(), before_startup)
+            startup_state = json.loads(json.loads(startup.stdout)['hookSpecificOutput']['additionalContext'].split('State:\n', 1)[1])
+            self.assertEqual(startup_state['first_action'], 'confirm_actual_host_restart')
+            committed_helper = subprocess.check_output(['git', '-C', str(candidate), 'show', f'{commit}:scripts/dependency_health.py'])
+            self.assertEqual((tools / 'dependency_health.py').read_bytes(), committed_helper)
+            self.assertEqual(startup_state['dependency_health']['observation_source'], 'metadata_only_tools_NOT_OBSERVABLE')
+            self.assertFalse(startup_state['dependency_health']['route_allowed'])
             handoff = json.loads((self.root / '.mxagile/state/last-update-result.json').read_bytes())
             self.assertTrue(handoff['restart_required'])
             self.assertEqual(handoff['session_contract']['state'], 'SESSION_RESTART_REQUIRED')
@@ -738,9 +869,9 @@ class DisposableSelfUpdateTests(Phase1BFixture):
             self.assertTrue(json.loads((self.root / '.mxagile/state/last-update-result.json').read_bytes())['restart_required'])
             for relative in ('CLAUDE.md', 'AGENTS.md', '.github/copilot-instructions.md'):
                 startup = (self.root / relative).read_text(encoding='utf-8-sig')
-                self.assertLess(startup.index('Pending restart recovery'), startup.index('1. **Lifecycle Re-Sync FIRST**'))
+                self.assertLess(startup.index('0. **Every SessionStart'), startup.index('1. **Lifecycle Re-Sync FIRST**'))
                 self.assertIn('recover-session', startup)
-                self.assertIn('operational restart receipt supersedes', startup)
+                self.assertIn('UPDATE_INSTALLED_RESTART_REQUIRED never for acknowledged history', startup)
             # Existing canonical guard derives readiness; Auxiliary/Update never promotes the Wave.
             facts = enforcement.guard.load_project_facts(self.root)
             verdict = enforcement.guard.delivery_authorization(facts, enforcement.DELIVERY_WRITE, require_implementing=False)

@@ -1106,6 +1106,22 @@ def compatibility_report(
 
     _lifecycle_clarity_diagnostics(root, parsed_documents, add)
 
+    try:
+        from dependency_health import context_mode
+        dependencies = [context_mode(root, check_updates=False)]
+    except (ImportError, OSError, ValueError, TypeError, AttributeError, yaml.YAMLError):
+        dependencies = [{'id': 'context_mode', 'installed': None, 'installed_version': None, 'executable': None,
+                         'required_capabilities': [], 'capabilities_discoverable': {}, 'compatible': None,
+                         'latest_known_version': None, 'update_available': None, 'last_update_check': None,
+                         'update_check_status': 'UNKNOWN', 'update_check_due': True, 'blocking': False,
+                         'severity': 'INFO', 'recovery_hint': 'Dependency metadata is not observable.',
+                         'health_status': 'UNKNOWN', 'route_allowed': False, 'automatic_action': 'none'}]
+    for dependency in dependencies:
+        if dependency['health_status'] in ('UPDATE_AVAILABLE', 'CAPABILITY_DEGRADED', 'INCOMPATIBLE'):
+            add('DEPENDENCY_' + dependency['health_status'], None, 'dependencies',
+                dependency['recovery_hint'], blocking=dependency['blocking'],
+                severity=dependency['severity'], authority='EXTERNAL_PLUGIN_USER_APPROVAL')
+
     diagnostics.sort(key=lambda item: (item['source_path'] or '', item['category'], item['diagnostic_id']))
     for item in diagnostics:
         if item['category'] == 'SYNTAX_ERROR' and item['source_path']:
@@ -1121,7 +1137,7 @@ def compatibility_report(
         'compatibility': compatibility, 'source_fingerprint': fingerprint,
         'repair_status': 'DECISION_REQUIRED' if any(item['repairability'] == 'DECISION_REQUIRED' for item in diagnostics)
         else ('PROJECT_REPAIR_REQUIRED' if any(item['repairability'] in ('SAFE_DETERMINISTIC', 'AGENT_REPAIRABLE') for item in diagnostics) else None),
-        'coverage': coverage, 'diagnostics': diagnostics,
+        'coverage': coverage, 'diagnostics': diagnostics, 'dependency_health': dependencies,
     }
 
 

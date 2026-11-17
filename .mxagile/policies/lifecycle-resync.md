@@ -46,7 +46,17 @@ Lifecycle-Information zerstoeren.
 
 ## Pending framework restart at session startup
 
-Before ordinary Lifecycle Re-Sync, query the installed `framework_update_recovery.py
+On EVERY new SessionStart, including a greeting such as "hi", framework/update/restart recovery
+precedes Context/Lifecycle freshness, which precedes Operating Mode Discovery and then normal
+Mission/Wave/Delivery. Do not wait for the User to mention the update. Do not offer an old Wave,
+start Delivery, or show a generic mode menu before these startup checks.
+
+The canonical Claude SessionStart hook invokes installed `framework_update_recovery.py
+session-start --project-root <absolute-root>` and injects a read-only restart-status snapshot
+before the first message. It neither acknowledges a restart nor reloads contracts/Doctor/re-sync
+on behalf of the agent, and never performs network checks, plugin updates or state writes.
+A native SessionStart/compact event alone is NOT a restart attestation. Consume a snapshot only
+from the current host invocation; otherwise query installed `framework_update_recovery.py
 restart-status --project-root <absolute-root>` once, read-only. The persistent update/restart
 receipt supplies the Update ID; the helper may generate a new Run ID for a genuinely new
 host session. Never infer a host restart from a new helper process or random Run ID.

@@ -52,7 +52,23 @@ Runtime Evidence. Detailed class semantics: `policies/ui-parity.md` § Mockup-Dr
 
 ---
 
-## ORIENTATION Check (vor FRAMEWORK_CHANGE)
+## SessionStart Priority (vor Request-Klassifikation)
+
+Bei jeder neuen Session, auch bei "hi", gilt: Framework-/Restart-Recovery zuerst,
+danach Context-/Lifecycle-Freshness, danach Operating Mode Discovery, erst dann
+normale Mission/Wave/Delivery oder Orientierung. Der installierte Claude SessionStart-Hook
+liefert einen read-only `restart-status`-Snapshot und cache-only Dependency Health.
+Ohne aktuellen Hook-Snapshot den installierten `framework_update_recovery.py restart-status`
+einmal selbst ausfuehren. Kein Update-Hinweis des Users ist erforderlich.
+
+Pending Update/Recovery: keine alte Wave anbieten und keine Delivery beginnen. Nur die
+notwendige echte Restart-Bestaetigung erfragen; danach Acknowledge, explizite Contract-Re-Reads,
+Doctor und Re-Sync autonom ueber den bestehenden Recovery-Vertrag. Ein Hook/Compaction-Event
+ist keine Restart-Attestation. PARTIAL_UPDATE oder invalid state verlangt den konkreten
+Recovery-/Inspect-Pfad, keine generische Modusfrage. Context Mode Update-Verfuegbarkeit ist
+kein Delivery-Blocker; faellige externe Versionschecks folgen Recovery (24h Cache).
+
+## ORIENTATION Check (vor FRAMEWORK_CHANGE, nach SessionStart-Checks)
 
 **Vor dem FRAMEWORK_CHANGE-Check** den User-Request auf Orientierungsanfragen pruefen.
 
@@ -106,35 +122,13 @@ Beim Starten in einem bestehenden Projekt oder nach einer Session-Pause:
 den Lifecycle-Zustand aus Repository-Artefakten rekonstruieren, BEVOR Lifecycle-Arbeit
 fortgesetzt wird. Vollstaendiger Algorithmus: `policies/lifecycle-resync.md`.
 
-### Schritt 1 — Betriebsmodus ermitteln (PFLICHT, vor Lifecycle-Arbeit)
+### Schritt 0 — Pending Framework-Recovery
 
-Der Betriebsmodus MUSS vor Toolauswahl oder einer Rueckfrage ueber den bestehenden C2-Resolver
-ermittelt werden:
+Den aktuellen SessionStart-Snapshot konsumieren oder `restart-status` einmal ausfuehren.
+Recovery vor allen folgenden Schritten abschliessen; siehe `policies/lifecycle-resync.md`.
+READY ist Recovery-Abschluss, keine Delivery-Autorisierung.
 
-```powershell
-& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -ResolveOperatingMode -Format json -StudioProProjectPath <mpr>
-```
-
-Das Ergebnis `operating_mode` und `tool_authority` ist verbindlich. Keine zweite Detector-
-Ausfuehrung und keine agentenseitige Rekonstruktion aus Prozessfeldern. Bei `AMBIGUOUS-SP-STATE`
-safe non-model work fortsetzen; gezielt erst dann fragen, wenn eine konkrete Modellmutation
-am Mutation Boundary blockiert ist. Bei eindeutigen C2-Ergebnissen: KEINE Rueckfrage.
-`tool_authority.user_interaction` ist fuer den Dialog verbindlich: `mode_choice_required: false`
-bedeutet, keinen CLOSED-AUTONOM/LIVE-SP/Other-Auswahldialog und keine als "Recommended"
-formulierte Modusbestaetigung anzuzeigen. Bei `question_policy: NONE` die erkannte Route direkt
-verwenden. Bei `MUTATION_BOUNDARY_AFTER_RECHECK` safe Arbeit fortsetzen und nur bei weiterhin
-blockierender Ambiguitaet an der konkreten Modellmutation eine praezise Rueckfrage stellen.
-Vollvertrag: `policies/operating-mode.md`.
-
-### Schritt 1b — Toolroute fuer Mendix-Operationen
-
-Keine zweite Mode-Ermittlung. Vor einer Modelloperation den aktuellen `tool_authority`-Block
-aus C2 konsumieren, einschliesslich `user_interaction`; die Moduswahl ist bei eindeutigen
-Ergebnissen abgeschlossen und wird nicht erneut an den Nutzer delegiert. C2 sperrt LIVE-SP-CURRENT bei fehlender MCP-Probe/Projektbindung, markiert
-MCP-Identitaetskonflikte als `AMBIGUOUS-SP-STATE`, und erlaubt mxcli bei CLOSED-AUTONOM nur als
-Kandidat. C1 loest danach separat die Runtime-Binary/Recipe auf.
-
-### Schritt 2 — Lifecycle-Zustand rekonstruieren
+### Schritt 1 — Context-/Lifecycle-Freshness rekonstruieren
 
 Quellen in Autoritaetsreihenfolge:
 1. Repository-Artefakte (Checkliste, Story-Specs, Decisions, Input-Resources)
@@ -156,6 +150,28 @@ automatisch ausstehende Arbeit. Vor jeder Schlussfolgerung ueber historische Wav
 Legacy-Completion-Reconciliation anwenden (`policies/legacy-completion-reconciliation.md`).
 Eine Wave kann `VERIFIED_LEGACY_STATE` sein und als abgeschlossen gelten, ohne dass
 Implementierung oder Verifikation unter dem aktuellen Protokoll wiederholt wird.
+
+### Schritt 2 — Operating Mode Discovery (vor Toolroute, nach Recovery/Freshness)
+
+Einmal den bestehenden C2-Resolver nutzen:
+
+```powershell
+& ./.mxagile/tools/Get-MxAgileCapabilities.ps1 -ResolveOperatingMode -Format json -StudioProProjectPath <mpr>
+```
+
+`operating_mode`, `tool_authority` und insbesondere `tool_authority.user_interaction` sind verbindlich. C2 verwendet
+Prozess-/Projektbindung und bestehende Lock-/Hostsignale; MCP Availability/Health/Projektidentitaet
+nur nach erfolgreicher aktueller read-only Probe einreichen. Keine zweite Detector-Logik,
+kein behauptetes MCP-Health aus Configuration. `mode_choice_required: false` / `question_policy: NONE`:
+KEINE Modus-Rueckfrage bei eindeutigem CLOSED-AUTONOM; kein CLOSED-AUTONOM/LIVE-SP/Other-Menue
+und keine Modusbestaetigung, auch nicht als "Recommended".
+Bei `AMBIGUOUS-SP-STATE` sichere Non-Model-Arbeit fortsetzen. Nur bei weiterhin blockierender
+Ambiguitaet nach Recheck an der konkreten Modellmutation fragen (`MUTATION_BOUNDARY_AFTER_RECHECK`).
+Vollvertrag: `policies/operating-mode.md`.
+
+C2 sperrt LIVE-SP-CURRENT ohne aktuelle MCP-Probe/Projektbindung; Konflikte bleiben AMBIGUOUS.
+mxcli ist bei CLOSED-AUTONOM nur erlaubt, nicht automatisch verfuegbar. C1 loest Binary/Recipe
+separat auf. Tool Availability erteilt keine Mission/Wave/Write-Authority.
 
 **Orientierung bei frisch initialisiertem oder adoptiertem Projekt:**
 Falls nach Startup Re-Sync kein Lifecycle-Zustand vorhanden ist (kein

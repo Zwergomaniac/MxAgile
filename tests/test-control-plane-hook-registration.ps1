@@ -40,6 +40,9 @@ try {
     $groups = Get-Groups $fresh
     Assert-True ($groups.Count -eq 1 -and (Test-Owned $groups[0])) 'fresh settings: single MxAgile group'
     Assert-True ($groups[0].hooks[0].command.Contains('|| exit 2')) 'adapter command fails closed (exit 2)'
+    $startup = @((Get-Content -LiteralPath $fresh -Raw | ConvertFrom-Json).hooks.SessionStart)
+    Assert-True ($startup.Count -eq 1 -and $startup[0].hooks[0].command.Contains('framework_update_recovery.py') -and $startup[0].hooks[0].command.Contains('session-start')) 'fresh settings: canonical read-only recovery SessionStart installed'
+    Assert-True ($startup[0].hooks[0].timeout -le 15 -and -not $startup[0].hooks[0].command.Contains('--check-updates')) 'SessionStart bounded, no synchronous external version check'
     $run = Invoke-Register $fresh
     Assert-True ($run.Result.status -eq 'CURRENT' -and $run.Result.detail -eq 'unchanged') 'rerun is idempotent (CURRENT, unchanged)'
     Assert-True ((Get-Groups $fresh).Count -eq 1) 'rerun creates no duplicate'
@@ -47,7 +50,7 @@ try {
     # Foreign hooks and unrelated settings are preserved; MxAgile group is placed first.
     $foreignPath = Join-Path $root 'foreign/.claude/settings.json'
     New-Item -ItemType Directory -Path (Split-Path -Parent $foreignPath) -Force | Out-Null
-    $foreignJson = '{"permissions":{"allow":["Bash(git status)"]},"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"foreign-check"}]}],"PostToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"post"}]}]}}'
+    $foreignJson = '{"permissions":{"allow":["Bash(git status)"]},"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"foreign-check"}]}],"PostToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"post"}]}],"SessionStart":[{"hooks":[{"type":"command","command":"foreign-startup"}]}]}}'
     Set-Content -LiteralPath $foreignPath -Value $foreignJson -NoNewline
     $run = Invoke-Register $foreignPath
     $settings = Get-Content -LiteralPath $foreignPath -Raw | ConvertFrom-Json
@@ -55,6 +58,7 @@ try {
     Assert-True ($run.Result.status -eq 'REGISTERED') 'foreign hooks: REGISTERED'
     Assert-True ($groups.Count -eq 2 -and (Test-Owned $groups[0]) -and $groups[1].hooks[0].command -eq 'foreign-check') 'MxAgile first, foreign group preserved'
     Assert-True ($settings.permissions.allow[0] -eq 'Bash(git status)' -and $settings.hooks.PostToolUse[0].hooks[0].command -eq 'post') 'unrelated settings preserved'
+    Assert-True (@($settings.hooks.SessionStart).Count -eq 2 -and $settings.hooks.SessionStart[1].hooks[0].command -eq 'foreign-startup') 'recovery SessionStart first, foreign startup hook preserved'
 
     # An outdated MxAgile entry in a later position is replaced and moved first.
     $stalePath = Join-Path $root 'stale/.claude/settings.json'
@@ -70,6 +74,8 @@ try {
         'invalid JSON' = '{"hooks": '
         'mixed group' = ('{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"python ' + $marker + '"},{"type":"command","command":"foreign"}]}]}}')
         'PreToolUse not array' = '{"hooks":{"PreToolUse":{"matcher":"*"}}}'
+        'SessionStart not array' = '{"hooks":{"SessionStart":{"matcher":"*"}}}'
+        'mixed SessionStart group' = '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"python .mxagile/tools/framework_update_recovery.py session-start"},{"type":"command","command":"foreign-startup"}]}]}}'
     }
     foreach ($case in $unknownCases.GetEnumerator()) {
         $path = Join-Path $root "unknown-$([guid]::NewGuid().ToString('N'))/settings.json"
@@ -84,6 +90,8 @@ try {
     $run = Invoke-Register $foreignPath -Remove
     $groups = Get-Groups $foreignPath
     Assert-True ($run.Result.status -eq 'REMOVED' -and $groups.Count -eq 1 -and -not (Test-Owned $groups[0])) 'remove keeps foreign group only'
+    $startup = @((Get-Content -LiteralPath $foreignPath -Raw | ConvertFrom-Json).hooks.SessionStart)
+    Assert-True ($startup.Count -eq 1 -and $startup[0].hooks[0].command -eq 'foreign-startup') 'remove preserves foreign SessionStart only'
     $run = Invoke-Register $foreignPath -Remove
     Assert-True ($run.Result.status -eq 'NOT_REGISTERED') 'second remove: NOT_REGISTERED'
 } finally {

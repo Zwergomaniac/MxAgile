@@ -75,7 +75,7 @@ $OriginalPath = $env:PATH
 
 function Invoke-Cm {
     param($Fx, [string]$Harness, [string]$Health = 'unknown', [bool]$WithBinary = $false, [switch]$Raw,
-        [switch]$ToolsObserved, [switch]$HooksRequired, [switch]$Unattested, [string]$RuntimeHarness = '',
+        [switch]$ToolsObserved, [switch]$HooksRequired, [switch]$Unattested, [switch]$NoExecutionProof, [string]$RuntimeHarness = '',
         [string[]]$Tools = @(), [string[]]$RequiredTools = @())
     $savedEnv = @{}
     foreach ($n in 'MXAGILE_HARNESS', 'CLAUDECODE', 'OPENCODE_SESSION_ID', 'OPENCODE_BASE_URL', 'COPILOT_HOME') {
@@ -97,6 +97,10 @@ function Invoke-Cm {
         }
         if ($HooksRequired) { $resolverArgs.ContextModeHooksRequired = $true }
         if ($RequiredTools.Count -gt 0) { $resolverArgs.ContextModeRequiredTools = $RequiredTools }
+        # Successful fixtures supply synthetic current same-operation execution evidence.
+        if ($ToolsObserved -and $Health -eq 'healthy' -and -not $NoExecutionProof) {
+            $resolverArgs.ContextModeExecutableTools = @($RequiredTools | Where-Object { $_ -in $Tools })
+        }
         $out = & $Resolver @resolverArgs 2>&1
         $code = $LASTEXITCODE
         if ($Raw) { return @{ Code = $code; Out = $out } }
@@ -191,6 +195,9 @@ $r = Invoke-Cm $fx 'claude_code' -Health 'timeout' -ToolsObserved -Tools @('ctx_
 Assert-True '11. timeout -> loaded_unhealthy, degraded, not active' ($r.Cap.integration.status -eq 'loaded_unhealthy' -and $r.Cap.state.degraded -eq $true -and $r.Cap.state.active -eq $false) "status=$($r.Cap.integration.status)"
 Assert-True '11. timeout: resolver still exit 0, fallback non-blocking, lifecycle active' ($r.Code -eq 0 -and $r.Cap.integration.fallback.blocks_mxagile -eq $false -and $r.Lifecycle.state.active -eq $true) 'MxAgile blocked'
 Assert-True '11. timeout guidance mentions doctor' (($r.Cap.integration.guidance -join ' ') -match 'ctx-doctor|doctor') ($r.Cap.integration.guidance -join '|')
+$unprobed = Invoke-Cm $fx 'claude_code' -Health 'healthy' -ToolsObserved -Tools @('ctx_doctor', 'ctx_execute') -RequiredTools @('ctx_execute') -NoExecutionProof
+Assert-True '4d. healthy ctx_doctor does not prove ctx_execute executable' ($unprobed.Cap.integration.usable -eq $false -and $unprobed.Cap.integration.dependency_health.health_status -eq 'CAPABILITY_DEGRADED' -and $null -eq $unprobed.Cap.integration.dependency_health.executable) "status=$($unprobed.Cap.integration.status)"
+
 $r = Invoke-Cm $fx 'claude_code' -Health 'healthy' -ToolsObserved -Tools @('ctx_doctor', 'ctx_execute_file') -RequiredTools @('ctx_execute_file')
 Assert-True '4. healthy + enabled -> usable and active' ($r.Cap.integration.status -eq 'healthy' -and $r.Cap.integration.usable -eq $true -and $r.Cap.state.active -eq $true) "status=$($r.Cap.integration.status) active=$($r.Cap.state.active)"
 Assert-True '4. load and health evidence are session-scoped' ($r.Cap.integration.load_source -eq 'agent_observed_tool_namespace' -and $r.Cap.integration.health_source -eq 'agent_observed_session_probe') "$($r.Cap.integration.load_source)|$($r.Cap.integration.health_source)"

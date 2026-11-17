@@ -155,6 +155,19 @@ Assert-FileContains "inject script: invocation uses only discovered current-sess
 Assert-FileContains "inject script: every route decision is persisted before analysis" `
     $injectScriptPath 'persist the routing decision before analysis'
 
+Assert-True 'startup router: greeting cannot skip recovery' ($startupBlockText -match 'Every SessionStart, even "hi"') 'Greeting path must run the startup recovery check'
+$recoveryOffset = $startupBlockText.IndexOf('restart-status', [System.StringComparison]::Ordinal)
+$freshnessOffset = $startupBlockText.IndexOf('Lifecycle Re-Sync FIRST', [System.StringComparison]::Ordinal)
+$modeOffset = $startupBlockText.IndexOf('-ResolveOperatingMode', [System.StringComparison]::Ordinal)
+Assert-True 'startup router: recovery before freshness before mode discovery' `
+    ($recoveryOffset -ge 0 -and $freshnessOffset -gt $recoveryOffset -and $modeOffset -gt $freshnessOffset) 'Startup stages out of order'
+Assert-True 'startup router: dependency health is cache-only, not a startup network check' `
+    ($startupBlockText -match 'Context Mode startup check\s+is cache-only' -and $startupBlockText -match 'Update available is not a Delivery blocker') 'Dependency startup/release semantics absent'
+$orchestrator = Get-Content -LiteralPath (Join-Path $ScriptDir '.mxagile\orchestrator.md') -Raw
+Assert-True 'orchestrator: recovery and freshness precede operating-mode step' `
+    ($orchestrator.IndexOf('Schritt 0 — Pending Framework-Recovery') -lt $orchestrator.IndexOf('Schritt 1 — Context-/Lifecycle-Freshness') -and
+     $orchestrator.IndexOf('Schritt 1 — Context-/Lifecycle-Freshness') -lt $orchestrator.IndexOf('Schritt 2 — Operating Mode Discovery')) 'Narrative startup conflicts with injected router'
+
 $startupContent = Get-Content -LiteralPath $injectScriptPath -Raw
 $toolGateOffset = $startupContent.IndexOf('Before any CLI/MCP/tool command or external/tool-provided skill', [System.StringComparison]::Ordinal)
 $brainOffset = $startupContent.IndexOf('**Project Brain after Re-Sync**', [System.StringComparison]::Ordinal)
@@ -313,6 +326,12 @@ if ($wsExists) {
 
     Assert-FileContains "ws CLAUDE.md: mandatory bounded-semantic routing gate" `
         $wsClaudePath 'Mandatory bounded-semantic routing gate'
+
+    foreach ($entry in @($wsClaudePath, $wsAgentsPath, $wsCopilotPath, $wsSkillsAgentsPath)) {
+        $content = Get-Content -LiteralPath $entry -Raw
+        Assert-True "installed entrypoint: greeting/recovery priority $entry" `
+            ($content.IndexOf('restart-status') -ge 0 -and $content.IndexOf('restart-status') -lt $content.IndexOf('-ResolveOperatingMode') -and $content -match 'No old Wave offer/Delivery before completion') 'Generated startup route is absent or out of order'
+    }
 
     # AGENTS.md
     Assert-FileContains "ws AGENTS.md: startup routing present" `

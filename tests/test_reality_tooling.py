@@ -8,10 +8,218 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
+import sys
+from datetime import datetime, timedelta, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import dependency_health
 RESOLVER = ROOT / 'scripts' / 'Get-MxAgileCapabilities.ps1'
 WRITER = ROOT / 'scripts' / 'Write-MxAgileEpochCheckpoint.ps1'
+
+
+class DependencyHealthTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture = tempfile.TemporaryDirectory(prefix='mxagile-dependency-health-')
+        self.root = Path(self.fixture.name)
+        self.now = datetime(2026, 11, 17, tzinfo=timezone.utc)
+        self.dependency = {'id': 'context_mode', 'npm_package': 'context-mode', 'version_constraint': '>=1.0.33'}
+        self.observation = {'installed': True, 'installed_version': '2.2.0', 'executable': True,
+                            'required_capabilities': ['ctx_execute'],
+                            'capabilities_discoverable': {'ctx_execute': True}}
+        self.update = {'latest_known_version': '2.2.0', 'last_update_check': self.now.isoformat(),
+                       'update_check_status': 'FRESH', 'update_check_due': False}
+
+    def tearDown(self):
+        self.fixture.cleanup()
+
+    def test_current_and_executable_is_healthy(self):
+        result = dependency_health.assess(self.dependency, self.observation, self.update)
+        self.assertEqual(result['health_status'], 'HEALTHY')
+        self.assertTrue(result['route_allowed'])
+        self.assertFalse(result['blocking'])
+
+    def test_available_update_is_warning_not_delivery_blocker(self):
+        observation = {**self.observation, 'installed_version': '1.0.169'}
+        result = dependency_health.assess(self.dependency, observation, self.update)
+        self.assertEqual(result['health_status'], 'UPDATE_AVAILABLE')
+        self.assertEqual(result['severity'], 'WARNING')
+        self.assertTrue(result['compatible'])
+        self.assertTrue(result['route_allowed'])
+        self.assertFalse(result['blocking'])
+        self.assertEqual(result['automatic_action'], 'none')
+
+    def test_required_tool_missing_or_not_executable_cannot_be_a_routing_recovery(self):
+        for change in ({'capabilities_discoverable': {'ctx_execute': False}}, {'executable': False},
+                       {'capabilities_discoverable': {'ctx_execute': None}}, {'executable': None}):
+            with self.subTest(change=change):
+                result = dependency_health.assess(self.dependency, {**self.observation, **change}, self.update)
+                self.assertEqual(result['health_status'], 'CAPABILITY_DEGRADED')
+                self.assertFalse(result['route_allowed'])
+                self.assertFalse(result['blocking'])
+                self.assertTrue(result['recovery_hint'])
+
+    def test_known_incompatible_required_contract_is_blocked_not_merely_outdated(self):
+        result = dependency_health.assess(self.dependency,
+            {**self.observation, 'installed_version': '1.0.32'}, self.update)
+        self.assertEqual(result['health_status'], 'INCOMPATIBLE')
+        self.assertTrue(result['blocking'])
+        self.assertFalse(result['route_allowed'])
+        self.assertEqual(result['automatic_action'], 'none')
+        optional = dependency_health.assess(self.dependency,
+            {**self.observation, 'installed': False, 'required_capabilities': []}, self.update)
+        self.assertEqual(optional['health_status'], 'INFO')
+        self.assertFalse(optional['blocking'])
+
+    def test_update_ttl_suppresses_repeated_external_checks_and_allows_expired_check(self):
+        fetch = mock.Mock(return_value='2.2.0')
+        first = dependency_health.latest(self.root, self.dependency, now=self.now, fetcher=fetch)
+        cached = dependency_health.latest(self.root, self.dependency, now=self.now + timedelta(hours=23), fetcher=fetch)
+        self.assertEqual(first['latest_known_version'], cached['latest_known_version'])
+        self.assertEqual(fetch.call_count, 1)
+        dependency_health.latest(self.root, self.dependency, now=self.now + timedelta(hours=24), fetcher=fetch)
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_inflight_check_lease_prevents_a_second_external_request(self):
+        other = mock.Mock(return_value='2.2.0')
+        def fetch(_):
+            concurrent = dependency_health.latest(self.root, self.dependency, now=self.now, fetcher=other)
+            self.assertFalse(concurrent['update_check_due'])
+            return '2.2.0'
+        result = dependency_health.latest(self.root, self.dependency, now=self.now, fetcher=fetch)
+        self.assertEqual(result['update_check_status'], 'FRESH')
+        other.assert_not_called()
+
+    def test_offline_update_check_preserves_known_version_as_stale_not_up_to_date(self):
+        dependency_health.latest(self.root, self.dependency, now=self.now, fetcher=lambda _: '2.2.0')
+        fetch = mock.Mock(side_effect=OSError('offline'))
+        result = dependency_health.latest(self.root, self.dependency,
+            now=self.now + timedelta(hours=25), fetcher=fetch)
+        self.assertEqual(result['latest_known_version'], '2.2.0')
+        self.assertEqual(result['update_check_status'], 'STALE')
+        health = dependency_health.assess(self.dependency, self.observation, result)
+        self.assertIsNone(health['update_available'])
+        self.assertEqual(health['health_status'], 'STALE')
+        dependency_health.latest(self.root, self.dependency, now=self.now + timedelta(hours=26), fetcher=fetch)
+        self.assertEqual(fetch.call_count, 1)
+        empty = dependency_health.latest(self.root / 'empty', self.dependency,
+            now=self.now, fetcher=mock.Mock(side_effect=OSError('offline')))
+        self.assertEqual(empty['update_check_status'], 'UNKNOWN')
+
+    def test_invalid_release_response_preserves_stale_evidence(self):
+        dependency_health.latest(self.root, self.dependency, now=self.now, fetcher=lambda _: '2.2.0')
+        with mock.patch.object(dependency_health, 'urlopen') as request:
+            request.return_value.__enter__.return_value.read.return_value = b'[]'
+            result = dependency_health.latest(self.root, self.dependency, now=self.now + timedelta(hours=25))
+        self.assertEqual(result['latest_known_version'], '2.2.0')
+        self.assertEqual(result['update_check_status'], 'STALE')
+        self.assertIsNone(dependency_health.assess(self.dependency, self.observation, result)['update_available'])
+
+    def test_session_start_reads_cache_without_network_or_assuming_tool_loading(self):
+        (self.root / '.mxagile').mkdir()
+        (self.root / '.mxagile/config.yaml').write_text('context_optimization:\n  context_mode:\n    enabled: true\n')
+        with mock.patch.object(dependency_health, 'fetch_latest', side_effect=AssertionError('No startup network')):
+            result = dependency_health.context_mode(self.root, home=self.root / 'isolated-home', check_updates=False)
+        self.assertEqual(result['health_status'], 'CAPABILITY_DEGRADED')
+        self.assertFalse(result['route_allowed'])
+        self.assertIsNone(result['capabilities_discoverable']['ctx_execute'])
+        self.assertTrue(result['update_check_due'])
+
+
+class DependencyHealthIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture = tempfile.TemporaryDirectory(prefix='mxagile-dependency-integration-')
+        self.root = Path(self.fixture.name)
+        self.home = self.root / 'isolated-home'
+        self.write('.mxagile/config.yaml', 'context_optimization:\n  context_mode:\n    enabled: true\n')
+        shutil.copyfile(ROOT / '.mxagile/capabilities.yaml', self.root / '.mxagile/capabilities.yaml')
+        shutil.copytree(ROOT / '.mxagile/adapters', self.root / '.mxagile/adapters')
+        self.write('isolated-home/.claude/settings.json', json.dumps({'enabledPlugins': {'context-mode@context-mode': True}}))
+        self.install('1.0.169')
+        dependency_health.latest(self.root, {'id': 'context_mode'}, fetcher=lambda _: '2.2.0')
+
+    def tearDown(self):
+        self.fixture.cleanup()
+
+    def write(self, relative, value):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value, encoding='utf-8')
+        return path
+
+    def install(self, version):
+        package = self.write('plugin/package.json', json.dumps({'name': 'context-mode', 'version': version}))
+        self.write('isolated-home/.claude/plugins/installed_plugins.json', json.dumps({'plugins': {
+            'context-mode@context-mode': [{'scope': 'user', 'installPath': str(package.parent), 'version': version}]}}))
+
+    def snapshot(self):
+        return {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+
+    def test_doctor_metadata_is_read_only_and_distinguishes_warning_from_incompatibility(self):
+        import build_project_status
+        before = self.snapshot()
+        with mock.patch.object(Path, 'home', return_value=self.home), mock.patch.object(
+                dependency_health, 'fetch_latest', side_effect=AssertionError('Doctor must stay offline')):
+            report = build_project_status.build_status(self.root)['compatibility']
+        dependency = report['dependency_health'][0]
+        self.assertEqual(dependency['installed_version'], '1.0.169')
+        self.assertTrue(dependency['update_available'])
+        self.assertFalse(dependency['blocking'])
+        self.assertIsNone(dependency['executable'])
+        self.assertEqual(before, self.snapshot())
+        self.install('1.0.32')
+        with mock.patch.object(Path, 'home', return_value=self.home), mock.patch.object(dependency_health.shutil, 'which', return_value=None):
+            report = build_project_status.build_status(self.root)['compatibility']
+        diagnostics = [item for item in report['diagnostics'] if item['category'] == 'DEPENDENCY_INCOMPATIBLE']
+        self.assertEqual(len(diagnostics), 1)
+        self.assertTrue(diagnostics[0]['blocking'])
+
+    def test_operation_probe_not_doctor_alone_proves_execution_and_is_not_cached(self):
+        options = {'home': self.home, 'tools': ['ctx_doctor', 'ctx_execute'], 'health': 'healthy'}
+        before = self.snapshot()
+        unprobed = dependency_health.context_mode(self.root, **options)
+        self.assertEqual(unprobed['health_status'], 'CAPABILITY_DEGRADED')
+        self.assertIsNone(unprobed['executable'])
+        verified = dependency_health.context_mode(self.root, **options, executed_tools=['ctx_execute'])
+        self.assertEqual(verified['health_status'], 'UPDATE_AVAILABLE')
+        self.assertTrue(verified['route_allowed'])
+        next_session = dependency_health.context_mode(self.root, home=self.home, executed_tools=['ctx_execute'])
+        self.assertFalse(next_session['route_allowed'])
+        self.assertIsNone(next_session['executable'])
+        self.assertEqual(before, self.snapshot())
+
+    def test_real_resolver_exposes_update_without_blocking_verified_operations(self):
+        def quote(value):
+            return "'" + str(value).replace("'", "''") + "'"
+        command = (f'& {quote(RESOLVER)} -ProjectRoot {quote(self.root)} -HomeDir {quote(self.home)} -Format json '
+                   "-ContextModeToolsObserved -ContextModeTools @('ctx_doctor','ctx_execute') "
+                   "-ContextModeRequiredTools ctx_execute -ContextModeHealth healthy")
+        env = os.environ.copy()
+        env['MXAGILE_HARNESS'] = 'claude_code'
+        env['CLAUDECODE'] = '1'
+        for key in ('OPENCODE_SESSION_ID', 'OPENCODE_BASE_URL'):
+            env.pop(key, None)
+        before = self.snapshot()
+        for proof, expected in (('', 'CAPABILITY_DEGRADED'), (' -ContextModeExecutableTools ctx_execute', 'UPDATE_AVAILABLE')):
+            with self.subTest(proof=bool(proof)):
+                result = subprocess.run(['pwsh', '-NoProfile', '-Command', command + proof],
+                    env=env, capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                capability = next(item for item in json.loads(result.stdout)['capabilities'] if item['id'] == 'context_mode_integration')
+                health = capability['integration']['dependency_health']
+                self.assertEqual(health['health_status'], expected)
+                self.assertEqual(capability['integration']['usable'], bool(proof))
+                self.assertTrue(health['update_available'])
+                self.assertFalse(health['blocking'])
+        self.assertEqual(before, self.snapshot())
+
+    def test_bad_plugin_metadata_does_not_claim_absence_or_trigger_updates(self):
+        self.write('isolated-home/.claude/plugins/installed_plugins.json', 'invalid json')
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None):
+            report = dependency_health.context_mode(self.root, home=self.home, required_tools=[])
+        self.assertIsNone(report['installed'])
+        self.assertEqual(report['automatic_action'], 'none')
 
 
 class RealityToolingTests(unittest.TestCase):

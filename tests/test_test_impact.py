@@ -30,7 +30,7 @@ class ImpactTests(unittest.TestCase):
 
     def test_doctor_is_narrow(self):
         plan = impact.select(["scripts/project_compatibility.py"])
-        self.assertEqual(plan["suites"], ["test_control_plane_guard.py", "test_control_plane_phase1b.py", "test_control_plane_phase1d.py", "test_control_plane_phase2.py", "test_lifecycle_reality_contracts.py", "test_parity_gallery.py", "test_project_status.py"])
+        self.assertEqual(plan["suites"], ["test_control_plane_guard.py", "test_control_plane_phase1b.py", "test_control_plane_phase1d.py", "test_control_plane_phase2.py", "test_lifecycle_reality_contracts.py", "test_parity_gallery.py", "test_project_status.py", "test_reality_tooling.py"])
         self.assertEqual(plan["tier"], 1)
 
     def test_board_includes_consumers(self):

@@ -3,8 +3,8 @@
     Capability discovery routing + resolver distribution contract
 
 .DESCRIPTION
-    Static: the startup routing rule is short, generic, lazy and does not explain Context Mode;
-    nothing in install/startup scripts invokes the resolver.
+    Static: startup uses a short cache-only Context Mode dependency exception;
+    other optional capabilities stay lazy. Install/startup scripts never invoke the full resolver.
     E2E (GUID temp project, real install-core.ps1): fresh install and existing-project update
     distribute .mxagile/tools/Get-MxAgileCapabilities.ps1 and
     .mxagile/tools/check-studio-pro-status.ps1; the installed resolver is reachable,
@@ -75,14 +75,14 @@ $inject = Get-Content (Join-Path $Scripts 'apply-project-agent-instructions.ps1'
 $m = [regex]::Match($inject, '(?s)\$MxAgileStartupBlock = @''\r?\n(.*?)\r?\n''@')
 Assert-True 'startup block extractable' $m.Success 'block not found'
 $block = $m.Groups[1].Value
-$rule = [regex]::Match($block, '(?s)7\. \*\*Optional capabilities.*?(?=\r?\n\r?\n(?:8\.|Detailed policy))').Value
+$rule = [regex]::Match($block, '(?s)7\. \*\*Dependency health.*?(?=\r?\n8\.)').Value
 Assert-True 'rule 7 present and routes to capability-discovery policy' ($rule -match 'capability-discovery\.md') 'rule/policy ref missing'
-Assert-True 'rule is lazy: on demand, never at startup' (($rule -match 'on demand') -and ($rule -match 'never at startup')) $rule
-Assert-True 'rule states installed != usable, no invented health, non-blocking' (($rule -match 'Installed does not mean usable') -and ($rule -match 'never assume health') -and ($rule -match 'never blocks')) $rule
-Assert-True 'rule queries only the relevant capability' ($rule -match 'only that capability') $rule
+Assert-True 'other optional capabilities stay lazy, not startup' ($rule -match 'Optional capabilities: on demand only, not startup') $rule
+Assert-True 'required tools need current discovery/execution, available update is non-blocking' (($rule -match 'without current discovery/executable evidence') -and ($rule -match 'not a Delivery blocker')) $rule
+Assert-True 'dependency startup exception is cache-only and external checks follow recovery' (($rule -match 'cache-only') -and ($rule -match 'external checks after recovery') -and ($rule -match '24h TTL')) $rule
 Assert-True 'rule is short (<= 6 lines)' (($rule -split "`n").Count -le 6) "lines=$(($rule -split "`n").Count)"
-Assert-True 'always-on block does not explain Context Mode' ($block -notmatch '(?i)context[- _]mode|ctx_') 'Context Mode leaked into always-on text'
-Assert-True 'no "run at every startup" instruction' ($block -notmatch '(?i)every (start|session)|at startup.*Get-MxAgile|run capability discovery') 'startup probe instruction'
+Assert-True 'Context Mode explanation stays within narrow dependency exception' ($block.Replace($rule, '') -notmatch '(?i)context[- _]mode|ctx_') 'Context Mode leaked outside dependency rule'
+Assert-True 'startup does not demand a full capability scan' ($block -notmatch '(?i)at startup.*Get-MxAgile|run capability discovery') 'full startup discovery instruction'
 Assert-True 'update requests route to mandatory Doctor completion contract' (($block -match 'update-contract\.md') -and ($block -match 'without another question') -and ($block -match 'last-update-result\.json') -and ($block -match 'NOT_VERIFIED')) 'update completion routing missing'
 
 # nothing in installer/startup scripts invokes the resolver
@@ -167,7 +167,7 @@ foreach ($f in 'AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md') {
     $p = Join-Path $proj $f
     if (Test-Path $p) {
         $t = Get-Content $p -Raw
-        Assert-True "$f carries rule 7 without Context Mode text" (($t -match 'Optional capabilities, on demand only') -and ($t -notmatch '(?i)context-mode')) 'rule missing or leaked'
+        Assert-True "$f carries cache-only dependency exception and lazy optional capabilities" (($t -match 'Dependency health') -and ($t -match 'cache-only') -and ($t -match 'Optional capabilities: on demand only, not startup')) 'dependency scope missing'
         Assert-True "$f routes update completion to compatibility contract" (($t -match 'update-contract\.md') -and ($t -match 'last-update-result\.json')) 'update route missing'
     }
 }
@@ -220,7 +220,7 @@ try {
 
 # --- E2E: existing-project update + idempotence ---------------------------------------------
 Write-Host "--- Existing project update ---" -ForegroundColor Yellow
-$oldSessionInstructions = $block -replace '(?s)8\. \*\*Install/update.*?(?=\r?\n9\. \*\*Finding-linked work)', "8. MxAgile update: compare installed commit with upstream.`n`n"
+$oldSessionInstructions = $block -replace '(?s)8\. \*\*Install/update.*?(?=\r?\n9\. \*\*Findings)', "8. MxAgile update: compare installed commit with upstream.`n`n"
 Set-Content $tool '# tampered' -Encoding UTF8
 Set-Content $detector '# tampered' -Encoding UTF8
 Set-Content $statusBuilder '# tampered' -Encoding UTF8
@@ -281,7 +281,7 @@ Assert-True 'U7 repeated update reruns Doctor deterministically without project 
 $repeatedGitignore = Get-Content $projectGitignore -Raw
 Assert-True 'repeated update does not duplicate Context Mode ignore entries' ((([regex]::Matches($repeatedGitignore, '(?m)^\.context-mode/\r?$')).Count -eq 1) -and (([regex]::Matches($repeatedGitignore, '(?m)^\.github/context-mode/\r?$')).Count -eq 1)) 'ignore entries duplicated'
 $agents = Get-Content (Join-Path $proj 'AGENTS.md') -Raw
-Assert-True 'repeated update does not duplicate rule 7' (([regex]::Matches($agents, 'Optional capabilities, on demand only')).Count -eq 1) 'rule duplicated'
+Assert-True 'repeated update does not duplicate rule 7' (([regex]::Matches($agents, '7\. \*\*Dependency health')).Count -eq 1) 'rule duplicated'
 
 Write-Host '--- Post-update compatibility U1-U8 ---' -ForegroundColor Yellow
 foreach ($directory in @('planning/mission', 'planning/findings', 'planning/tasks', 'planning/checklists', 'specs', 'requirements')) {

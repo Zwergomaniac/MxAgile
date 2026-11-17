@@ -345,6 +345,23 @@ def _classify_segment(root: Path, segment: str) -> str:
             return HIGH_RISK_MUTATION
         return GIT_CLASSES.get(subcommand, HIGH_RISK_MUTATION)
     scripts = [a.replace('\\', '/').rsplit('/', 1)[-1] for a in args if a.endswith('.py')]
+    if head in {'python', 'python3', 'py'} and 'dependency_health.py' in scripts:
+        return UPDATE_DISCOVERY
+    if head in {'pwsh', 'powershell'} and len(args) >= 3 and [a.lower() for a in args[:2]] == ['-noprofile', '-file']:
+        script = Path(args[2])
+        tail = args[3:]
+        if (script.is_absolute() and script.resolve() == root / '.mxagile/tools/Get-MxAgileCapabilities.ps1'
+                and tail.count('-ResolveOperatingMode') == 1):
+            selectors = [a for a in tail if a != '-ResolveOperatingMode']
+            pairs = dict(zip(selectors[::2], selectors[1::2]))
+            if (len(selectors) % 2 == 0 and len(pairs) * 2 == len(selectors)
+                    and set(pairs) <= {'-ProjectRoot', '-Format', '-StudioProProjectPath'}
+                    and pairs.get('-Format') == 'json'
+                    and Path(pairs.get('-ProjectRoot', str(root))).resolve() == root
+                    and ('-StudioProProjectPath' not in pairs or (
+                        Path(pairs['-StudioProProjectPath']).is_absolute()
+                        and Path(pairs['-StudioProProjectPath']).resolve().is_relative_to(root)))):
+                return READ
     if head in {'python', 'python3', 'py'} and 'framework_update_recovery.py' in scripts:
         index = next(i for i, a in enumerate(args) if a.replace('\\', '/').rsplit('/', 1)[-1] == 'framework_update_recovery.py')
         return UPDATE_DISCOVERY if args[index + 1:index + 2] in (['check'], ['preflight']) else UPDATE_RECOVERY
@@ -561,7 +578,8 @@ def _controlled_update(facts, payload):
     if args[:1] == ['-B']:
         args = args[1:]
     tools = facts.root / '.mxagile/tools'
-    if not args or not Path(args[0]).is_absolute() or Path(args[0]).resolve() != tools / 'framework_update_recovery.py':
+    if not args or not Path(args[0]).is_absolute() or Path(args[0]).resolve() not in {
+            tools / 'framework_update_recovery.py', tools / 'dependency_health.py'}:
         return None
     from projection_io import safe_path
     expected = facts.core_provenance.get('recovery_tools')
@@ -575,6 +593,9 @@ def _controlled_update(facts, payload):
     actual[writer.name] = hashlib.sha256(writer.read_bytes()).hexdigest()
     if actual != expected:
         return None
+    if Path(args[0]).name == 'dependency_health.py':
+        from dependency_health import controlled_call as dependency_call
+        return dependency_call(facts.root, args[1:])
     return controlled_call(facts.root, args[1:])
 
 
@@ -816,7 +837,7 @@ def decide(project_root: str | Path, payload: dict[str, Any], *, evidence: HostB
                 recovery = _controlled_recovery(facts, payload)
                 if recovery:
                     op_class = {'human_resolution': HUMAN_RESOLUTION_WRITE, 'auxiliary_write': AUXILIARY_WRITE,
-                                'auxiliary_evidence_write': EVIDENCE_WRITE, 'update_discovery': UPDATE_DISCOVERY,
+                                'auxiliary_evidence_write': EVIDENCE_WRITE, 'update_discovery': UPDATE_DISCOVERY, 'dependency_health': UPDATE_DISCOVERY,
                                 'update_preflight': UPDATE_DISCOVERY, 'update_recovery': UPDATE_RECOVERY,
                                 'update_restart_acknowledgement': UPDATE_RECOVERY,
                                 'bounded_write_repair': CONTROLLED_MUTATION}.get(recovery, CONTROLLED_MUTATION)
