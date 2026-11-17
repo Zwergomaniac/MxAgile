@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import queue
 import shutil
 import tempfile
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from unittest import mock
 
@@ -408,6 +412,75 @@ class AuxiliaryScopeTests(Phase1BFixture):
         facts = enforcement.guard.load_project_facts(self.root)
         result = enforcement.guard.delivery_authorization(facts, enforcement.DELIVERY_WRITE)
         self.assertNotIn('AUXILIARY_INTERRUPTION_REQUIRES_RESYNC', {f['code'] for f in result['must_findings']})
+
+
+class ClaudeRuntimeDiscoveryTests(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get('MXAGILE_TEST_CLAUDE_EXECUTABLE'),
+                         'Requires an explicitly selected extension-bundled Claude runtime')
+    def test_generated_agent_is_in_native_initialization_inventory_without_a_model_prompt(self):
+        executable = Path(os.environ['MXAGILE_TEST_CLAUDE_EXECUTABLE'])
+        self.assertTrue(executable.is_file(), 'Configured Claude runtime is missing')
+        with tempfile.TemporaryDirectory(prefix='mxagile-native-discovery-') as directory:
+            root = Path(directory)
+            repo = GUARD_DIR.parents[1]
+            generated = subprocess.run(['pwsh', '-NoProfile', '-File',
+                str(repo / 'scripts/generate-mxagile-platform-skills.ps1'),
+                '-ProjectRoot', str(root), '-SourceRoot', str(repo / '.mxagile')],
+                capture_output=True, text=True, timeout=180)
+            self.assertEqual(generated.returncode, 0, generated.stdout + generated.stderr)
+            agents = self.initialization_agents(executable, root)
+            diagnostic = next((agent for agent in agents if agent.get('name') == 'mxagile-diagnostic-agent'), None)
+            self.assertIsNotNone(diagnostic, 'Generated diagnostic agent is absent from native initialization')
+            self.assertEqual(diagnostic.get('model'), 'sonnet')
+            (root / '.claude/agents/mxagile-diagnostic-agent.md').unlink()
+            self.assertNotIn('mxagile-diagnostic-agent',
+                             [agent.get('name') for agent in self.initialization_agents(executable, root)])
+
+    def initialization_agents(self, executable: Path, root: Path) -> list[dict]:
+        environment = {**os.environ, 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': '1',
+                       'DISABLE_TELEMETRY': '1', 'DISABLE_ERROR_REPORTING': '1'}
+        with subprocess.Popen([str(executable), '--print', '--input-format', 'stream-json',
+                '--output-format', 'stream-json', '--verbose', '--no-session-persistence',
+                '--setting-sources', 'project'], cwd=root, env=environment, stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                encoding='utf-8', errors='replace') as process:
+            responses = queue.Queue()
+            def collect():
+                for line in process.stdout:
+                    try:
+                        message = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if message.get('type') == 'control_response':
+                        responses.put(message)
+            reader = threading.Thread(target=collect, daemon=True)
+            reader.start()
+            try:
+                process.stdin.write(json.dumps({'type': 'control_request',
+                    'request_id': 'mxagile-discovery-probe', 'request': {'subtype': 'initialize'}}) + '\n')
+                process.stdin.flush()
+                deadline = time.monotonic() + 60
+                while time.monotonic() < deadline:
+                    try:
+                        response = responses.get(timeout=1).get('response', {})
+                    except queue.Empty:
+                        if process.poll() is not None:
+                            self.fail('Claude exited before providing its initialization inventory')
+                        continue
+                    self.assertEqual(response.get('subtype'), 'success', 'Claude initialization failed')
+                    agents = response.get('response', {}).get('agents')
+                    self.assertIsInstance(agents, list, 'Native initialization did not expose agent inventory')
+                    return agents
+                self.fail('Claude initialization inventory timed out')
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=10)
+                reader.join(timeout=5)
 
 
 class DiagnosticChildTests(Phase1BFixture):

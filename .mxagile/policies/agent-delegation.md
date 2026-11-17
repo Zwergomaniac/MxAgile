@@ -186,6 +186,25 @@ If still missing after that reload, report capability degradation/host limitatio
 than loop. If the host explicitly does not support named children, report `HOST_LIMITATION`;
 no unconstrained generic fallback is authorized by this diagnostic contract.
 
+For the locally inspected extension-bundled runtime 2.1.325, the SDK exposes
+`supportedAgents()` from the `agents` field of its native `initialize` response.
+This is an inventory interface, unlike `claude agents`, which manages background sessions
+in that runtime. Inventory from the current host query may feed capability discovery;
+agent filenames, a different process, or a disposable fixture must not be relabeled as
+current-session inventory. An isolated native initialization registered the generated
+`mxagile-diagnostic-agent` with `model: sonnet`, without a model prompt or child spawn.
+That establishes projection/discovery compatibility for the tested runtime, not live
+consumer registration, tool execution, or the actual child model. No extra project-agent
+manifest was needed in this probe; no extension reload was tested or inferred.
+
+The opt-in regression is `ClaudeRuntimeDiscoveryTests` in
+`tests/test_control_plane_phase1b.py`. Set `MXAGILE_TEST_CLAUDE_EXECUTABLE` explicitly to
+the actual extension-bundled executable. It generates a disposable projection, queries
+native initialization, and verifies that removing the definition removes its inventory
+entry. It sends no model prompt and creates no child. Project-only setting sources isolate
+the fixture; these test flags are not a consumer recovery recipe or evidence of the
+consumer's effective settings. An unavailable runtime skips this regression, never passes it.
+
 Sources: https://code.claude.com/docs/en/sub-agents (required frontmatter, project scope,
 watcher exceptions); https://code.claude.com/docs/en/vs-code (bundled CLI/version).
 The unchanged REV-037/REV-038 prompt must be rerun in the real host after registration;
