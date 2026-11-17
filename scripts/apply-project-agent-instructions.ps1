@@ -354,7 +354,7 @@ before commands. Git index guard precedes drift/mutations, never blocks contract
     do not run `git log` to infer delivery position.
     Pending `update-transaction.json` states `UPDATE_IN_PROGRESS`/`PARTIAL_UPDATE` block writes/delegation; follow recovery.
     Before implementation planning, delegation, or model write, validate Delivery Context. Tool availability/LIVE-SP is not authorization.
-2. **Operating Mode/tool authority after recovery/freshness** — Before any CLI/MCP/tool command or external/tool-provided skill,
+2. **Operating Mode/tool authority after step 1** — Before tools/skills,
     use current C2 `-ResolveOperatingMode` / `tool_authority.user_interaction`;
     do not show a CLOSED-AUTONOM / LIVE-SP / Other choice.
     Never choose by PATH or skill load order or fall back after LIVE-SP-CURRENT MCP failure.
@@ -367,10 +367,11 @@ before commands. Git index guard precedes drift/mutations, never blocks contract
     persist the routing decision before analysis. If required, MUST invoke that live harness tool
     with a bounded handoff, using the current session's discovered tool interface.
     No invented signatures or declaration-only spawns.
-7. **Dependency health** — `.mxagile/policies/capability-discovery.md`: Context Mode startup check
-    is cache-only; external checks after recovery (24h TTL). Never route to `ctx_execute`
-    without current discovery/executable evidence. Update available is not a Delivery blocker;
-    no automatic plugin update. Optional capabilities: on demand only, not startup.
+7. **Dependency health** — `.mxagile/policies/capability-discovery.md`: Context Mode check is cache-only.
+    After steps 0–1 MUST show summary (UNKNOWN/STALE); installed/required + check due:
+    bounded check (24h TTL), show result, or explicit unavailable.
+    `ctx_execute` needs current discovery/executable evidence. Update available is not a Delivery blocker;
+    no automatic plugin update. Optional tools on demand.
 8. **Install/update** — `.mxagile/policies/update-contract.md`. `last-update-result.json` historical;
     step 0 governs restart. Doctor without another question.
     CONTRACTS_RE_SYNCED requires re-reads, else NOT_VERIFIED.

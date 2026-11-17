@@ -192,7 +192,15 @@ The small generic assessment contract records:
 `installed`, `installed_version`, `executable`, `required_capabilities`,
 `capabilities_discoverable`, `compatible`, `latest_known_version`, `update_available`,
 `last_update_check`, `health_status`, plus `update_check_status`, `route_allowed`, `blocking`,
-`severity`, `recovery_hint` and `automatic_action`. Null means not observed; never infer
+`severity`, `recovery_hint` and `automatic_action`. The producer also records `check_execution`,
+`requirement_sources`, `version_source`, `versions_by_source`, `update_check_source`,
+`update_check_decision`, a compact `summary` and structured `next_actions`.
+After recovery/freshness and before offering project work, MUST show this summary, including
+UNKNOWN/STALE and NOT_OBSERVABLE discovery/execution. An UPDATE_AVAILABLE signal stays visible
+in the summary even when the primary health is CAPABILITY_DEGRADED; age alone never blocks Delivery.
+`recover-session` exposes fresh cache-only health separately from historical Doctor evidence;
+its READY, reconciliation and idempotent READY outputs must not drop the health report.
+Null means not observed; never infer
 executability from a PATH shim, package, enabled plugin or cached health. Live tool/probe
 observations are passed for this invocation only and never persisted as cross-session truth.
 A same-session successful `ctx_doctor` probe supplies adapter runtime evidence, NOT proof that
@@ -201,16 +209,34 @@ one bounded non-mutating same-operation probe; pass successful operations via
 `-ContextModeExecutableTools` / `--executed-tool`. These observations follow the existing
 current-session/generation/target evidence contract; reconnect invalidates them. A missing
 operation probe remains `executable: null`, `CAPABILITY_DEGRADED`, and cannot authorize routing.
-A failed/timeout runtime probe is not executable. Installed version comes from package/plugin metadata; conflicting versions remain
-unknown. A verified operation can remain usable with unknown version, but compatibility is
+A failed/timeout runtime probe is not executable. Installed version comes from package/plugin metadata, never a running-server attestation.
+For a resolved Claude host with an enabled Context Mode plugin declaration, bind it to that
+project's applicable registered plugin metadata; retain the global CLI's version as a separate
+source, not a conflicting version of the same installation. Conflicts within the selected
+source, or unresolved harness/source ambiguity, remain unknown. Claude declarations honor
+home, project and local settings overrides; they do NOT prove hooks/tools are loaded.
+At cold Claude startup an enabled plugin declaration can require checking `ctx_execute` even
+when Core context optimization is off. Record this as `claude_plugin_declaration`, not as live
+execution or permission to enable Core routing. A declaration-only route is conditional:
+`required_contract_active: false` cannot globally block unrelated Delivery, even with incompatible
+metadata; that route remains disallowed. Core-enabled or explicitly needed operations activate
+the version contract and known incompatibility blocks. Explicit task-required operations remain
+the operation-specific contract; a hook demanding `ctx_execute` requires that exact operation's proof. A verified operation can remain usable with unknown version, but compatibility is
 not called PASS; a known incompatible required version contract always blocks that route.
 
 Release metadata is cached per project/dependency in
 `.mxagile/state/runs/dependency-update-cache.json`. Standard TTL: 24 hours, including failed
 attempts. An exclusive lock and persisted attempt lease prevent duplicate concurrent checks.
 SessionStart/Doctor never query the network or write this cache. After recovery/freshness,
-a due check may use `python -B <absolute-root>/.mxagile/tools/dependency_health.py
---project-root <absolute-root> --check-updates`; the Core-bound hook authorizes only this
+a due installed/required dependency MUST receive one permitted bounded release check using
+`python -B <absolute-root>/.mxagile/tools/dependency_health.py --project-root <absolute-root>
+--check-updates`, then show the refreshed summary. If unavailable, network-forbidden, or denied
+by an actual hook requiring an unloaded tool, report UNKNOWN/STALE/CAPABILITY_DEGRADED; do not
+retry, bypass hooks or pretend up to date. No extra upgrade approval is needed for public metadata.
+The Context Mode server's in-memory latest value is not a timestamped MxAgile cache; no latest
+value or freshness may be invented from an old warning. An empty cache is explicitly DUE/NONE,
+not TTL suppression. A fresh cache remains visible even when the check is TTL_SUPPRESSED.
+The Core-bound hook authorizes only this
 metadata/cache scope, not Delivery. HTTP release metadata has a 1.5-second socket timeout;
 it is deferred out of the startup hook. No code, project inputs or credentials are sent.
 `-ContextModeCheckUpdates` is the resolver's explicit equivalent. Unreachable release metadata

@@ -64,7 +64,9 @@ def latest(root, dependency, *, now=None, fetcher=None, check=True, ttl=TTL):
     known = entry.get('latest_known_version') if version(entry.get('latest_known_version')) else None
     status = 'FRESH' if fresh and entry.get('update_check_status') == 'FRESH' else ('STALE' if known else 'UNKNOWN')
     result = {'latest_known_version': known, 'last_update_check': entry.get('last_update_check'),
-              'update_check_status': status, 'update_check_due': not fresh}
+              'update_check_status': status, 'update_check_due': not fresh,
+              'update_check_source': 'PROJECT_CACHE' if entry else 'NONE',
+              'update_check_decision': 'TTL_SUPPRESSED' if fresh else 'DUE'}
     if fresh or not check:
         return result
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -86,7 +88,7 @@ def latest(root, dependency, *, now=None, fetcher=None, check=True, ttl=TTL):
         entries = cache.get('dependencies', {})
         entries = entries if isinstance(entries, dict) else {}
         result = {**cached, 'last_update_check': now.isoformat(), 'update_check_status': 'STALE' if known else 'UNKNOWN',
-                  'update_check_due': False}
+                  'update_check_due': False, 'update_check_source': 'PROJECT_CACHE', 'update_check_decision': 'CHECK_ATTEMPTED'}
         entries[dependency['id']] = result
         atomic_replace(path, (json.dumps({'schema_version': 1, 'dependencies': entries}, sort_keys=True) + '\n').encode())
         try:
@@ -118,10 +120,11 @@ def assess(dependency, observation, update):
     update_available = newest > actual if newest and actual and update.get('update_check_status') == 'FRESH' else None
     route_allowed = bool(required and installed is True and executable is True and compatible is not False
                          and all(value is True for value in discoverable.values()))
-    blocking = bool(required and compatible is False)
+    contract_active = bool(required and observation.get('required_contract_active', True))
+    blocking = bool(required and compatible is False and contract_active)
     hint = ''
-    if blocking:
-        health, severity = 'INCOMPATIBLE', 'ERROR'
+    if required and compatible is False:
+        health, severity = 'INCOMPATIBLE', 'ERROR' if blocking else 'WARNING'
         hint = 'Required version contract is incompatible. Request explicit plugin-update approval, then re-probe the current host; no automatic update.'
     elif required and not route_allowed:
         health, severity = 'CAPABILITY_DEGRADED', 'WARNING'
@@ -140,12 +143,15 @@ def assess(dependency, observation, update):
             'executable': executable, 'required_capabilities': required,
             'capabilities_discoverable': discoverable, 'compatible': compatible,
             **update, 'update_available': update_available, 'health_status': health, 'severity': severity,
-            'blocking': blocking, 'route_allowed': route_allowed, 'recovery_hint': hint, 'automatic_action': 'none'}
+            'blocking': blocking, 'required_contract_active': contract_active,
+            'route_allowed': route_allowed, 'recovery_hint': hint, 'automatic_action': 'none'}
 
 
 def unknown(dependency_id='context_mode'):
-    return assess({'id': dependency_id}, {'installed': None},
+    report = assess({'id': dependency_id}, {'installed': None},
         {'latest_known_version': None, 'last_update_check': None, 'update_check_status': 'UNKNOWN', 'update_check_due': True})
+    report['check_execution'] = 'FAILED'
+    return visibility(report)
 
 
 def definition(root, dependency_id):
@@ -161,23 +167,66 @@ def definition(root, dependency_id):
     raise ValueError('Dependency is not declared in the canonical capability registry')
 
 
-def context_mode(root, *, home=None, tools=None, health=None, required_tools=None, executed_tools=None, check_updates=False):
+def visibility(report):
+    """Project all health dimensions, including unknowns and warnings masked by a route failure."""
+    def observed(value):
+        return 'NOT_OBSERVABLE' if value is None else str(value).lower()
+    update = ('UPDATE_AVAILABLE' if report.get('update_available') is True else 'UP_TO_DATE'
+              if report.get('update_available') is False else 'STALE'
+              if report.get('update_check_status') == 'STALE' else 'UNKNOWN')
+    discovery = ','.join(name + '=' + observed(value) for name, value in report.get('capabilities_discoverable', {}).items()) or 'not_required'
+    report['summary'] = (f"{report['id']}: check={report.get('check_execution', 'NOT_OBSERVABLE')}; installed={observed(report.get('installed'))}; "
+        f"version={report.get('installed_version') or 'NOT_OBSERVABLE'} "
+        f"({report.get('version_source', 'NOT_OBSERVABLE')}); health={report['health_status']}; "
+        f"discovery={discovery}; execution={observed(report.get('executable'))}; compatible={observed(report.get('compatible'))}; "
+        f"latest={report.get('latest_known_version') or 'UNKNOWN'}; update={update}; "
+        f"cache={report.get('update_check_status', 'UNKNOWN')}/{report.get('update_check_decision', 'UNKNOWN')}; "
+        f"last_check={report.get('last_update_check') or 'UNKNOWN'}")
+    actions = [{'action': 'REPORT_DEPENDENCY_HEALTH', 'required': True, 'after': 'RECOVERY_AND_FRESHNESS'}]
+    if report.get('required_capabilities') and not report.get('route_allowed'):
+        actions.append({'action': 'DISCOVER_AND_PROBE_REQUIRED_OPERATIONS', 'required': True,
+                        'after': 'RECOVERY_AND_FRESHNESS', 'tools': report['required_capabilities']})
+    if report.get('update_check_due') and (report.get('installed') is True or report.get('required_capabilities')):
+        actions.append({'action': 'CHECK_RELEASE_METADATA', 'required': True, 'after': 'RECOVERY_AND_FRESHNESS',
+                        'helper': '.mxagile/tools/dependency_health.py', 'cache_ttl_hours': 24})
+    report['next_actions'] = actions
+    return report
+
+
+def claude_plugin_declaration(root, home):
+    enabled = {}
+    for path in (home / '.claude/settings.json', root / '.claude/settings.json', root / '.claude/settings.local.json'):
+        plugins = read_json(path).get('enabledPlugins', {})
+        if isinstance(plugins, dict):
+            enabled.update({key: value for key, value in plugins.items() if key.startswith('context-mode@') and isinstance(value, bool)})
+    return any(enabled.values())
+
+
+def context_mode(root, *, home=None, tools=None, health=None, required_tools=None, executed_tools=None,
+                 check_updates=False, harness=None):
     root = Path(root).resolve()
     home = Path(home) if home is not None else Path.home()
     dependency = definition(root, 'context_mode')
     config_path = safe_path(root, '.mxagile/config.yaml')
     config = yaml.safe_load(config_path.read_bytes()) if config_path.is_file() else {}
     enabled = ((config or {}).get('context_optimization', {}).get('context_mode', {}).get('enabled') is True)
-    required = list(required_tools) if required_tools is not None else (['ctx_execute'] if enabled else [])
+    harness = harness or os.environ.get('MXAGILE_HARNESS') or ('claude_code' if os.environ.get('CLAUDECODE') == '1' else 'unknown')
+    plugin_declared = harness == 'claude_code' and claude_plugin_declaration(root, home)
+    sources = (['explicit_task'] if required_tools is not None else
+               (['framework_config'] if enabled else []) + (['claude_plugin_declaration'] if plugin_declared else []))
+    required = list(required_tools) if required_tools is not None else (['ctx_execute'] if enabled or plugin_declared else [])
     candidates = []
     command = shutil.which('context-mode')
     if command:
-        candidates.append(Path(command).parent / 'node_modules/context-mode/package.json')
-    candidates.append(root / 'node_modules/context-mode/package.json')
+        candidates.append(('PATH_PACKAGE', Path(command).parent / 'node_modules/context-mode/package.json'))
+    candidates.append(('PROJECT_PACKAGE', root / 'node_modules/context-mode/package.json'))
     plugins_path = home / '.claude/plugins/installed_plugins.json'
     plugins = read_json(plugins_path).get('plugins')
     present = None if plugins_path.is_file() and not isinstance(plugins, dict) else bool(command)
-    recorded = []
+    versions_by_source = {}
+    def record_version(source, value):
+        if version(value):
+            versions_by_source.setdefault(source, set()).add(value)
     if isinstance(plugins, dict):
         for key, records in plugins.items():
             if not key.startswith('context-mode@') or not isinstance(records, list):
@@ -191,18 +240,21 @@ def context_mode(root, *, home=None, tools=None, health=None, required_tools=Non
                 if not install.is_dir() or not record.get('installPath'):
                     continue
                 present = True
-                if version(record.get('version')):
-                    recorded.append(record['version'])
-                candidates.extend((install / 'package.json', install / '.claude-plugin/plugin.json'))
-    versions = set(recorded)
+                record_version('CLAUDE_PLUGIN_REGISTRY', record.get('version'))
+                candidates.extend((('CLAUDE_PLUGIN_PACKAGE', install / 'package.json'),
+                                   ('CLAUDE_PLUGIN_MANIFEST', install / '.claude-plugin/plugin.json')))
     if command:
         present = True
-    for candidate in candidates:
+    for source, candidate in candidates:
         package = read_json(candidate)
         if package.get('name') == 'context-mode':
             present = True
-            if version(package.get('version')):
-                versions.add(package['version'])
+            record_version(source, package.get('version'))
+    selected = [values for source, values in versions_by_source.items()
+                if not plugin_declared or source.startswith('CLAUDE_PLUGIN_')]
+    versions = set().union(*selected)
+    version_source = ('AMBIGUOUS_METADATA' if len(versions) > 1 else 'NOT_OBSERVABLE' if not versions else
+                      'CLAUDE_PLUGIN_METADATA' if plugin_declared else 'INSTALLATION_METADATA')
     observed = None if tools is None else set(tools)
     if observed:
         present = True
@@ -217,11 +269,15 @@ def context_mode(root, *, home=None, tools=None, health=None, required_tools=Non
             executable = True
     observation = {'installed': present, 'installed_version': next(iter(versions)) if len(versions) == 1 else None,
                    'executable': executable, 'required_capabilities': required,
+                   'required_contract_active': bool(required) if required_tools is not None else enabled,
                    'capabilities_discoverable': {name: None if observed is None else name in observed for name in required}}
     report = assess(dependency, observation, latest(root, dependency, check=check_updates))
     report['observation_source'] = 'caller_current_session_probe' if observed is not None else 'metadata_only_tools_NOT_OBSERVABLE'
     report['execution_proof'] = {name: True if name in successful else None for name in required}
-    return report
+    report.update(check_execution='EXECUTED', harness=harness, requirement_sources=sources,
+                  claude_plugin_declared=plugin_declared, version_source=version_source,
+                  versions_by_source={source: sorted(values) for source, values in versions_by_source.items()})
+    return visibility(report)
 
 
 def controlled_call(root, args):
@@ -237,7 +293,7 @@ def controlled_call(root, args):
                 return None
             flags.add(key)
             continue
-        if key not in ('--project-root', '--probe-status', '--tool', '--required-tool', '--executed-tool') or index == len(args):
+        if key not in ('--project-root', '--probe-status', '--tool', '--required-tool', '--executed-tool', '--harness') or index == len(args):
             return None
         value = args[index]
         index += 1
@@ -252,6 +308,8 @@ def controlled_call(root, args):
         return None
     if pairs.get('--probe-status', 'unknown') not in ('unknown', 'healthy', 'failed', 'timeout'):
         return None
+    if not re.fullmatch(r'[a-z][a-z0-9_]{0,63}', pairs.get('--harness', 'unknown')):
+        return None
     if '--check-updates' in flags:
         from framework_update_recovery import restart_status
         if restart_status(root)['result'] not in ('NO_PENDING_RESTART', 'READY'):
@@ -264,6 +322,7 @@ def main():
     parser.add_argument('--project-root', type=Path, required=True)
     parser.add_argument('--check-updates', action='store_true')
     parser.add_argument('--home-dir', type=Path)
+    parser.add_argument('--harness')
     parser.add_argument('--tools-observed', action='store_true')
     parser.add_argument('--tool', action='append', default=[])
     parser.add_argument('--required-tool', action='append')
@@ -275,7 +334,7 @@ def main():
     try:
         report = context_mode(args.project_root, home=args.home_dir, tools=args.tool if args.tools_observed else None,
                               health=args.probe_status, required_tools=args.required_tool, executed_tools=args.executed_tool,
-                              check_updates=args.check_updates)
+                              check_updates=args.check_updates, harness=args.harness)
         print(json.dumps(report, sort_keys=True))
         return 0
     except (OSError, ValueError, TypeError, AttributeError, yaml.YAMLError):

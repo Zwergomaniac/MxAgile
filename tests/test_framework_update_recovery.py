@@ -55,6 +55,8 @@ class SessionStartRecoveryTests(unittest.TestCase):
         self.assertLess(context.index('Framework recovery'), context.index('Operating Mode'))
         self.assertIn('Do not offer an old Wave', context)
         self.assertIn('Never ask a generic operating-mode choice', context)
+        self.assertIn('MUST show dependency_health.summary', context)
+        self.assertIn('MUST receive one bounded', context)
         self.assertEqual(before, {path.relative_to(self.root): path.read_bytes() for path in self.root.rglob('*') if path.is_file()})
         return json.loads(context.split('State:\n', 1)[1])
 
@@ -67,6 +69,24 @@ class SessionStartRecoveryTests(unittest.TestCase):
         self.assertFalse(result['delivery_authorized'])
         self.assertEqual(result['context_freshness']['status'], 'NOT_VERIFIED')
         self.assertFalse(result['dependency_health']['route_allowed'])
+
+    def test_installed_start_projects_health_and_deferred_check_before_delivery(self):
+        self.write('.mxagile/state/last-update-result.json', self.receipt)
+        home = self.root / 'home'
+        self.write('home/.claude/settings.json', {'enabledPlugins': {'context-mode@context-mode': True}})
+        self.write('plugin/package.json', {'name': 'context-mode', 'version': '1.0.169'})
+        self.write('home/.claude/plugins/installed_plugins.json', {'plugins': {
+            'context-mode@context-mode': [{'scope': 'user', 'installPath': str(self.root / 'plugin'), 'version': '1.0.169'}]}})
+        result = self.start()
+        health = result['dependency_health']
+        self.assertEqual(health['installed_version'], '1.0.169')
+        self.assertEqual(health['check_execution'], 'EXECUTED')
+        self.assertEqual(health['required_capabilities'], ['ctx_execute'])
+        self.assertIn('update=UNKNOWN', health['summary'])
+        self.assertIn('execution=NOT_OBSERVABLE', health['summary'])
+        self.assertFalse(health['route_allowed'])
+        self.assertEqual(result['first_action'], 'confirm_actual_host_restart')
+        self.assertTrue(next(item for item in health['next_actions'] if item['action'] == 'CHECK_RELEASE_METADATA')['required'])
 
     def test_acknowledged_update_resumes_without_repeated_restart_confirmation(self):
         self.write('.mxagile/state/last-update-result.json', self.receipt)
@@ -148,7 +168,8 @@ class UpdateRecoveryTests(Phase1BFixture):
         result = self.hook('Bash', {'command': command})
         self.assertEqual(result['decision'], 'allow', result)
         self.assertEqual(result['controlled_recovery'], 'dependency_health')
-        for attempt in (command + ' --install', command + ' && git push',
+        self.assertEqual(self.hook('Bash', {'command': command + ' --harness claude_code'})['decision'], 'allow')
+        for attempt in (command + ' --install', command + ' --harness bad/value', command + ' && git push',
                         command.replace(str(self.root), str(self.root.parent), 1)):
             self.assertEqual(self.hook('Bash', {'command': attempt})['decision'], 'deny')
         self.installed_restart()
@@ -467,7 +488,10 @@ class UpdateRecoveryTests(Phase1BFixture):
         recovery.acknowledge_restart(self.root, human_confirmed=True)
         with self.assertRaisesRegex(ValueError, 'CONTRACT_RELOAD_REQUIRED'):
             recovery.recover_session(self.root)
-        doctor = {'stage': 'PROJECT_COMPATIBILITY_CHECKED', 'read_only': True, 'compatibility': 'BLOCKED'}
+        doctor = {'stage': 'PROJECT_COMPATIBILITY_CHECKED', 'read_only': True, 'compatibility': 'BLOCKED',
+                  'dependency_health': [{'id': 'context_mode', 'installed_version': '1.0.169',
+                                         'health_status': 'UPDATE_AVAILABLE', 'update_available': True}],
+                  'diagnostics': [{'category': 'DEPENDENCY_UPDATE_AVAILABLE', 'blocking': False}]}
         calls = []
         def invoke(args, **kwargs):
             calls.append(args)
@@ -483,6 +507,9 @@ class UpdateRecoveryTests(Phase1BFixture):
             self.assertFalse(blocked['restart_required'])
             self.assertIn('MIGRATION_INCOMPLETE', blocked['reason_codes'])
             self.assertEqual(len(calls), 1)
+            self.assertEqual(blocked['recovery_doctor']['dependency_health'], doctor['dependency_health'])
+            self.assertEqual(blocked['recovery_doctor']['diagnostic_count'], 1)
+            self.assertIn('summary', blocked['dependency_health'])
             progress = json.loads(path.read_bytes())['restart_progress']
             self.assertTrue(progress['doctor_completed'])
             self.assertFalse(progress['resync_completed'])
@@ -490,6 +517,9 @@ class UpdateRecoveryTests(Phase1BFixture):
             preflight.update(state='READY_FOR_RESYNC', reason_codes=[])
             ready = recovery.recover_session(self.root, contracts_reloaded=True)
         self.assertEqual(ready['result'], 'READY')
+        self.assertEqual(ready['recovery_doctor']['dependency_health'], doctor['dependency_health'])
+        self.assertEqual(ready['recovery_doctor']['evidence_scope'], 'HISTORICAL_DOCTOR')
+        self.assertIn('summary', ready['dependency_health'])
         self.assertTrue(all(ready['restart_progress'].values()))
         self.assertIn('-PreserveEvidence', calls[-1])
         self.assertEqual(json.loads(path.read_bytes())['contract_reload']['state'], 'DECLARED')
@@ -497,7 +527,11 @@ class UpdateRecoveryTests(Phase1BFixture):
         before = path.read_bytes()
         self.assertEqual(recovery.acknowledge_restart(self.root)['result'], 'ALREADY_ACKNOWLEDGED')
         with mock.patch.object(recovery.subprocess, 'run') as runner:
-            self.assertEqual(recovery.recover_session(self.root)['result'], 'READY')
+            repeated = recovery.recover_session(self.root)
+            self.assertEqual(repeated['result'], 'READY')
+            self.assertEqual(repeated['recovery_doctor'], ready['recovery_doctor'])
+            self.assertIsNone(repeated['dependency_health']['executable'])
+            self.assertIn('NOT_OBSERVABLE', repeated['dependency_health']['summary'])
             runner.assert_not_called()
         self.assertEqual(path.read_bytes(), before)
 

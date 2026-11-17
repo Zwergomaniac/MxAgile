@@ -1656,7 +1656,8 @@ function Resolve-Capability {
         $healthScript = Join-Path $PSScriptRoot 'dependency_health.py'
         $python = Get-Command python -ErrorAction SilentlyContinue
         if ($python -and (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
-            $healthArgs = @('-B', $healthScript, '--project-root', $ProjectRoot, '--home-dir', $HomeDir)
+            $healthHarness = if ($int.harness_conflict) { 'unknown' } else { $int.harness }
+            $healthArgs = @('-B', $healthScript, '--project-root', $ProjectRoot, '--home-dir', $HomeDir, '--harness', $healthHarness)
             if ($ContextModeCheckUpdates) { $healthArgs += '--check-updates' }
             if ($ContextModeToolsObserved -and $int.harness -ne 'unknown' -and -not $int.harness_conflict) {
                 $healthArgs += @('--tools-observed', '--probe-status', $int.health)
@@ -2204,6 +2205,7 @@ foreach ($key in $targetResolved.Keys) {
             $d = $i.dependency_health
             Write-Host "    Dependency health: $($d.health_status) | installed=$($d.installed) | version=$($d.installed_version) | executable=$($d.executable) | compatible=$($d.compatible)" -ForegroundColor DarkGray
             Write-Host "    Update: latest_known=$($d.latest_known_version) | available=$($d.update_available) | checked=$($d.last_update_check) | evidence=$($d.update_check_status); automatic action=none" -ForegroundColor DarkGray
+            if ($d.PSObject.Properties['summary']) { Write-Host "    $($d.summary)" -ForegroundColor DarkGray }
         }
         if ($i.required_tools.Count -gt 0) { Write-Host "    Required tools: $($i.required_tools -join ', ') | missing: $($i.missing_required_tools -join ', ')" -ForegroundColor DarkGray }
         foreach ($f in $i.findings) { Write-Host "    Finding: $f" -ForegroundColor Yellow }

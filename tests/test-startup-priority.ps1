@@ -162,14 +162,15 @@ $modeOffset = $startupBlockText.IndexOf('-ResolveOperatingMode', [System.StringC
 Assert-True 'startup router: recovery before freshness before mode discovery' `
     ($recoveryOffset -ge 0 -and $freshnessOffset -gt $recoveryOffset -and $modeOffset -gt $freshnessOffset) 'Startup stages out of order'
 Assert-True 'startup router: dependency health is cache-only, not a startup network check' `
-    ($startupBlockText -match 'Context Mode startup check\s+is cache-only' -and $startupBlockText -match 'Update available is not a Delivery blocker') 'Dependency startup/release semantics absent'
+    ($startupBlockText -match 'Context Mode (?:startup )?check\s+is cache-only' -and $startupBlockText -match 'Update available is not a Delivery blocker' -and
+     $startupBlockText -match 'MUST show summary' -and $startupBlockText -match 'check due' -and $startupBlockText -match 'show result, or explicit unavailable') 'Dependency startup visibility/release semantics absent'
 $orchestrator = Get-Content -LiteralPath (Join-Path $ScriptDir '.mxagile\orchestrator.md') -Raw
 Assert-True 'orchestrator: recovery and freshness precede operating-mode step' `
     ($orchestrator.IndexOf('Schritt 0 — Pending Framework-Recovery') -lt $orchestrator.IndexOf('Schritt 1 — Context-/Lifecycle-Freshness') -and
      $orchestrator.IndexOf('Schritt 1 — Context-/Lifecycle-Freshness') -lt $orchestrator.IndexOf('Schritt 2 — Operating Mode Discovery')) 'Narrative startup conflicts with injected router'
 
 $startupContent = Get-Content -LiteralPath $injectScriptPath -Raw
-$toolGateOffset = $startupContent.IndexOf('Before any CLI/MCP/tool command or external/tool-provided skill', [System.StringComparison]::Ordinal)
+$toolGateOffset = $startupContent.IndexOf('Before tools/skills', [System.StringComparison]::Ordinal)
 $brainOffset = $startupContent.IndexOf('**Project Brain after Re-Sync**', [System.StringComparison]::Ordinal)
 Assert-True "inject script: conflict gate precedes Project Brain command" `
     ($toolGateOffset -ge 0 -and $brainOffset -gt $toolGateOffset) `

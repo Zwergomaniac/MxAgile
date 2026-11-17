@@ -270,6 +270,28 @@ def restart_status(root):
             'delivery_authorized': False}
 
 
+def dependency_snapshot(root, *, harness=None):
+    try:
+        from dependency_health import context_mode
+        return context_mode(root, check_updates=False, harness=harness)
+    except (ImportError, OSError, ValueError, TypeError, AttributeError, compatibility.yaml.YAMLError):
+        return {'id': 'context_mode', 'installed': None, 'installed_version': None, 'executable': None,
+                'required_capabilities': [], 'capabilities_discoverable': {}, 'compatible': None,
+                'latest_known_version': None, 'update_available': None, 'last_update_check': None,
+                'update_check_status': 'UNKNOWN', 'update_check_due': True, 'blocking': False,
+                'severity': 'INFO', 'recovery_hint': 'Dependency metadata is not observable.',
+                'health_status': 'UNKNOWN', 'route_allowed': False, 'automatic_action': 'none',
+                'check_execution': 'FAILED', 'summary': 'context_mode: check=FAILED; health=UNKNOWN; execution=NOT_OBSERVABLE',
+                'next_actions': [{'action': 'REPORT_DEPENDENCY_HEALTH', 'required': True, 'after': 'RECOVERY_AND_FRESHNESS'}]}
+
+
+def recovery_health_result(root, result, value=None):
+    result['dependency_health'] = dependency_snapshot(root)
+    if value and isinstance(value.get('recovery_doctor'), dict):
+        result['recovery_doctor'] = {**value['recovery_doctor'], 'evidence_scope': 'HISTORICAL_DOCTOR'}
+    return result
+
+
 def session_start(root, payload):
     """Surface read-only recovery evidence before the first user message, never acknowledge it."""
     try:
@@ -286,16 +308,7 @@ def session_start(root, payload):
     except (compatibility.ResolutionFailure, OSError, ValueError, TypeError) as exc:
         restart = {'result': 'BLOCKED', 'code': getattr(exc, 'code', 'SESSION_START_STATE_NOT_OBSERVABLE')}
         pending, first = True, 'inspect_blocker'
-    try:
-        from dependency_health import context_mode
-        dependency = context_mode(root, check_updates=False)
-    except (ImportError, OSError, ValueError, TypeError, AttributeError, compatibility.yaml.YAMLError):
-        dependency = {'id': 'context_mode', 'installed': None, 'installed_version': None, 'executable': None,
-                      'required_capabilities': [], 'capabilities_discoverable': {}, 'compatible': None,
-                      'latest_known_version': None, 'update_available': None, 'last_update_check': None,
-                      'update_check_status': 'UNKNOWN', 'update_check_due': True, 'blocking': False,
-                      'severity': 'INFO', 'recovery_hint': 'Dependency metadata is not observable.',
-                      'health_status': 'UNKNOWN', 'route_allowed': False, 'automatic_action': 'none'}
+    dependency = dependency_snapshot(root, harness='claude_code')
     result = {'restart': restart, 'pending_update': pending,
               'recovery_pending': restart['result'] not in ('NO_PENDING_RESTART', 'READY'),
               'first_action': first, 'human_confirmation_required': first == 'confirm_actual_host_restart',
@@ -317,8 +330,13 @@ def session_start(root, payload):
         'ask only for unresolved ambiguity at the actual model-mutation boundary after recheck.\n'
         'Dependency health is cached metadata only; no startup network or plugin update was performed. '
         'Never route to ctx_execute before exact current-host discovery and executable health evidence. '
-        'UPDATE_AVAILABLE alone never blocks Delivery. After recovery, a due release check may use '
-        'dependency_health.py --project-root <root> --check-updates (24-hour cache).\nState:\n'
+        'UPDATE_AVAILABLE alone never blocks Delivery. After recovery/freshness, before offering project work, '
+        'MUST show dependency_health.summary, including UNKNOWN/STALE and unobserved tool health. '
+        'Process dependency_health.next_actions: a due installed/required dependency MUST receive one bounded '
+        'dependency_health.py --project-root <root> --check-updates (24-hour cache), then show the refreshed summary; '
+        'if unavailable or network forbidden, report UNKNOWN/STALE explicitly, never claim up to date. '
+        'Inspect actual required tool schemas and use one non-mutating same-operation probe; '
+        'CLI Doctor or historical recovery_doctor does not attest current ctx_execute.\nState:\n'
         + json.dumps(result, sort_keys=True))
     return {'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}
 
@@ -465,13 +483,13 @@ def acknowledge_restart(root, update_id=None, human_reference=None, human_confir
 def recover_session(root, contracts_reloaded=False):
     value = state(root)
     if not value:
-        return restart_status(root)
+        return recovery_health_result(root, restart_status(root))
     synchronize_update(root)
     value = state(root)
     require_restarted(root)
     prepare_restart(root, value['update_id'], value.get('restart_reference'), True, value.get('restart_run_id'))
     if restart_progress(value)['resync_completed']:
-        return restart_status(root)
+        return recovery_health_result(root, restart_status(root), value)
     if not contracts_reloaded:
         fail('CONTRACT_RELOAD_REQUIRED')
     _, events = compatibility._auxiliary_runtime()
@@ -508,13 +526,16 @@ def recover_session(root, contracts_reloaded=False):
         except (ValueError, KeyError, TypeError):
             fail('DOCTOR_UNAVAILABLE')
         progress['doctor_completed'] = True
-        value['recovery_doctor'] = {'compatibility': doctor['compatibility'], 'executed_at': datetime.now(timezone.utc).isoformat()}
+        value['recovery_doctor'] = {'compatibility': doctor['compatibility'], 'executed_at': datetime.now(timezone.utc).isoformat(),
+                                    'evidence_scope': 'HISTORICAL_DOCTOR',
+                                    'dependency_health': doctor.get('dependency_health', []),
+                                    'diagnostic_count': len(doctor.get('diagnostics', []))}
         save()
         preflight = compatibility.resync_preflight(root)
         if doctor['compatibility'] == 'BLOCKED' or preflight['state'] != 'READY_FOR_RESYNC':
-            return {'result': 'RECONCILIATION_REQUIRED', 'update_id': value['update_id'], 'restart_required': False,
+            return recovery_health_result(root, {'result': 'RECONCILIATION_REQUIRED', 'update_id': value['update_id'], 'restart_required': False,
                     'reason_codes': list(dict.fromkeys((['DOCTOR_BLOCKED'] if doctor['compatibility'] == 'BLOCKED' else []) + preflight['reason_codes'])),
-                    'next_action': 'reconcile_remaining_blockers', 'delivery_authorized': False}
+                    'next_action': 'reconcile_remaining_blockers', 'delivery_authorized': False}, value)
         epoch = safe_path(root, '.concord/context-epoch.yaml')
         before = hashlib.sha256(epoch.read_bytes()).hexdigest() if epoch.is_file() else None
         writer = safe_path(root, '.mxagile/tools/Write-MxAgileEpochCheckpoint.ps1')
@@ -531,8 +552,8 @@ def recover_session(root, contracts_reloaded=False):
         save()
         events.append_event(root, 'run_resumed', run_id=run_id, actor='framework_restart_recovery', host='mxagile',
                             payload={'update_id': value['update_id'], 'recovery': 'completed', 'source_commit': value['commit']})
-        return {'result': 'READY', 'update_id': value['update_id'], 'restart_required': False,
-                'restart_progress': progress, 'delivery_authorized': False, 'next_action': 'normal_lifecycle_resync'}
+        return recovery_health_result(root, {'result': 'READY', 'update_id': value['update_id'], 'restart_required': False,
+                'restart_progress': progress, 'delivery_authorized': False, 'next_action': 'normal_lifecycle_resync'}, value)
 
 
 def controlled_call(root, args):

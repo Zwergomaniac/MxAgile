@@ -214,6 +214,135 @@ class DependencyHealthIntegrationTests(unittest.TestCase):
                 self.assertFalse(health['blocking'])
         self.assertEqual(before, self.snapshot())
 
+    def test_claude_hook_requirement_survives_disabled_core_and_visible_update_warning(self):
+        self.write('.mxagile/config.yaml', 'context_optimization:\n  context_mode:\n    enabled: false\n')
+        before = self.snapshot()
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None):
+            report = dependency_health.context_mode(self.root, home=self.home, harness='claude_code')
+        self.assertEqual(report['required_capabilities'], ['ctx_execute'])
+        self.assertIn('claude_plugin_declaration', report['requirement_sources'])
+        self.assertEqual(report['health_status'], 'CAPABILITY_DEGRADED')
+        self.assertIn('UPDATE_AVAILABLE', report['summary'])
+        self.assertIn('1.0.169', report['summary'])
+        self.assertIn('2.2.0', report['summary'])
+        self.assertIn('NOT_OBSERVABLE', report['summary'])
+        self.assertFalse(report['route_allowed'])
+        self.assertFalse(report['blocking'])
+        self.assertEqual(before, self.snapshot())
+
+    def test_empty_cache_projects_unknown_and_required_deferred_check_without_network(self):
+        (self.root / dependency_health.CACHE).unlink()
+        before = self.snapshot()
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None), mock.patch.object(
+                dependency_health, 'fetch_latest', side_effect=AssertionError('Startup must remain offline')):
+            report = dependency_health.context_mode(self.root, home=self.home, harness='claude_code')
+        self.assertEqual(report['check_execution'], 'EXECUTED')
+        self.assertIsNone(report['latest_known_version'])
+        self.assertIn('update=UNKNOWN', report['summary'])
+        self.assertEqual(report['update_check_source'], 'NONE')
+        self.assertEqual(report['update_check_decision'], 'DUE')
+        action = next(item for item in report['next_actions'] if item['action'] == 'CHECK_RELEASE_METADATA')
+        self.assertEqual(action['after'], 'RECOVERY_AND_FRESHNESS')
+        self.assertTrue(action['required'])
+        self.assertEqual(before, self.snapshot())
+
+    def test_ttl_suppression_keeps_cached_warning_visible(self):
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None), mock.patch.object(
+                dependency_health, 'fetch_latest', side_effect=AssertionError('TTL must suppress network')):
+            report = dependency_health.context_mode(self.root, home=self.home, harness='claude_code', check_updates=True)
+        self.assertEqual(report['update_check_decision'], 'TTL_SUPPRESSED')
+        self.assertEqual(report['update_check_source'], 'PROJECT_CACHE')
+        self.assertIn('UPDATE_AVAILABLE', report['summary'])
+        self.assertNotIn('CHECK_RELEASE_METADATA', [item['action'] for item in report['next_actions']])
+
+    def test_claude_plugin_version_is_not_conflated_with_global_cli_or_runtime_version(self):
+        self.install('2.2.0')
+        command = self.write('bin/context-mode.cmd', '')
+        self.write('bin/node_modules/context-mode/package.json', json.dumps({'name': 'context-mode', 'version': '1.0.169'}))
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=str(command)):
+            report = dependency_health.context_mode(self.root, home=self.home, harness='claude_code')
+            ambiguous = dependency_health.context_mode(self.root, home=self.home, harness='unknown')
+        self.assertEqual(report['installed_version'], '2.2.0')
+        self.assertEqual(report['version_source'], 'CLAUDE_PLUGIN_METADATA')
+        self.assertEqual(report['versions_by_source']['PATH_PACKAGE'], ['1.0.169'])
+        self.assertIsNone(report['executable'])
+        self.assertIsNone(ambiguous['installed_version'])
+        self.assertEqual(ambiguous['version_source'], 'AMBIGUOUS_METADATA')
+
+    def test_conflicting_selected_plugin_metadata_remains_unknown(self):
+        self.install('2.2.0')
+        self.write('plugin/package.json', json.dumps({'name': 'context-mode', 'version': '1.0.169'}))
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None):
+            report = dependency_health.context_mode(self.root, home=self.home, harness='claude_code')
+        self.assertIsNone(report['installed_version'])
+        self.assertEqual(report['version_source'], 'AMBIGUOUS_METADATA')
+        self.assertIn('update=UNKNOWN', report['summary'])
+        self.assertNotIn('UP_TO_DATE', report['summary'])
+
+    def test_disabled_project_plugin_overrides_home_hook_declaration(self):
+        self.write('.mxagile/config.yaml', 'context_optimization:\n  context_mode:\n    enabled: false\n')
+        self.write('.claude/settings.json', json.dumps({'enabledPlugins': {'context-mode@context-mode': False}}))
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None):
+            report = dependency_health.context_mode(self.root, home=self.home, harness='claude_code')
+        self.assertEqual(report['required_capabilities'], [])
+        self.assertNotIn('claude_plugin_declaration', report['requirement_sources'])
+        self.assertIn('UPDATE_AVAILABLE', report['summary'])
+        self.assertFalse(report['route_allowed'])
+
+    def test_doctor_text_projects_health_even_when_primary_status_is_degraded(self):
+        env = os.environ.copy()
+        env.update(USERPROFILE=str(self.home), HOME=str(self.home), MXAGILE_HARNESS='claude_code', CLAUDECODE='1')
+        before = self.snapshot()
+        result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/project_compatibility.py'),
+            'doctor', '--project-root', str(self.root), '--format', 'human'],
+            env=env, capture_output=True, text=True, timeout=30)
+        self.assertIn(result.returncode, (0, 1, 2), result.stdout + result.stderr)
+        self.assertIn('context_mode: check=EXECUTED', result.stdout)
+        self.assertIn('execution=NOT_OBSERVABLE', result.stdout)
+        self.assertIn('update=UPDATE_AVAILABLE', result.stdout)
+        self.assertEqual(before, self.snapshot())
+
+    def test_other_context_tools_and_doctor_do_not_attest_required_execute(self):
+        self.write('.mxagile/config.yaml', 'context_optimization:\n  context_mode:\n    enabled: false\n')
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None):
+            report = dependency_health.context_mode(self.root, home=self.home, harness='claude_code',
+                tools=['ctx_upgrade', 'ctx_doctor'], executed_tools=['ctx_upgrade'], health='healthy')
+        self.assertEqual(report['capabilities_discoverable'], {'ctx_execute': False})
+        self.assertIsNone(report['executable'])
+        self.assertFalse(report['route_allowed'])
+        self.assertIn('UPDATE_AVAILABLE', report['summary'])
+
+    def test_failed_deferred_check_projects_stale_or_unknown_without_repeating_network(self):
+        for cached in (True, False):
+            with self.subTest(cached=cached):
+                path = self.root / dependency_health.CACHE
+                if cached:
+                    entry = json.loads(path.read_bytes())
+                    entry['dependencies']['context_mode']['last_update_check'] = '2000-01-01T00:00:00+00:00'
+                    path.write_text(json.dumps(entry))
+                else:
+                    path.unlink()
+                fetch = mock.Mock(side_effect=OSError('offline'))
+                with mock.patch.object(dependency_health.shutil, 'which', return_value=None), mock.patch.object(
+                        dependency_health, 'fetch_latest', fetch):
+                    failed = dependency_health.context_mode(self.root, home=self.home, harness='claude_code', check_updates=True)
+                    repeated = dependency_health.context_mode(self.root, home=self.home, harness='claude_code', check_updates=True)
+                self.assertIn('update=' + ('STALE' if cached else 'UNKNOWN'), failed['summary'])
+                self.assertNotIn('UP_TO_DATE', failed['summary'])
+                self.assertEqual(repeated['update_check_decision'], 'TTL_SUPPRESSED')
+                self.assertEqual(fetch.call_count, 1)
+
+    def test_declared_hook_incompatibility_blocks_its_route_not_unrelated_delivery(self):
+        self.install('1.0.32')
+        self.write('.mxagile/config.yaml', 'context_optimization:\n  context_mode:\n    enabled: false\n')
+        with mock.patch.object(dependency_health.shutil, 'which', return_value=None):
+            declared = dependency_health.context_mode(self.root, home=self.home, harness='claude_code')
+            required = dependency_health.context_mode(self.root, home=self.home, harness='claude_code', required_tools=['ctx_execute'])
+        self.assertEqual(declared['health_status'], 'INCOMPATIBLE')
+        self.assertFalse(declared['route_allowed'])
+        self.assertFalse(declared['blocking'])
+        self.assertTrue(required['blocking'])
+
     def test_bad_plugin_metadata_does_not_claim_absence_or_trigger_updates(self):
         self.write('isolated-home/.claude/plugins/installed_plugins.json', 'invalid json')
         with mock.patch.object(dependency_health.shutil, 'which', return_value=None):

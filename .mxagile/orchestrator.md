@@ -66,7 +66,13 @@ notwendige echte Restart-Bestaetigung erfragen; danach Acknowledge, explizite Co
 Doctor und Re-Sync autonom ueber den bestehenden Recovery-Vertrag. Ein Hook/Compaction-Event
 ist keine Restart-Attestation. PARTIAL_UPDATE oder invalid state verlangt den konkreten
 Recovery-/Inspect-Pfad, keine generische Modusfrage. Context Mode Update-Verfuegbarkeit ist
-kein Delivery-Blocker; faellige externe Versionschecks folgen Recovery (24h Cache).
+kein Delivery-Blocker. Nach Recovery/Freshness vor Projektangebot MUSS die Dependency-Health-
+Summary sichtbar werden, auch UNKNOWN/STALE und nicht beobachtbare Tools. Faellige Checks fuer
+installierte/benoetigte Abhaengigkeiten einmal ueber den begrenzten Release-Metadata-Pfad
+(24h Cache) ausfuehren und aktualisierte Summary zeigen; bei Unverfuegbarkeit explizit
+UNKNOWN/STALE statt "aktuell". Kein Pluginupdate. Historischer Recovery-Doctor ist keine
+aktuelle Tool-/Executability-Evidence; ein Hook mit ctx_execute-Pflicht braucht die heutige
+Host-Discovery und einen begrenzten nicht-mutierenden Probe derselben Operation.
 
 ## ORIENTATION Check (vor FRAMEWORK_CHANGE, nach SessionStart-Checks)
 

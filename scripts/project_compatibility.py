@@ -3742,6 +3742,9 @@ def main() -> int:
             if item['line'] is not None:
                 location += f":{item['line']}:{item['column']}"
             print(f"{item['severity']} {item['category']} {location} [{item['repairability']}]")
+        for dependency in report.get('dependency_health', []):
+            print('DEPENDENCY_HEALTH: ' + dependency.get('summary',
+                f"{dependency['id']}: health={dependency['health_status']}; details=NOT_OBSERVABLE"))
         live = control_plane['live_host_verification']
         print(f"CONTROL_PLANE_INSTALLATION: {control_plane['installation_health']} "
               f"(claude registration: {control_plane['claude_registration']['state']})")
